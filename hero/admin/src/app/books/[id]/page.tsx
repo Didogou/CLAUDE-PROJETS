@@ -1003,12 +1003,13 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
     if (!highlightNumber) return
     const section = sections.find(s => s.number === highlightNumber)
     if (!section) return
-    const el = nodeRefs.current.get(section.id)
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
-    }
-    const timer = setTimeout(() => onHighlightDone?.(), 2000)
-    return () => clearTimeout(timer)
+    // Petit délai pour laisser les refs se peupler après le montage du composant
+    const scrollTimer = setTimeout(() => {
+      const el = nodeRefs.current.get(section.id)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+    }, 80)
+    const resetTimer = setTimeout(() => onHighlightDone?.(), 3500)
+    return () => { clearTimeout(scrollTimer); clearTimeout(resetTimer) }
   }, [highlightNumber])
 
   const COLS = Math.max(4, Math.ceil(Math.sqrt(sections.length)))
@@ -1033,6 +1034,18 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
   return (
     <div>
       {/* Filtres chemins */}
+      <style>{`
+        @keyframes plan-pulse {
+          0%   { box-shadow: 0 0 0 0px var(--pulse-color, #fff4), 0 0 16px 4px var(--pulse-color, #fff2); }
+          50%  { box-shadow: 0 0 0 8px var(--pulse-color, #fff0), 0 0 28px 8px var(--pulse-color, #fff3); }
+          100% { box-shadow: 0 0 0 0px var(--pulse-color, #fff4), 0 0 16px 4px var(--pulse-color, #fff2); }
+        }
+        .plan-node-highlighted {
+          animation: plan-pulse 0.9s ease-in-out infinite;
+          z-index: 10;
+        }
+      `}</style>
+
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.85rem', alignItems: 'center' }}>
         <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Chemins</span>
         {([
@@ -1118,14 +1131,17 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
               ref={el => { if (el) nodeRefs.current.set(section.id, el); else nodeRefs.current.delete(section.id) }}
               onClick={() => !dimmed && onNavigate(section.number)}
               title={`§${section.number} — cliquer pour lire la section`}
+              className={isHighlighted ? 'plan-node-highlighted' : undefined}
               style={{
                 position: 'absolute', left: pos.x, top: pos.y, width: NODE_W, height: NODE_H,
-                background: isHighlighted ? t.color + '22' : 'var(--surface-2)',
-                border: `${isHighlighted ? '2.5px' : '1.5px'} solid ${dimmed ? 'var(--border)' : isHighlighted ? t.color : t.color + '99'}`,
+                background: isHighlighted ? t.color + '33' : 'var(--surface-2)',
+                border: `${isHighlighted ? '3px' : '1.5px'} solid ${dimmed ? 'var(--border)' : t.color + (isHighlighted ? '' : '99')}`,
+                outline: isHighlighted ? `3px solid ${t.color}` : 'none',
+                outlineOffset: '4px',
                 borderRadius: '7px', padding: '0.4rem 0.55rem', overflow: 'hidden', boxSizing: 'border-box',
-                opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.2s, border-color 0.3s, background 0.3s',
+                opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.2s',
                 cursor: dimmed ? 'default' : 'pointer',
-                boxShadow: isHighlighted ? `0 0 12px ${t.color}66` : 'none',
+                ['--pulse-color' as any]: t.color + '99',
               }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
