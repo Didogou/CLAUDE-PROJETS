@@ -1,0 +1,1860 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Karine Piffaretti — Diététicienne Nutritionniste | Sillingy, Seynod</title>
+  <meta name="description" content="Karine Piffaretti, Diététicienne-Nutritionniste à Sillingy et Seynod. Consultations personnalisées, suivi nutritionnel, spécialiste post-chirurgie bariatrique, diabète, perte de poids." />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Karine Piffaretti — Diététicienne Nutritionniste | Sillingy, Seynod" />
+  <meta property="og:description" content="Karine Piffaretti, Diététicienne-Nutritionniste à Sillingy et Seynod. Consultations personnalisées, suivi nutritionnel, spécialiste post-chirurgie bariatrique, diabète, perte de poids." />
+  <meta property="og:locale" content="fr_FR" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Karine Piffaretti — Diététicienne Nutritionniste | Sillingy, Seynod" />
+  <meta name="twitter:description" content="Karine Piffaretti, Diététicienne-Nutritionniste à Sillingy et Seynod. Consultations personnalisées, suivi nutritionnel." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── RESET & BASE ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:       #2E7D5E;
+      --green-dark:  #1C3A2E;
+      --green-light: #E8F5F0;
+      --green-mid:   #4A9A7A;
+      --beige:       #F5E6C8;
+      --beige-light: #FDFAF4;
+      --cream:       #FAFAF8;
+      --gold:        #C9A84C;
+      --gold-light:  #E8D5A3;
+      --text:        #1C3A2E;
+      --text-mid:    #4A6358;
+      --text-light:  #7A9A8A;
+      --white:       #FFFFFF;
+
+      --font-display: 'Cormorant Garamond', Georgia, serif;
+      --font-body:    'DM Sans', system-ui, sans-serif;
+
+      --r-sm: 8px;
+      --r-md: 16px;
+      --r-lg: 28px;
+      --r-xl: 48px;
+
+      --shadow-sm: 0 2px 12px rgba(30,70,50,.07);
+      --shadow-md: 0 8px 32px rgba(30,70,50,.10);
+      --shadow-lg: 0 20px 60px rgba(30,70,50,.13);
+
+      --transition: .35s cubic-bezier(.4,0,.2,1);
+    }
+
+    html { scroll-behavior: smooth; font-size: 16px; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--cream);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* Grain texture overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+      opacity: .025;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    img { max-width: 100%; display: block; }
+    a { text-decoration: none; color: inherit; }
+
+    /* ─── TYPOGRAPHY ───────────────────────────────────────────── */
+    h1, h2, h3, h4 {
+      font-family: var(--font-display);
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: -.01em;
+    }
+
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-body);
+      font-size: .72rem;
+      font-weight: 500;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 1.2rem;
+    }
+    .section-label::before {
+      content: '';
+      width: 28px; height: 1px;
+      background: var(--green);
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 4vw, 3rem);
+      color: var(--green-dark);
+      margin-bottom: .6rem;
+    }
+
+    .section-subtitle {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: 1.1rem;
+      color: var(--text-mid);
+      max-width: 54ch;
+      margin-bottom: 3rem;
+    }
+
+    /* ─── LAYOUT HELPERS ───────────────────────────────────────── */
+    .container {
+      width: 100%;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    section { padding: 100px 0; }
+
+    /* ─── SCROLL REVEAL ────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity .7s ease, transform .7s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .reveal-delay-1 { transition-delay: .1s; }
+    .reveal-delay-2 { transition-delay: .2s; }
+    .reveal-delay-3 { transition-delay: .3s; }
+    .reveal-delay-4 { transition-delay: .4s; }
+
+    /* ─── BUTTONS ──────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 36px;
+      border-radius: 100px;
+      font-family: var(--font-body);
+      font-size: .9rem;
+      font-weight: 500;
+      letter-spacing: .04em;
+      cursor: pointer;
+      border: none;
+      transition: var(--transition);
+    }
+
+    .btn-primary {
+      background: var(--green);
+      color: var(--white);
+    }
+    .btn-primary:hover {
+      background: var(--green-dark);
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(46,125,94,.35);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--green);
+      border: 1.5px solid var(--green);
+    }
+    .btn-outline:hover {
+      background: var(--green);
+      color: var(--white);
+      transform: translateY(-2px);
+    }
+
+    .btn-gold {
+      background: var(--gold);
+      color: var(--white);
+    }
+    .btn-gold:hover {
+      background: #b8923e;
+      transform: translateY(-2px);
+      box-shadow: 0 12px 28px rgba(201,168,76,.35);
+    }
+
+    .btn-rollfit-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 20px 44px;
+      border-radius: 100px;
+      font-family: var(--font-body);
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: .04em;
+      cursor: pointer;
+      border: none;
+      background: var(--green-dark);
+      color: var(--white);
+      box-shadow: 0 8px 30px rgba(28,58,46,.3), 0 0 0 4px rgba(28,58,46,.12);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-rollfit-cta::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,.1) 0%, transparent 60%);
+      border-radius: 100px;
+    }
+    .btn-rollfit-cta:hover {
+      background: #0f2318;
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 16px 40px rgba(28,58,46,.4), 0 0 0 5px rgba(28,58,46,.15);
+    }
+
+    /* ─── NAV ──────────────────────────────────────────────────── */
+    #navbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 1000;
+      padding: 20px 0;
+      background: rgba(28,58,46,.08);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: background var(--transition), padding var(--transition), box-shadow var(--transition);
+    }
+
+    #navbar.scrolled {
+      background: rgba(232,245,238,.97);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 14px 0;
+      box-shadow: 0 1px 0 rgba(30,70,50,.12);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      display: flex;
+      flex-direction: column;
+      line-height: 1;
+    }
+    .nav-logo-name {
+      font-family: var(--font-display);
+      font-size: 1rem;
+      font-weight: 500;
+      color: var(--green-dark);
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+    .nav-logo-title {
+      font-family: var(--font-body);
+      font-size: .65rem;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--text-mid);
+      margin-top: 2px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: .82rem;
+      font-weight: 400;
+      letter-spacing: .05em;
+      color: var(--text-mid);
+      transition: color var(--transition);
+      position: relative;
+    }
+    .nav-links a::after {
+      content: '';
+      position: absolute;
+      bottom: -3px; left: 0;
+      width: 0; height: 1px;
+      background: var(--green);
+      transition: width var(--transition);
+    }
+    .nav-links a:hover { color: var(--green); }
+    .nav-links a:hover::after { width: 100%; }
+
+    .nav-links a.nav-rollfit {
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--white);
+      background: var(--green);
+      padding: 10px 20px;
+      border-radius: 100px;
+      border: 2px solid var(--green);
+      letter-spacing: .05em;
+      box-shadow: 0 4px 18px rgba(46,125,94,.45);
+      animation: navPulse 2.5s ease-in-out infinite;
+    }
+    @keyframes navPulse {
+      0%, 100% { box-shadow: 0 4px 18px rgba(46,125,94,.45); }
+      50%       { box-shadow: 0 4px 28px rgba(46,125,94,.75), 0 0 0 5px rgba(46,125,94,.15); }
+    }
+    .nav-links a.nav-rollfit::after { display: none; }
+
+    .nav-links a.nav-cta { color: var(--white); }
+    .nav-links a.nav-cta:hover { color: var(--white); }
+    .nav-links a.nav-cta::after { display: none; }
+    .nav-links a.nav-rollfit:hover {
+      background: var(--green-dark);
+      border-color: var(--green-dark);
+      color: var(--white);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(46,125,94,.5);
+      animation: none;
+    }
+
+    .nav-cta {
+      font-size: .8rem !important;
+      padding: 11px 24px !important;
+    }
+
+    .nav-social {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px; height: 34px;
+      border-radius: 50%;
+      color: var(--green-dark);
+      background: rgba(255,255,255,.7);
+      border: 1.5px solid rgba(46,125,94,.35);
+      transition: var(--transition);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+    #navbar.scrolled .nav-social {
+      background: transparent;
+      color: var(--text-mid);
+      border-color: rgba(46,125,94,.2);
+    }
+    .nav-social::after { display: none !important; }
+    .nav-social:hover {
+      color: var(--white) !important;
+      background: var(--green) !important;
+      border-color: var(--green) !important;
+    }
+
+    .hamburger {
+      display: none;
+      flex-direction: column;
+      gap: 5px;
+      cursor: pointer;
+      padding: 8px;
+      background: none;
+      border: none;
+    }
+    .hamburger span {
+      display: block;
+      width: 24px; height: 1.5px;
+      background: var(--green-dark);
+      transition: var(--transition);
+      border-radius: 2px;
+    }
+    .hamburger.open span:nth-child(1) { transform: rotate(45deg) translate(4.5px, 4.5px); }
+    .hamburger.open span:nth-child(2) { opacity: 0; }
+    .hamburger.open span:nth-child(3) { transform: rotate(-45deg) translate(4.5px, -4.5px); }
+
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: var(--cream);
+      z-index: 999;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+    }
+    .mobile-menu.open { display: flex; }
+    .mobile-menu a {
+      font-family: var(--font-display);
+      font-size: 2rem;
+      font-weight: 400;
+      color: var(--green-dark);
+      transition: color var(--transition);
+    }
+    .mobile-menu a:hover { color: var(--green); }
+
+    /* ─── HERO ─────────────────────────────────────────────────── */
+    #accueil {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      padding: 0;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 80% at 65% 40%, rgba(232,245,240,.9) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 60% at 20% 80%, rgba(245,230,200,.6) 0%, transparent 60%),
+        linear-gradient(135deg, #FDFAF4 0%, #F0F7F3 50%, #FAFAF8 100%);
+    }
+
+    /* Botanical decorative circles */
+    .hero-deco {
+      position: absolute;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .hero-deco-1 {
+      width: 600px; height: 600px;
+      right: -100px; top: -80px;
+      background: radial-gradient(circle, rgba(46,125,94,.08) 0%, transparent 70%);
+    }
+    .hero-deco-2 {
+      width: 300px; height: 300px;
+      left: 5%; bottom: 10%;
+      background: radial-gradient(circle, rgba(201,168,76,.10) 0%, transparent 70%);
+    }
+
+    /* Leaf SVG decoration */
+    .hero-leaf {
+      position: absolute;
+      right: 6%;
+      top: 50%;
+      transform: translateY(-50%);
+      width: min(480px, 42vw);
+      opacity: .12;
+      pointer-events: none;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      max-width: 660px;
+      padding-top: 80px;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-size: .72rem;
+      font-weight: 500;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      color: var(--green);
+      margin-bottom: 1.8rem;
+      animation: fadeUp .8s ease both;
+    }
+    .hero-eyebrow::before, .hero-eyebrow::after {
+      content: '';
+      width: 20px; height: 1px;
+      background: var(--green);
+    }
+
+    .hero-social-cta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .8rem;
+      font-weight: 400;
+      color: var(--text-mid);
+      margin-bottom: 1.4rem;
+      animation: fadeUp .8s ease .05s both;
+      flex-wrap: wrap;
+    }
+    .hero-social-cta a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 500;
+      color: var(--green-dark);
+      background: rgba(46,125,94,.08);
+      border: 1px solid rgba(46,125,94,.25);
+      border-radius: 100px;
+      padding: 5px 14px;
+      transition: var(--transition);
+    }
+    .hero-social-cta a:hover {
+      background: var(--green);
+      color: var(--white);
+      border-color: var(--green);
+    }
+
+    .hero-title {
+      font-size: clamp(2rem, 4.5vw, 3.6rem);
+      font-weight: 300;
+      color: var(--green-dark);
+      letter-spacing: -.02em;
+      margin-bottom: 1rem;
+      animation: fadeUp .8s ease .1s both;
+    }
+    .hero-title em {
+      font-style: italic;
+      color: var(--green);
+    }
+
+    .hero-subtitle {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: clamp(1.05rem, 1.8vw, 1.3rem);
+      color: var(--text-mid);
+      line-height: 1.7;
+      max-width: 50ch;
+      margin-bottom: 2.8rem;
+      animation: fadeUp .8s ease .2s both;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+      flex-wrap: wrap;
+      animation: fadeUp .8s ease .3s both;
+    }
+
+    .hero-phone {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .88rem;
+      color: var(--text-mid);
+    }
+    .hero-phone svg { color: var(--green); }
+
+    .hero-badges {
+      display: flex;
+      gap: 1rem;
+      margin-top: 3.5rem;
+      animation: fadeUp .8s ease .4s both;
+      flex-wrap: wrap;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--white);
+      border: 1px solid rgba(46,125,94,.15);
+      border-radius: 100px;
+      padding: 10px 20px;
+      font-size: .78rem;
+      color: var(--text-mid);
+      box-shadow: var(--shadow-sm);
+    }
+    .hero-badge .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    /* Right image panel */
+    .hero-visual {
+      position: absolute;
+      right: 0; top: 0; bottom: 0;
+      width: 44%;
+      overflow: hidden;
+      clip-path: polygon(8% 0, 100% 0, 100% 100%, 0% 100%);
+    }
+    .hero-visual img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      object-position: center 30%;
+    }
+    .hero-visual-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to right, rgba(250,250,248,1) 0%, rgba(250,250,248,.2) 40%, transparent 100%);
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(24px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── APPROACH ─────────────────────────────────────────────── */
+    #presentation {
+      background: var(--green-dark);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #presentation::before {
+      content: '';
+      position: absolute;
+      top: -200px; right: -200px;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(74,154,122,.15) 0%, transparent 70%);
+    }
+
+    .approach-header {
+      text-align: center;
+      margin-bottom: 4rem;
+    }
+    .approach-header .section-label { color: var(--gold-light); }
+    .approach-header .section-label::before { background: var(--gold-light); }
+    .approach-header .section-title { color: var(--white); }
+    .approach-header .section-subtitle { color: rgba(255,255,255,.65); margin: 0 auto 0; }
+
+    .pillars-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2px;
+    }
+
+    .pillar {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      padding: 3rem 2.5rem;
+      position: relative;
+      overflow: hidden;
+      transition: background var(--transition);
+    }
+    .pillar:hover {
+      background: rgba(255,255,255,.07);
+    }
+    .pillar:first-child { border-radius: var(--r-md) 0 0 var(--r-md); }
+    .pillar:last-child  { border-radius: 0 var(--r-md) var(--r-md) 0; }
+
+    .pillar-number {
+      font-family: var(--font-display);
+      font-size: 5rem;
+      font-weight: 300;
+      color: rgba(255,255,255,.06);
+      line-height: 1;
+      position: absolute;
+      top: 1rem; right: 1.5rem;
+      transition: color var(--transition);
+    }
+    .pillar:hover .pillar-number { color: rgba(255,255,255,.10); }
+
+    .pillar-icon {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: rgba(201,168,76,.15);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 1.5rem;
+      font-size: 1.4rem;
+    }
+
+    .pillar-title {
+      font-family: var(--font-display);
+      font-size: 1.9rem;
+      font-weight: 400;
+      letter-spacing: .04em;
+      color: var(--white);
+      margin-bottom: .8rem;
+    }
+
+    .pillar-text {
+      font-size: .9rem;
+      line-height: 1.75;
+      color: rgba(255,255,255,.6);
+    }
+
+    /* ─── SPECIALTIES ──────────────────────────────────────────── */
+    #prestations { background: var(--beige-light); }
+
+    .specialties-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+      align-items: start;
+    }
+
+
+
+    .specialty-cards {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .specialty-card {
+      background: var(--white);
+      border-radius: var(--r-md);
+      padding: 2rem 2rem 2rem 1.5rem;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1.5rem;
+      align-items: start;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid rgba(46,125,94,.07);
+      transition: var(--transition);
+      cursor: default;
+    }
+    .specialty-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: rgba(46,125,94,.15);
+      transform: translateX(4px);
+    }
+
+    .specialty-icon-wrap {
+      width: 52px; height: 52px;
+      border-radius: 14px;
+      background: var(--green-light);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem;
+      flex-shrink: 0;
+    }
+
+    .specialty-name {
+      font-family: var(--font-display);
+      font-size: 1.3rem;
+      color: var(--green-dark);
+      margin-bottom: .4rem;
+    }
+
+    .specialty-desc {
+      font-size: .85rem;
+      color: var(--text-mid);
+      line-height: 1.65;
+    }
+
+    /* Side visual */
+    .specialties-visual {
+      position: sticky;
+      top: 120px;
+    }
+
+    .visual-card {
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      aspect-ratio: 4/5;
+      position: relative;
+      box-shadow: var(--shadow-lg);
+    }
+    .visual-card img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .visual-card-overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(28,58,46,.7) 0%, transparent 50%);
+    }
+    .visual-card-tag {
+      position: absolute;
+      bottom: 1.5rem; left: 1.5rem;
+      background: rgba(255,255,255,.12);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 100px;
+      padding: 10px 20px;
+      font-size: .78rem;
+      color: var(--white);
+      letter-spacing: .05em;
+    }
+
+    /* ─── ROLLFIT ──────────────────────────────────────────────── */
+    #rollfit {
+      background: linear-gradient(135deg, #F5E6C8 0%, #EDD9A3 50%, #F9F2E2 100%);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #rollfit::before {
+      content: '';
+      position: absolute;
+      bottom: -150px; right: -150px;
+      width: 500px; height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(201,168,76,.2) 0%, transparent 70%);
+    }
+
+    .rollfit-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5rem;
+      align-items: center;
+    }
+
+    .rollfit-badge-new {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--gold);
+      color: var(--white);
+      border-radius: 100px;
+      padding: 6px 18px;
+      font-size: .7rem;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+    }
+
+    .rollfit-title {
+      font-size: clamp(2.5rem, 5vw, 3.8rem);
+      font-weight: 300;
+      color: var(--green-dark);
+      margin-bottom: 1rem;
+    }
+    .rollfit-title em { font-style: italic; color: var(--green); }
+    .btn-rollfit-cta { margin-bottom: 2rem; }
+
+    .rollfit-price {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 6px;
+      margin-bottom: 1.5rem;
+    }
+    .rollfit-price-amount {
+      font-family: var(--font-display);
+      font-size: 4rem;
+      font-weight: 500;
+      color: var(--green);
+      line-height: 1;
+    }
+    .rollfit-price-unit {
+      font-size: 1rem;
+      color: var(--text-mid);
+    }
+
+    .rollfit-desc {
+      font-size: .95rem;
+      color: var(--text-mid);
+      line-height: 1.75;
+      margin-bottom: 2rem;
+    }
+
+    .rollfit-features {
+      display: flex;
+      flex-direction: column;
+      gap: .7rem;
+      margin-bottom: 2.5rem;
+    }
+    .rollfit-feature {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: .88rem;
+      color: var(--text);
+    }
+    .rollfit-feature::before {
+      content: '';
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='white'%3E%3Cpath fill-rule='evenodd' d='M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z' clip-rule='evenodd'/%3E%3C/svg%3E");
+      background-size: 11px;
+      background-position: center;
+      background-repeat: no-repeat;
+    }
+
+    .rollfit-visual {
+      position: relative;
+    }
+    .rollfit-img-wrap {
+      border-radius: var(--r-lg);
+      overflow: hidden;
+      aspect-ratio: 1;
+      position: relative;
+      box-shadow: var(--shadow-lg);
+    }
+    .rollfit-img-wrap img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+    .rollfit-float-card {
+      position: absolute;
+      bottom: -20px; left: -24px;
+      background: var(--white);
+      border-radius: var(--r-md);
+      padding: 1.2rem 1.6rem;
+      box-shadow: var(--shadow-md);
+      min-width: 180px;
+    }
+    .rollfit-float-card .label { font-size: .7rem; color: var(--text-light); letter-spacing: .08em; text-transform: uppercase; margin-bottom: 4px; }
+    .rollfit-float-card .value { font-family: var(--font-display); font-size: 1.5rem; color: var(--green-dark); }
+
+    /* ─── CONSULTATIONS ────────────────────────────────────────── */
+    #consultations { background: var(--cream); }
+
+    .consult-header { text-align: center; }
+    .consult-subtitle { margin: 0 auto 3rem; }
+
+    .consult-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+
+    .consult-step {
+      background: var(--white);
+      border-radius: var(--r-md);
+      padding: 2rem 1.5rem;
+      position: relative;
+      border: 1px solid rgba(46,125,94,.08);
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+    }
+    .consult-step:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-4px);
+    }
+
+    .consult-step-num {
+      font-family: var(--font-display);
+      font-size: .75rem;
+      font-weight: 500;
+      letter-spacing: .12em;
+      color: var(--green);
+      margin-bottom: 1rem;
+      text-transform: uppercase;
+    }
+
+    .consult-step-icon {
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+
+    .consult-step-title {
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      color: var(--green-dark);
+      margin-bottom: .5rem;
+    }
+
+    .consult-step-text {
+      font-size: .83rem;
+      color: var(--text-mid);
+      line-height: 1.7;
+    }
+
+    .consult-connector {
+      position: absolute;
+      top: 2.4rem; right: -12px;
+      width: 24px; height: 1px;
+      background: rgba(46,125,94,.2);
+      z-index: 1;
+    }
+    .consult-step:last-child .consult-connector { display: none; }
+
+    .consult-note {
+      margin-top: 3rem;
+      background: var(--green-light);
+      border-radius: var(--r-md);
+      padding: 1.5rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      border-left: 3px solid var(--green);
+    }
+    .consult-note-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .consult-note-text { font-size: .88rem; color: var(--text); line-height: 1.65; }
+
+    /* ─── TARIFS ───────────────────────────────────────────────── */
+    #tarifs { background: var(--green-dark); }
+
+    .tarifs-header { margin-bottom: 3.5rem; }
+    .tarifs-header .section-label { color: var(--gold-light); }
+    .tarifs-header .section-label::before { background: var(--gold-light); }
+    .tarifs-header .section-title { color: var(--white); }
+    .tarifs-header .section-subtitle { color: rgba(255,255,255,.65); }
+
+    .tarifs-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+    }
+
+    .tarif-card {
+      background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.1);
+      border-radius: var(--r-md);
+      padding: 2.2rem;
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+    .tarif-card:hover {
+      background: rgba(255,255,255,.09);
+      border-color: rgba(255,255,255,.2);
+    }
+    .tarif-card.featured {
+      background: var(--green);
+      border-color: var(--green-mid);
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 2rem;
+    }
+
+    .tarif-tag {
+      position: absolute;
+      top: 1.2rem; right: 1.2rem;
+      background: var(--gold);
+      color: var(--white);
+      font-size: .62rem;
+      font-weight: 600;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 100px;
+    }
+
+    .tarif-label {
+      font-size: .72rem;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.5);
+      margin-bottom: .6rem;
+    }
+    .tarif-card.featured .tarif-label { color: rgba(255,255,255,.75); }
+
+    .tarif-name {
+      font-family: var(--font-display);
+      font-size: 1.3rem;
+      color: var(--white);
+      margin-bottom: 1rem;
+    }
+
+    .tarif-price {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      margin-bottom: 1rem;
+    }
+    .tarif-price-amount {
+      font-family: var(--font-display);
+      font-size: 2.8rem;
+      font-weight: 400;
+      color: var(--white);
+      line-height: 1;
+    }
+    .tarif-price-unit { font-size: .85rem; color: rgba(255,255,255,.6); }
+
+    .tarif-includes {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: .5rem;
+    }
+    .tarif-includes li {
+      font-size: .82rem;
+      color: rgba(255,255,255,.65);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      line-height: 1.5;
+    }
+    .tarif-includes li::before {
+      content: '—';
+      color: var(--gold-light);
+      flex-shrink: 0;
+      font-size: .7rem;
+      margin-top: 2px;
+    }
+
+
+
+    .tarifs-note {
+      margin-top: 2.5rem;
+      text-align: center;
+      font-style: italic;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      color: rgba(255,255,255,.5);
+    }
+
+    /* ─── CONTACT ──────────────────────────────────────────────── */
+    #contact { background: var(--beige-light); }
+
+    .contact-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 5rem;
+    }
+
+
+
+    .contact-block {
+      margin-bottom: 2rem;
+      padding-bottom: 2rem;
+      border-bottom: 1px solid rgba(46,125,94,.1);
+    }
+    .contact-block:last-of-type { border-bottom: none; }
+
+    .contact-block-title {
+      font-size: .7rem;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: var(--text-light);
+      margin-bottom: .8rem;
+    }
+
+    .contact-location {
+      display: flex;
+      gap: 10px;
+      margin-bottom: .6rem;
+      font-size: .88rem;
+      color: var(--text-mid);
+      line-height: 1.5;
+    }
+    .contact-location svg { color: var(--green); margin-top: 2px; flex-shrink: 0; }
+
+    .contact-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: .9rem;
+      color: var(--text-mid);
+      margin-bottom: .5rem;
+      transition: color var(--transition);
+    }
+    .contact-link:hover { color: var(--green); }
+    .contact-link svg { color: var(--green); }
+
+    .horaires-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: .3rem 1.2rem;
+      font-size: .85rem;
+    }
+    .horaires-grid .day { color: var(--text-light); font-size: .78rem; letter-spacing: .05em; }
+    .horaires-grid .hours { color: var(--text-mid); }
+    .horaires-note { font-size: .8rem; color: var(--text-light); margin-top: .7rem; font-style: italic; }
+
+    .social-links {
+      display: flex;
+      gap: 1rem;
+    }
+    .social-link {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--white);
+      border: 1px solid rgba(46,125,94,.12);
+      border-radius: 100px;
+      padding: 8px 16px;
+      font-size: .8rem;
+      color: var(--text-mid);
+      box-shadow: var(--shadow-sm);
+      transition: var(--transition);
+    }
+    .social-link:hover {
+      border-color: var(--green);
+      color: var(--green);
+      box-shadow: var(--shadow-md);
+    }
+
+    /* Contact form */
+    .contact-form-wrap {
+      background: var(--white);
+      border-radius: var(--r-lg);
+      padding: 3rem;
+      box-shadow: var(--shadow-md);
+      border: 1px solid rgba(46,125,94,.07);
+    }
+
+    .form-title {
+      font-family: var(--font-display);
+      font-size: 1.8rem;
+      color: var(--green-dark);
+      margin-bottom: .4rem;
+    }
+    .form-subtitle {
+      font-style: italic;
+      font-family: var(--font-display);
+      font-size: 1rem;
+      color: var(--text-mid);
+      margin-bottom: 2rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+
+    .form-label {
+      font-size: .75rem;
+      font-weight: 500;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--text-light);
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 13px 16px;
+      border: 1.5px solid rgba(46,125,94,.15);
+      border-radius: var(--r-sm);
+      font-family: var(--font-body);
+      font-size: .9rem;
+      color: var(--text);
+      background: var(--cream);
+      transition: border-color var(--transition), box-shadow var(--transition);
+      outline: none;
+      resize: none;
+    }
+    .form-control::placeholder { color: var(--text-light); }
+    .form-control:focus {
+      border-color: var(--green);
+      box-shadow: 0 0 0 3px rgba(46,125,94,.08);
+    }
+
+    textarea.form-control { min-height: 120px; }
+
+    .form-submit {
+      margin-top: 1.5rem;
+      width: 100%;
+      justify-content: center;
+      font-size: .9rem;
+      padding: 16px;
+    }
+
+    /* ─── FOOTER ───────────────────────────────────────────────── */
+    footer {
+      background: var(--green-dark);
+      color: rgba(255,255,255,.5);
+      padding: 40px 0;
+      font-size: .8rem;
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-logo {
+      font-family: var(--font-display);
+      font-size: 1.2rem;
+      color: rgba(255,255,255,.8);
+    }
+    .footer-copy { font-size: .78rem; color: rgba(255,255,255,.35); }
+
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      list-style: none;
+    }
+    .footer-links a {
+      color: rgba(255,255,255,.4);
+      transition: color var(--transition);
+      font-size: .78rem;
+    }
+    .footer-links a:hover { color: rgba(255,255,255,.8); }
+
+    /* ─── RESPONSIVE ───────────────────────────────────────────── */
+    @media (max-width: 1024px) {
+      .specialties-layout { grid-template-columns: 1fr; }
+      .specialties-visual { display: none; }
+      .consult-grid { grid-template-columns: repeat(2, 1fr); }
+      .tarifs-grid { grid-template-columns: 1fr 1fr; }
+      .tarif-card.featured { grid-column: 1 / -1; grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 768px) {
+      section { padding: 72px 0; }
+      .container { padding: 0 20px; }
+
+      .nav-links { display: none; }
+      .hamburger { display: flex; }
+
+      .hero-visual { display: none; }
+      .hero-content { max-width: 100%; }
+      .hero-title { font-size: clamp(2.2rem, 8vw, 3.2rem); }
+
+      .pillars-grid {
+        grid-template-columns: 1fr;
+        gap: 2px;
+      }
+      .pillar:first-child { border-radius: var(--r-md) var(--r-md) 0 0; }
+      .pillar:last-child  { border-radius: 0 0 var(--r-md) var(--r-md); }
+
+      .rollfit-inner { grid-template-columns: 1fr; gap: 2.5rem; }
+      .rollfit-float-card { display: none; }
+
+      .consult-grid { grid-template-columns: 1fr 1fr; }
+      .consult-connector { display: none; }
+
+      .tarifs-grid { grid-template-columns: 1fr; }
+      .tarif-card.featured { grid-column: 1; grid-template-columns: 1fr; }
+
+      .contact-layout { grid-template-columns: 1fr; gap: 3rem; }
+      .contact-form-wrap { padding: 2rem; }
+      .form-grid { grid-template-columns: 1fr; }
+
+      .footer-inner { flex-direction: column; text-align: center; }
+    }
+
+    @media (max-width: 480px) {
+      .consult-grid { grid-template-columns: 1fr; }
+      .hero-badges { flex-direction: column; }
+      .hero-actions { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ═══ NAV ══════════════════════════════════════════════════════ -->
+  <nav id="navbar">
+    <div class="container nav-inner">
+      <a href="#accueil" class="nav-logo">
+        <span class="nav-logo-name">Karine Piffaretti</span>
+        <span class="nav-logo-title">Diététicienne · Nutritionniste</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#presentation">Présentation</a></li>
+        <li><a href="#prestations">Prestations</a></li>
+        <li><a href="#rollfit" class="nav-rollfit">Rollfit &amp; pressothérapie</a></li>
+        <li><a href="#consultations">Consultations</a></li>
+        <li><a href="#tarifs">Tarifs</a></li>
+        <li><a href="https://www.facebook.com/KarineDietetique" target="_blank" rel="noopener" class="nav-social" aria-label="Facebook">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+        </a></li>
+        <li><a href="https://www.instagram.com/Karine_dieteticienne" target="_blank" rel="noopener" class="nav-social" aria-label="Instagram">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+        </a></li>
+        <li><a href="#contact" class="btn btn-primary nav-cta">Contact</a></li>
+      </ul>
+      <button class="hamburger" id="hamburger" aria-label="Menu">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile menu -->
+  <div class="mobile-menu" id="mobileMenu" role="navigation" aria-label="Menu mobile">
+    <a href="#presentation" class="mobile-link">Présentation</a>
+    <a href="#prestations" class="mobile-link">Prestations</a>
+    <a href="#rollfit" class="mobile-link">Rollfit</a>
+    <a href="#consultations" class="mobile-link">Consultations</a>
+    <a href="#tarifs" class="mobile-link">Tarifs</a>
+    <a href="#contact" class="mobile-link">Contact</a>
+  </div>
+
+  <main>
+  <!-- ═══ HERO ══════════════════════════════════════════════════════ -->
+  <section id="accueil">
+    <div class="hero-bg"></div>
+    <div class="hero-deco hero-deco-1"></div>
+    <div class="hero-deco hero-deco-2"></div>
+
+    <!-- Leaf decoration -->
+    <svg class="hero-leaf" viewBox="0 0 400 500" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M200 480 C200 480 20 380 20 200 C20 60 120 20 200 20 C280 20 380 60 380 200 C380 380 200 480 200 480Z" stroke="#2E7D5E" stroke-width="1.5" fill="none"/>
+      <path d="M200 480 L200 20" stroke="#2E7D5E" stroke-width="1" stroke-dasharray="4 6"/>
+      <path d="M200 300 C200 300 120 260 100 180" stroke="#2E7D5E" stroke-width="1" fill="none"/>
+      <path d="M200 300 C200 300 280 260 300 180" stroke="#2E7D5E" stroke-width="1" fill="none"/>
+      <path d="M200 380 C200 380 140 340 120 270" stroke="#2E7D5E" stroke-width="1" fill="none"/>
+      <path d="M200 380 C200 380 260 340 280 270" stroke="#2E7D5E" stroke-width="1" fill="none"/>
+      <path d="M200 200 C200 200 130 165 110 100" stroke="#2E7D5E" stroke-width="1" fill="none"/>
+      <path d="M200 200 C200 200 270 165 290 100" stroke="#2E7D5E" stroke-width="1" fill="none"/>
+    </svg>
+
+    <div class="hero-visual">
+      <img src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=900&q=80&auto=format&fit=crop" alt="Alimentation saine et équilibrée" />
+      <div class="hero-visual-overlay"></div>
+    </div>
+
+    <div class="container">
+      <div class="hero-content">
+        <div class="hero-eyebrow">Cabinet diététique · Sillingy</div>
+        <div class="hero-social-cta">
+          Suivez mes recettes sur
+          <a href="https://www.instagram.com/Karine_dieteticienne" target="_blank" rel="noopener">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+            Instagram
+          </a>
+          et
+          <a href="https://www.facebook.com/KarineDietetique" target="_blank" rel="noopener">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+            Facebook
+          </a>
+        </div>
+        <h1 class="hero-title">
+          Retrouvez<br />l'équilibre<br /><em>alimentaire</em>
+        </h1>
+        <p class="hero-subtitle">
+          Un accompagnement personnalisé, bienveillant et durable pour réconcilier santé, plaisir et sérénité autour de l'assiette.
+        </p>
+        <div class="hero-actions">
+          <a href="https://wa.me/33638830589" target="_blank" rel="noopener" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.99 2C6.477 2 2 6.477 2 11.99c0 1.869.487 3.621 1.339 5.147L2 22l5.02-1.312A9.952 9.952 0 0011.99 22C17.523 22 22 17.523 22 11.99 22 6.477 17.523 2 11.99 2z" fill-rule="evenodd" clip-rule="evenodd"/></svg>
+            Prendre rendez-vous sur WhatsApp
+          </a>
+          <a href="tel:0638830589" class="hero-phone">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+            06 38 83 05 89
+          </a>
+        </div>
+        <div class="hero-badges">
+          <div class="hero-badge"><span class="dot"></span> Post-chirurgie bariatrique</div>
+          <div class="hero-badge"><span class="dot"></span> Diabète</div>
+          <div class="hero-badge"><span class="dot"></span> Perte de poids</div>
+          <div class="hero-badge"><span class="dot"></span> Rollfit</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ MON APPROCHE ══════════════════════════════════════════════ -->
+  <section id="presentation">
+    <div class="container">
+      <div class="approach-header reveal">
+        <div class="section-label">Mon approche</div>
+        <h2 class="section-title">Une diététique du quotidien,<br /><em>douce et durable</em></h2>
+        <p class="section-subtitle">
+          Manger sainement ne signifie pas se priver. Ma philosophie repose sur trois piliers fondamentaux qui guident chaque suivi.
+        </p>
+      </div>
+      <div class="pillars-grid">
+        <div class="pillar reveal reveal-delay-1">
+          <div class="pillar-number">01</div>
+          <div class="pillar-icon" aria-hidden="true">🍽️</div>
+          <div class="pillar-title">Plaisir</div>
+          <p class="pillar-text">L'alimentation est avant tout un plaisir. Retrouvez la joie de manger sans culpabilité, en savourant chaque repas avec conscience et légèreté. Un repas réussi est un repas qui fait du bien au corps et à l'esprit.</p>
+        </div>
+        <div class="pillar reveal reveal-delay-2">
+          <div class="pillar-number">02</div>
+          <div class="pillar-icon" aria-hidden="true">🌿</div>
+          <div class="pillar-title">Variété</div>
+          <p class="pillar-text">La diversité alimentaire est la clé d'un apport nutritionnel complet. Ensemble, nous explorons de nouvelles saveurs et habitudes pour enrichir votre assiette au fil des saisons, sans monotonie ni frustration.</p>
+        </div>
+        <div class="pillar reveal reveal-delay-3">
+          <div class="pillar-number">03</div>
+          <div class="pillar-icon" aria-hidden="true">⚖️</div>
+          <div class="pillar-title">Équilibre</div>
+          <p class="pillar-text">L'équilibre nutritionnel s'adapte à votre vie, pas l'inverse. Chaque programme est construit sur mesure, en tenant compte de vos goûts, de votre mode de vie, de votre santé et de vos objectifs personnels.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ SPÉCIALITÉS ═══════════════════════════════════════════════ -->
+  <section id="prestations">
+    <div class="container">
+      <div class="specialties-layout">
+        <div>
+          <div class="reveal">
+            <div class="section-label">Mes spécialités</div>
+            <h2 class="section-title">Un accompagnement<br />pour chaque parcours</h2>
+            <p class="section-subtitle">Chaque situation est unique. J'adapte mon suivi à vos besoins spécifiques avec expertise et bienveillance.</p>
+          </div>
+          <div class="specialty-cards">
+            <div class="specialty-card reveal reveal-delay-1">
+              <div class="specialty-icon-wrap" aria-hidden="true">🏥</div>
+              <div>
+                <div class="specialty-name">Post-chirurgie bariatrique</div>
+                <p class="specialty-desc">Un accompagnement nutritionnel spécialisé après une chirurgie de l'obésité (sleeve, bypass, anneau...). Prévention des carences, réapprentissage alimentaire et maintien des résultats sur le long terme.</p>
+              </div>
+            </div>
+            <div class="specialty-card reveal reveal-delay-2">
+              <div class="specialty-icon-wrap" aria-hidden="true">🩺</div>
+              <div>
+                <div class="specialty-name">Diabète & maladies métaboliques</div>
+                <p class="specialty-desc">Gestion diététique du diabète de type 1 et 2, des dyslipidémies et des maladies métaboliques. Équilibrer sa glycémie durablement grâce à une alimentation adaptée et savoureuse.</p>
+              </div>
+            </div>
+            <div class="specialty-card reveal reveal-delay-3">
+              <div class="specialty-icon-wrap" aria-hidden="true">✨</div>
+              <div>
+                <div class="specialty-name">Perte de poids & minceur</div>
+                <p class="specialty-desc">Un programme minceur personnalisé, sans régime draconien. Perdre du poids durablement en réconciliant plaisir et équilibre, avec un suivi régulier et motivant à chaque étape de votre parcours.</p>
+              </div>
+            </div>
+            <div class="specialty-card reveal reveal-delay-4">
+              <div class="specialty-icon-wrap" aria-hidden="true">🏃</div>
+              <div>
+                <div class="specialty-name">Nutrition sportive</div>
+                <p class="specialty-desc">Optimisez vos performances et votre récupération grâce à une alimentation adaptée à votre pratique sportive. Coaching nutritionnel individualisé pour atteindre vos objectifs athlétiques.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="specialties-visual reveal reveal-delay-2">
+          <div class="visual-card">
+            <img src="https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=700&q=80&auto=format&fit=crop" alt="Alimentation colorée et équilibrée" loading="lazy" />
+            <div class="visual-card-overlay"></div>
+            <div class="visual-card-tag">Alimentation · Santé · Bien-être</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ ROLLFIT ════════════════════════════════════════════════════ -->
+  <section id="rollfit">
+    <div class="container">
+      <div class="rollfit-inner">
+        <div class="reveal">
+          <div class="rollfit-badge-new">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            Nouveau service
+          </div>
+          <h2 class="rollfit-title">Rollfit &amp;<br /><em>pressothérapie</em></h2>
+          <div class="rollfit-price">
+            <span class="rollfit-price-amount">10€</span>
+            <span class="rollfit-price-unit">/ séance</span>
+          </div>
+          <a href="https://booking.localsearch.ch/bookings/karine-dietetique/services?locale=fr" target="_blank" rel="noopener" class="btn btn-rollfit-cta">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+            Réserver ma séance Rollfit
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+          <p class="rollfit-desc">
+            Le Rollfit associe l'utilisation d'un rouleau de massage à des exercices de mobilité douce. Une méthode efficace pour améliorer votre souplesse, réduire les tensions musculaires et retrouver vitalité et légèreté au quotidien.
+          </p>
+          <div class="rollfit-features">
+            <div class="rollfit-feature">Amélioration de la souplesse et de la mobilité</div>
+            <div class="rollfit-feature">Réduction des tensions et douleurs musculaires</div>
+            <div class="rollfit-feature">Drainage et amélioration de la circulation</div>
+            <div class="rollfit-feature">Séance accessible à tous les niveaux</div>
+            <div class="rollfit-feature">Complément idéal à un suivi diététique</div>
+          </div>
+        </div>
+        <div class="rollfit-visual reveal reveal-delay-2">
+          <div class="rollfit-img-wrap">
+            <img src="https://www.rollfit.com/wp-content/uploads/2025/12/zadok-z-lavej-strany.png" alt="Séance Rollfit" loading="lazy" />
+          </div>
+          <div class="rollfit-float-card">
+            <div class="label">Prix séance</div>
+            <div class="value">10€ seulement</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONSULTATIONS ══════════════════════════════════════════════ -->
+  <section id="consultations">
+    <div class="container">
+      <div class="reveal consult-header">
+        <div class="section-label">Comment ça se passe ?</div>
+        <h2 class="section-title">Le déroulement d'une consultation</h2>
+        <p class="section-subtitle consult-subtitle">Un cadre bienveillant, une écoute attentive et un programme vraiment adapté à vous.</p>
+      </div>
+      <div class="consult-grid">
+        <div class="consult-step reveal reveal-delay-1">
+          <div class="consult-step-num">Étape 01</div>
+          <div class="consult-step-icon" aria-hidden="true">📞</div>
+          <div class="consult-step-title">Entretien préalable</div>
+          <p class="consult-step-text">Un appel téléphonique gratuit pour faire connaissance, comprendre vos attentes et vous expliquer ma méthode d'accompagnement.</p>
+          <div class="consult-connector"></div>
+        </div>
+        <div class="consult-step reveal reveal-delay-2">
+          <div class="consult-step-num">Étape 02</div>
+          <div class="consult-step-icon" aria-hidden="true">📋</div>
+          <div class="consult-step-title">Bilan initial (1h)</div>
+          <p class="consult-step-text">Analyse approfondie de vos habitudes alimentaires, de votre mode de vie, de votre historique médical et de votre composition corporelle (balance à impédancemétrie).</p>
+          <div class="consult-connector"></div>
+        </div>
+        <div class="consult-step reveal reveal-delay-3">
+          <div class="consult-step-num">Étape 03</div>
+          <div class="consult-step-icon" aria-hidden="true">🥗</div>
+          <div class="consult-step-title">Programme personnalisé</div>
+          <p class="consult-step-text">Élaboration d'un plan alimentaire sur mesure avec des documents pratiques, adapté à VOS besoins, vos goûts et votre réalité quotidienne.</p>
+          <div class="consult-connector"></div>
+        </div>
+        <div class="consult-step reveal reveal-delay-4">
+          <div class="consult-step-num">Étape 04</div>
+          <div class="consult-step-icon" aria-hidden="true">📈</div>
+          <div class="consult-step-title">Suivi régulier</div>
+          <p class="consult-step-text">Des consultations de suivi tous les 3-4 semaines pour ajuster votre programme, suivre vos progrès et vous accompagner dans la durée.</p>
+        </div>
+      </div>
+      <div class="consult-note reveal">
+        <div class="consult-note-icon" aria-hidden="true">💬</div>
+        <div class="consult-note-text">
+          <strong>Suivi entre les rendez-vous :</strong> Je reste disponible par téléphone, email ou WhatsApp entre chaque consultation pour répondre à vos questions et vous soutenir dans votre parcours, sans limite et gratuitement.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ TARIFS ═════════════════════════════════════════════════════ -->
+  <section id="tarifs">
+    <div class="container">
+      <div class="tarifs-header reveal">
+        <div class="section-label">Tarifs</div>
+        <h2 class="section-title">Des tarifs transparents,<br />mis à jour au 01/01/2024</h2>
+        <p class="section-subtitle">Un investissement dans votre santé et votre bien-être à long terme.</p>
+      </div>
+      <div class="tarifs-grid">
+        <!-- Featured: Première consultation -->
+        <div class="tarif-card featured reveal">
+          <div>
+            <div class="tarif-label">Consultation recommandée</div>
+            <div class="tarif-name">Première consultation bilan</div>
+            <div class="tarif-price">
+              <span class="tarif-price-amount">70€</span>
+              <span class="tarif-price-unit">/ 1 heure</span>
+            </div>
+            <ul class="tarif-includes">
+              <li>Bilan nutritionnel complet</li>
+              <li>Analyse sanguine & composition corporelle</li>
+              <li>Plan alimentaire personnalisé avec documents</li>
+              <li>Identification des déséquilibres nutritionnels</li>
+            </ul>
+          </div>
+          <div class="tarif-featured-cta">
+            <a href="https://wa.me/33638830589" target="_blank" rel="noopener" class="btn btn-gold">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M11.99 2C6.477 2 2 6.477 2 11.99c0 1.869.487 3.621 1.339 5.147L2 22l5.02-1.312A9.952 9.952 0 0011.99 22C17.523 22 22 17.523 22 11.99 22 6.477 17.523 2 11.99 2z" fill-rule="evenodd" clip-rule="evenodd"/></svg>
+              Prendre RDV sur WhatsApp
+            </a>
+          </div>
+        </div>
+
+        <!-- Consultation de suivi -->
+        <div class="tarif-card reveal reveal-delay-1">
+          <div class="tarif-label">Suivi</div>
+          <div class="tarif-name">Consultation de suivi</div>
+          <div class="tarif-price">
+            <span class="tarif-price-amount">50€</span>
+            <span class="tarif-price-unit">/ 30 min</span>
+          </div>
+          <ul class="tarif-includes">
+            <li>Analyse corporelle</li>
+            <li>Suivi de vos objectifs</li>
+            <li>Réajustement du programme alimentaire</li>
+          </ul>
+        </div>
+
+        <!-- Entretien téléphonique -->
+        <div class="tarif-card reveal reveal-delay-2">
+          <div class="tarif-label">Premier contact</div>
+          <div class="tarif-name">Entretien téléphonique préalable</div>
+          <div class="tarif-price">
+            <span class="tarif-price-amount">Gratuit</span>
+          </div>
+          <ul class="tarif-includes">
+            <li>Présentation de la méthode</li>
+            <li>Questions & réponses</li>
+            <li>Sans engagement</li>
+          </ul>
+        </div>
+
+        <!-- Suivi entre RDV -->
+        <div class="tarif-card reveal reveal-delay-3">
+          <div class="tarif-label">Entre les séances</div>
+          <div class="tarif-name">Suivi continu (tél / mail / WhatsApp)</div>
+          <div class="tarif-price">
+            <span class="tarif-price-amount">Gratuit</span>
+          </div>
+          <ul class="tarif-includes">
+            <li>Disponible entre chaque RDV</li>
+            <li>Illimité</li>
+            <li>Réponse rapide garantie</li>
+          </ul>
+        </div>
+
+        <!-- Services spécifiques -->
+        <div class="tarif-card reveal reveal-delay-4">
+          <div class="tarif-label">Services spécifiques</div>
+          <div class="tarif-name">Coaching sportif · Conférences</div>
+          <div class="tarif-price">
+            <span class="tarif-price-amount">Devis</span>
+          </div>
+          <ul class="tarif-includes">
+            <li>Coaching nutritionnel sportif</li>
+            <li>Conférences & ateliers</li>
+            <li>Tarif personnalisé sur demande</li>
+          </ul>
+        </div>
+      </div>
+      <p class="tarifs-note reveal">
+        ✦ De nombreuses mutuelles remboursent tout ou partie de ces consultations — renseignez-vous auprès de votre assurance.
+      </p>
+    </div>
+  </section>
+
+  <!-- ═══ CONTACT ════════════════════════════════════════════════════ -->
+  <section id="contact">
+    <div class="container">
+      <div class="contact-layout">
+        <div>
+          <div class="reveal">
+            <div class="section-label">Me contacter</div>
+            <h2 class="section-title">Commençons votre parcours ensemble</h2>
+            <p class="section-subtitle">N'hésitez pas à me contacter pour un premier échange, sans engagement.</p>
+          </div>
+
+          <div class="contact-block reveal">
+            <div class="contact-block-title">Mes cabinets</div>
+            <div class="contact-location">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              <span><strong>Pôle Santé Alp</strong><br />11 Route de Bellène, 74330 Sillingy</span>
+            </div>
+          </div>
+
+          <div class="contact-block reveal">
+            <div class="contact-block-title">Coordonnées</div>
+            <a href="tel:0638830589" class="contact-link">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>
+              06 38 83 05 89
+            </a>
+            <a href="mailto:karinedietetique74@gmail.com" class="contact-link">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              karinedietetique74@gmail.com
+            </a>
+          </div>
+
+          <div class="contact-block reveal">
+            <div class="contact-block-title">Horaires</div>
+            <div class="horaires-grid">
+              <span class="day">Lundi — Samedi</span>
+              <span class="hours">8h00 – 13h00</span>
+              <span class="day"></span>
+              <span class="hours">13h30 – 20h30</span>
+            </div>
+            <p class="horaires-note">Sur rendez-vous uniquement · Autres horaires sur demande</p>
+          </div>
+
+          <div class="contact-block reveal">
+            <div class="contact-block-title">Réseaux sociaux</div>
+            <div class="social-links">
+              <a href="https://www.facebook.com/KarineDietetique" target="_blank" rel="noopener" class="social-link">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+                Karine Dietetique
+              </a>
+              <a href="https://www.instagram.com/Karine_dieteticienne" target="_blank" rel="noopener" class="social-link social-link-ig">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>
+                @Karine_dieteticienne
+              </a>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  </main>
+
+  <!-- ═══ FOOTER ════════════════════════════════════════════════════ -->
+  <footer>
+    <div class="container footer-inner">
+      <div class="footer-logo">Karine Piffaretti</div>
+      <p class="footer-copy" id="footer-copy"></p>
+      <ul class="footer-links">
+        <li><a href="#">Mentions légales</a></li>
+        <li><a href="#">Politique de confidentialité</a></li>
+        <li><a href="#">Plan du site</a></li>
+      </ul>
+    </div>
+  </footer>
+
+  <!-- ═══ SCRIPTS ═══════════════════════════════════════════════════ -->
+  <script>
+    // ─ Navbar scroll effect ─
+    const navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', () => {
+      navbar.classList.toggle('scrolled', window.scrollY > 50);
+    });
+
+    // ─ Hamburger menu ─
+    const hamburger = document.getElementById('hamburger');
+    const mobileMenu = document.getElementById('mobileMenu');
+    hamburger.addEventListener('click', () => {
+      hamburger.classList.toggle('open');
+      mobileMenu.classList.toggle('open');
+      document.body.style.overflow = mobileMenu.classList.contains('open') ? 'hidden' : '';
+    });
+    document.querySelectorAll('.mobile-link').forEach(link => {
+      link.addEventListener('click', () => {
+        hamburger.classList.remove('open');
+        mobileMenu.classList.remove('open');
+        document.body.style.overflow = '';
+      });
+    });
+
+    // ─ Scroll reveal ─
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          revealObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+    // ─ Active nav link on scroll ─
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks = document.querySelectorAll('.nav-links a');
+    const sectionObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          navLinks.forEach(link => {
+            if (link.classList.contains('nav-rollfit')) return; // ne pas écraser le style du bouton
+            link.style.color = link.getAttribute('href') === `#${id}` ? 'var(--green)' : '';
+          });
+        }
+      });
+    }, { threshold: 0.4 });
+    sections.forEach(s => sectionObserver.observe(s));
+
+    // ─ Form submit ─
+    function handleSubmit(e) {
+      e.preventDefault();
+      const form = e.target;
+      const d = Object.fromEntries(new FormData(form));
+      const body = [
+        'Nom : ' + (d.nom || '') + ' ' + (d.prenom || ''),
+        'Email : ' + (d.email || ''),
+        'Téléphone : ' + (d.tel || ''),
+        'Motif : ' + (d.sujet || ''),
+        '',
+        'Message :',
+        d.message || ''
+      ].join('\n');
+
+      window.location.href =
+        'mailto:Karine.piffaretti@gmail.com'
+        + '?subject=' + encodeURIComponent('Message depuis votre site web')
+        + '&body=' + encodeURIComponent(body);
+
+      const btn = form.querySelector('button[type="submit"]');
+      const originalHTML = btn.innerHTML;
+      btn.innerHTML = '✓ Messagerie ouverte — pensez à envoyer !';
+      btn.style.background = 'var(--green-mid)';
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.innerHTML = originalHTML;
+        btn.style.background = '';
+        btn.disabled = false;
+        form.reset();
+      }, 5000);
+    }
+
+    // ─ Copyright year ─
+    document.getElementById('footer-copy').textContent =
+      '© ' + new Date().getFullYear() + ' · Diététicienne-Nutritionniste · Sillingy & Seynod';
+  </script>
+</body>
+</html>

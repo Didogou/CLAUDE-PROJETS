@@ -46,27 +46,7 @@
       "Bash(cd \"/c/Users/didie/OneDrive/Documents/Claude-projets/karine-social-media-app\" && npm install html2canvas 2>&1 | tail -5)",
       "Bash(taskkill //F //PID 17100 2>/dev/null; echo \"done\")",
       "mcp__playwright__browser_navigate",
-      "Bash(cmd.exe /c \"copy \\\\\"D:\\\\Download\\\\Capture d'écran 2026-03-10 195914.jpg\\\\\" \\\\\"C:\\\\Users\\\\didie\\\\AppData\\\\Local\\\\Temp\\\\capture195914.jpg\\\\\"\")",
-      "Bash(node --version && npm --version 2>/dev/null || echo \"Node/npm not found\")",
-      "Bash(claude mcp:*)",
-      "Bash(npm install:*)",
-      "Bash(supabase --version 2>&1; expo --version 2>&1; eas --version 2>&1)",
-      "Bash(scoop --version 2>/dev/null || winget --version 2>/dev/null || echo \"neither found\")",
-      "Bash(scoop install:*)",
-      "Bash(expo --version 2>&1; eas --version 2>&1; supabase --version 2>&1)",
-      "Bash(npx supabase:*)",
-      "Bash(cmd.exe /c \"supabase --version\" 2>&1 || cmd.exe /c \"scoop list supabase\" 2>&1)",
-      "Bash(powershell -Command \"scoop install supabase 2>&1\" 2>&1 | tail -10)",
-      "Bash(curl -s \"https://mgdaydimtlletsoedntn.supabase.co/rest/v1/\" \\\\\n  -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZGF5ZGltdGxsZXRzb2VkbnRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMTQzNDgsImV4cCI6MjA4ODg5MDM0OH0.deiMXnt_Iw0LXy-C3HEBi7ZMGC1PtUUEFKk1ivp7w-Y\" | python -m json.tool 2>/dev/null | head -30)",
-      "Bash(curl -s \"https://mgdaydimtlletsoedntn.supabase.co/rest/v1/\" \\\\\n  -H \"apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1nZGF5ZGltdGxsZXRzb2VkbnRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzMTQzNDgsImV4cCI6MjA4ODg5MDM0OH0.deiMXnt_Iw0LXy-C3HEBi7ZMGC1PtUUEFKk1ivp7w-Y\" | python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('\\\\n'.join\\(sorted\\(d.get\\('paths',{}\\).keys\\(\\)\\)\\)\\)\")",
-      "Bash(cd \"/c/Users/didie/OneDrive/Documents/Claude-projets/hero\" && echo \"N\" | npx create-next-app@latest admin --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git --no-turbopack 2>&1 | tail -15)",
-      "Bash(cd \"/c/Users/didie/OneDrive/Documents/Claude-projets/hero/admin\" && npx tsc --noEmit 2>&1)",
-      "Bash(cd \"/c/Users/didie/OneDrive/Documents/Claude-projets/hero/admin\" && npm run dev)",
-      "mcp__supabase__apply_migration",
-      "mcp__supabase__execute_sql",
-      "Bash(cd \"C:/Users/didie/OneDrive/Documents/Claude-projets/hero/admin\" && npx tsc --noEmit 2>&1 | head -30)",
-      "mcp__supabase__list_projects",
-      "Bash(cd \"C:/Users/didie/OneDrive/Documents/Claude-projets/hero/admin\" && npx tsc --noEmit 2>&1 | grep -v \"generate/route.ts\")"
+      "Bash(cmd.exe /c \"copy \\\\\"D:\\\\Download\\\\Capture d'écran 2026-03-10 195914.jpg\\\\\" \\\\\"C:\\\\Users\\\\didie\\\\AppData\\\\Local\\\\Temp\\\\capture195914.jpg\\\\\"\")"
     ]
   }
 }
