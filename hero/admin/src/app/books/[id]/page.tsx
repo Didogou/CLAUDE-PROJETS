@@ -78,6 +78,8 @@ export default function BookPage() {
   const [loading, setLoading] = useState(true)
   const [bookSaving, setBookSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleInput, setTitleInput] = useState('')
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [editSummary, setEditSummary] = useState('')
@@ -117,6 +119,16 @@ export default function BookPage() {
     setBookSaving(false)
   }
 
+  async function saveTitle() {
+    const t = titleInput.trim()
+    if (!t || t === book?.title) { setEditingTitle(false); return }
+    setBookSaving(true)
+    await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: t }) })
+    setBook(b => b ? { ...b, title: t } : b)
+    setBookSaving(false)
+    setEditingTitle(false)
+  }
+
   // ── Actions section ────────────────────────────────────────────────────────
 
   async function saveSection(sectionId: string) {
@@ -154,7 +166,34 @@ export default function BookPage() {
           <button onClick={() => router.push('/')} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.875rem', marginBottom: '0.5rem', padding: 0 }}>
             ← Bibliothèque
           </button>
-          <h2 style={{ fontSize: '1.75rem', color: 'var(--accent)', margin: 0 }}>{book.title}</h2>
+          {editingTitle ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.1rem' }}>
+              <input
+                autoFocus
+                value={titleInput}
+                onChange={e => setTitleInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') saveTitle(); if (e.key === 'Escape') setEditingTitle(false) }}
+                style={{
+                  fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--accent)',
+                  background: 'var(--surface-2)', border: '1px solid var(--accent)',
+                  borderRadius: '6px', padding: '0.2rem 0.6rem', outline: 'none', width: '360px',
+                }}
+              />
+              <button onClick={saveTitle} disabled={bookSaving} style={{ background: 'var(--accent)', color: '#0f0f14', border: 'none', borderRadius: '5px', padding: '0.3rem 0.7rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.82rem' }}>
+                {bookSaving ? '...' : '✓'}
+              </button>
+              <button onClick={() => setEditingTitle(false)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.82rem' }}>
+                Annuler
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h2 style={{ fontSize: '1.75rem', color: 'var(--accent)', margin: 0 }}>{book.title}</h2>
+              <button onClick={() => { setTitleInput(book.title); setEditingTitle(true) }} title="Modifier le titre" style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.9rem', opacity: 0.6, padding: '0.2rem' }}>
+                ✏️
+              </button>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
             {[book.theme, book.context_type, book.age_range + ' ans', book.language.toUpperCase()].map(tag => (
               <span key={tag} style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'var(--surface-2)', color: 'var(--muted)' }}>{tag}</span>
