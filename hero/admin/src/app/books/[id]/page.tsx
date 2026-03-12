@@ -509,7 +509,7 @@ export default function BookPage() {
 
       {/* ── Onglet PNJ ──────────────────────────────────────────────────────── */}
       {tab === 'npcs' && (
-        <NpcTab bookId={id} npcs={npcs} setNpcs={setNpcs} sections={sections} />
+        <NpcTab bookId={id} npcs={npcs} setNpcs={setNpcs} sections={sections} onNavigate={(n) => { setTab('sections'); scrollToSection(n) }} />
       )}
     </div>
   )
@@ -1119,7 +1119,7 @@ const NPC_DEFAULTS = {
   speech_style: '', dialogue_intro: '',
 }
 
-function NpcTab({ bookId, npcs, setNpcs, sections }: { bookId: string; npcs: Npc[]; setNpcs: (fn: (prev: Npc[]) => Npc[]) => void; sections: Section[] }) {
+function NpcTab({ bookId, npcs, setNpcs, sections, onNavigate }: { bookId: string; npcs: Npc[]; setNpcs: (fn: (prev: Npc[]) => Npc[]) => void; sections: Section[]; onNavigate: (n: number) => void }) {
   // sections où chaque PNJ apparaît (via trial.npc_id)
   const npcSections = (npcId: string) =>
     sections.filter(s => s.trial?.npc_id === npcId).map(s => s.number).sort((a, b) => a - b)
@@ -1337,19 +1337,30 @@ function NpcTab({ bookId, npcs, setNpcs, sections }: { bookId: string; npcs: Npc
 
                 {/* Sections où ce PNJ apparaît */}
                 {(() => {
-                  const nums = npcSections(npc.id)
-                  return nums.length > 0 ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.72rem' }}>
+                  const secs = sections.filter(s => s.trial?.npc_id === npc.id).sort((a, b) => a.number - b.number)
+                  return secs.length > 0 ? (
+                    <div style={{ marginTop: '0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.72rem' }}>
                       <span style={{ color: 'var(--muted)' }}>Apparaît dans :</span>
-                      {nums.map(n => (
-                        <span key={n} style={{
-                          padding: '0.15rem 0.45rem', borderRadius: '4px',
-                          background: 'var(--accent)22', color: 'var(--accent)',
-                          fontWeight: 'bold', cursor: 'default',
-                        }}>§{n}</span>
-                      ))}
+                      {secs.map(s => {
+                        const t = getSectionType(s)
+                        return (
+                          <button key={s.id} onClick={() => onNavigate(s.number)} title={`Aller à la section ${s.number}`} style={{
+                            padding: '0.2rem 0.55rem', borderRadius: '5px',
+                            background: t.color + '22', color: t.color,
+                            border: `1px solid ${t.color}55`,
+                            fontWeight: 'bold', cursor: 'pointer', fontSize: '0.72rem',
+                            display: 'flex', alignItems: 'center', gap: '0.25rem',
+                          }}>
+                            <span>{t.icon}</span> §{s.number}
+                          </button>
+                        )
+                      })}
                     </div>
-                  ) : null
+                  ) : (
+                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.7rem', color: 'var(--muted)', fontStyle: 'italic' }}>
+                      Pas encore associé à une section
+                    </p>
+                  )
                 })()}
               </div>
             )
