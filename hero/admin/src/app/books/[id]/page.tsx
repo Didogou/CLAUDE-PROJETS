@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import type { Book, Section, Choice, SectionStatus, Npc, NpcType } from '@/types'
 
@@ -86,6 +86,7 @@ export default function BookPage() {
   const [narrationPanel, setNarrationPanel] = useState<{ sectionId: string; content: string } | null>(null)
   const [sectionSaving, setSectionSaving] = useState<string | null>(null)
   const [tab, setTab] = useState<'sections' | 'plan' | 'npcs'>('sections')
+  const [planHighlight, setPlanHighlight] = useState<number | null>(null)
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -384,6 +385,11 @@ export default function BookPage() {
                         {SECTION_STATUS_CONFIG[s].label}
                       </button>
                     ))}
+                    <button onClick={() => { setPlanHighlight(section.number); setTab('plan') }}
+                      title="Voir dans le plan"
+                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}>
+                      📐 Plan
+                    </button>
                     {!isEditing && (
                       <button onClick={() => setNarrationPanel({ sectionId: section.id, content: section.content })}
                         style={{ background: 'none', border: '1px solid #b48edd66', borderRadius: '4px', color: '#b48edd', cursor: 'pointer', padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}>
@@ -505,7 +511,7 @@ export default function BookPage() {
       )}
 
       {/* ── Onglet Plan ─────────────────────────────────────────────────────── */}
-      {tab === 'plan' && <GraphView sections={sections} choices={choices} activeFilters={activeFilters} />}
+      {tab === 'plan' && <GraphView sections={sections} choices={choices} activeFilters={activeFilters} highlightNumber={planHighlight} onHighlightDone={() => setPlanHighlight(null)} onNavigate={(n) => { setTab('sections'); scrollToSection(n) }} />}
 
       {/* ── Onglet PNJ ──────────────────────────────────────────────────────── */}
       {tab === 'npcs' && (
@@ -981,8 +987,29 @@ function computeReachable(sections: Section[], choices: Choice[], endingType: 'v
   return reachable
 }
 
-function GraphView({ sections, choices, activeFilters }: { sections: Section[]; choices: Choice[]; activeFilters: Set<string> }) {
+function GraphView({ sections, choices, activeFilters, highlightNumber, onHighlightDone, onNavigate }: {
+  sections: Section[]
+  choices: Choice[]
+  activeFilters: Set<string>
+  highlightNumber?: number | null
+  onHighlightDone?: () => void
+  onNavigate: (n: number) => void
+}) {
   const [pathFilter, setPathFilter] = useState<'victory' | 'death' | null>(null)
+  const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  // Scroller vers le nœud surligné quand highlightNumber change
+  useEffect(() => {
+    if (!highlightNumber) return
+    const section = sections.find(s => s.number === highlightNumber)
+    if (!section) return
+    const el = nodeRefs.current.get(section.id)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+    }
+    const timer = setTimeout(() => onHighlightDone?.(), 2000)
+    return () => clearTimeout(timer)
+  }, [highlightNumber])
 
   const COLS = Math.max(4, Math.ceil(Math.sqrt(sections.length)))
 
@@ -1084,13 +1111,22 @@ function GraphView({ sections, choices, activeFilters }: { sections: Section[]; 
           const typeDimmed = activeFilters.size > 0 && !activeFilters.has(t.label)
           const pathDimmed = pathFilter !== null && !(pathFilter === 'victory' ? reachableVictory : reachableDeath).has(section.id)
           const dimmed = typeDimmed || pathDimmed
+          const isHighlighted = highlightNumber === section.number
           return (
-            <div key={section.id} style={{
-              position: 'absolute', left: pos.x, top: pos.y, width: NODE_W, height: NODE_H,
-              background: 'var(--surface-2)', border: `1.5px solid ${dimmed ? 'var(--border)' : t.color + '99'}`,
-              borderRadius: '7px', padding: '0.4rem 0.55rem', overflow: 'hidden', boxSizing: 'border-box',
-              opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.2s',
-            }}>
+            <div
+              key={section.id}
+              ref={el => { if (el) nodeRefs.current.set(section.id, el); else nodeRefs.current.delete(section.id) }}
+              onClick={() => !dimmed && onNavigate(section.number)}
+              title={`§${section.number} — cliquer pour lire la section`}
+              style={{
+                position: 'absolute', left: pos.x, top: pos.y, width: NODE_W, height: NODE_H,
+                background: isHighlighted ? t.color + '22' : 'var(--surface-2)',
+                border: `${isHighlighted ? '2.5px' : '1.5px'} solid ${dimmed ? 'var(--border)' : isHighlighted ? t.color : t.color + '99'}`,
+                borderRadius: '7px', padding: '0.4rem 0.55rem', overflow: 'hidden', boxSizing: 'border-box',
+                opacity: dimmed ? 0.15 : 1, transition: 'opacity 0.2s, border-color 0.3s, background 0.3s',
+                cursor: dimmed ? 'default' : 'pointer',
+                boxShadow: isHighlighted ? `0 0 12px ${t.color}66` : 'none',
+              }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                   <span style={{ fontSize: '0.8rem' }}>{t.icon}</span>
