@@ -111,6 +111,7 @@ export interface Book {
   description?: string
   created_at: string
   updated_at: string
+  num_sections?: number   // enrichi par /api/books (count depuis sections)
 }
 
 export type NpcType = 'ennemi' | 'boss' | 'allié' | 'neutre' | 'marchand'

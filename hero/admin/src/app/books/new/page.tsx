@@ -32,6 +32,46 @@ const labelStyle: React.CSSProperties = {
 
 const DEFAULT_MIX: ContentMix = { combat: 20, chance: 10, enigme: 10, magie: 5 }
 
+// Temps moyen par section selon le type (minutes)
+const SECTION_TIME: Record<string, number> = {
+  narration: 2, combat: 5, magie: 5, enigme: 4, chance: 2,
+}
+
+// Part du livre visitée en une partie selon la difficulté
+const VISIT_RATE: Record<Difficulty, number> = {
+  facile: 0.42, normal: 0.36, difficile: 0.28, expert: 0.22,
+}
+
+// Nombre de parties pour voir toutes les fins selon la difficulté
+const REPLAYS: Record<Difficulty, { min: number; max: number }> = {
+  facile: { min: 2, max: 3 }, normal: { min: 3, max: 5 },
+  difficile: { min: 4, max: 7 }, expert: { min: 6, max: 10 },
+}
+
+function estimatePlayTime(num_sections: number, mix: ContentMix, difficulty: Difficulty) {
+  const total = mix.combat + mix.chance + mix.enigme + mix.magie
+  const narration = Math.max(0, 100 - total)
+  // Temps moyen pondéré par section (en minutes)
+  const avgTimePerSection =
+    (mix.combat  / 100) * SECTION_TIME.combat  +
+    (mix.magie   / 100) * SECTION_TIME.magie   +
+    (mix.enigme  / 100) * SECTION_TIME.enigme  +
+    (mix.chance  / 100) * SECTION_TIME.chance  +
+    (narration   / 100) * SECTION_TIME.narration
+  const sectionsVisited = Math.round(num_sections * VISIT_RATE[difficulty])
+  const avgMin = Math.round(sectionsVisited * avgTimePerSection)
+  const minTime = Math.round(avgMin * 0.75)
+  const maxTime = Math.round(avgMin * 1.35)
+  return { minTime, maxTime, sectionsVisited, replays: REPLAYS[difficulty] }
+}
+
+function formatTime(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h}h` : `${h}h${m.toString().padStart(2, '0')}`
+}
+
 export default function NewBookPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
@@ -53,6 +93,7 @@ export default function NewBookPage() {
   const totalMix = form.content_mix.combat + form.content_mix.chance + form.content_mix.enigme + form.content_mix.magie
   const narration = Math.max(0, 100 - totalMix)
   const mixOver = totalMix > 90
+  const estimate = estimatePlayTime(form.num_sections, form.content_mix, form.difficulty)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -202,6 +243,47 @@ export default function NewBookPage() {
           <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
             value={form.description} onChange={e => set('description', e.target.value)}
             placeholder="Décrivez l'intrigue principale, les personnages clés, l'atmosphère..." />
+        </div>
+
+        {/* Estimation temps de jeu */}
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: '10px', padding: '1rem 1.25rem',
+          display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem',
+        }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+              ⏱ Durée par partie
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--accent)' }}>
+              {formatTime(estimate.minTime)} – {formatTime(estimate.maxTime)}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+              ~{estimate.sectionsVisited} sections visitées / partie
+            </div>
+          </div>
+          <div style={{ textAlign: 'center', borderLeft: '1px solid var(--border)', borderRight: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+              🔄 Rejouabilité
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--accent)' }}>
+              {estimate.replays.min}–{estimate.replays.max} parties
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+              pour voir toutes les fins
+            </div>
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem' }}>
+              📖 Sections totales
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--accent)' }}>
+              {form.num_sections}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+              sections générées
+            </div>
+          </div>
         </div>
 
         {error && (

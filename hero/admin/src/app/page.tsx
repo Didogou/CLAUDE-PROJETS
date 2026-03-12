@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import type { Book } from '@/types'
+import type { Book, Difficulty } from '@/types'
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Brouillon', published: 'Publié', archived: 'Archivé',
@@ -10,6 +10,27 @@ const STATUS_COLORS: Record<string, string> = {
 }
 const DIFFICULTY_ICONS: Record<string, string> = {
   facile: '🌱', normal: '⚔️', difficile: '🔥', expert: '💀',
+}
+
+const VISIT_RATE: Record<Difficulty, number> = {
+  facile: 0.42, normal: 0.36, difficile: 0.28, expert: 0.22,
+}
+
+function estimateTime(book: Book): string {
+  const n = book.num_sections
+  if (!n) return ''
+  const mix = book.content_mix ?? { combat: 20, chance: 10, enigme: 10, magie: 5 }
+  const total = mix.combat + mix.chance + mix.enigme + mix.magie
+  const narration = Math.max(0, 100 - total)
+  const avgMin =
+    (mix.combat / 100) * 5 + (mix.magie / 100) * 5 +
+    (mix.enigme / 100) * 4 + (mix.chance / 100) * 2 +
+    (narration  / 100) * 2
+  const visited = Math.round(n * (VISIT_RATE[book.difficulty ?? 'normal']))
+  const minutes = Math.round(visited * avgMin)
+  if (minutes < 60) return `~${minutes} min`
+  const h = Math.floor(minutes / 60), m = minutes % 60
+  return m === 0 ? `~${h}h` : `~${h}h${m.toString().padStart(2, '0')}`
 }
 
 export default function HomePage() {
@@ -87,10 +108,15 @@ export default function HomePage() {
                     ))}
                   </div>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem', flexWrap: 'wrap', gap: '0.3rem' }}>
                     <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>
                       {DIFFICULTY_ICONS[book.difficulty ?? 'normal']} {book.difficulty ?? 'normal'}
                     </span>
+                    {book.num_sections ? (
+                      <span style={{ fontSize: '0.72rem', color: 'var(--accent)', fontWeight: 'bold' }}>
+                        ⏱ {estimateTime(book)} · {book.num_sections} §
+                      </span>
+                    ) : null}
                     <p style={{ fontSize: '0.75rem', color: 'var(--muted)', margin: 0 }}>
                       {new Date(book.created_at).toLocaleDateString('fr-FR')}
                     </p>
