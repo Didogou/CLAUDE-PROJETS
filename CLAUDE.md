@@ -16,6 +16,11 @@ When working on Python projects in this workspace:
 - Lint/format: `ruff check .` and `ruff format .`
 - Run a single test: `pytest path/to/test_file.py::test_name`
 
+## GitHub
+
+- Repo: https://github.com/Didogou/CLAUDE-PROJETS
+- `gh` CLI path: `/c/Program Files/GitHub CLI/gh` — always add to PATH with `export PATH="$PATH:/c/Program Files/GitHub CLI"` before using `gh`
+
 ## Pre-approved Bash commands
 
 The following commands run without prompting the user (defined in `.vscode/.claude/settings.local.json`):
