@@ -147,7 +147,12 @@ export default function BookPage() {
   }
 
   function scrollToSection(number: number) {
-    document.getElementById(`sec-${number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    const doScroll = () =>
+      document.getElementById(`sec-${number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // Si l'élément est déjà dans le DOM (même onglet), scroll immédiat
+    if (document.getElementById(`sec-${number}`)) { doScroll() }
+    // Sinon, attendre le prochain rendu (changement d'onglet)
+    else { setTimeout(doScroll, 80) }
   }
 
   const sectionChoices = (sectionId: string) =>
