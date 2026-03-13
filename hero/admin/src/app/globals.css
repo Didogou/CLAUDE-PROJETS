@@ -29,6 +29,9 @@ body {
   min-height: 100vh;
 }
 
+/* Firefox */
+* { scrollbar-color: #aaa var(--surface-2); scrollbar-width: thin; }
+/* Chrome / Edge / Safari */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: var(--surface-2); }
 ::-webkit-scrollbar-thumb { background: #aaa; border-radius: 4px; }
