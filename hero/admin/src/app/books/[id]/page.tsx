@@ -1228,36 +1228,54 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
   onNavigate: (n: number) => void
 }) {
   const [pathFilter, setPathFilter] = useState<'victory' | 'death' | null>(null)
-  const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map())
+  const [pan, setPan] = useState({ x: 40, y: 40 })
+  const [zoom, setZoom] = useState(1)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isPanning  = useRef(false)
+  const lastPointer = useRef({ x: 0, y: 0 })
+  const dragMoved  = useRef(false)
 
-  // Scroller vers le nœud surligné quand highlightNumber change
+  const COLS = Math.max(4, Math.ceil(Math.sqrt(sections.length)))
+  const positions = new Map<string, { x: number; y: number; cx: number; cy: number }>()
+  sections.forEach((s, i) => {
+    const col = i % COLS, row = Math.floor(i / COLS)
+    const x = col * COL_GAP + 16, y = row * ROW_GAP + 16
+    positions.set(s.id, { x, y, cx: x + NODE_W / 2, cy: y + NODE_H / 2 })
+  })
+  const rows = Math.ceil(sections.length / COLS)
+  const canvasW = COLS * COL_GAP + NODE_W + 16
+  const canvasH = rows * ROW_GAP + NODE_H + 16
+
+  function fitToScreen() {
+    const c = containerRef.current
+    if (!c) return
+    const { width, height } = c.getBoundingClientRect()
+    const newZoom = Math.min((width - 80) / canvasW, (height - 80) / canvasH, 1.5)
+    setZoom(newZoom)
+    setPan({ x: (width - canvasW * newZoom) / 2, y: (height - canvasH * newZoom) / 2 })
+  }
+
+  function centerOnSection(sectionId: string) {
+    const pos = positions.get(sectionId)
+    const c = containerRef.current
+    if (!pos || !c) return
+    const { width, height } = c.getBoundingClientRect()
+    setPan({ x: width / 2 - pos.cx * zoom, y: height / 2 - pos.cy * zoom })
+  }
+
+  // Centrer sur le nœud surligné
   useEffect(() => {
     if (!highlightNumber) return
     const section = sections.find(s => s.number === highlightNumber)
     if (!section) return
-    // Petit délai pour laisser les refs se peupler après le montage du composant
-    const scrollTimer = setTimeout(() => {
-      const el = nodeRefs.current.get(section.id)
-      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
-    }, 80)
-    const resetTimer = setTimeout(() => onHighlightDone?.(), 3500)
-    return () => { clearTimeout(scrollTimer); clearTimeout(resetTimer) }
+    const t = setTimeout(() => centerOnSection(section.id), 80)
+    const t2 = setTimeout(() => onHighlightDone?.(), 3500)
+    return () => { clearTimeout(t); clearTimeout(t2) }
   }, [highlightNumber])
 
-  const COLS = Math.max(4, Math.ceil(Math.sqrt(sections.length)))
+  // Fit initial
+  useEffect(() => { setTimeout(fitToScreen, 50) }, [sections.length])
 
-  const positions = new Map<string, { x: number; y: number; cx: number; cy: number }>()
-  sections.forEach((s, i) => {
-    const col = i % COLS
-    const row = Math.floor(i / COLS)
-    const x = col * COL_GAP + 16
-    const y = row * ROW_GAP + 16
-    positions.set(s.id, { x, y, cx: x + NODE_W / 2, cy: y + NODE_H / 2 })
-  })
-
-  const rows = Math.ceil(sections.length / COLS)
-  const canvasW = COLS * COL_GAP + NODE_W + 16
-  const canvasH = rows * ROW_GAP + NODE_H + 16
   const sectionById = new Map(sections.map(s => [s.id, s]))
 
   const reachableVictory = computeReachable(sections, choices, 'victory')
@@ -1278,11 +1296,12 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
         }
       `}</style>
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.85rem', alignItems: 'center' }}>
+      {/* Barre d'outils */}
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.85rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Chemins</span>
         {([
-          { key: 'victory', label: `🏆 Mènent à la victoire (${reachableVictory.size})`, color: '#4caf7d' },
-          { key: 'death',   label: `💀 Mènent à la mort (${reachableDeath.size})`,        color: '#c94c4c' },
+          { key: 'victory', label: `🏆 Victoire (${reachableVictory.size})`, color: '#4caf7d' },
+          { key: 'death',   label: `💀 Mort (${reachableDeath.size})`,        color: '#c94c4c' },
         ] as const).map(f => (
           <button key={f.key} onClick={() => setPathFilter(p => p === f.key ? null : f.key)} style={{
             fontSize: '0.75rem', padding: '0.25rem 0.75rem', borderRadius: '20px',
@@ -1297,10 +1316,53 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
             ✕ Tout afficher
           </button>
         )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+          <button onClick={() => setZoom(z => Math.min(z * 1.2, 3))} title="Zoom +" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--foreground)', cursor: 'pointer', padding: '0.2rem 0.55rem', fontSize: '0.8rem' }}>+</button>
+          <span style={{ fontSize: '0.7rem', color: 'var(--muted)', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
+          <button onClick={() => setZoom(z => Math.max(z / 1.2, 0.15))} title="Zoom −" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--foreground)', cursor: 'pointer', padding: '0.2rem 0.55rem', fontSize: '0.8rem' }}>−</button>
+          <button onClick={fitToScreen} title="Ajuster à la fenêtre" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}>⊡ Tout afficher</button>
+        </div>
       </div>
 
-    <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '68vh', border: '1px solid var(--border)', borderRadius: '10px', background: 'var(--surface)' }}>
-      <div style={{ position: 'relative', width: canvasW, height: canvasH }}>
+      {/* Canvas pan+zoom */}
+      <div
+        ref={containerRef}
+        onPointerDown={e => {
+          if (e.button !== 0) return
+          isPanning.current = true; dragMoved.current = false
+          lastPointer.current = { x: e.clientX, y: e.clientY }
+          e.currentTarget.setPointerCapture(e.pointerId)
+        }}
+        onPointerMove={e => {
+          if (!isPanning.current) return
+          const dx = e.clientX - lastPointer.current.x
+          const dy = e.clientY - lastPointer.current.y
+          if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved.current = true
+          lastPointer.current = { x: e.clientX, y: e.clientY }
+          setPan(p => ({ x: p.x + dx, y: p.y + dy }))
+        }}
+        onPointerUp={() => { isPanning.current = false }}
+        onWheel={e => {
+          e.preventDefault()
+          const c = containerRef.current!
+          const rect = c.getBoundingClientRect()
+          const mx = e.clientX - rect.left, my = e.clientY - rect.top
+          const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
+          setZoom(z => {
+            const nz = Math.min(3, Math.max(0.15, z * factor))
+            const sf = nz / z
+            setPan(p => ({ x: mx - sf * (mx - p.x), y: my - sf * (my - p.y) }))
+            return nz
+          })
+        }}
+        style={{
+          border: '1px solid var(--border)', borderRadius: '10px',
+          background: 'var(--surface)', height: '68vh', overflow: 'hidden',
+          cursor: isPanning.current ? 'grabbing' : 'grab', position: 'relative',
+          userSelect: 'none',
+        }}
+      >
+        <div style={{ position: 'absolute', transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: '0 0', width: canvasW, height: canvasH }}>
         <svg style={{ position: 'absolute', inset: 0, width: canvasW, height: canvasH, pointerEvents: 'none' }}>
           <defs>
             {[
@@ -1360,8 +1422,7 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
           return (
             <div
               key={section.id}
-              ref={el => { if (el) nodeRefs.current.set(section.id, el); else nodeRefs.current.delete(section.id) }}
-              onClick={() => !dimmed && onNavigate(section.number)}
+              onClick={() => { if (!dimmed && !dragMoved.current) onNavigate(section.number) }}
               title={`§${section.number} — cliquer pour lire la section`}
               className={isHighlighted ? 'plan-node-highlighted' : undefined}
               style={{
@@ -1388,8 +1449,12 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
             </div>
           )
         })}
-      </div>
-    </div>
+        </div>{/* fin canvas transformé */}
+        {/* Aide navigation */}
+        <div style={{ position: 'absolute', bottom: '0.6rem', left: '0.75rem', fontSize: '0.62rem', color: 'var(--muted)', opacity: 0.5, pointerEvents: 'none' }}>
+          🖱 Glisser pour déplacer · Molette pour zoomer · Clic sur un nœud pour ouvrir la section
+        </div>
+      </div>{/* fin container pan+zoom */}
     </div>
   )
 }
