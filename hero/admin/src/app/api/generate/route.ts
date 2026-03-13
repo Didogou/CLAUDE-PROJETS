@@ -8,6 +8,30 @@ export const maxDuration = 300 // 5 minutes
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+/**
+ * Corrige les caractères de contrôle littéraux écrits par Claude à l'intérieur
+ * des chaînes JSON (ex: vrai \n, \t, \r au lieu des séquences d'échappement \n \t \r).
+ */
+function fixJsonControlChars(raw: string): string {
+  let result = ''
+  let inString = false
+  let escaped = false
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i]
+    if (escaped) { result += ch; escaped = false; continue }
+    if (ch === '\\' && inString) { result += ch; escaped = true; continue }
+    if (ch === '"') { inString = !inString; result += ch; continue }
+    if (inString) {
+      if      (ch === '\n') { result += '\\n';  continue }
+      else if (ch === '\r') { result += '\\r';  continue }
+      else if (ch === '\t') { result += '\\t';  continue }
+      else if (ch.charCodeAt(0) < 0x20) { continue } // autres ctrl chars → supprimés
+    }
+    result += ch
+  }
+  return result
+}
+
 async function streamMessageWithRetry(params: Parameters<typeof anthropic.messages.stream>[0], maxRetries = 4) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
@@ -52,17 +76,19 @@ export async function POST(req: NextRequest) {
     const rawContent = message.content[0].type === 'text' ? message.content[0].text : ''
     let structure: { npcs?: any[]; sections: any[]; locations?: any[] }
     try {
-      // 1. Essai direct après nettoyage des balises markdown
+      // 1. Nettoyer les balises markdown éventuelles
       let cleaned = rawContent.replace(/^```(?:json)?\s*/im, '').replace(/\s*```\s*$/m, '').trim()
-      // 2. Si ça échoue, extraire le premier bloc { … } de la réponse
+      // 2. Extraire le bloc { … } si du texte précède
       if (!cleaned.startsWith('{')) {
         const start = rawContent.indexOf('{')
         const end   = rawContent.lastIndexOf('}')
         if (start !== -1 && end !== -1) cleaned = rawContent.slice(start, end + 1)
       }
+      // 3. Sanitiser les caractères de contrôle littéraux dans les strings JSON
+      //    (Claude écrit parfois de vrais \n/\t dans les valeurs de chaîne)
+      cleaned = fixJsonControlChars(cleaned)
       structure = JSON.parse(cleaned)
     } catch {
-      // Logguer les 500 premiers caractères pour diagnostic
       const preview = rawContent.slice(0, 500).replace(/\n/g, '↵')
       throw new Error(`Claude a retourné un JSON invalide. Début de la réponse : ${preview}`)
     }
