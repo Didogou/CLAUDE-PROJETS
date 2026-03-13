@@ -251,10 +251,26 @@ export default function BookPage() {
               </button>
             </div>
           )}
-          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             {[book.theme, book.context_type, book.age_range + ' ans', book.language.toUpperCase()].map(tag => (
               <span key={tag} style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'var(--surface-2)', color: 'var(--muted)' }}>{tag}</span>
             ))}
+            {/* Sélecteur de type de carte */}
+            <select
+              value={book.map_type ?? 'none'}
+              onChange={async e => {
+                const map_type = e.target.value
+                await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ map_type }) })
+                setBook(b => b ? { ...b, map_type: map_type as any } : b)
+              }}
+              style={{ fontSize: '0.7rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'var(--surface-2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer', outline: 'none' }}
+              title="Type de carte"
+            >
+              <option value="none">🚫 Pas de carte</option>
+              <option value="fog">🌫️ Brouillard</option>
+              <option value="found">🗺️ Trouvée en chemin</option>
+              <option value="known">🏙️ Connue dès le début</option>
+            </select>
           </div>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
