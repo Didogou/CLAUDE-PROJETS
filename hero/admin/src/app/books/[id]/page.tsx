@@ -1228,6 +1228,7 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
   onNavigate: (n: number) => void
 }) {
   const [pathFilter, setPathFilter] = useState<'victory' | 'death' | null>(null)
+  const [fullscreen, setFullscreen] = useState(false)
   const [pan, setPan] = useState({ x: 40, y: 40 })
   const [zoom, setZoom] = useState(1)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -1281,8 +1282,12 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
   const reachableVictory = computeReachable(sections, choices, 'victory')
   const reachableDeath   = computeReachable(sections, choices, 'death')
 
+  const containerStyle: React.CSSProperties = fullscreen
+    ? { position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--background)', display: 'flex', flexDirection: 'column', padding: '0.75rem' }
+    : {}
+
   return (
-    <div>
+    <div style={containerStyle}>
       {/* Filtres chemins */}
       <style>{`
         @keyframes plan-pulse {
@@ -1321,6 +1326,9 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
           <span style={{ fontSize: '0.7rem', color: 'var(--muted)', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
           <button onClick={() => setZoom(z => Math.max(z / 1.2, 0.15))} title="Zoom −" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--foreground)', cursor: 'pointer', padding: '0.2rem 0.55rem', fontSize: '0.8rem' }}>−</button>
           <button onClick={fitToScreen} title="Ajuster à la fenêtre" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}>⊡ Tout afficher</button>
+          <button onClick={() => { setFullscreen(f => !f); setTimeout(fitToScreen, 60) }} style={{ background: fullscreen ? 'var(--accent)22' : 'var(--surface-2)', border: `1px solid ${fullscreen ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '4px', color: fullscreen ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}>
+            {fullscreen ? '✕ Réduire' : '⛶ Plein écran'}
+          </button>
         </div>
       </div>
 
@@ -1341,7 +1349,7 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
           lastPointer.current = { x: e.clientX, y: e.clientY }
           setPan(p => ({ x: p.x + dx, y: p.y + dy }))
         }}
-        onPointerUp={() => { isPanning.current = false }}
+        onPointerUp={() => { isPanning.current = false; dragMoved.current = false }}
         onWheel={e => {
           e.preventDefault()
           const c = containerRef.current!
@@ -1357,8 +1365,11 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
         }}
         style={{
           border: '1px solid var(--border)', borderRadius: '10px',
-          background: 'var(--surface)', height: '68vh', overflow: 'hidden',
-          cursor: isPanning.current ? 'grabbing' : 'grab', position: 'relative',
+          background: 'var(--surface)', overflow: 'hidden',
+          flex: fullscreen ? '1' : undefined,
+          height: fullscreen ? undefined : 'calc(100vh - 320px)',
+          minHeight: '400px',
+          cursor: 'grab', position: 'relative',
           userSelect: 'none',
         }}
       >
