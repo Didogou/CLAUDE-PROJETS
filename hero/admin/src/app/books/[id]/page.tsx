@@ -195,11 +195,16 @@ export default function BookPage() {
   }
 
   function scrollToSection(number: number) {
+    // Si la section cible est masquée par le filtre actif, on le désactive
+    const target = sections.find(s => s.number === number)
+    if (target && activeFilters.size > 0 && !activeFilters.has(getSectionType(target).label)) {
+      setActiveFilters(new Set())
+    }
     const doScroll = () =>
       document.getElementById(`sec-${number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     // Si l'élément est déjà dans le DOM (même onglet), scroll immédiat
     if (document.getElementById(`sec-${number}`)) { doScroll() }
-    // Sinon, attendre le prochain rendu (changement d'onglet)
+    // Sinon, attendre le prochain rendu (changement d'onglet ou suppression du filtre)
     else { setTimeout(doScroll, 80) }
   }
 
