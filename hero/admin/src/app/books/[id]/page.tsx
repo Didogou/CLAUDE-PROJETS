@@ -1231,6 +1231,7 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
   const [fullscreen, setFullscreen] = useState(false)
   const [pan, setPan] = useState({ x: 40, y: 40 })
   const [zoom, setZoom] = useState(1)
+  const [searchInput, setSearchInput] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
   const isPanning  = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
@@ -1265,14 +1266,12 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
     setPan({ x: width / 2 - pos.cx * zoom, y: height / 2 - pos.cy * zoom })
   }
 
-  // Centrer sur le nœud surligné
+  // Surbrillance du nœud — on ne déplace plus la vue automatiquement (fitToScreen suffit)
+  // L'utilisateur peut centrer manuellement via le bouton "✦ §N" dans la barre
   useEffect(() => {
     if (!highlightNumber) return
-    const section = sections.find(s => s.number === highlightNumber)
-    if (!section) return
-    const t = setTimeout(() => centerOnSection(section.id), 80)
-    const t2 = setTimeout(() => onHighlightDone?.(), 3500)
-    return () => { clearTimeout(t); clearTimeout(t2) }
+    const t = setTimeout(() => onHighlightDone?.(), 3500)
+    return () => clearTimeout(t)
   }, [highlightNumber])
 
   // Fit initial
@@ -1323,6 +1322,30 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
           </button>
         )}
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+          {/* Bouton centrer sur la section surlignée */}
+          {highlightNumber && (
+            <button
+              onClick={() => { const s = sections.find(s => s.number === highlightNumber); if (s) centerOnSection(s.id) }}
+              title={`Centrer sur §${highlightNumber}`}
+              style={{ background: 'var(--accent)22', border: '1px solid var(--accent)66', borderRadius: '4px', color: 'var(--accent)', cursor: 'pointer', padding: '0.2rem 0.6rem', fontSize: '0.75rem', fontWeight: 'bold' }}
+            >✦ §{highlightNumber}</button>
+          )}
+          {/* Recherche par numéro de section */}
+          <form onSubmit={e => {
+            e.preventDefault()
+            const n = parseInt(searchInput)
+            if (isNaN(n)) return
+            const s = sections.find(s => s.number === n)
+            if (s) centerOnSection(s.id)
+          }} style={{ display: 'flex', gap: '0.2rem' }}>
+            <input
+              value={searchInput}
+              onChange={e => setSearchInput(e.target.value)}
+              placeholder="§ ..."
+              style={{ width: '54px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--foreground)', padding: '0.2rem 0.4rem', fontSize: '0.75rem', outline: 'none' }}
+            />
+            <button type="submit" title="Aller à la section" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}>↵</button>
+          </form>
           <button onClick={() => setZoom(z => Math.min(z * 1.2, 3))} title="Zoom +" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--foreground)', cursor: 'pointer', padding: '0.2rem 0.55rem', fontSize: '0.8rem' }}>+</button>
           <span style={{ fontSize: '0.7rem', color: 'var(--muted)', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
           <button onClick={() => setZoom(z => Math.max(z / 1.2, 0.15))} title="Zoom −" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--foreground)', cursor: 'pointer', padding: '0.2rem 0.55rem', fontSize: '0.8rem' }}>−</button>
