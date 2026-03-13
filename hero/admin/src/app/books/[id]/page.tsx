@@ -1251,7 +1251,8 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
     const c = containerRef.current
     if (!c) return
     const { width, height } = c.getBoundingClientRect()
-    const newZoom = Math.min((width - 80) / canvasW, (height - 80) / canvasH, 1.5)
+    if (width < 10 || height < 10) return   // container pas encore rendu
+    const newZoom = Math.min(Math.max((width - 80) / canvasW, 0.1), Math.max((height - 80) / canvasH, 0.1), 1.5)
     setZoom(newZoom)
     setPan({ x: (width - canvasW * newZoom) / 2, y: (height - canvasH * newZoom) / 2 })
   }
