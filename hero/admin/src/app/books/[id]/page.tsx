@@ -1339,17 +1339,18 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
           if (e.button !== 0) return
           isPanning.current = true; dragMoved.current = false
           lastPointer.current = { x: e.clientX, y: e.clientY }
-          e.currentTarget.setPointerCapture(e.pointerId)
         }}
         onPointerMove={e => {
           if (!isPanning.current) return
           const dx = e.clientX - lastPointer.current.x
           const dy = e.clientY - lastPointer.current.y
-          if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved.current = true
           lastPointer.current = { x: e.clientX, y: e.clientY }
+          if (Math.abs(dx) + Math.abs(dy) < 2) return
+          dragMoved.current = true
           setPan(p => ({ x: p.x + dx, y: p.y + dy }))
         }}
-        onPointerUp={() => { isPanning.current = false; dragMoved.current = false }}
+        onPointerUp={() => { isPanning.current = false }}
+        onPointerLeave={() => { isPanning.current = false }}
         onWheel={e => {
           e.preventDefault()
           const c = containerRef.current!
@@ -1433,7 +1434,8 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
           return (
             <div
               key={section.id}
-              onClick={() => { if (!dimmed && !dragMoved.current) onNavigate(section.number) }}
+              onPointerDown={e => e.stopPropagation()}
+              onClick={() => { if (!dimmed) onNavigate(section.number) }}
               title={`§${section.number} — cliquer pour lire la section`}
               className={isHighlighted ? 'plan-node-highlighted' : undefined}
               style={{
