@@ -56,6 +56,10 @@ Paramètres du livre :
 - Nombre de sections : ${num_sections}
 - Difficulté : ${diffLabel} — ${DIFFICULTY_GUIDE[difficulty]}
 - Armes & équipements : ${weaponGuide}
+${params.description?.trim() ? `
+Contexte et inspiration fournis par l'auteur (à interpréter et intégrer fidèlement dans l'univers du livre) :
+${params.description.trim()}
+` : ''}
 
 Répartition des types de sections à respecter :
 ${mixGuide}

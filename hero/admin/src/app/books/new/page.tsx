@@ -3,6 +3,42 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { GenerateBookParams, AgeRange, Language, ContextType, Difficulty, ContentMix, MapType } from '@/types'
 
+// ── Blocs d'inspiration ───────────────────────────────────────────────────────
+
+interface InspirationBlock {
+  id: string
+  type: string
+  content: string
+}
+
+const BLOCK_TYPES = [
+  { value: 'Description',         icon: '📝' },
+  { value: 'Inspiration',         icon: '💡' },
+  { value: 'Ambiance',            icon: '🌫️' },
+  { value: 'Contexte politique',  icon: '⚖️' },
+  { value: 'Géographie',          icon: '🗺️' },
+  { value: 'Histoire du monde',   icon: '📜' },
+  { value: 'Personnages clés',    icon: '👤' },
+  { value: 'Factions',            icon: '⚔️' },
+  { value: 'Règles spéciales',    icon: '🎲' },
+  { value: 'Références',         icon: '🎬' },
+]
+
+function blockIcon(type: string) {
+  return BLOCK_TYPES.find(b => b.value === type)?.icon ?? '📄'
+}
+
+function serializeBlocks(blocks: InspirationBlock[]): string {
+  return blocks
+    .filter(b => b.content.trim())
+    .map(b => `[${b.type}]\n${b.content.trim()}`)
+    .join('\n\n')
+}
+
+function newBlock(type = 'Description'): InspirationBlock {
+  return { id: Math.random().toString(36).slice(2), type, content: '' }
+}
+
 const THEMES = ['Fantasy', 'Science-Fiction', 'Médiéval', 'Post-Apocalyptique', 'Cyberpunk', 'Horreur', 'Polar', 'Historique', 'Contemporain']
 const CONTEXTS: ContextType[] = ['Aventure', 'Intrigue', 'Suspense', 'Enquête', 'Horreur', 'Fantasy', 'Science-Fiction']
 const AGE_RANGES: AgeRange[] = ['8-12', '13-17', '18+']
@@ -83,6 +119,7 @@ export default function NewBookPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [blocks, setBlocks] = useState<InspirationBlock[]>([newBlock('Description')])
   const [form, setForm] = useState<GenerateBookParams>({
     title: '', theme: 'Fantasy', age_range: '13-17', context_type: 'Aventure',
     language: 'fr', difficulty: 'normal', num_sections: 30, map_type: 'fog',
@@ -108,8 +145,9 @@ export default function NewBookPage() {
     if (mixOver) { setError('Le total des épreuves dépasse 90%. Réduisez les curseurs.'); return }
     setLoading(true); setError('')
     try {
+      const payload = { ...form, description: serializeBlocks(blocks) }
       const res = await fetch('/api/generate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
@@ -264,12 +302,66 @@ export default function NewBookPage() {
           </div>
         </div>
 
-        {/* Description */}
+        {/* Blocs d'inspiration */}
         <div>
-          <label style={labelStyle}>Description (optionnel)</label>
-          <textarea style={{ ...inputStyle, resize: 'vertical', minHeight: '80px' }}
-            value={form.description} onChange={e => set('description', e.target.value)}
-            placeholder="Décrivez l'intrigue principale, les personnages clés, l'atmosphère..." />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
+            <label style={{ ...labelStyle, margin: 0 }}>Contexte &amp; inspiration (optionnel)</label>
+            <span style={{ fontSize: '0.65rem', color: 'var(--muted)', opacity: 0.7 }}>Lu et interprété par Claude</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {blocks.map((block, i) => (
+              <div key={block.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                {/* En-tête du bloc */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.6rem', background: 'var(--surface-2)', borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '0.9rem' }}>{blockIcon(block.type)}</span>
+                  <select
+                    value={block.type}
+                    onChange={e => setBlocks(bs => bs.map(b => b.id === block.id ? { ...b, type: e.target.value } : b))}
+                    style={{ flex: 1, background: 'transparent', border: 'none', color: 'var(--foreground)', fontSize: '0.78rem', fontWeight: 'bold', outline: 'none', cursor: 'pointer' }}
+                  >
+                    {BLOCK_TYPES.map(t => <option key={t.value} value={t.value}>{t.icon} {t.value}</option>)}
+                  </select>
+                  {blocks.length > 1 && (
+                    <button type="button" onClick={() => setBlocks(bs => bs.filter(b => b.id !== block.id))}
+                      style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.75rem', opacity: 0.6, padding: '0 0.2rem' }}>
+                      ✕
+                    </button>
+                  )}
+                </div>
+                {/* Contenu */}
+                <textarea
+                  value={block.content}
+                  onChange={e => setBlocks(bs => bs.map(b => b.id === block.id ? { ...b, content: e.target.value } : b))}
+                  placeholder={
+                    block.type === 'Description'        ? "Résumé de l'histoire, concept principal..." :
+                    block.type === 'Ambiance'            ? "Sombre et oppressant, brume permanente, ville délabrée..." :
+                    block.type === 'Contexte politique'  ? "Trois factions se disputent le pouvoir depuis la chute de l'empire..." :
+                    block.type === 'Géographie'          ? "La cité est construite sur trois niveaux, entourée d'un marais toxique..." :
+                    block.type === 'Personnages clés'    ? "Le Général Vorn : militaire impitoyable. Lena : jeune espionne rebelle..." :
+                    block.type === 'Références'         ? "Inspiré de Blade Runner, 1984, et Le Nom de la Rose..." :
+                    "Détaillez ce contexte pour guider Claude..."
+                  }
+                  rows={3}
+                  style={{ width: '100%', background: 'transparent', border: 'none', padding: '0.6rem 0.75rem', color: 'var(--foreground)', fontSize: '0.85rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </div>
+            ))}
+
+            {/* Bouton ajouter un bloc */}
+            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+              {BLOCK_TYPES.filter(t => !blocks.some(b => b.type === t.value)).map(t => (
+                <button key={t.value} type="button"
+                  onClick={() => setBlocks(bs => [...bs, newBlock(t.value)])}
+                  style={{
+                    fontSize: '0.68rem', padding: '0.25rem 0.6rem', borderRadius: '20px',
+                    background: 'var(--surface-2)', border: '1px dashed var(--border)',
+                    color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem',
+                  }}>
+                  + {t.icon} {t.value}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Estimation temps de jeu */}
