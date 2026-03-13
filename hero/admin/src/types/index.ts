@@ -77,6 +77,7 @@ export interface Section {
   number: number
   content: string
   summary?: string
+  music_url?: string
   content_en?: string
   image_url?: string
   animation_key?: string
@@ -108,6 +109,7 @@ export interface Book {
   difficulty: Difficulty
   content_mix: ContentMix
   cover_image_url?: string
+  music_url?: string
   description?: string
   created_at: string
   updated_at: string

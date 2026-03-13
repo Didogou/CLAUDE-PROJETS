@@ -34,13 +34,13 @@
 
 Le contenu de chaque livre doit être rédigé dans le style de **Pierre Bordage** :
 
-- Phrases courtes, rythmées, percutantes selon le type de section
+- Le début du roman doit contenir une ou deux pages de mise en contexte, lors des phases de tensions, utiliser des phrases courtes, rythmées, percutantes selon le type de section
 - Atmosphère immersive et sensorielle (sons, odeurs, lumières)
 - Tension narrative permanente
 - Personnages profonds avec une dimension morale ou existentielle
 - Univers cohérents et détaillés (SF, fantasy, post-apo, thriller...)
 - Écriture à la deuxième personne du singulier ("Vous avancez dans l'obscurité...")
-
+- Le thème de l'histoire doit largement s'inspirer de la description de l'admin
 ---
 
 ## Partie 1 — Interface Admin (Web)

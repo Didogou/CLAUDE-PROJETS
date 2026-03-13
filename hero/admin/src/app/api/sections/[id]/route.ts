@@ -9,6 +9,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const allowed: Record<string, any> = {}
     if ('content' in body) allowed.content = body.content
     if ('summary' in body) allowed.summary = body.summary
+    if ('music_url' in body) allowed.music_url = body.music_url || null
     if ('status' in body) {
       if (!['draft', 'in_progress', 'validated'].includes(body.status)) {
         return NextResponse.json({ error: 'Statut invalide' }, { status: 400 })

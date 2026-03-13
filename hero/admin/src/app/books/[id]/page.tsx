@@ -3,6 +3,21 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import type { Book, Section, Choice, SectionStatus, Npc, NpcType } from '@/types'
 
+// ── Musique par défaut par type de section ────────────────────────────────────
+
+const DEFAULT_MUSIC: Record<string, string> = {
+  'Narration':   'https://opengameart.org/sites/default/files/dungeon_ambient_1_0.ogg',
+  'Combat':      'https://opengameart.org/sites/default/files/battleThemeA.mp3',
+  'Énigme':      'https://opengameart.org/sites/default/files/Memoraphile%20-%20Spooky%20Dungeon.mp3',
+  'Magie':       'https://opengameart.org/sites/default/files/FantasyOrchestralTheme_1.mp3',
+  'Chance':      'https://opengameart.org/sites/default/files/urban_shop_bpm92.mp3',
+  'Dialogue':    'https://opengameart.org/sites/default/files/Tavern_0.ogg',
+  'Crochetage':  'https://opengameart.org/sites/default/files/Stealth%20in%20the%20Woods_0.mp3',
+  'Victoire':    'https://opengameart.org/sites/default/files/Victory_0.mp3',
+  'Mort':        'https://opengameart.org/sites/default/files/ambient3%28ominous%29_0.mp3',
+  'Agilité':     'https://opengameart.org/sites/default/files/Stealth%20in%20the%20Woods_0.mp3',
+}
+
 // ── Config ────────────────────────────────────────────────────────────────────
 
 const BOOK_STATUS_LABELS: Record<string, string> = {
@@ -83,10 +98,12 @@ export default function BookPage() {
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
   const [editSummary, setEditSummary] = useState('')
+  const [editMusicUrl, setEditMusicUrl] = useState('')
   const [narrationPanel, setNarrationPanel] = useState<{ sectionId: string; content: string } | null>(null)
   const [sectionSaving, setSectionSaving] = useState<string | null>(null)
   const [tab, setTab] = useState<'sections' | 'plan' | 'npcs'>('sections')
   const [planHighlight, setPlanHighlight] = useState<number | null>(null)
+  const [currentTrack, setCurrentTrack] = useState<{ url: string; label: string } | null>(null)
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -104,6 +121,31 @@ export default function BookPage() {
     }
     load()
   }, [id])
+
+  // ── Détection section visible → changement de piste ──────────────────────
+  useEffect(() => {
+    if (tab !== 'sections' || sections.length === 0) return
+    const observer = new IntersectionObserver(entries => {
+      // Prendre la section la plus visible
+      const visible = entries
+        .filter(e => e.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0]
+      if (!visible) return
+      const num = parseInt(visible.target.getAttribute('data-section-number') ?? '0')
+      const section = sections.find(s => s.number === num)
+      if (!section) return
+      const typeLabel = getSectionType(section).label
+      const url = section.music_url || DEFAULT_MUSIC[typeLabel] || null
+      const label = `${getSectionType(section).icon} §${num} — ${typeLabel}`
+      if (url) setCurrentTrack(t => t?.url === url ? t : { url, label })
+    }, { threshold: 0.4 })
+
+    sections.forEach(s => {
+      const el = document.getElementById(`sec-${s.number}`)
+      if (el) { el.setAttribute('data-section-number', String(s.number)); observer.observe(el) }
+    })
+    return () => observer.disconnect()
+  }, [tab, sections])
 
   // ── Actions livre ──────────────────────────────────────────────────────────
 
@@ -134,8 +176,10 @@ export default function BookPage() {
 
   async function saveSection(sectionId: string) {
     setSectionSaving(sectionId)
-    await fetch(`/api/sections/${sectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: editContent, summary: editSummary }) })
-    setSections(ss => ss.map(s => s.id === sectionId ? { ...s, content: editContent, summary: editSummary } : s))
+    const body: Record<string, string> = { content: editContent, summary: editSummary }
+    if (editMusicUrl.trim()) body.music_url = editMusicUrl.trim()
+    await fetch(`/api/sections/${sectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+    setSections(ss => ss.map(s => s.id === sectionId ? { ...s, content: editContent, summary: editSummary, music_url: editMusicUrl.trim() || s.music_url } : s))
     setEditingSection(null); setSectionSaving(null)
   }
 
@@ -166,6 +210,9 @@ export default function BookPage() {
 
   return (
     <div>
+      {/* ── Lecteur audio flottant ──────────────────────────────────────────── */}
+      <AudioPlayer trackUrl={currentTrack?.url ?? null} trackLabel={currentTrack?.label ?? ''} />
+
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
         <div>
@@ -403,17 +450,22 @@ export default function BookPage() {
                     )}
                     <button onClick={() => {
                       if (isEditing) { setEditingSection(null) }
-                      else { setEditingSection(section.id); setEditContent(section.content); setEditSummary(section.summary ?? '') }
+                      else { setEditingSection(section.id); setEditContent(section.content); setEditSummary(section.summary ?? ''); setEditMusicUrl(section.music_url ?? '') }
                     }} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.25rem 0.6rem', fontSize: '0.75rem' }}>
                       {isEditing ? 'Annuler' : '✏ Modifier'}
                     </button>
                   </div>
                 </div>
 
-                {/* Résumé */}
+                {/* Résumé + musique custom */}
                 {!isEditing && section.summary && (
                   <p style={{ fontSize: '0.78rem', color: 'var(--accent)', fontStyle: 'italic', margin: '0 0 0.65rem', opacity: 0.85 }}>
                     ✦ {section.summary}
+                  </p>
+                )}
+                {!isEditing && section.music_url && (
+                  <p style={{ fontSize: '0.72rem', color: '#f0a742', margin: '0 0 0.65rem', opacity: 0.8 }}>
+                    🎵 Musique personnalisée
                   </p>
                 )}
 
@@ -437,8 +489,24 @@ export default function BookPage() {
                       padding: '0.75rem', color: 'var(--foreground)', fontSize: '0.875rem',
                       resize: 'vertical', outline: 'none', fontFamily: 'Georgia, serif', boxSizing: 'border-box',
                     }} />
+                    <label style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginTop: '0.75rem', marginBottom: '0.3rem' }}>
+                      🎵 URL musique (optionnel)
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <input
+                        value={editMusicUrl}
+                        onChange={e => setEditMusicUrl(e.target.value)}
+                        placeholder={`Par défaut : ${DEFAULT_MUSIC[getSectionType(section).label] ?? '(aucune)'}`}
+                        style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.4rem 0.7rem', color: 'var(--foreground)', fontSize: '0.8rem', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                      {editMusicUrl && (
+                        <button onClick={() => setEditMusicUrl('')} title="Utiliser la musique par défaut" style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.3rem 0.5rem', fontSize: '0.75rem' }}>
+                          ✕
+                        </button>
+                      )}
+                    </div>
                     <button onClick={() => saveSection(section.id)} disabled={isSaving} style={{
-                      marginTop: '0.5rem', background: 'var(--accent)', color: '#0f0f14',
+                      background: 'var(--accent)', color: '#0f0f14',
                       border: 'none', borderRadius: '4px', padding: '0.4rem 0.9rem',
                       cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem',
                     }}>
@@ -948,6 +1016,131 @@ function DialogueCard({ trial, npcs, sections, book, sectionNumber, onNavigate }
             cursor: 'pointer', fontWeight: suggestedChoice === 1 || resolved === 'failure' ? 'bold' : 'normal',
           }}>✗ Refus → §{failureNum}{suggestedChoice === 1 ? ' ✦' : ''}</button>
         )}
+      </div>
+    </div>
+  )
+}
+
+// ── Lecteur audio flottant ────────────────────────────────────────────────────
+
+function AudioPlayer({ trackUrl, trackLabel }: { trackUrl: string | null; trackLabel: string }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [playing, setPlaying] = useState(false)
+  const [volume, setVolume] = useState(0.4)
+  const [muted, setMuted] = useState(false)
+  const [enabled, setEnabled] = useState(false)
+  const prevUrl = useRef<string | null>(null)
+
+  // Initialiser l'élément audio une seule fois
+  useEffect(() => {
+    const audio = new Audio()
+    audio.loop = true
+    audio.volume = volume
+    audioRef.current = audio
+    return () => { audio.pause(); audio.src = '' }
+  }, [])
+
+  // Changer de piste avec fade out/in
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio || !enabled) return
+    if (!trackUrl) { audio.pause(); setPlaying(false); return }
+    if (trackUrl === prevUrl.current) return
+    prevUrl.current = trackUrl
+
+    // Fade out puis change de piste
+    const fadeOut = setInterval(() => {
+      if (audio.volume > 0.05) { audio.volume = Math.max(0, audio.volume - 0.05) }
+      else {
+        clearInterval(fadeOut)
+        audio.pause()
+        audio.src = trackUrl
+        audio.volume = 0
+        audio.play().catch(() => {})
+        setPlaying(true)
+        // Fade in
+        const fadeIn = setInterval(() => {
+          if (audio.volume < volume - 0.04) { audio.volume = Math.min(volume, audio.volume + 0.03) }
+          else { audio.volume = volume; clearInterval(fadeIn) }
+        }, 50)
+      }
+    }, 40)
+    return () => clearInterval(fadeOut)
+  }, [trackUrl, enabled])
+
+  // Volume
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = muted ? 0 : volume
+  }, [volume, muted])
+
+  function activate() {
+    setEnabled(true)
+    if (trackUrl && audioRef.current) {
+      audioRef.current.src = trackUrl
+      prevUrl.current = trackUrl
+      audioRef.current.volume = volume
+      audioRef.current.play().then(() => setPlaying(true)).catch(() => {})
+    }
+  }
+
+  function togglePlay() {
+    const audio = audioRef.current
+    if (!audio) return
+    if (playing) { audio.pause(); setPlaying(false) }
+    else { audio.play().then(() => setPlaying(true)).catch(() => {}) }
+  }
+
+  if (!enabled) {
+    return (
+      <button onClick={activate} style={{
+        position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 100,
+        background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: '30px', padding: '0.5rem 1rem',
+        display: 'flex', alignItems: 'center', gap: '0.5rem',
+        color: 'var(--muted)', fontSize: '0.8rem', cursor: 'pointer',
+        boxShadow: '0 4px 16px #0006',
+      }}>
+        🔇 Activer la musique
+      </button>
+    )
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', bottom: '1.5rem', right: '1.5rem', zIndex: 100,
+      background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: '14px', padding: '0.6rem 1rem',
+      display: 'flex', alignItems: 'center', gap: '0.75rem',
+      boxShadow: '0 4px 20px #0008', minWidth: '260px',
+    }}>
+      {/* Play/Pause */}
+      <button onClick={togglePlay} style={{
+        background: 'var(--accent)', border: 'none', borderRadius: '50%',
+        width: '32px', height: '32px', cursor: 'pointer', fontSize: '0.9rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        {playing ? '⏸' : '▶'}
+      </button>
+
+      {/* Info piste */}
+      <div style={{ flex: 1, overflow: 'hidden' }}>
+        <div style={{ fontSize: '0.68rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {playing ? '♪ En lecture' : '⏹ En pause'}
+        </div>
+        <div style={{ fontSize: '0.78rem', color: 'var(--foreground)', fontWeight: 'bold', overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' }}>
+          {trackLabel || '—'}
+        </div>
+      </div>
+
+      {/* Volume */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+        <button onClick={() => setMuted(m => !m)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.9rem', color: 'var(--muted)' }}>
+          {muted ? '🔇' : '🔊'}
+        </button>
+        <input type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
+          onChange={e => { setVolume(parseFloat(e.target.value)); setMuted(false) }}
+          style={{ width: '60px', accentColor: 'var(--accent)' }}
+        />
       </div>
     </div>
   )
