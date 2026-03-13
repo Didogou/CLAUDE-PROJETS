@@ -94,7 +94,7 @@ ${withMap ? `Règles pour les lieux (carte) :
 
 ` : ''}Règles pour les sections :
 - La section 1 est toujours le point de départ
-- Texte narratif immersif (min. 150 mots) à la 2ème personne
+- NE PAS inclure le texte narratif ("content") — il sera généré séparément
 - Chaque section DOIT avoir un champ "summary" : une phrase courte (max 12 mots) résumant l'action clé de la section, ex: "Vous affrontez le garde devant la porte de la tour"
 - 0 à 4 choix menant à d'autres sections
 - Les épreuves de combat DOIVENT référencer "enemy_name" avec le nom exact d'un PNJ créé ci-dessus
@@ -159,7 +159,6 @@ IMPORTANT : ta réponse doit commencer IMMÉDIATEMENT par { et se terminer par }
     {
       "number": 1,
       "summary": "Vous arrivez aux portes de la cité maudite",
-      "content": "...",
       "is_ending": false,
       "ending_type": null,
       "trial": null,${withMap ? `
@@ -171,7 +170,6 @@ IMPORTANT : ta réponse doit commencer IMMÉDIATEMENT par { et se terminer par }
     },
     {
       "number": 3,
-      "content": "...",
       "is_ending": false,
       "ending_type": null,
       "trial": {
@@ -189,6 +187,54 @@ IMPORTANT : ta réponse doit commencer IMMÉDIATEMENT par { et se terminer par }
     }
   ]
 }`
+}
+
+// ── Phase 2 : génération du contenu narratif ─────────────────────────────────
+
+export interface SectionMeta {
+  number: number
+  summary: string
+  type: string        // 'Narration' | 'Combat' | 'Victoire' | 'Mort' | etc.
+  location?: string
+  choiceLabels: string[]
+}
+
+export function buildSectionContentPrompt(
+  params: GenerateBookParams,
+  sections: SectionMeta[]
+): string {
+  const lang = params.language === 'fr' ? 'français' : 'anglais'
+  const sectionList = sections.map(s => {
+    const loc  = s.location ? ` — Lieu : ${s.location}` : ''
+    const ends = s.type === 'Victoire' ? ' [FIN VICTOIRE]' : s.type === 'Mort' ? ' [FIN MORT]' : ''
+    const choix = s.choiceLabels.length
+      ? `Choix disponibles : ${s.choiceLabels.map(l => `"${l}"`).join(', ')}`
+      : '(aucun choix — fin ou issue déterminée par l\'épreuve)'
+    return `§§${s.number}§§ [${s.type}${ends}]${loc} — Résumé : "${s.summary}"\n${choix}`
+  }).join('\n\n')
+
+  return `Tu es un auteur de livres "Dont Vous Êtes le Héros" dans le style de Pierre Bordage.
+
+Livre : "${params.title}" — Thème : ${params.theme} — Ambiance : ${params.context_type} — Public : ${params.age_range} ans — Langue : ${lang}
+${params.description?.trim() ? `\nContexte fourni par l'auteur :\n${params.description.trim()}\n` : ''}
+Style d'écriture :
+- Phrases courtes, rythmées, percutantes lors des phases d'action ; plus posées lors des phases de narration
+- Atmosphère immersive et sensorielle (sons, odeurs, lumières, textures)
+- Tension narrative permanente
+- Écriture à la 2ème personne du singulier ("Vous avancez...", "Vous sentez...")
+- Minimum 150 mots par section, sauf fins (victoire/mort : 80-120 mots)
+- Les fins victoire sont triomphantes et satisfaisantes
+- Les fins mort sont percutantes, dramatiques, sans être trop longues
+- Le texte doit mener naturellement vers les choix proposés, sans les mentionner explicitement
+
+Écris le texte narratif pour chaque section ci-dessous.
+Pour chaque section, ta réponse doit contenir uniquement :
+§§{numéro}§§
+{texte narratif}
+
+Sections à rédiger :
+
+${sectionList}`
 }
 
 export function buildSectionImagePrompt(

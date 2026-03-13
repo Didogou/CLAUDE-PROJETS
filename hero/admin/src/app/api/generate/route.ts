@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { buildBookStructurePrompt } from '@/lib/prompts'
+import { buildBookStructurePrompt, buildSectionContentPrompt, type SectionMeta } from '@/lib/prompts'
 import type { GenerateBookParams } from '@/types'
 
 export const maxDuration = 300 // 5 minutes
@@ -146,12 +146,54 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 5. Insérer les sections (sans les trials d'abord — les UUIDs ne sont pas encore connus)
+    // 5. Phase 2 — Générer le texte narratif (format texte, pas JSON → pas de pb d'échappement)
+    const sectionTypeFn = (s: any): string => {
+      if (s.is_ending) return s.ending_type === 'victory' ? 'Victoire' : 'Mort'
+      if (s.trial) {
+        const map: Record<string, string> = {
+          combat: 'Combat', magie: 'Magie', agilite: 'Agilité',
+          intelligence: 'Énigme', chance: 'Chance', crochetage: 'Crochetage', dialogue: 'Dialogue',
+        }
+        return map[s.trial.type] ?? 'Épreuve'
+      }
+      return 'Narration'
+    }
+
+    const locationNames = new Map(
+      [...locationNameMap.entries()].map(([name, id]) => [id, name])
+    )
+    // Reconstruit le map inversé name→id pour retrouver le nom depuis location_name
+    const sectionMetas: SectionMeta[] = structure.sections.map((s: any) => ({
+      number:       s.number,
+      summary:      s.summary ?? '',
+      type:         sectionTypeFn(s),
+      location:     s.location_name ?? undefined,
+      choiceLabels: (s.choices ?? []).map((c: any) => c.label),
+    }))
+
+    const contentMsg = await streamMessageWithRetry({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 32000,
+      system: 'Tu es un auteur de livres DYEH. Réponds uniquement avec les textes narratifs dans le format §§N§§ demandé. Aucun autre texte.',
+      messages: [{ role: 'user', content: buildSectionContentPrompt(params, sectionMetas) }],
+    })
+    const rawContent2 = contentMsg.content[0].type === 'text' ? contentMsg.content[0].text : ''
+
+    // Parser §§N§§\n{texte}
+    const contentMap = new Map<number, string>()
+    const blocks = rawContent2.split(/§§(\d+)§§/)
+    for (let i = 1; i < blocks.length - 1; i += 2) {
+      const num = parseInt(blocks[i])
+      const text = blocks[i + 1].trim()
+      if (!isNaN(num) && text) contentMap.set(num, text)
+    }
+
+    // 6. Insérer les sections avec le contenu narratif
     const sectionsToInsert = structure.sections.map((s: any) => ({
       book_id:     book.id,
       number:      s.number,
       summary:     s.summary     ?? null,
-      content:     s.content,
+      content:     contentMap.get(s.number) ?? `[Section ${s.number}]`,
       is_ending:   s.is_ending   ?? false,
       ending_type: s.ending_type ?? null,
       trial:       null,
@@ -164,7 +206,7 @@ export async function POST(req: NextRequest) {
 
     const sectionMap = new Map<number, string>(insertedSections.map((s: any) => [s.number, s.id]))
 
-    // 6. Insérer les choix
+    // 7. Insérer les choix
     const choicesToInsert: any[] = []
     for (const s of structure.sections) {
       const sectionId = sectionMap.get(s.number)
@@ -184,7 +226,7 @@ export async function POST(req: NextRequest) {
       if (choicesError) throw choicesError
     }
 
-    // 7. Résoudre les trials (section IDs + lien PNJ)
+    // 8. Résoudre les trials (section IDs + lien PNJ)
     // Un même PNJ peut être référencé dans plusieurs sections
     for (const s of structure.sections) {
       if (!s.trial) continue
