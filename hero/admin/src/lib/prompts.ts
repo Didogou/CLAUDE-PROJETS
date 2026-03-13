@@ -107,7 +107,7 @@ ${withMap ? `Règles pour les lieux (carte) :
 - Le nombre de fins victoire et de fins mort doit respecter strictement les proportions indiquées dans le guide de difficulté ci-dessus
 - Les embranchements doivent former un arbre cohérent sans sections orphelines
 
-Réponds UNIQUEMENT avec un JSON valide, sans markdown, dans ce format :
+IMPORTANT : ta réponse doit commencer IMMÉDIATEMENT par { et se terminer par }. Aucun texte avant, aucun texte après, aucun bloc \`\`\`json. Uniquement du JSON brut valide dans ce format :
 {${withMap ? `
   "locations": [
     { "name": "La Taverne du Dragon", "x": 20, "y": 70, "icon": "🍺" },

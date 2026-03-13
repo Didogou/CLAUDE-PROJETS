@@ -50,10 +50,19 @@ export async function POST(req: NextRequest) {
     const rawContent = message.content[0].type === 'text' ? message.content[0].text : ''
     let structure: { npcs?: any[]; sections: any[]; locations?: any[] }
     try {
-      const cleaned = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
+      // 1. Essai direct après nettoyage des balises markdown
+      let cleaned = rawContent.replace(/^```(?:json)?\s*/im, '').replace(/\s*```\s*$/m, '').trim()
+      // 2. Si ça échoue, extraire le premier bloc { … } de la réponse
+      if (!cleaned.startsWith('{')) {
+        const start = rawContent.indexOf('{')
+        const end   = rawContent.lastIndexOf('}')
+        if (start !== -1 && end !== -1) cleaned = rawContent.slice(start, end + 1)
+      }
       structure = JSON.parse(cleaned)
     } catch {
-      throw new Error('Claude a retourné un JSON invalide')
+      // Logguer les 500 premiers caractères pour diagnostic
+      const preview = rawContent.slice(0, 500).replace(/\n/g, '↵')
+      throw new Error(`Claude a retourné un JSON invalide. Début de la réponse : ${preview}`)
     }
 
     // 3. Insérer les lieux et construire un index nom → location id
