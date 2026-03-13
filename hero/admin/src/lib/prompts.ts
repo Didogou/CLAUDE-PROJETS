@@ -20,10 +20,11 @@ const DIFFICULTY_GUIDE: Record<string, string> = {
 }
 
 export function buildBookStructurePrompt(params: GenerateBookParams): string {
-  const { title, theme, age_range, context_type, language, num_sections, difficulty, content_mix } = params
+  const { title, theme, age_range, context_type, language, num_sections, difficulty, content_mix, map_type } = params
   const lang = language === 'fr' ? 'français' : 'anglais'
   const diffLabel = { facile: 'Facile', normal: 'Normal', difficile: 'Difficile', expert: 'Expert' }[difficulty]
   const weaponGuide = WEAPON_GUIDE[theme] ?? 'Armes cohérentes avec l\'univers du livre.'
+  const withMap = map_type !== 'none'
 
   const mix = content_mix ?? { combat: 20, chance: 10, enigme: 10, magie: 5 }
   const total = mix.combat + mix.chance + mix.enigme + mix.magie
@@ -60,10 +61,11 @@ Répartition des types de sections à respecter :
 ${mixGuide}
 IMPORTANT : respecte ces proportions aussi fidèlement que possible dans la distribution des sections.
 
-Génère la structure complète du livre en JSON avec deux parties :
+Génère la structure complète du livre en JSON avec ${withMap ? 'trois' : 'deux'} parties :
 
 1. Les PNJ (personnages non joueurs) qui apparaissent dans le livre.
-2. Les sections narratives du livre.
+2. Les sections narratives du livre.${withMap ? `
+3. Les lieux de l'aventure (carte).` : ''}
 
 Règles pour les PNJ :
 - Crée entre 4 et 10 PNJ cohérents avec l'univers (ennemis, boss, alliés, neutres, marchands)
@@ -77,7 +79,16 @@ Règles pour les PNJ :
 - Ajouter un champ "dialogue_intro" optionnel : texte bref (1-2 phrases) du narrateur décrivant comment le PNJ s'adresse au joueur pour la première fois
 - Les stats vont de 1 à 20 (sauf endurance boss jusqu'à 40)
 
-Règles pour les sections :
+${withMap ? `Règles pour les lieux (carte) :
+- Crée entre 5 et 15 lieux uniques qui couvrent tous les espaces narratifs de l'aventure
+- Plusieurs sections peuvent se passer dans le même lieu (ex: 3 sections dans "La Taverne du Dragon")
+- Les noms de lieux sont courts, évocateurs, cohérents avec l'univers "${theme}"
+- Chaque lieu a un emoji "icon" représentatif (🏰 donjon, 🌲 forêt, 🏙️ ville, ⚓ port, etc.)
+- Les coordonnées x et y (0 à 100) représentent la position géographique RELATIVE sur la carte, de façon cohérente (ex: nord=y faible, sud=y élevé, est=x élevé, ouest=x faible)
+- Dis-toi : si je dessinais cette carte sur une feuille, où serait chaque lieu les uns par rapport aux autres ?
+- Chaque section DOIT avoir un champ "location_name" correspondant exactement au "name" d'un lieu ci-dessus
+
+` : ''}Règles pour les sections :
 - La section 1 est toujours le point de départ
 - Texte narratif immersif (min. 150 mots) à la 2ème personne
 - Chaque section DOIT avoir un champ "summary" : une phrase courte (max 12 mots) résumant l'action clé de la section, ex: "Vous affrontez le garde devant la porte de la tour"
@@ -93,7 +104,12 @@ Règles pour les sections :
 - Les embranchements doivent former un arbre cohérent sans sections orphelines
 
 Réponds UNIQUEMENT avec un JSON valide, sans markdown, dans ce format :
-{
+{${withMap ? `
+  "locations": [
+    { "name": "La Taverne du Dragon", "x": 20, "y": 70, "icon": "🍺" },
+    { "name": "La Forêt Maudite",     "x": 60, "y": 30, "icon": "🌲" },
+    { "name": "Tour du Sorcier",      "x": 80, "y": 15, "icon": "🏰" }
+  ],` : ''}
   "npcs": [
     {
       "name": "Seigneur Malven",
@@ -142,7 +158,8 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown, dans ce format :
       "content": "...",
       "is_ending": false,
       "ending_type": null,
-      "trial": null,
+      "trial": null,${withMap ? `
+      "location_name": "La Taverne du Dragon",` : ''}
       "choices": [
         { "label": "...", "target_section": 2, "sort_order": 0 },
         { "label": "...", "target_section": 5, "sort_order": 1 }
@@ -162,7 +179,8 @@ Réponds UNIQUEMENT avec un JSON valide, sans markdown, dans ce format :
         "xp_reward": 75,
         "item_rewards": ["Épée courte", "10 pièces d'argent"],
         "endurance_loss_on_failure": 3
-      },
+      },${withMap ? `
+      "location_name": "La Forêt Maudite",` : ''}
       "choices": []
     }
   ]

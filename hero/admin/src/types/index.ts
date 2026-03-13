@@ -2,6 +2,7 @@ export type AgeRange = '8-12' | '13-17' | '18+'
 export type Difficulty = 'facile' | 'normal' | 'difficile' | 'expert'
 export type Language = 'fr' | 'en'
 export type BookStatus = 'draft' | 'published' | 'archived'
+export type MapType = 'none' | 'fog' | 'found' | 'known'
 export type SectionStatus = 'draft' | 'in_progress' | 'validated'
 export type ContextType = 'Aventure' | 'Intrigue' | 'Suspense' | 'Enquête' | 'Horreur' | 'Fantasy' | 'Science-Fiction'
 export type ItemType = 'soin' | 'mana' | 'arme' | 'armure' | 'outil' | 'quete' | 'grimoire'
@@ -85,6 +86,7 @@ export interface Section {
   is_ending: boolean
   ending_type?: EndingType
   status: SectionStatus
+  location_id?: string
 }
 
 export interface Choice {
@@ -98,6 +100,15 @@ export interface Choice {
   sort_order: number
 }
 
+export interface Location {
+  id: string
+  book_id: string
+  name: string
+  x: number
+  y: number
+  icon: string
+}
+
 export interface Book {
   id: string
   title: string
@@ -108,6 +119,7 @@ export interface Book {
   status: BookStatus
   difficulty: Difficulty
   content_mix: ContentMix
+  map_type: MapType
   cover_image_url?: string
   music_url?: string
   description?: string
@@ -154,5 +166,6 @@ export interface GenerateBookParams {
   difficulty: Difficulty
   num_sections: number
   content_mix: ContentMix
+  map_type: MapType
   description?: string
 }

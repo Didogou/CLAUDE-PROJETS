@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
         title: params.title, theme: params.theme, age_range: params.age_range,
         context_type: params.context_type, language: params.language,
         difficulty: params.difficulty, content_mix: params.content_mix,
-        description: params.description, status: 'draft',
+        description: params.description, map_type: params.map_type ?? 'none', status: 'draft',
       })
       .select().single()
     if (bookError) throw bookError
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     })
 
     const rawContent = message.content[0].type === 'text' ? message.content[0].text : ''
-    let structure: { npcs?: any[]; sections: any[] }
+    let structure: { npcs?: any[]; sections: any[]; locations?: any[] }
     try {
       const cleaned = rawContent.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim()
       structure = JSON.parse(cleaned)
@@ -56,7 +56,26 @@ export async function POST(req: NextRequest) {
       throw new Error('Claude a retourné un JSON invalide')
     }
 
-    // 3. Insérer les PNJ et construire un index nom → PNJ inséré
+    // 3. Insérer les lieux et construire un index nom → location id
+    const locationNameMap = new Map<string, string>() // name → id
+
+    if (structure.locations?.length && params.map_type !== 'none') {
+      const locToInsert = structure.locations.map((l: any) => ({
+        book_id: book.id,
+        name:    l.name,
+        x:       Math.min(100, Math.max(0, l.x ?? 50)),
+        y:       Math.min(100, Math.max(0, l.y ?? 50)),
+        icon:    l.icon ?? '📍',
+      }))
+      const { data: insertedLocs, error: locError } = await supabaseAdmin
+        .from('locations').insert(locToInsert).select()
+      if (locError) throw locError
+      for (const loc of insertedLocs) {
+        locationNameMap.set(loc.name.toLowerCase(), loc.id)
+      }
+    }
+
+    // 4. Insérer les PNJ et construire un index nom → PNJ inséré
     // Un PNJ peut apparaître dans plusieurs sections
     const npcNameMap = new Map<string, { id: string; force: number; agilite: number; endurance: number }>()
 
@@ -90,7 +109,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 4. Insérer les sections (sans les trials d'abord — les UUIDs ne sont pas encore connus)
+    // 5. Insérer les sections (sans les trials d'abord — les UUIDs ne sont pas encore connus)
     const sectionsToInsert = structure.sections.map((s: any) => ({
       book_id:     book.id,
       number:      s.number,
@@ -99,6 +118,7 @@ export async function POST(req: NextRequest) {
       is_ending:   s.is_ending   ?? false,
       ending_type: s.ending_type ?? null,
       trial:       null,
+      location_id: s.location_name ? (locationNameMap.get(s.location_name.toLowerCase()) ?? null) : null,
     }))
 
     const { data: insertedSections, error: sectionsError } = await supabaseAdmin
@@ -107,7 +127,7 @@ export async function POST(req: NextRequest) {
 
     const sectionMap = new Map<number, string>(insertedSections.map((s: any) => [s.number, s.id]))
 
-    // 5. Insérer les choix
+    // 6. Insérer les choix
     const choicesToInsert: any[] = []
     for (const s of structure.sections) {
       const sectionId = sectionMap.get(s.number)
@@ -127,7 +147,7 @@ export async function POST(req: NextRequest) {
       if (choicesError) throw choicesError
     }
 
-    // 6. Résoudre les trials (section IDs + lien PNJ)
+    // 7. Résoudre les trials (section IDs + lien PNJ)
     // Un même PNJ peut être référencé dans plusieurs sections
     for (const s of structure.sections) {
       if (!s.trial) continue
@@ -167,9 +187,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      book_id:        book.id,
-      sections_count: insertedSections.length,
-      npcs_count:     structure.npcs?.length ?? 0,
+      book_id:          book.id,
+      sections_count:   insertedSections.length,
+      npcs_count:       structure.npcs?.length ?? 0,
+      locations_count:  structure.locations?.length ?? 0,
     })
   } catch (err: any) {
     console.error(err)

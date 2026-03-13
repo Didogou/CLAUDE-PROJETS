@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { GenerateBookParams, AgeRange, Language, ContextType, Difficulty, ContentMix } from '@/types'
+import type { GenerateBookParams, AgeRange, Language, ContextType, Difficulty, ContentMix, MapType } from '@/types'
 
 const THEMES = ['Fantasy', 'Science-Fiction', 'Médiéval', 'Post-Apocalyptique', 'Cyberpunk', 'Horreur', 'Polar', 'Historique', 'Contemporain']
 const CONTEXTS: ContextType[] = ['Aventure', 'Intrigue', 'Suspense', 'Enquête', 'Horreur', 'Fantasy', 'Science-Fiction']
@@ -31,6 +31,13 @@ const labelStyle: React.CSSProperties = {
 }
 
 const DEFAULT_MIX: ContentMix = { combat: 20, chance: 10, enigme: 10, magie: 5 }
+
+const MAP_TYPES: { value: MapType; icon: string; label: string; desc: string }[] = [
+  { value: 'none',  icon: '🚫', label: 'Aucune',             desc: 'Pas de carte dans ce livre' },
+  { value: 'fog',   icon: '🌫️', label: 'Brouillard',         desc: 'Révélée au fur et à mesure' },
+  { value: 'found', icon: '🗺️', label: 'Trouvée en chemin',  desc: 'Obtenue lors de l\'aventure' },
+  { value: 'known', icon: '🏙️', label: 'Connue dès le début', desc: 'Ville, plan de métro, donjon...' },
+]
 
 // Temps moyen par section selon le type (minutes)
 const SECTION_TIME: Record<string, number> = {
@@ -78,7 +85,7 @@ export default function NewBookPage() {
   const [error, setError] = useState('')
   const [form, setForm] = useState<GenerateBookParams>({
     title: '', theme: 'Fantasy', age_range: '13-17', context_type: 'Aventure',
-    language: 'fr', difficulty: 'normal', num_sections: 30,
+    language: 'fr', difficulty: 'normal', num_sections: 30, map_type: 'fog',
     content_mix: { ...DEFAULT_MIX }, description: '',
   })
 
@@ -234,6 +241,26 @@ export default function NewBookPage() {
           <div>
             <label style={labelStyle}>Nb. sections</label>
             <input style={inputStyle} type="number" min={20} max={100} value={form.num_sections} onChange={e => set('num_sections', parseInt(e.target.value))} />
+          </div>
+        </div>
+
+        {/* Carte */}
+        <div>
+          <label style={labelStyle}>🗺 Type de carte</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+            {MAP_TYPES.map(m => (
+              <button key={m.value} type="button" onClick={() => set('map_type', m.value)} style={{
+                padding: '0.6rem 0.5rem', borderRadius: '6px', cursor: 'pointer',
+                border: `2px solid ${form.map_type === m.value ? 'var(--accent)' : 'var(--border)'}`,
+                background: form.map_type === m.value ? 'var(--accent)22' : 'var(--surface-2)',
+                color: form.map_type === m.value ? 'var(--accent)' : 'var(--muted)',
+                textAlign: 'center', transition: 'all 0.15s',
+              }}>
+                <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>{m.icon}</div>
+                <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{m.label}</div>
+                <div style={{ fontSize: '0.62rem', opacity: 0.8, marginTop: '0.1rem' }}>{m.desc}</div>
+              </button>
+            ))}
           </div>
         </div>
 

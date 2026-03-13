@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import type { Book, Section, Choice, SectionStatus, Npc, NpcType } from '@/types'
+import type { Book, Section, Choice, SectionStatus, Npc, NpcType, Location } from '@/types'
 
 // ── Musique par défaut par type de section ────────────────────────────────────
 
@@ -90,6 +90,7 @@ export default function BookPage() {
   const [sections, setSections] = useState<Section[]>([])
   const [choices, setChoices] = useState<Choice[]>([])
   const [npcs, setNpcs] = useState<Npc[]>([])
+  const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [bookSaving, setBookSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -101,22 +102,25 @@ export default function BookPage() {
   const [editMusicUrl, setEditMusicUrl] = useState('')
   const [narrationPanel, setNarrationPanel] = useState<{ sectionId: string; content: string } | null>(null)
   const [sectionSaving, setSectionSaving] = useState<string | null>(null)
-  const [tab, setTab] = useState<'sections' | 'plan' | 'npcs'>('sections')
+  const [tab, setTab] = useState<'sections' | 'plan' | 'npcs' | 'carte'>('sections')
   const [planHighlight, setPlanHighlight] = useState<number | null>(null)
   const [currentTrack, setCurrentTrack] = useState<{ url: string; label: string } | null>(null)
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     async function load() {
-      const [bookRes, npcRes] = await Promise.all([
+      const [bookRes, npcRes, locRes] = await Promise.all([
         fetch(`/api/books/${id}`),
         fetch(`/api/books/${id}/npcs`),
+        fetch(`/api/books/${id}/locations`),
       ])
       if (!bookRes.ok) { setLoading(false); return }
       const { book: b, sections: s, choices: c } = await bookRes.json()
       const npcData = await npcRes.json()
+      const locData = await locRes.json()
       setBook(b); setSections(s ?? []); setChoices(c ?? [])
       setNpcs(Array.isArray(npcData) ? npcData : [])
+      setLocations(Array.isArray(locData) ? locData : [])
       setLoading(false)
     }
     load()
@@ -311,8 +315,9 @@ export default function BookPage() {
       <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '1.5rem', borderBottom: '1px solid var(--border)' }}>
         {([
           { key: 'sections', label: '📝 Sections' },
-          { key: 'plan',     label: '🗺 Plan graphique' },
+          { key: 'plan',     label: '📐 Plan graphique' },
           { key: 'npcs',     label: `👥 PNJ (${npcs.length})` },
+          ...(book?.map_type && book.map_type !== 'none' ? [{ key: 'carte' as const, label: `🗺 Carte (${locations.length})` }] : []),
         ] as const).map(t => (
           <button key={t.key} onClick={() => setTab(t.key)} style={{
             background: 'none', border: 'none', cursor: 'pointer',
@@ -589,6 +594,19 @@ export default function BookPage() {
       {/* ── Onglet PNJ ──────────────────────────────────────────────────────── */}
       {tab === 'npcs' && (
         <NpcTab bookId={id} npcs={npcs} setNpcs={setNpcs} sections={sections} onNavigate={(n) => { setTab('sections'); scrollToSection(n) }} />
+      )}
+
+      {/* ── Onglet Carte ─────────────────────────────────────────────────────── */}
+      {tab === 'carte' && (
+        <MapView
+          bookId={id}
+          locations={locations}
+          setLocations={setLocations}
+          sections={sections}
+          choices={choices}
+          mapType={book?.map_type ?? 'fog'}
+          onNavigate={(n) => { setTab('sections'); scrollToSection(n) }}
+        />
       )}
     </div>
   )
@@ -1761,4 +1779,245 @@ const inputStyle: React.CSSProperties = {
 const labelStyle: React.CSSProperties = {
   display: 'block', fontSize: '0.72rem', color: 'var(--muted)',
   marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.05em',
+}
+
+// ── Carte des lieux ────────────────────────────────────────────────────────────
+
+const MAP_TYPE_LABELS: Record<string, string> = {
+  fog:   '🌫️ Brouillard de guerre',
+  found: '🗺️ Trouvée en chemin',
+  known: '🏙️ Connue dès le début',
+}
+
+function MapView({ bookId, locations, setLocations, sections, choices, mapType, onNavigate }: {
+  bookId: string
+  locations: Location[]
+  setLocations: React.Dispatch<React.SetStateAction<Location[]>>
+  sections: Section[]
+  choices: Choice[]
+  mapType: string
+  onNavigate: (n: number) => void
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null)
+  const [selectedLoc, setSelectedLoc] = useState<string | null>(null)
+
+  // Index section id → location id
+  const sectionLocMap = new Map(sections.filter(s => s.location_id).map(s => [s.id, s.location_id!]))
+
+  // Sections par lieu
+  const sectsByLoc = new Map<string, Section[]>()
+  for (const loc of locations) sectsByLoc.set(loc.id, [])
+  for (const s of sections) {
+    if (s.location_id && sectsByLoc.has(s.location_id))
+      sectsByLoc.get(s.location_id)!.push(s)
+  }
+
+  // Arêtes entre lieux (dédupliquées)
+  const edges = new Set<string>()
+  const edgeList: { from: Location; to: Location }[] = []
+  for (const choice of choices) {
+    if (!choice.target_section_id) continue
+    const fromLocId = sectionLocMap.get(choice.section_id)
+    const toLocId   = sectionLocMap.get(choice.target_section_id)
+    if (!fromLocId || !toLocId || fromLocId === toLocId) continue
+    const key = [fromLocId, toLocId].sort().join('|')
+    if (edges.has(key)) continue
+    edges.add(key)
+    const from = locations.find(l => l.id === fromLocId)
+    const to   = locations.find(l => l.id === toLocId)
+    if (from && to) edgeList.push({ from, to })
+  }
+
+  function onPointerDown(e: React.PointerEvent, loc: Location) {
+    e.preventDefault()
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setDragging({ id: loc.id, startX: e.clientX, startY: e.clientY, origX: loc.x, origY: loc.y })
+    setSelectedLoc(loc.id)
+  }
+
+  function onPointerMove(e: React.PointerEvent) {
+    if (!dragging || !containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const dx = ((e.clientX - dragging.startX) / rect.width)  * 100
+    const dy = ((e.clientY - dragging.startY) / rect.height) * 100
+    const newX = Math.round(Math.min(97, Math.max(3, dragging.origX + dx)))
+    const newY = Math.round(Math.min(95, Math.max(5, dragging.origY + dy)))
+    setLocations(ls => ls.map(l => l.id === dragging.id ? { ...l, x: newX, y: newY } : l))
+  }
+
+  async function onPointerUp() {
+    if (!dragging) return
+    const loc = locations.find(l => l.id === dragging.id)
+    if (loc) {
+      await fetch(`/api/books/${bookId}/locations`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ location_id: loc.id, x: loc.x, y: loc.y }),
+      })
+    }
+    setDragging(null)
+  }
+
+  const selLoc = locations.find(l => l.id === selectedLoc)
+  const selSections = selLoc ? (sectsByLoc.get(selLoc.id) ?? []) : []
+
+  if (locations.length === 0) {
+    return (
+      <div style={{ textAlign: 'center', padding: '4rem', background: 'var(--surface)', borderRadius: '12px', border: '1px dashed var(--border)' }}>
+        <p style={{ fontSize: '2rem', marginBottom: '1rem' }}>🗺️</p>
+        <p style={{ color: 'var(--muted)', fontSize: '0.9rem' }}>Aucun lieu généré pour ce livre.</p>
+        <p style={{ color: 'var(--muted)', fontSize: '0.78rem', marginTop: '0.5rem' }}>
+          Regénérez le livre avec un type de carte autre que "Aucune".
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <div>
+          <span style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
+            {MAP_TYPE_LABELS[mapType] ?? mapType} · {locations.length} lieux · {edgeList.length} connexions
+          </span>
+        </div>
+        <span style={{ fontSize: '0.72rem', color: 'var(--muted)', opacity: 0.7 }}>
+          Glissez les nœuds pour repositionner
+        </span>
+      </div>
+
+      {/* ── Canvas de la carte ──────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start' }}>
+        <div
+          ref={containerRef}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={onPointerUp}
+          style={{
+            flex: 1, position: 'relative', height: '520px',
+            background: 'var(--surface)', border: '1px solid var(--border)',
+            borderRadius: '12px', overflow: 'hidden',
+            backgroundImage: 'radial-gradient(circle, var(--border) 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+            cursor: dragging ? 'grabbing' : 'default',
+          }}
+        >
+          {/* Arêtes SVG */}
+          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+            <defs>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#c9a84c66" />
+              </marker>
+            </defs>
+            {edgeList.map(({ from, to }, i) => {
+              const x1 = `${from.x}%`, y1 = `${from.y}%`
+              const x2 = `${to.x}%`,   y2 = `${to.y}%`
+              const mx = (from.x + to.x) / 2
+              const my = (from.y + to.y) / 2
+              return (
+                <g key={i}>
+                  <line x1={x1} y1={y1} x2={x2} y2={y2}
+                    stroke="#c9a84c44" strokeWidth="1.5" strokeDasharray="5,3"
+                    markerEnd="url(#arrowhead)" />
+                  <text x={`${mx}%`} y={`${my}%`} textAnchor="middle" fontSize="10"
+                    fill="#c9a84c88" dy="-4" style={{ pointerEvents: 'none', userSelect: 'none' }}>
+                    {edgeList.filter(e =>
+                      (e.from.id === from.id && e.to.id === to.id) ||
+                      (e.from.id === to.id && e.to.id === from.id)
+                    ).length > 0 ? '' : ''}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+
+          {/* Nœuds */}
+          {locations.map(loc => {
+            const sects = sectsByLoc.get(loc.id) ?? []
+            const hasVictory = sects.some(s => s.is_ending && s.ending_type === 'victory')
+            const hasDeath   = sects.some(s => s.is_ending && s.ending_type === 'death')
+            const isSelected = selectedLoc === loc.id
+            const borderColor = hasVictory ? '#4caf7d' : hasDeath ? '#c94c4c' : isSelected ? 'var(--accent)' : 'var(--border)'
+
+            return (
+              <div
+                key={loc.id}
+                onPointerDown={e => onPointerDown(e, loc)}
+                onClick={() => setSelectedLoc(id => id === loc.id ? null : loc.id)}
+                style={{
+                  position: 'absolute',
+                  left: `${loc.x}%`, top: `${loc.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                  cursor: 'grab',
+                  userSelect: 'none',
+                  zIndex: isSelected ? 10 : 1,
+                }}
+              >
+                <div style={{
+                  background: 'var(--surface-2)',
+                  border: `2px solid ${borderColor}`,
+                  borderRadius: '10px',
+                  padding: '0.4rem 0.65rem',
+                  boxShadow: isSelected ? `0 0 0 3px ${borderColor}44, 0 4px 16px #0006` : '0 2px 8px #0004',
+                  transition: 'box-shadow 0.15s, border-color 0.15s',
+                  minWidth: '80px', maxWidth: '120px',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: '1.3rem', lineHeight: 1 }}>{loc.icon}</div>
+                  <div style={{ fontSize: '0.65rem', color: 'var(--foreground)', fontWeight: 'bold', marginTop: '0.25rem', lineHeight: 1.2 }}>
+                    {loc.name}
+                  </div>
+                  <div style={{ fontSize: '0.58rem', color: 'var(--muted)', marginTop: '0.2rem' }}>
+                    {sects.length} §{hasVictory ? ' 🏆' : ''}{hasDeath ? ' 💀' : ''}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* ── Panneau détail du lieu sélectionné ─────────────────────────────── */}
+        <div style={{
+          width: '240px', flexShrink: 0,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: '10px', padding: '1rem',
+          minHeight: '200px',
+        }}>
+          {selLoc ? (
+            <>
+              <div style={{ fontSize: '1.5rem', textAlign: 'center', marginBottom: '0.4rem' }}>{selLoc.icon}</div>
+              <h3 style={{ fontSize: '0.9rem', color: 'var(--accent)', textAlign: 'center', margin: '0 0 0.25rem' }}>{selLoc.name}</h3>
+              <p style={{ fontSize: '0.68rem', color: 'var(--muted)', textAlign: 'center', margin: '0 0 0.9rem' }}>
+                {selSections.length} section{selSections.length !== 1 ? 's' : ''}
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {selSections.sort((a, b) => a.number - b.number).map(s => {
+                  const t = getSectionType(s)
+                  return (
+                    <button key={s.id} onClick={() => onNavigate(s.number)} style={{
+                      textAlign: 'left', background: 'var(--surface-2)',
+                      border: `1px solid ${t.color}44`, borderRadius: '6px',
+                      padding: '0.35rem 0.6rem', cursor: 'pointer',
+                      fontSize: '0.75rem', color: 'var(--foreground)',
+                      display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    }}>
+                      <span style={{ color: t.color }}>{t.icon}</span>
+                      <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>§{s.number}</span>
+                      {s.summary && <span style={{ color: 'var(--muted)', fontSize: '0.65rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.summary}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          ) : (
+            <p style={{ color: 'var(--muted)', fontSize: '0.8rem', textAlign: 'center', marginTop: '2rem' }}>
+              Cliquez sur un lieu pour voir ses sections
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
 }
