@@ -626,6 +626,8 @@ export default function BookPage() {
           sections={sections}
           choices={choices}
           mapType={book?.map_type ?? 'fog'}
+          mapSvg={book?.map_svg}
+          onSvgGenerated={(svg) => setBook(b => b ? { ...b, map_svg: svg } : b)}
           onNavigate={(n) => { setTab('sections'); scrollToSection(n) }}
         />
       )}
@@ -1997,18 +1999,33 @@ const MAP_TYPE_LABELS: Record<string, string> = {
   known: '🏙️ Connue dès le début',
 }
 
-function MapView({ bookId, locations, setLocations, sections, choices, mapType, onNavigate }: {
+function MapView({ bookId, locations, setLocations, sections, choices, mapType, mapSvg, onSvgGenerated, onNavigate }: {
   bookId: string
   locations: Location[]
   setLocations: React.Dispatch<React.SetStateAction<Location[]>>
   sections: Section[]
   choices: Choice[]
   mapType: string
+  mapSvg?: string | null
+  onSvgGenerated: (svg: string) => void
   onNavigate: (n: number) => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null)
   const [selectedLoc, setSelectedLoc] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [genError, setGenError] = useState<string | null>(null)
+
+  async function generateMap() {
+    setGenerating(true); setGenError(null)
+    try {
+      const res = await fetch(`/api/books/${bookId}/generate-map`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      onSvgGenerated(data.svg)
+    } catch (err: any) { setGenError(err.message) }
+    finally { setGenerating(false) }
+  }
 
   // Index section id → location id
   const sectionLocMap = new Map(sections.filter(s => s.location_id).map(s => [s.id, s.location_id!]))
@@ -2091,9 +2108,22 @@ function MapView({ bookId, locations, setLocations, sections, choices, mapType, 
             {MAP_TYPE_LABELS[mapType] ?? mapType} · {locations.length} lieux · {edgeList.length} connexions
           </span>
         </div>
-        <span style={{ fontSize: '0.72rem', color: 'var(--muted)', opacity: 0.7 }}>
-          Glissez les nœuds pour repositionner
-        </span>
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', opacity: 0.7 }}>
+            Glissez les nœuds pour repositionner
+          </span>
+          <button
+            onClick={generateMap} disabled={generating}
+            style={{
+              background: generating ? 'var(--surface-2)' : 'var(--accent)22',
+              border: `1px solid ${generating ? 'var(--border)' : 'var(--accent)66'}`,
+              borderRadius: '6px', color: generating ? 'var(--muted)' : 'var(--accent)',
+              cursor: generating ? 'not-allowed' : 'pointer',
+              padding: '0.25rem 0.7rem', fontSize: '0.75rem', fontWeight: 'bold',
+            }}
+          >{generating ? '⏳ Génération...' : mapSvg ? '🔄 Régénérer' : '🗺 Générer la carte'}</button>
+          {genError && <span style={{ color: 'var(--danger)', fontSize: '0.72rem' }}>⚠ {genError}</span>}
+        </div>
       </div>
 
       {/* ── Canvas de la carte ──────────────────────────────────────────────── */}
@@ -2112,6 +2142,13 @@ function MapView({ bookId, locations, setLocations, sections, choices, mapType, 
             cursor: dragging ? 'grabbing' : 'default',
           }}
         >
+          {/* SVG généré en fond */}
+          {mapSvg && (
+            <div
+              style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden', borderRadius: '11px' }}
+              dangerouslySetInnerHTML={{ __html: mapSvg.replace(/width="[^"]*"/, 'width="100%"').replace(/height="[^"]*"/, 'height="100%"') }}
+            />
+          )}
           {/* Arêtes SVG */}
           <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
             <defs>

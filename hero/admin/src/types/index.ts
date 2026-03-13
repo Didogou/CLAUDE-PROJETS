@@ -120,6 +120,7 @@ export interface Book {
   difficulty: Difficulty
   content_mix: ContentMix
   map_type: MapType
+  map_svg?: string | null
   cover_image_url?: string
   music_url?: string
   description?: string
