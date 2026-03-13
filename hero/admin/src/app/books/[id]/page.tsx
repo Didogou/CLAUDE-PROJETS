@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import type { Book, Section, Choice, SectionStatus, Npc, NpcType, Location } from '@/types'
 
@@ -1237,21 +1237,86 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
   const [pan, setPan] = useState({ x: 40, y: 40 })
   const [zoom, setZoom] = useState(1)
   const [searchInput, setSearchInput] = useState('')
+  const [layoutMode, setLayoutMode] = useState<'tree' | 'grid'>('tree')
   const containerRef = useRef<HTMLDivElement>(null)
   const isPanning  = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
   const dragMoved  = useRef(false)
 
-  const COLS = Math.max(4, Math.ceil(Math.sqrt(sections.length)))
-  const positions = new Map<string, { x: number; y: number; cx: number; cy: number }>()
-  sections.forEach((s, i) => {
-    const col = i % COLS, row = Math.floor(i / COLS)
-    const x = col * COL_GAP + 16, y = row * ROW_GAP + 16
-    positions.set(s.id, { x, y, cx: x + NODE_W / 2, cy: y + NODE_H / 2 })
-  })
-  const rows = Math.ceil(sections.length / COLS)
-  const canvasW = COLS * COL_GAP + NODE_W + 16
-  const canvasH = rows * ROW_GAP + NODE_H + 16
+  // ── Calcul du layout ──────────────────────────────────────────────────────
+  const TREE_GAP_X = 22
+  const TREE_GAP_Y = 80
+
+  const { positions, canvasW, canvasH } = useMemo(() => {
+    if (layoutMode === 'grid') {
+      const COLS = Math.max(4, Math.ceil(Math.sqrt(sections.length)))
+      const rows = Math.ceil(sections.length / COLS)
+      const pos = new Map<string, { x: number; y: number; cx: number; cy: number }>()
+      sections.forEach((s, i) => {
+        const col = i % COLS, row = Math.floor(i / COLS)
+        const x = col * COL_GAP + 16, y = row * ROW_GAP + 16
+        pos.set(s.id, { x, y, cx: x + NODE_W / 2, cy: y + NODE_H / 2 })
+      })
+      return { positions: pos, canvasW: COLS * COL_GAP + NODE_W + 16, canvasH: rows * ROW_GAP + NODE_H + 16 }
+    }
+
+    // ── Tree layout (BFS depuis §1) ─────────────────────────────────────────
+    if (sections.length === 0) return { positions: new Map(), canvasW: 800, canvasH: 600 }
+    const sectionIds = new Set(sections.map(s => s.id))
+    const childIds = new Map<string, string[]>()
+    const addEdge = (from: string, to: string) => {
+      if (!sectionIds.has(from) || !sectionIds.has(to)) return
+      if (!childIds.has(from)) childIds.set(from, [])
+      if (!childIds.get(from)!.includes(to)) childIds.get(from)!.push(to)
+    }
+    for (const c of choices) { if (c.target_section_id) addEdge(c.section_id, c.target_section_id) }
+    for (const s of sections) {
+      if (s.trial?.success_section_id) addEdge(s.id, s.trial.success_section_id)
+      if (s.trial?.failure_section_id) addEdge(s.id, s.trial.failure_section_id)
+    }
+
+    // BFS
+    const root = sections.find(s => s.number === 1) || sections[0]
+    const depth = new Map<string, number>()
+    const queue: string[] = [root.id]
+    depth.set(root.id, 0)
+    while (queue.length) {
+      const id = queue.shift()!
+      const d = depth.get(id)!
+      for (const child of childIds.get(id) ?? []) {
+        if (!depth.has(child)) { depth.set(child, d + 1); queue.push(child) }
+      }
+    }
+    for (const s of sections) { if (!depth.has(s.id)) depth.set(s.id, 0) }
+
+    // Grouper par niveau
+    const levels = new Map<number, Section[]>()
+    for (const s of sections) {
+      const d = depth.get(s.id)!
+      if (!levels.has(d)) levels.set(d, [])
+      levels.get(d)!.push(s)
+    }
+    for (const nodes of levels.values()) nodes.sort((a, b) => a.number - b.number)
+
+    // Dimensions canvas
+    const maxLevel = Math.max(...levels.keys())
+    const maxNodesInLevel = Math.max(...[...levels.values()].map(v => v.length))
+    const cW = Math.max(maxNodesInLevel * (NODE_W + TREE_GAP_X) + TREE_GAP_X, NODE_W + TREE_GAP_X * 2)
+    const cH = (maxLevel + 1) * (NODE_H + TREE_GAP_Y) + TREE_GAP_Y
+
+    // Positionner les nœuds (chaque niveau centré)
+    const pos = new Map<string, { x: number; y: number; cx: number; cy: number }>()
+    for (const [level, nodes] of levels) {
+      const levelWidth = nodes.length * (NODE_W + TREE_GAP_X) - TREE_GAP_X
+      const startX = (cW - levelWidth) / 2
+      for (let i = 0; i < nodes.length; i++) {
+        const x = startX + i * (NODE_W + TREE_GAP_X)
+        const y = TREE_GAP_Y / 2 + level * (NODE_H + TREE_GAP_Y)
+        pos.set(nodes[i].id, { x, y, cx: x + NODE_W / 2, cy: y + NODE_H / 2 })
+      }
+    }
+    return { positions: pos, canvasW: cW, canvasH: cH }
+  }, [sections, choices, layoutMode])
 
   function fitToScreen() {
     const c = containerRef.current
@@ -1354,6 +1419,9 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
           <button onClick={() => setZoom(z => Math.min(z * 1.2, 3))} title="Zoom +" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--foreground)', cursor: 'pointer', padding: '0.2rem 0.55rem', fontSize: '0.8rem' }}>+</button>
           <span style={{ fontSize: '0.7rem', color: 'var(--muted)', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
           <button onClick={() => setZoom(z => Math.max(z / 1.2, 0.15))} title="Zoom −" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--foreground)', cursor: 'pointer', padding: '0.2rem 0.55rem', fontSize: '0.8rem' }}>−</button>
+          <button onClick={() => { setLayoutMode(m => m === 'tree' ? 'grid' : 'tree'); setTimeout(fitToScreen, 60) }} title="Changer la disposition" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}>
+            {layoutMode === 'tree' ? '▦ Grille' : '⇂ Arbre'}
+          </button>
           <button onClick={fitToScreen} title="Ajuster à la fenêtre" style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}>⊡ Tout afficher</button>
           <button onClick={() => { setFullscreen(f => !f); setTimeout(fitToScreen, 60) }} style={{ background: fullscreen ? 'var(--accent)22' : 'var(--surface-2)', border: `1px solid ${fullscreen ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '4px', color: fullscreen ? 'var(--accent)' : 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.6rem', fontSize: '0.75rem' }}>
             {fullscreen ? '✕ Réduire' : '⛶ Plein écran'}
@@ -1432,21 +1500,38 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
             const arrowFaded = arrowDimmed || srcTypeDimmed || tgtTypeDimmed
             const color = arrowFaded ? '#ffffff11' : isVictory ? '#4caf7d88' : isDeath ? '#c94c4c88' : '#c9a84c66'
             const markerId = isVictory ? 'arr-v' : isDeath ? 'arr-d' : 'arr'
-            const goRight = to.cx > from.cx + COL_GAP * 0.3
-            const goLeft  = to.cx < from.cx - COL_GAP * 0.3
             let d: string
-            if (goRight) {
-              const x1 = from.x + NODE_W, y1 = from.cy, x2 = to.x, y2 = to.cy
-              const mx = (x1 + x2) / 2
-              d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`
-            } else if (goLeft) {
-              const x1 = from.cx, y1 = from.y + NODE_H, x2 = to.cx, y2 = to.y + NODE_H
-              const sag = Math.min(60 + Math.abs(to.cx - from.cx) * 0.25, 120)
-              d = `M ${x1} ${y1} C ${x1} ${y1 + sag}, ${x2} ${y2 + sag}, ${x2} ${y2}`
+            if (layoutMode === 'tree') {
+              const goesDown = to.y > from.y + NODE_H / 2
+              if (goesDown) {
+                // Flèche vers le bas : bas du parent → haut de l'enfant
+                const x1 = from.cx, y1 = from.y + NODE_H
+                const x2 = to.cx,   y2 = to.y
+                const cp = Math.max(20, (y2 - y1) * 0.5)
+                d = `M ${x1} ${y1} C ${x1} ${y1 + cp}, ${x2} ${y2 - cp}, ${x2} ${y2}`
+              } else {
+                // Backedge (remonte ou même niveau) : arc sur le côté
+                const x1 = from.x, y1 = from.cy
+                const x2 = to.x + NODE_W, y2 = to.cy
+                const sag = 40 + Math.abs(y2 - y1) * 0.3
+                d = `M ${x1} ${y1} C ${x1 - sag} ${y1}, ${x2 + sag} ${y2}, ${x2} ${y2}`
+              }
             } else {
-              const x1 = from.x + NODE_W, y1 = from.cy, x2 = to.x + NODE_W + 18, y2 = to.cy
-              const mx = Math.max(x1, x2) + 30
-              d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`
+              const goRight = to.cx > from.cx + COL_GAP * 0.3
+              const goLeft  = to.cx < from.cx - COL_GAP * 0.3
+              if (goRight) {
+                const x1 = from.x + NODE_W, y1 = from.cy, x2 = to.x, y2 = to.cy
+                const mx = (x1 + x2) / 2
+                d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`
+              } else if (goLeft) {
+                const x1 = from.cx, y1 = from.y + NODE_H, x2 = to.cx, y2 = to.y + NODE_H
+                const sag = Math.min(60 + Math.abs(to.cx - from.cx) * 0.25, 120)
+                d = `M ${x1} ${y1} C ${x1} ${y1 + sag}, ${x2} ${y2 + sag}, ${x2} ${y2}`
+              } else {
+                const x1 = from.x + NODE_W, y1 = from.cy, x2 = to.x + NODE_W + 18, y2 = to.cy
+                const mx = Math.max(x1, x2) + 30
+                d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`
+              }
             }
             return <path key={choice.id} d={d} fill="none" stroke={color} strokeWidth="1.5" markerEnd={`url(#${markerId})`} />
           })}
