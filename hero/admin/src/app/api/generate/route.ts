@@ -8,10 +8,11 @@ export const maxDuration = 300 // 5 minutes
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-async function createMessageWithRetry(params: Parameters<typeof anthropic.messages.create>[0], maxRetries = 4) {
+async function streamMessageWithRetry(params: Parameters<typeof anthropic.messages.stream>[0], maxRetries = 4) {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      return await anthropic.messages.create(params)
+      const stream = anthropic.messages.stream(params)
+      return await stream.finalMessage()
     } catch (err: any) {
       const isOverloaded = err?.status === 529 || err?.error?.type === 'overloaded_error'
       if (isOverloaded && attempt < maxRetries) {
@@ -40,8 +41,8 @@ export async function POST(req: NextRequest) {
       .select().single()
     if (bookError) throw bookError
 
-    // 2. Générer la structure via Claude
-    const message = await createMessageWithRetry({
+    // 2. Générer la structure via Claude (streaming pour éviter le timeout SDK)
+    const message = await streamMessageWithRetry({
       model: 'claude-sonnet-4-6',
       max_tokens: 32000,
       system: 'Tu es un générateur de JSON. Ta réponse entière doit être du JSON brut valide. Commence par { et termine par }. N\'inclus aucun texte, commentaire ou bloc markdown. Dans les chaînes JSON, échappe correctement les guillemets (\\") et les retours à la ligne (\\n).',
