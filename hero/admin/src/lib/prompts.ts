@@ -9,6 +9,7 @@ const WEAPON_GUIDE: Record<string, string> = {
   'Horreur':           'Armes banales détournées (haches, couteaux de cuisine, tuyaux), fusils de chasse, pieux, crucifix, sel béni, artefacts rituels. Tension > puissance.',
   'Polar':             'Pistolets (Beretta, Glock), revolvers, couteaux de poche, matraques, armes improvisées urbaines. Style film noir — précision et brutalité réaliste.',
   'Historique':        'Armes de l\'époque représentée : sandales et glaives (Rome), katanas et shuriken (Japon féodal), mousquets et sabres (XVIIe), etc. Cohérence historique absolue.',
+  'Contemporain':      'Armes réalistes du monde moderne : poings, couteaux, battes, pistolets, armes réglementaires. Combats urbains, confrontations verbales, filatures, hacking. Pas de magie ni de science-fiction.',
 }
 
 const DIFFICULTY_GUIDE: Record<string, string> = {

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { GenerateBookParams, AgeRange, Language, ContextType, Difficulty, ContentMix } from '@/types'
 
-const THEMES = ['Fantasy', 'Science-Fiction', 'Médiéval', 'Post-Apocalyptique', 'Cyberpunk', 'Horreur', 'Polar', 'Historique']
+const THEMES = ['Fantasy', 'Science-Fiction', 'Médiéval', 'Post-Apocalyptique', 'Cyberpunk', 'Horreur', 'Polar', 'Historique', 'Contemporain']
 const CONTEXTS: ContextType[] = ['Aventure', 'Intrigue', 'Suspense', 'Enquête', 'Horreur', 'Fantasy', 'Science-Fiction']
 const AGE_RANGES: AgeRange[] = ['8-12', '13-17', '18+']
 const DIFFICULTIES: { value: Difficulty; label: string; icon: string; desc: string }[] = [
