@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
     // 2. Générer la structure via Claude
     const message = await createMessageWithRetry({
       model: 'claude-sonnet-4-6',
-      max_tokens: 16000,
+      max_tokens: 32000,
+      system: 'Tu es un générateur de JSON. Ta réponse entière doit être du JSON brut valide. Commence par { et termine par }. N\'inclus aucun texte, commentaire ou bloc markdown. Dans les chaînes JSON, échappe correctement les guillemets (\\") et les retours à la ligne (\\n).',
       messages: [{ role: 'user', content: buildBookStructurePrompt(params) }],
     })
 
