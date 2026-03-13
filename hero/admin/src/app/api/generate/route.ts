@@ -188,6 +188,15 @@ export async function POST(req: NextRequest) {
       if (!isNaN(num) && text) contentMap.set(num, text)
     }
 
+    // Normalise ending_type : accepte 'victory'/'victoire'/'win' → 'victory', 'death'/'mort'/'lose' → 'death'
+    function normalizeEndingType(raw: any): 'victory' | 'death' | null {
+      if (!raw) return null
+      const v = String(raw).toLowerCase().trim()
+      if (['victory', 'victoire', 'win', 'succes', 'success'].includes(v)) return 'victory'
+      if (['death', 'mort', 'lose', 'defeat', 'defaite', 'défaite'].includes(v)) return 'death'
+      return null
+    }
+
     // 6. Insérer les sections avec le contenu narratif
     const sectionsToInsert = structure.sections.map((s: any) => ({
       book_id:     book.id,
@@ -195,7 +204,7 @@ export async function POST(req: NextRequest) {
       summary:     s.summary     ?? null,
       content:     contentMap.get(s.number) ?? `[Section ${s.number}]`,
       is_ending:   s.is_ending   ?? false,
-      ending_type: s.ending_type ?? null,
+      ending_type: normalizeEndingType(s.ending_type),
       trial:       null,
       location_id: s.location_name ? (locationNameMap.get(s.location_name.toLowerCase()) ?? null) : null,
     }))
