@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@elevenlabs/elevenlabs-js": "^2.39.0",
+    "@mistralai/mistralai": "^1.15.1",
     "@supabase/supabase-js": "^2.99.1",
     "next": "16.1.6",
     "react": "19.2.3",

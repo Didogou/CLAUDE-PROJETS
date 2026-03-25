@@ -1,0 +1,2 @@
+ALTER TABLE npcs ADD COLUMN IF NOT EXISTS appearance text;
+ALTER TABLE npcs ADD COLUMN IF NOT EXISTS origin text;

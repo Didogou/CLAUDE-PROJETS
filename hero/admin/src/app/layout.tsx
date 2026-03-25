@@ -8,38 +8,23 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" {...{ antidoteapi_jsconnect: 'true' } as any}>
+      <head />
       <body>
-        <div style={{ display: 'flex', minHeight: '100vh' }}>
+        <div style={{ display: 'flex', minHeight: '100vh', background: '#0d0d0d' }}>
+          {/* Icon rail */}
           <aside style={{
-            width: '220px',
-            background: 'var(--surface)',
-            borderRight: '1px solid var(--border)',
-            padding: '2rem 1.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '2rem',
-            flexShrink: 0,
+            width: '60px', background: '#111', borderRight: '1px solid #222',
+            display: 'flex', flexDirection: 'column', alignItems: 'center',
+            padding: '1rem 0', gap: '0.5rem', flexShrink: 0, zIndex: 10,
           }}>
-            <div>
-              <h1 style={{
-                fontSize: '1.5rem',
-                fontWeight: 'bold',
-                color: 'var(--accent)',
-                letterSpacing: '0.15em',
-                textTransform: 'uppercase',
-              }}>⚔ HERO</h1>
-              <p style={{ fontSize: '0.7rem', color: 'var(--muted)', marginTop: '0.25rem' }}>
-                Administration
-              </p>
-            </div>
-            <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-              <a href="/" style={navStyle}>📚 Livres</a>
-              <a href="/books/new" style={navStyle}>✨ Nouveau livre</a>
-            </nav>
+            <a href="/" title="HERO" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: '8px', color: '#d4a84c', fontSize: '1.2rem', textDecoration: 'none', marginBottom: '0.5rem', fontWeight: 'bold' }}>⚔</a>
+            <div style={{ width: '32px', height: '1px', background: '#333', margin: '0.25rem 0' }} />
+            <a href="/projects" title="Projets" style={railIcon}>🗂</a>
+            <a href="/projects/new" title="Nouveau projet" style={railIcon}>✨</a>
+            <div style={{ flex: 1 }} />
           </aside>
-
-          <main style={{ flex: 1, padding: '2rem 2.5rem', overflowY: 'auto' }}>
+          <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {children}
           </main>
         </div>
@@ -48,10 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   )
 }
 
-const navStyle: React.CSSProperties = {
-  padding: '0.6rem 0.75rem',
-  borderRadius: '6px',
-  color: 'var(--foreground)',
-  textDecoration: 'none',
-  fontSize: '0.9rem',
+const railIcon: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: '40px', height: '40px', borderRadius: '8px',
+  color: '#888', fontSize: '1.1rem', textDecoration: 'none',
+  transition: 'background 0.15s, color 0.15s',
 }

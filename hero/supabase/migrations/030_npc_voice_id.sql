@@ -1,0 +1,1 @@
+ALTER TABLE npcs ADD COLUMN IF NOT EXISTS voice_id text;

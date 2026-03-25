@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(grep -n \"game_sim\\\\|simulation\\\\|manga\\\\|dialogue\" /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx | head -50)",
+      "Bash(grep -n \"game_sim\\\\|manga.*dialog\\\\|NpcPanel\\\\|MangaDialog\" /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx | head -30)",
+      "Bash(grep -n \"function MangaDialogTab\\\\|function GameSimTab\\\\|const MangaDialogTab\\\\|const GameSimTab\" /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx)",
+      "Bash(wc -l /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx)",
+      "Bash(grep -n \"function SectionPreviewCard\\\\|const SectionPreviewCard\\\\|openMangaDialogue\" /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx | head -20)",
+      "Bash(grep -n \"interface SimNpcResponse\\\\|interface SimDialogueData\\\\|type SimNpcResponse\" /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx)",
+      "Bash(grep -n \"interface VoiceData\\\\|type VoiceData\\\\|type SimMangaDialogue\" /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx)",
+      "Bash(grep -n \"buildCaptionGroups\\\\|CaptionGroup\\\\|interface CaptionGroup\" /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx | head -20)",
+      "Bash(grep -n \"simMode && i > 0 && v.npc\\\\|openMangaDialogue\\\\|onClick.*npc\" /d/Projets/Claude-projets/hero/admin/src/app/books/\\\\[id\\\\]/page.tsx | head -20)",
+      "Bash(cd \"D:\\\\Projets\\\\Claude-projets\\\\hero\\\\admin\" && grep -n \"border.*1px solid.*agree\" src/app/books/\\\\[id\\\\]/page.tsx)",
+      "Bash(cd \"D:\\\\Projets\\\\Claude-projets\\\\hero\\\\admin\" && grep -n \"Texte CapCut\" src/app/books/\\\\[id\\\\]/page.tsx)",
+      "Bash(find \"D:/Projets/Claude-projets/hero/admin\" -maxdepth 1 -type f | grep -E '\\\\.\\(md|json|ts\\)$')",
+      "Bash(head -50 \"D:/Projets/Claude-projets/hero/admin/src/app/api/books\"/*\"/route.ts\" 2>/dev/null | head -100)",
+      "Bash(find \"D:/Projets/Claude-projets/hero/admin/src/components\" -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" \\\\\\) 2>/dev/null | head -30)",
+      "Bash(grep -rn \"word\\\\|caption\\\\|animation\\\\|typewriter\\\\|streaming\\\\|chunks\" \"D:/Projets/Claude-projets/hero/admin/src/app/books/[id]/page.tsx\" 2>/dev/null | head -30)"
+    ]
+  }
+}

@@ -1,0 +1,1 @@
+ALTER TABLE books ADD COLUMN IF NOT EXISTS intro_order jsonb DEFAULT NULL;

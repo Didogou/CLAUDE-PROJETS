@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { GenerateBookParams, AgeRange, Language, ContextType, Difficulty, ContentMix, MapType } from '@/types'
+import type { GenerateBookParams, AiModel, AddressForm, AgeRange, Language, ContextType, Difficulty, ContentMix, MapStyle, MapVisibility, IllustrationStyle } from '@/types'
 
 // ── Blocs d'inspiration ───────────────────────────────────────────────────────
 
@@ -68,11 +68,28 @@ const labelStyle: React.CSSProperties = {
 
 const DEFAULT_MIX: ContentMix = { combat: 20, chance: 10, enigme: 10, magie: 5 }
 
-const MAP_TYPES: { value: MapType; icon: string; label: string; desc: string }[] = [
-  { value: 'none',  icon: '🚫', label: 'Aucune',             desc: 'Pas de carte dans ce livre' },
-  { value: 'fog',   icon: '🌫️', label: 'Brouillard',         desc: 'Révélée au fur et à mesure' },
-  { value: 'found', icon: '🗺️', label: 'Trouvée en chemin',  desc: 'Obtenue lors de l\'aventure' },
-  { value: 'known', icon: '🏙️', label: 'Connue dès le début', desc: 'Ville, plan de métro, donjon...' },
+const MAP_STYLES: { value: MapStyle; icon: string; label: string; desc: string }[] = [
+  { value: 'subway',  icon: '🚇', label: 'Métro',    desc: 'Plan de métro coloré (NYC, Tokyo...)' },
+  { value: 'city',    icon: '🏙️', label: 'Ville',    desc: 'Carte de ville réaliste' },
+  { value: 'dungeon', icon: '🏰', label: 'Donjon',   desc: 'Plan de donjon fantasy' },
+  { value: 'forest',  icon: '🌲', label: 'Forêt',    desc: 'Carte de territoire sauvage' },
+  { value: 'sea',     icon: '⚓', label: 'Maritime',  desc: 'Carte nautique, îles et mers' },
+]
+
+const ILLUSTRATION_STYLES: { value: IllustrationStyle; icon: string; label: string; desc: string }[] = [
+  { value: 'realistic',   icon: '🖼️',  label: 'Réaliste',      desc: 'Peinture numérique détaillée' },
+  { value: 'manga',       icon: '⛩️',  label: 'Manga',          desc: 'Style manga, trames et encrage' },
+  { value: 'bnw',         icon: '⬛',  label: 'Noir & Blanc',   desc: 'Encre de Chine, lavis' },
+  { value: 'watercolor',  icon: '🎨',  label: 'Aquarelle',      desc: 'Couleurs douces, transparences' },
+  { value: 'comic',       icon: '💬',  label: 'BD franco-belge',desc: 'Ligne claire, style Hergé' },
+  { value: 'dark_fantasy',icon: '🩸',  label: 'Dark Fantasy',   desc: 'Style Frazetta, ombres profondes' },
+  { value: 'pixel',       icon: '👾',  label: 'Pixel Art',      desc: 'Rétro 16-bit, style jeu vidéo' },
+]
+
+const MAP_VISIBILITIES: { value: MapVisibility; icon: string; label: string; desc: string }[] = [
+  { value: 'full',  icon: '👁️',  label: 'Connue',             desc: 'Le joueur voit tout dès le début' },
+  { value: 'found', icon: '🗺️', label: 'Trouvée en chemin',   desc: 'Obtenue lors de l\'aventure' },
+  { value: 'fog',   icon: '🌫️', label: 'Brouillard de guerre', desc: 'Révélée au fur et à mesure' },
 ]
 
 // Temps moyen par section selon le type (minutes)
@@ -120,10 +137,14 @@ export default function NewBookPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [blocks, setBlocks] = useState<InspirationBlock[]>([newBlock('Description')])
+  const [aiModel, setAiModel] = useState<AiModel>('claude')
+  const [addressForm, setAddressForm] = useState<AddressForm>('vous')
   const [form, setForm] = useState<GenerateBookParams>({
     title: '', theme: 'Fantasy', age_range: '13-17', context_type: 'Aventure',
-    language: 'fr', difficulty: 'normal', num_sections: 30, map_type: 'fog',
+    language: 'fr', difficulty: 'normal', num_sections: 30,
+    map_style: null, map_visibility: 'full',
     content_mix: { ...DEFAULT_MIX }, description: '',
+    illustration_style: 'realistic',
   })
 
   function set(field: keyof GenerateBookParams, value: any) {
@@ -145,7 +166,7 @@ export default function NewBookPage() {
     if (mixOver) { setError('Le total des épreuves dépasse 90%. Réduisez les curseurs.'); return }
     setLoading(true); setError('')
     try {
-      const payload = { ...form, description: serializeBlocks(blocks) }
+      const payload = { ...form, description: serializeBlocks(blocks), ai_model: aiModel, address_form: addressForm }
       const res = await fetch('/api/generate', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
       })
@@ -161,7 +182,7 @@ export default function NewBookPage() {
     <div style={{ maxWidth: '640px' }}>
       <h2 style={{ fontSize: '1.75rem', color: 'var(--accent)', marginBottom: '0.25rem' }}>Nouveau livre</h2>
       <p style={{ color: 'var(--muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>
-        Remplissez les paramètres — Claude générera le livre dans le style de Pierre Bordage.
+        Remplissez les paramètres — Claude ou Mistral générera le livre dans le style de Pierre Bordage.
       </p>
 
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -278,35 +299,108 @@ export default function NewBookPage() {
           </div>
           <div>
             <label style={labelStyle}>Nb. sections</label>
-            <input style={inputStyle} type="number" min={20} max={100} value={form.num_sections} onChange={e => set('num_sections', parseInt(e.target.value))} />
+            <input style={inputStyle} type="number" min={20} max={150} value={form.num_sections} onChange={e => set('num_sections', parseInt(e.target.value))} />
+          </div>
+        </div>
+
+        {/* Tutoiement / Vouvoiement */}
+        <div>
+          <label style={labelStyle}>Adresse au lecteur</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            {([
+              { value: 'vous' as AddressForm, label: 'Vouvoiement', example: '"Vous avancez dans l\'obscurité…"', icon: '🎩' },
+              { value: 'tu'   as AddressForm, label: 'Tutoiement',  example: '"Tu avances dans l\'obscurité…"',   icon: '🤝' },
+            ] as const).map(opt => (
+              <button key={opt.value} type="button" onClick={() => setAddressForm(opt.value)} style={{
+                padding: '0.65rem 0.75rem', borderRadius: '8px', cursor: 'pointer', textAlign: 'left',
+                border: `2px solid ${addressForm === opt.value ? 'var(--accent)' : 'var(--border)'}`,
+                background: addressForm === opt.value ? 'var(--accent)18' : 'var(--surface-2)',
+                transition: 'all 0.15s',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                  <span>{opt.icon}</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '0.82rem', color: addressForm === opt.value ? 'var(--accent)' : 'var(--foreground)' }}>{opt.label}</span>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontStyle: 'italic', lineHeight: 1.3 }}>{opt.example}</div>
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Carte */}
         <div>
-          <label style={labelStyle}>🗺 Type de carte</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
-            {MAP_TYPES.map(m => (
-              <button key={m.value} type="button" onClick={() => set('map_type', m.value)} style={{
-                padding: '0.6rem 0.5rem', borderRadius: '6px', cursor: 'pointer',
-                border: `2px solid ${form.map_type === m.value ? 'var(--accent)' : 'var(--border)'}`,
-                background: form.map_type === m.value ? 'var(--accent)22' : 'var(--surface-2)',
-                color: form.map_type === m.value ? 'var(--accent)' : 'var(--muted)',
-                textAlign: 'center', transition: 'all 0.15s',
-              }}>
-                <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>{m.icon}</div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{m.label}</div>
-                <div style={{ fontSize: '0.62rem', opacity: 0.8, marginTop: '0.1rem' }}>{m.desc}</div>
+          <label style={labelStyle}>🗺 Carte / Plan</label>
+          {/* Toggle: avec ou sans carte */}
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+            {[
+              { hasMap: false, icon: '🚫', label: 'Pas de carte' },
+              { hasMap: true,  icon: '🗺️', label: 'Avec une carte' },
+            ].map(opt => (
+              <button key={String(opt.hasMap)} type="button"
+                onClick={() => set('map_style', opt.hasMap ? 'city' : null)}
+                style={{
+                  flex: 1, padding: '0.5rem 0.75rem', borderRadius: '6px', cursor: 'pointer',
+                  border: `2px solid ${(form.map_style !== null && form.map_style !== undefined) === opt.hasMap ? 'var(--accent)' : 'var(--border)'}`,
+                  background: (form.map_style !== null && form.map_style !== undefined) === opt.hasMap ? 'var(--accent)22' : 'var(--surface-2)',
+                  color: (form.map_style !== null && form.map_style !== undefined) === opt.hasMap ? 'var(--accent)' : 'var(--muted)',
+                  display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center',
+                  fontSize: '0.82rem', fontWeight: 'bold', transition: 'all 0.15s',
+                }}>
+                {opt.icon} {opt.label}
               </button>
             ))}
           </div>
+
+          {form.map_style && (
+            <>
+              {/* Style visuel */}
+              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                Style de carte
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                {MAP_STYLES.map(m => (
+                  <button key={m.value} type="button" onClick={() => set('map_style', m.value)} style={{
+                    padding: '0.6rem 0.4rem', borderRadius: '6px', cursor: 'pointer',
+                    border: `2px solid ${form.map_style === m.value ? 'var(--accent)' : 'var(--border)'}`,
+                    background: form.map_style === m.value ? 'var(--accent)22' : 'var(--surface-2)',
+                    color: form.map_style === m.value ? 'var(--accent)' : 'var(--muted)',
+                    textAlign: 'center', transition: 'all 0.15s',
+                  }}>
+                    <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>{m.icon}</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 'bold' }}>{m.label}</div>
+                    <div style={{ fontSize: '0.58rem', opacity: 0.8, marginTop: '0.1rem' }}>{m.desc}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Visibilité joueur */}
+              <div style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                Visibilité joueur
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem' }}>
+                {MAP_VISIBILITIES.map(v => (
+                  <button key={v.value} type="button" onClick={() => set('map_visibility', v.value)} style={{
+                    padding: '0.6rem 0.5rem', borderRadius: '6px', cursor: 'pointer',
+                    border: `2px solid ${form.map_visibility === v.value ? 'var(--accent)' : 'var(--border)'}`,
+                    background: form.map_visibility === v.value ? 'var(--accent)22' : 'var(--surface-2)',
+                    color: form.map_visibility === v.value ? 'var(--accent)' : 'var(--muted)',
+                    textAlign: 'center', transition: 'all 0.15s',
+                  }}>
+                    <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>{v.icon}</div>
+                    <div style={{ fontSize: '0.72rem', fontWeight: 'bold' }}>{v.label}</div>
+                    <div style={{ fontSize: '0.58rem', opacity: 0.8, marginTop: '0.1rem' }}>{v.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {/* Blocs d'inspiration */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
             <label style={{ ...labelStyle, margin: 0 }}>Contexte &amp; inspiration (optionnel)</label>
-            <span style={{ fontSize: '0.65rem', color: 'var(--muted)', opacity: 0.7 }}>Lu et interprété par Claude</span>
+            <span style={{ fontSize: '0.65rem', color: 'var(--muted)', opacity: 0.7 }}>Lu et interprété par le modèle choisi</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {blocks.map((block, i) => (
@@ -405,6 +499,51 @@ export default function NewBookPage() {
           </div>
         </div>
 
+        {/* Style d'illustration */}
+        <div>
+          <label style={labelStyle}>🎨 Style d'illustration</label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+            {ILLUSTRATION_STYLES.map(s => (
+              <button key={s.value} type="button" onClick={() => set('illustration_style', s.value)} style={{
+                padding: '0.6rem 0.5rem', borderRadius: '6px', cursor: 'pointer',
+                border: `2px solid ${form.illustration_style === s.value ? 'var(--accent)' : 'var(--border)'}`,
+                background: form.illustration_style === s.value ? 'var(--accent)22' : 'var(--surface-2)',
+                color: form.illustration_style === s.value ? 'var(--accent)' : 'var(--muted)',
+                textAlign: 'center', transition: 'all 0.15s',
+              }}>
+                <div style={{ fontSize: '1.2rem', marginBottom: '0.2rem' }}>{s.icon}</div>
+                <div style={{ fontSize: '0.72rem', fontWeight: 'bold' }}>{s.label}</div>
+                <div style={{ fontSize: '0.58rem', opacity: 0.8, marginTop: '0.1rem', lineHeight: 1.3 }}>{s.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sélecteur de modèle IA */}
+        <div>
+          <label style={labelStyle}>🤖 Modèle de génération</label>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem' }}>
+            {([
+              { value: 'claude'  as AiModel, icon: '⚡', label: 'Claude Sonnet', desc: 'Structure + textes Anthropic', color: '#c9a84c' },
+              { value: 'mistral' as AiModel, icon: '🌟', label: 'Mistral Large', desc: 'Structure + textes Mistral', color: '#f0824c' },
+              { value: 'mixed'   as AiModel, icon: '⚡🌟', label: 'Mixte', desc: 'Claude → structure · Mistral → textes', color: '#7c9ef0' },
+            ] as const).map(m => (
+              <button key={m.value} type="button" onClick={() => setAiModel(m.value)} style={{
+                padding: '0.7rem 0.75rem', borderRadius: '8px', cursor: 'pointer', textAlign: 'left',
+                border: `2px solid ${aiModel === m.value ? m.color : 'var(--border)'}`,
+                background: aiModel === m.value ? m.color + '18' : 'var(--surface-2)',
+                transition: 'all 0.15s',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                  <span style={{ fontSize: '1.1rem' }}>{m.icon}</span>
+                  <span style={{ fontWeight: 'bold', fontSize: '0.82rem', color: aiModel === m.value ? m.color : 'var(--foreground)' }}>{m.label}</span>
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'var(--muted)', lineHeight: 1.3 }}>{m.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {error && (
           <p style={{ color: 'var(--danger)', fontSize: '0.875rem', background: '#c94c4c11', padding: '0.75rem', borderRadius: '6px' }}>
             ⚠ {error}
@@ -412,7 +551,7 @@ export default function NewBookPage() {
         )}
 
         <button type="submit" disabled={loading || mixOver} style={{
-          background: loading || mixOver ? 'var(--muted)' : 'var(--accent)',
+          background: loading || mixOver ? 'var(--muted)' : aiModel === 'mistral' ? '#f0824c' : 'var(--accent)',
           color: '#0f0f14', border: 'none', borderRadius: '6px',
           padding: '0.75rem 1.5rem', fontWeight: 'bold', fontSize: '0.9rem',
           cursor: loading || mixOver ? 'not-allowed' : 'pointer',
@@ -420,12 +559,12 @@ export default function NewBookPage() {
         }}>
           {loading ? (
             <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⚙</span> Génération en cours...</>
-          ) : '✨ Générer le livre'}
+          ) : aiModel === 'mistral' ? '🌟 Générer avec Mistral' : '✨ Générer avec Claude'}
         </button>
 
         {loading && (
           <p style={{ color: 'var(--muted)', fontSize: '0.8rem', textAlign: 'center' }}>
-            Claude rédige votre aventure... Cela peut prendre 1 à 2 minutes.
+            {aiModel === 'mistral' ? 'Mistral' : 'Claude'} rédige votre aventure... Cela peut prendre 1 à 2 minutes.
           </p>
         )}
       </form>
