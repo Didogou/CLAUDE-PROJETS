@@ -1,7 +1,4 @@
 {
-  "functions": {
-    "src/app/api/**/*.ts": {
-      "maxDuration": 300
-    }
-  }
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next"
 }
