@@ -278,6 +278,7 @@ export interface SectionLayoutSettings {
   health_text_color: string
   stats_show: boolean
   inventory_show: boolean
+  inventory_icon_size: number
   settings_show: boolean
   el_settings: { x: number; y: number }
   clock_show: boolean

@@ -6180,6 +6180,7 @@ const SECTION_LAYOUT_DEFAULTS: import('@/types').SectionLayoutSettings = {
   health_text_color: '',   // vide = couleur dynamique selon état
   stats_show:        true,
   inventory_show:    true,
+  inventory_icon_size: 18,
   settings_show:     true,
   el_settings:       { x: 350, y: 14 },
   clock_show:        true,
@@ -7108,11 +7109,14 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
             opacity: simMode ? (simTextDone ? 1 : 0) : 1, transition: 'opacity 0.6s ease' }}>
           <div style={{ background: `#0d0d0d${ovAlpha}`, border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '5px 6px', backdropFilter: 'blur(6px)', pointerEvents: 'none' }}>
             <div style={{ display: 'flex', gap: '4px' }}>
-              {(['🗡', '🧪'] as const).map((icon, i) => (
-                <div key={i} style={{ width: '18px', height: '18px', border: '1px solid #d4a84c44', borderRadius: '3px', background: 'rgba(212,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontSize: '9px' }}>{icon}</span>
-                </div>
-              ))}
+              {(['🗡', '🧪'] as const).map((icon, i) => {
+                const iconSz = s.inventory_icon_size ?? 18
+                return (
+                  <div key={i} style={{ width: `${iconSz}px`, height: `${iconSz}px`, border: '1px solid #d4a84c44', borderRadius: '3px', background: 'rgba(212,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: `${Math.round(iconSz * 0.6)}px` }}>{icon}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -8760,6 +8764,7 @@ function SectionLayoutTab({ bookId, sectionLayout, protagonist, npcs, sections, 
             {slider('overlay_opacity', 'Opacité', 0, 100, '%')}
             {toggle('stats_show', '⚔ Stats')}
             {toggle('inventory_show', '🎒 Inventaire')}
+            {ds.inventory_show && slider('inventory_icon_size', 'Taille icônes', 12, 48, 'px')}
             {toggle('settings_show', '⚙ Paramètres')}
             {toggle('clock_show', '🕐 Horloge')}
             {ds.clock_show && (<>
