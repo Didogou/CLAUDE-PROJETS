@@ -7078,7 +7078,7 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           outline: interactive ? '1px dashed rgba(212,168,76,0.2)' : 'none',
           cursor: interactive ? (dragging === 'photo_pos' ? 'grabbing' : 'grab') : 'default',
         }}>
-        <style>{`@keyframes simImgIn{from{opacity:0}to{opacity:1}}@keyframes simBlink{0%,100%{opacity:1}50%{opacity:0}}@keyframes simItemPulse{0%,100%{box-shadow:0 0 10px rgba(212,168,76,0.5),0 0 22px rgba(212,168,76,0.2)}50%{box-shadow:0 0 18px rgba(212,168,76,0.9),0 0 36px rgba(212,168,76,0.4)}}`}</style>
+        <style>{`@keyframes simImgIn{from{opacity:0}to{opacity:1}}@keyframes simBlink{0%,100%{opacity:1}50%{opacity:0}}@keyframes simItemPulse{0%,100%{box-shadow:0 0 10px rgba(212,168,76,0.5),0 0 22px rgba(212,168,76,0.2)}50%{box-shadow:0 0 18px rgba(212,168,76,0.9),0 0 36px rgba(212,168,76,0.4)}}@keyframes thoughtChar{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}`}</style>
         <img key={`${section?.id}-${simImgIdx}`}
           src={(simPlayableImgs[simImgIdx]?.url ?? section?.images?.[0]?.url) ?? section?.image_url ?? placeholderImg}
           alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none', animation: simMode ? 'simImgIn 0.6s ease' : 'none' }} />
@@ -7689,8 +7689,8 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
         const thought = simPlayableImgs[simImgIdx]?.thought?.trim() ?? ''
         if (!thought) return null
         const sentences = thought.match(/[^.!?…]+[.!?…]*/g)?.map((s: string) => s.trim()).filter(Boolean) ?? [thought]
-        const visibleSentences = sentences.slice(0, simThoughtCount)
-        if (!visibleSentences.length) return null
+        const currentSentence = sentences[simThoughtCount - 1] ?? ''
+        if (!currentSentence) return null
         const dots = simPlayableImgs.length > 1 ? (
           <div style={{ display: 'flex', justifyContent: 'center', gap: 5, pointerEvents: 'none' }}>
             {simPlayableImgs.map((_, i) => (
@@ -7699,18 +7699,24 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           </div>
         ) : null
 
+        // Rendu caractère par caractère (style animatic)
+        const charSpans = (text: string, color: string, fontSize: string, extraStyle?: React.CSSProperties) => (
+          <p key={simThoughtCount} style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize, fontStyle: 'italic', color, lineHeight: 1.65, ...extraStyle }}>
+            {text.split('').map((char: string, i: number) => (
+              <span key={i} style={{ display: 'inline-block', animation: `thoughtChar 0.05s ${i * 0.032}s both` }}>
+                {char === ' ' ? '\u00a0' : char}
+              </span>
+            ))}
+          </p>
+        )
+
         // ── Variante 1 : Cinematic Strip ─────────────────────────
         if (thoughtStyle === 1) return (
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 22, pointerEvents: 'none' }}>
-            <style>{`@keyframes thoughtFadeIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }`}</style>
             {dots && <div style={{ marginBottom: 8 }}>{dots}</div>}
             <div style={{ background: 'linear-gradient(to top, rgba(5,3,12,0.97) 60%, rgba(5,3,12,0))', borderTop: '1px solid rgba(200,160,232,0.3)', padding: '18px 20px 28px' }}>
               <div style={{ fontSize: '11px', color: 'rgba(200,160,232,0.45)', marginBottom: '8px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>💭 Pensées</div>
-              {visibleSentences.map((sent, i) => (
-                <p key={i} style={{ margin: i > 0 ? '5px 0 0' : '0', fontFamily: 'Georgia, serif', fontSize: '15px', fontStyle: 'italic', color: '#e8caff', lineHeight: 1.6, textShadow: '0 1px 8px rgba(0,0,0,0.9)', animation: 'thoughtFadeIn 0.5s ease both', animationDelay: `${i * 0.08}s` }}>
-                  {sent}
-                </p>
-              ))}
+              {charSpans(currentSentence, '#e8caff', '15px', { textShadow: '0 1px 8px rgba(0,0,0,0.9)' })}
             </div>
           </div>
         )
@@ -7718,19 +7724,12 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
         // ── Variante 2 : Manga Caption ────────────────────────────
         if (thoughtStyle === 2) return (
           <div style={{ position: 'absolute', bottom: '14%', left: '50%', transform: 'translateX(-50%)', width: '86%', zIndex: 22, pointerEvents: 'none' }}>
-            <style>{`
-              @keyframes thoughtFadeIn { from { opacity:0; transform:translateY(10px) scale(0.98) } to { opacity:1; transform:translateY(0) scale(1) } }
-              @keyframes bubbleGlow { 0%,100% { box-shadow:0 0 18px rgba(180,130,255,0.18),0 6px 32px rgba(0,0,0,0.75) } 50% { box-shadow:0 0 28px rgba(180,130,255,0.32),0 6px 32px rgba(0,0,0,0.75) } }
-            `}</style>
+            <style>{`@keyframes bubbleGlow { 0%,100% { box-shadow:0 0 18px rgba(180,130,255,0.18),0 6px 32px rgba(0,0,0,0.75) } 50% { box-shadow:0 0 28px rgba(180,130,255,0.32),0 6px 32px rgba(0,0,0,0.75) } }`}</style>
             <div style={{ background: 'rgba(8,5,18,0.88)', border: '1px solid rgba(200,160,232,0.35)', borderRadius: '4px 18px 18px 18px', padding: '14px 18px 16px', backdropFilter: 'blur(10px)', animation: 'bubbleGlow 3s ease-in-out infinite', position: 'relative' }}>
               <div style={{ position: 'absolute', top: -1, left: -1, width: 10, height: 10, borderTop: '2px solid rgba(200,160,232,0.7)', borderLeft: '2px solid rgba(200,160,232,0.7)', borderRadius: '4px 0 0 0' }} />
               <div style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderBottom: '2px solid rgba(200,160,232,0.7)', borderRight: '2px solid rgba(200,160,232,0.7)', borderRadius: '0 0 18px 0' }} />
               <div style={{ fontSize: '13px', marginBottom: '8px', lineHeight: 1 }}>💭</div>
-              {visibleSentences.map((sent, i) => (
-                <p key={i} style={{ margin: i > 0 ? '7px 0 0' : '0', fontFamily: 'Georgia, serif', fontSize: '14px', fontStyle: 'italic', color: '#e2c4ff', lineHeight: 1.65, textShadow: '0 1px 6px rgba(0,0,0,0.8)', animation: 'thoughtFadeIn 0.45s cubic-bezier(0.22,1,0.36,1) both', animationDelay: `${i * 0.1}s` }}>
-                  {sent}
-                </p>
-              ))}
+              {charSpans(currentSentence, '#e2c4ff', '14px', { textShadow: '0 1px 6px rgba(0,0,0,0.8)' })}
             </div>
             {dots && <div style={{ marginTop: 8 }}>{dots}</div>}
           </div>
@@ -7739,16 +7738,11 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
         // ── Variante 3 : Ghost Overlay ────────────────────────────
         return (
           <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 22, pointerEvents: 'none' }}>
-            <style>{`@keyframes thoughtFadeIn { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }`}</style>
             <div style={{ background: 'linear-gradient(to top, rgba(2,1,8,0.95) 0%, rgba(2,1,8,0.7) 40%, transparent 100%)', padding: '60px 22px 22px' }}>
               {dots && <div style={{ marginBottom: 14 }}>{dots}</div>}
               <div style={{ width: 28, height: 1, background: 'linear-gradient(to right, transparent, rgba(200,160,232,0.6), transparent)', margin: '0 auto 12px' }} />
               <div style={{ textAlign: 'center' }}>
-                {visibleSentences.map((sent, i) => (
-                  <p key={i} style={{ margin: i > 0 ? '6px 0 0' : '0', fontFamily: 'Georgia, serif', fontSize: '17px', fontStyle: 'italic', color: '#edd9ff', lineHeight: 1.65, letterSpacing: '0.02em', textShadow: '0 2px 12px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.8)', animation: 'thoughtFadeIn 0.6s cubic-bezier(0.16,1,0.3,1) both', animationDelay: `${i * 0.12}s` }}>
-                    {sent}
-                  </p>
-                ))}
+                {charSpans(currentSentence, '#edd9ff', '17px', { textShadow: '0 2px 12px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.8)', letterSpacing: '0.02em' })}
               </div>
               <div style={{ width: 28, height: 1, background: 'linear-gradient(to right, transparent, rgba(200,160,232,0.4), transparent)', margin: '12px auto 0' }} />
             </div>
