@@ -6991,7 +6991,7 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
 
       {/* ── "Fais ton choix !" — centré au-dessus des boutons ──────── */}
       {simMode && (
-        <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', zIndex: 22, display: 'flex', justifyContent: 'center', alignItems: 'center', opacity: simTextDone ? 1 : 0, transition: 'opacity 0.6s ease', pointerEvents: 'none' }}>
+        <div style={{ position: 'absolute', left: 0, right: 0, bottom: 310, zIndex: 22, display: 'flex', justifyContent: 'center', alignItems: 'center', opacity: simTextDone ? 1 : 0, transition: 'opacity 0.6s ease', pointerEvents: 'none' }}>
           <span style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#d4a84c', textShadow: '0 0 12px rgba(212,168,76,0.7)', background: 'rgba(255,245,220,0.18)', backdropFilter: 'blur(6px)', borderRadius: '8px', padding: '6px 18px', border: '1px solid rgba(212,168,76,0.25)' }}>
             ✦ Fais ton choix ! ✦
           </span>
