@@ -185,6 +185,7 @@ export default function BookPage() {
   const [items, setItems] = useState<import('@/types').Item[]>([])
   const [itemsLoaded, setItemsLoaded] = useState(false)
   const [editingItem, setEditingItem] = useState<string | null>(null) // item id or 'new'
+  const [positioningItemId, setPositioningItemId] = useState<string | null>(null)
   const [itemForm, setItemForm] = useState<Partial<import('@/types').Item>>({})
   const [itemSaving, setItemSaving] = useState(false)
   const [planHighlight, setPlanHighlight] = useState<number | null>(null)
@@ -3426,6 +3427,17 @@ export default function BookPage() {
         const ITEM_TYPE_LABELS: Record<string, string> = { soin: '❤️ Soin', mana: '💧 Mana', arme: '⚔️ Arme', armure: '🛡 Armure', outil: '🔧 Outil', quete: '📜 Quête', grimoire: '📖 Grimoire' }
         const ITEM_CAT_LABELS: Record<string, string> = { persistant: '♾ Persistant', consommable: '🔑 Consommable', arme: '⚔️ Arme' }
         const ITEM_CAT_COLORS: Record<string, string> = { persistant: '#52c484', consommable: '#d4a84c', arme: '#e05555' }
+        async function setItemPosition(itemId: string, sectionId: string, x: number, y: number) {
+          const sec = sections.find(s => s.id === sectionId)
+          if (!sec) return
+          const existing: any[] = (sec as any).items_on_scene ?? []
+          const updated = existing.some((si: any) => si.item_id === itemId)
+            ? existing.map((si: any) => si.item_id === itemId ? { ...si, x, y } : si)
+            : [...existing, { item_id: itemId, x, y }]
+          await fetch(`/api/sections/${sectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items_on_scene: updated }) })
+          setSections(prev => prev.map(s => s.id === sectionId ? { ...s, items_on_scene: updated } as any : s))
+        }
+
         async function uploadItemImage(file: File) {
           const formData = new FormData()
           formData.append('file', file)
@@ -3602,7 +3614,54 @@ export default function BookPage() {
                         </div>
                       </div>
                     </div>
+                    {/* Panneau de positionnement */}
+                    {positioningItemId === item.id && (item.sections_used ?? []).length > 0 && (
+                      <div style={{ padding: '0.65rem 0.85rem', borderTop: `1px solid ${catColor}33`, background: `${catColor}08` }}>
+                        <div style={{ fontSize: '0.68rem', color: catColor, marginBottom: '0.5rem', fontWeight: 600 }}>📍 Clic sur l'image pour placer l'objet</div>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          {(item.sections_used ?? []).map(sid => {
+                            const sec = sections.find(s => s.id === sid)
+                            if (!sec) return null
+                            const lastImg = [...(sec.images ?? [])].reverse().find((img: any) => img.url)
+                            const currentPos = ((sec as any).items_on_scene ?? []).find((si: any) => si.item_id === item.id)
+                            const cx = currentPos?.x ?? 0.5
+                            const cy = currentPos?.y ?? 0.8
+                            return (
+                              <div key={sid} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'center' }}>
+                                <div style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>§{sec.number}</div>
+                                <div
+                                  style={{ position: 'relative', width: 120, height: 80, borderRadius: '5px', overflow: 'hidden', border: `1px solid ${catColor}55`, cursor: 'crosshair', background: '#111' }}
+                                  onClick={e => {
+                                    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
+                                    const x = (e.clientX - rect.left) / rect.width
+                                    const y = (e.clientY - rect.top) / rect.height
+                                    setItemPosition(item.id, sid, Math.round(x * 100) / 100, Math.round(y * 100) / 100)
+                                  }}>
+                                  {lastImg
+                                    ? <img src={lastImg.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
+                                    : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', opacity: 0.2 }}>🖼</div>
+                                  }
+                                  {/* Icône positionnée */}
+                                  <div style={{ position: 'absolute', left: `${cx * 100}%`, top: `${cy * 100}%`, transform: 'translate(-50%,-50%)', width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: `2px solid ${catColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, pointerEvents: 'none' }}>
+                                    {item.illustration_url
+                                      ? <img src={item.illustration_url} alt="" style={{ width: 14, height: 14, objectFit: 'cover', borderRadius: '50%' }} />
+                                      : <span>{ITEM_CATEGORY_ICONS[cat] ?? '📦'}</span>
+                                    }
+                                  </div>
+                                </div>
+                                {currentPos?.x !== undefined && (
+                                  <div style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>{Math.round(cx * 100)}% × {Math.round(cy * 100)}%</div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: '0.4rem', padding: '0.4rem 0.85rem', borderTop: '1px solid var(--border)', background: 'var(--surface)', justifyContent: 'flex-end' }}>
+                      {(item.sections_used ?? []).length > 0 && (
+                        <button onClick={() => setPositioningItemId(positioningItemId === item.id ? null : item.id)} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: `1px solid ${positioningItemId === item.id ? catColor + '88' : 'var(--border)'}`, background: positioningItemId === item.id ? catColor + '18' : 'transparent', color: positioningItemId === item.id ? catColor : 'var(--muted)', cursor: 'pointer' }}>📍 Positionner</button>
+                      )}
                       <button onClick={() => { setEditingItem(item.id); setItemForm({ ...item } as any) }} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>✎ Modifier</button>
                       <button onClick={async () => { if (!confirm(`Supprimer "${item.name}" ?`)) return; await fetch(`/api/items/${item.id}`, { method: 'DELETE' }); setItems(prev => prev.filter(it => it.id !== item.id)) }} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c', cursor: 'pointer' }}>✕ Supprimer</button>
                     </div>
