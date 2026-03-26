@@ -33,6 +33,19 @@ export type MapType = 'none' | 'fog' | 'found' | 'known'
 export type SectionStatus = 'draft' | 'in_progress' | 'validated'
 export type ContextType = 'Aventure' | 'Intrigue' | 'Suspense' | 'Enquête' | 'Horreur' | 'Fantasy' | 'Science-Fiction'
 export type ItemType = 'soin' | 'mana' | 'arme' | 'armure' | 'outil' | 'quete' | 'grimoire'
+export type ItemCategory = 'persistant' | 'consommable' | 'arme'
+
+export interface RadioBroadcast {
+  act: number          // numéro d'acte (1-based)
+  text: string         // texte lu par la DJ
+  audio_url?: string   // URL ElevenLabs généré
+}
+
+export interface SceneItem {
+  item_id: string
+  x?: number           // % horizontal sur l'image (0-100)
+  y?: number           // % vertical sur l'image (0-100)
+}
 export type TrialType = 'combat' | 'agilite' | 'intelligence' | 'magie' | 'chance' | 'crochetage' | 'dialogue'
 export type EndingType = 'victory' | 'death'
 
@@ -104,10 +117,14 @@ export interface Item {
   book_id: string
   name: string
   item_type: ItemType
+  category: ItemCategory          // persistant | consommable | arme
   description?: string
-  illustration_url?: string
+  illustration_url?: string       // image de l'objet (fiche item)
+  cinematique_url?: string        // vidéo courte jouée au ramassage
   section_found_id?: string
-  sections_used: string[]   // array of section IDs
+  sections_used: string[]         // sections où l'item est à positionner (pickup)
+  use_section_ids?: string[]      // sections où l'item est requis (usage/déverrou)
+  radio_broadcasts?: RadioBroadcast[]  // pour items radio persistants
   effect: Record<string, any>
   created_at: string
 }
@@ -126,7 +143,7 @@ export interface SectionDialogue {
   speaker?: string   // nom du locuteur, "joueur" ou null si inconnu
   npc_id?: string    // id du PNJ si identifié
   source: 'content' | 'transition'
-  image_index?: number  // 0-3 : plan sur lequel afficher la bulle
+  image_index?: number  // 0-2 : plan sur lequel afficher la bulle
   voice_prompt?: string  // override du prompt de jeu d'acteur pour cette réplique
   audio_url?: string     // URL Supabase Storage du MP3 sauvegardé
 }
@@ -161,6 +178,7 @@ export interface Section {
   player_questions?: string[]
   player_responses?: Record<string, Record<string, string>>
   conv_first_npc_id?: string | null
+  items_on_scene?: SceneItem[]    // items ramassables sur la dernière image
 }
 
 export interface Choice {
@@ -171,10 +189,11 @@ export interface Choice {
   target_section_id?: string
   requires_trial: boolean
   condition?: { stat?: string; min?: number; item_id?: string }
+  locked_label?: string           // label affiché si condition item non remplie
   sort_order: number
   transition_text?: string
   transition_image_url?: string
-  transition_image_index?: number  // 0-3, image de la section à afficher (défaut 3)
+  transition_image_index?: number  // 0-2, image de la section à afficher (défaut 2)
   return_text?: string
   return_image_index?: number
   is_back?: boolean

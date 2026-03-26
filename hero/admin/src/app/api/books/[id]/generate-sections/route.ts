@@ -366,29 +366,47 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     // ── ÉTAPE 1b : Objets depuis le synopsis ──────────────────────────────────
     let items_count = 0
+    let itemCatalogue: Array<{ id: string; name: string; category: string; pickup_section_numbers: number[]; use_section_numbers: number[] }> = []
+    let rawItemsData: Array<{ id: string; pickup_section_numbers: number[]; use_section_numbers: number[]; locked_hint: string }> = []
     const synopsisForItems = book.synopsis?.trim() || book.book_summary?.trim()
     if (synopsisForItems) {
       try {
-        const itemsRaw = await generateText('opus', system, buildItemsPrompt(book.title, book.theme, synopsisForItems), 2048)
-        const itemsArr: any[] = JSON.parse(extractJson(itemsRaw))
         const VALID_ITEM_TYPES = new Set(['soin', 'mana', 'arme', 'armure', 'outil', 'quete', 'grimoire'])
+        const VALID_CATEGORIES = new Set(['persistant', 'consommable', 'arme'])
+        const itemsRaw = await generateText('opus', system, buildItemsPrompt(book.title, book.theme, synopsisForItems, totalSections), 3000)
+        const itemsArr: any[] = JSON.parse(extractJson(itemsRaw))
         if (Array.isArray(itemsArr) && itemsArr.length > 0) {
-          const itemsToInsert = itemsArr
-            .filter((it: any) => it.name && VALID_ITEM_TYPES.has(it.item_type))
-            .map((it: any) => ({
-              book_id: id,
-              name: it.name,
-              item_type: it.item_type,
-              description: it.description ?? null,
-              effect: it.effect ?? {},
-              sections_used: [],
-            }))
+          const filtered = itemsArr.filter((it: any) => it.name && VALID_ITEM_TYPES.has(it.item_type))
+          const itemsToInsert = filtered.map((it: any) => ({
+            book_id: id,
+            name: it.name,
+            item_type: it.item_type,
+            category: VALID_CATEGORIES.has(it.category) ? it.category : 'consommable',
+            description: it.description ?? null,
+            effect: it.effect ?? {},
+            sections_used: [],
+            use_section_ids: [],
+            radio_broadcasts: Array.isArray(it.radio_broadcasts) ? it.radio_broadcasts : [],
+          }))
           if (itemsToInsert.length > 0) {
-            const { error: itemsError } = await supabaseAdmin.from('items').insert(itemsToInsert)
+            const { data: insertedItems, error: itemsError } = await supabaseAdmin.from('items').insert(itemsToInsert).select()
             if (itemsError) {
               console.error('[generate-sections] items insert error:', itemsError)
-            } else {
-              items_count = itemsToInsert.length
+            } else if (insertedItems) {
+              items_count = insertedItems.length
+              itemCatalogue = insertedItems.map((item: any, i: number) => ({
+                id: item.id,
+                name: item.name,
+                category: item.category,
+                pickup_section_numbers: filtered[i]?.pickup_section_numbers ?? [],
+                use_section_numbers: filtered[i]?.use_section_numbers ?? [],
+              }))
+              rawItemsData = insertedItems.map((item: any, i: number) => ({
+                id: item.id,
+                pickup_section_numbers: filtered[i]?.pickup_section_numbers ?? [],
+                use_section_numbers: filtered[i]?.use_section_numbers ?? [],
+                locked_hint: filtered[i]?.locked_hint ?? '',
+              }))
             }
           }
         }
@@ -414,7 +432,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
       const batchRaw = await generateText(
         'opus', system,
-        buildSectionBatchPrompt(bookParams, npcNames, locationNames, from, to, totalSections, isLastBatch, previousSummaries, actInfo, undefined, seriesBible),
+        buildSectionBatchPrompt(bookParams, npcNames, locationNames, from, to, totalSections, isLastBatch, previousSummaries, actInfo, undefined, seriesBible, itemCatalogue.length > 0 ? itemCatalogue : undefined),
         8192
       )
 
@@ -467,6 +485,9 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       location_id:   s.location_name ? (locationNameMap.get(s.location_name.toLowerCase()) ?? null) : null,
       tension_level: calcTension(s, totalSections),
       status:        'draft',
+      items_on_scene: itemCatalogue
+        .filter(it => it.pickup_section_numbers.includes(s.number))
+        .map(it => ({ item_id: it.id })),
     }))
 
     const { data: insertedSections, error: sectionsError } = await supabaseAdmin
@@ -484,8 +505,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         choicesToInsert.push({
           section_id:        sectionId,
           label:             c.label,
+          locked_label:      c.locked_label ?? null,
           target_section_id: sectionMap.get(c.target_section) ?? null,
           requires_trial:    false,
+          condition:         c.condition ?? null,
           sort_order:        c.sort_order ?? 0,
           is_back:           c.is_back ?? false,
         })
@@ -515,6 +538,17 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
         trial.enemy = { name: rawTrial.enemy_name, force: npcData.force, endurance: npcData.endurance }
       }
       await supabaseAdmin.from('sections').update({ trial }).eq('id', sectionId)
+    }
+
+    // ── Résolution des sections_used / use_section_ids sur les items ──────────
+    for (const rawItem of rawItemsData) {
+      const sections_used = rawItem.pickup_section_numbers
+        .map((n: number) => sectionMap.get(n)).filter(Boolean) as string[]
+      const use_section_ids = rawItem.use_section_numbers
+        .map((n: number) => sectionMap.get(n)).filter(Boolean) as string[]
+      if (sections_used.length > 0 || use_section_ids.length > 0) {
+        await supabaseAdmin.from('items').update({ sections_used, use_section_ids }).eq('id', rawItem.id)
+      }
     }
 
     await supabaseAdmin.from('books').update({ phase: 'structure_generated' }).eq('id', id)

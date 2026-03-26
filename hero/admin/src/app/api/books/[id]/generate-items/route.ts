@@ -13,7 +13,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
     const { data: book } = await supabaseAdmin
       .from('books')
-      .select('title, theme, synopsis, book_summary')
+      .select('title, theme, synopsis, book_summary, total_sections')
       .eq('id', id)
       .single()
     if (!book) return NextResponse.json({ error: 'Livre introuvable' }, { status: 404 })
@@ -21,8 +21,10 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const synopsis = book.synopsis?.trim() || book.book_summary?.trim()
     if (!synopsis) return NextResponse.json({ error: 'Aucun synopsis disponible' }, { status: 400 })
 
+    const totalSections: number = (book as any).total_sections ?? 20
+
     const system = 'Tu es un générateur de JSON. Ta réponse entière doit être du JSON brut valide. Aucun texte avant ou après.'
-    const raw = await generateText('claude', system, buildItemsPrompt(book.title, book.theme, synopsis), 2048)
+    const raw = await generateText('claude', system, buildItemsPrompt(book.title, book.theme, synopsis, totalSections), 2048)
 
     let itemsArr: any[]
     try {

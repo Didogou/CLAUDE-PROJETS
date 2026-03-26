@@ -248,7 +248,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   const plans = JSON.parse(jsonStr) as Array<{ prompt_fr?: string; prompt_en?: string; thought?: string }>
                   if (!Array.isArray(plans) || plans.length < 1) continue
                   const existingImgs: any[] = (s as any).images ?? []
-                  const images = Array.from({ length: 4 }, (_, idx) => ({
+                  const images = Array.from({ length: 3 }, (_, idx) => ({
                     ...(existingImgs[idx] ?? {}),
                     prompt_fr: plans[idx]?.prompt_fr || undefined,
                     prompt_en: plans[idx]?.prompt_en || undefined,

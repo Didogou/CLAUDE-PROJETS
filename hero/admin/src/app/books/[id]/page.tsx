@@ -32,6 +32,8 @@ interface AgentLogEntry {
 
 // ── Musique par défaut par type de section ────────────────────────────────────
 
+const ITEM_CATEGORY_ICONS: Record<string, string> = { persistant: '📦', consommable: '🧪', arme: '⚔️' }
+
 const DEFAULT_MUSIC: Record<string, string> = {
   'Narration':   'https://opengameart.org/sites/default/files/dungeon_ambient_1_0.ogg',
   'Combat':      'https://opengameart.org/sites/default/files/battleThemeA.mp3',
@@ -156,7 +158,7 @@ export default function BookPage() {
   const [editContent, setEditContent] = useState('')
   const [editSummary, setEditSummary] = useState('')
   const [editHint, setEditHint] = useState('')
-  const [editImages, setEditImages] = useState<Array<{ url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; style: string; includeProtagonist: boolean }>>(Array.from({ length: 4 }, () => ({ description: '', style: 'realistic', includeProtagonist: false })))
+  const [editImages, setEditImages] = useState<Array<{ url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; style: string; includeProtagonist: boolean }>>(Array.from({ length: 3 }, () => ({ description: '', style: 'realistic', includeProtagonist: false })))
   const [editMusicUrl, setEditMusicUrl] = useState('')
   const [freesoundModal, setFreesoundModal] = useState<{ sectionType: string; onSelect?: (url: string) => void } | null>(null)
   const [narrationPanel, setNarrationPanel] = useState<{ sectionId: string; content: string } | null>(null)
@@ -346,7 +348,7 @@ export default function BookPage() {
     setEditHint(sec.hint_text ?? '')
     setEditMusicUrl(sec.music_url ?? '')
     const imgs = sec.images ?? []
-    setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book?.illustration_style ?? 'realistic', includeProtagonist: false })))
+    setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book?.illustration_style ?? 'realistic', includeProtagonist: false })))
     setEditingSection(sectionDetailId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionDetailId])
@@ -873,7 +875,7 @@ export default function BookPage() {
     setSectionModal(sectionId); setEditingSection(sectionId)
     setEditContent(s.content); setEditSummary(s.summary ?? ''); setEditHint(s.hint_text ?? ''); setEditMusicUrl(s.music_url ?? '')
     const imgs = s.images ?? []
-    setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
+    setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
   }
 
   function startCorrectionPath(pathIdx: number) {
@@ -1916,17 +1918,17 @@ export default function BookPage() {
                 const res = await fetch(`/api/books/${book!.id}/fix-language`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ section_id: detailSec.id, action: 'extract_dialogues' }),
+                  body: JSON.stringify({ section_id: detailSec!.id, action: 'extract_dialogues' }),
                 })
               }
 
               async function saveDialogues(updated: import('@/types').SectionDialogue[]) {
-                await fetch(`/api/sections/${detailSec.id}`, {
+                await fetch(`/api/sections/${detailSec!.id}`, {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ dialogues: updated }),
                 })
-                setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, dialogues: updated } : s))
+                setSections(prev => prev.map(s => s.id === detailSec!.id ? { ...s, dialogues: updated } : s))
               }
 
               function addLine() {
@@ -2025,7 +2027,7 @@ export default function BookPage() {
                     />
                   </div>
                 </div>
-                {[0, 1, 2, 3].map(i => (
+                {[0, 1, 2].map(i => (
                   <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
                     <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold' }}>Plan {i + 1}</div>
                     {editImages[i]?.url && (
@@ -2262,9 +2264,9 @@ export default function BookPage() {
                             <div>
                               <div style={{ fontSize: '0.62rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Image de transition :</div>
                               <div style={{ display: 'flex', gap: '0.35rem' }}>
-                                {[0, 1, 2, 3].map(idx => {
+                                {[0, 1, 2].map(idx => {
                                   const imgUrl = detailSec.images?.[idx]?.url
-                                  const selected = (choice.transition_image_index ?? 3) === idx
+                                  const selected = (choice.transition_image_index ?? 2) === idx
                                   return (
                                     <button key={idx} onClick={async () => {
                                       await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_index: idx }) })
@@ -2300,7 +2302,7 @@ export default function BookPage() {
                       {/* Affichage transition (non édition) */}
                       {!isEditingTransition_ && choice.transition_text && (
                         <div style={{ padding: '0.5rem 0.85rem', background: '#b48edd08', borderTop: '1px solid #b48edd22', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                          {(() => { const imgUrl = choice.transition_image_url || detailSec.images?.[(choice.transition_image_index ?? 3)]?.url; return imgUrl ? <img src={imgUrl} alt="" style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} /> : null })()}
+                          {(() => { const imgUrl = choice.transition_image_url || detailSec.images?.[(choice.transition_image_index ?? 2)]?.url; return imgUrl ? <img src={imgUrl} alt="" style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} /> : null })()}
                           <p style={{ fontSize: '0.78rem', color: '#b48edd', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>{choice.transition_text}</p>
                         </div>
                       )}
@@ -2343,9 +2345,9 @@ export default function BookPage() {
                               <div>
                                 <div style={{ fontSize: '0.62rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Image de retour :</div>
                                 <div style={{ display: 'flex', gap: '0.35rem' }}>
-                                  {[0, 1, 2, 3].map(idx => {
+                                  {[0, 1, 2].map(idx => {
                                     const imgUrl = detailSec.images?.[idx]?.url
-                                    const selected = (choice.return_image_index ?? 3) === idx
+                                    const selected = (choice.return_image_index ?? 2) === idx
                                     return (
                                       <button key={idx} onClick={async () => {
                                         await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ return_image_index: idx }) })
@@ -2862,7 +2864,7 @@ export default function BookPage() {
                 setEditHint(sec.hint_text ?? '')
                 setEditMusicUrl(sec.music_url ?? '')
                 const imgs = sec.images ?? []
-                setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
+                setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
               }
 
               return (
@@ -3116,7 +3118,7 @@ export default function BookPage() {
               setEditHint(target.hint_text ?? '')
               setEditMusicUrl(target.music_url ?? '')
               const imgs = target.images ?? []
-              setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
+              setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
             }}
             previousSection={previousSectionId ? sections.find(s => s.id === previousSectionId) ?? null : null}
             onGoBack={() => {
@@ -3130,7 +3132,7 @@ export default function BookPage() {
               setEditHint(prev.hint_text ?? '')
               setEditMusicUrl(prev.music_url ?? '')
               const imgs = prev.images ?? []
-              setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
+              setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
             }}
             onClose={() => { setSectionModal(null); setEditingSection(null); setPreviousSectionId(null) }}
             highlightChoiceId={(() => {
@@ -3383,6 +3385,7 @@ export default function BookPage() {
           sections={sections}
           choices={choices}
           npcs={npcs}
+          items={items}
           protagonist={npcs.find(n => n.id === book.protagonist_npc_id) ?? null}
           sectionLayout={book.section_layout ?? null}
           introOrder={book.intro_order ?? null}
@@ -3421,6 +3424,8 @@ export default function BookPage() {
           return <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Chargement…</p>
         }
         const ITEM_TYPE_LABELS: Record<string, string> = { soin: '❤️ Soin', mana: '💧 Mana', arme: '⚔️ Arme', armure: '🛡 Armure', outil: '🔧 Outil', quete: '📜 Quête', grimoire: '📖 Grimoire' }
+        const ITEM_CAT_LABELS: Record<string, string> = { persistant: '♾ Persistant', consommable: '🔑 Consommable', arme: '⚔️ Arme' }
+        const ITEM_CAT_COLORS: Record<string, string> = { persistant: '#52c484', consommable: '#d4a84c', arme: '#e05555' }
         async function saveItem() {
           setItemSaving(true)
           if (editingItem === 'new') {
@@ -3451,7 +3456,7 @@ export default function BookPage() {
               >
                 ✨ Générer depuis le synopsis
               </button>
-              <button onClick={() => { setEditingItem('new'); setItemForm({ item_type: 'outil', sections_used: [], effect: {} }) }} style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#0f0f14', cursor: 'pointer', fontWeight: 'bold' }}>
+              <button onClick={() => { setEditingItem('new'); setItemForm({ item_type: 'outil', category: 'consommable', sections_used: [], use_section_ids: [], radio_broadcasts: [], effect: {} }) }} style={{ fontSize: '0.8rem', padding: '0.35rem 0.85rem', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#0f0f14', cursor: 'pointer', fontWeight: 'bold' }}>
                 + Nouvel objet
               </button>
             </div>
@@ -3460,35 +3465,76 @@ export default function BookPage() {
             )}
             {/* Formulaire édition */}
             {editingItem && (
-              <div style={{ background: 'var(--surface-2)', border: '1px solid var(--accent)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <div style={{ background: 'var(--surface-2)', border: '1px solid var(--accent)', borderRadius: '8px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--accent)' }}>{editingItem === 'new' ? '+ Nouvel objet' : 'Modifier l\'objet'}</div>
+
+                {/* Nom + type + catégorie */}
                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <input value={itemForm.name ?? ''} onChange={e => setItemForm(f => ({ ...f, name: e.target.value }))} placeholder="Nom *" style={{ flex: 2, minWidth: '160px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.82rem', outline: 'none' }} />
-                  <select value={itemForm.item_type ?? 'outil'} onChange={e => setItemForm(f => ({ ...f, item_type: e.target.value as any }))} style={{ flex: 1, minWidth: '120px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}>
+                  <select value={itemForm.item_type ?? 'outil'} onChange={e => setItemForm(f => ({ ...f, item_type: e.target.value as any }))} style={{ flex: 1, minWidth: '110px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}>
                     {Object.entries(ITEM_TYPE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
+                  <select value={itemForm.category ?? 'consommable'} onChange={e => setItemForm(f => ({ ...f, category: e.target.value as any }))} style={{ flex: 1, minWidth: '120px', background: 'var(--surface)', border: `1px solid ${ITEM_CAT_COLORS[itemForm.category ?? 'consommable']}66`, borderRadius: '4px', padding: '0.35rem 0.5rem', color: ITEM_CAT_COLORS[itemForm.category ?? 'consommable'], fontSize: '0.82rem', outline: 'none', cursor: 'pointer' }}>
+                    {Object.entries(ITEM_CAT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
                 </div>
-                <textarea value={itemForm.description ?? ''} onChange={e => setItemForm(f => ({ ...f, description: e.target.value }))} placeholder="Description de l'objet…" rows={3} style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.82rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
-                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+
+                {/* Description */}
+                <textarea value={itemForm.description ?? ''} onChange={e => setItemForm(f => ({ ...f, description: e.target.value }))} placeholder="Description narrative de l'objet…" rows={2} style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.82rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+
+                {/* Image + Cinématique */}
+                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                   <div style={{ flex: 1, minWidth: '200px' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.2rem' }}>Section où on le trouve</div>
-                    <select value={itemForm.section_found_id ?? ''} onChange={e => setItemForm(f => ({ ...f, section_found_id: e.target.value || undefined }))} style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.78rem', outline: 'none', cursor: 'pointer' }}>
-                      <option value="">— Aucune —</option>
-                      {sections.sort((a, b) => a.number - b.number).map(s => <option key={s.id} value={s.id}>§{s.number}{s.summary ? ` — ${s.summary.slice(0, 50)}` : ''}</option>)}
-                    </select>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🖼 Image de l'objet</div>
+                    {itemForm.illustration_url && <img src={itemForm.illustration_url} alt="" style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.35rem', display: 'block' }} />}
+                    <input value={itemForm.illustration_url ?? ''} onChange={e => setItemForm(f => ({ ...f, illustration_url: e.target.value || undefined }))} placeholder="URL image…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: '200px' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.2rem' }}>Sections où il est utilisé</div>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🎬 Cinématique de ramassage</div>
+                    {itemForm.cinematique_url && <video src={itemForm.cinematique_url} style={{ width: '100%', maxHeight: '80px', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.35rem', display: 'block' }} muted playsInline />}
+                    <input value={(itemForm as any).cinematique_url ?? ''} onChange={e => setItemForm(f => ({ ...f, cinematique_url: e.target.value || undefined } as any))} placeholder="URL vidéo…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+
+                {/* Sections pickup + usage */}
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <div style={{ fontSize: '0.68rem', color: '#52c484', marginBottom: '0.2rem' }}>📍 Sections où on le ramasse</div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem', minHeight: '2rem', maxHeight: '80px', overflowY: 'auto' }}>
                       {sections.sort((a, b) => a.number - b.number).map(s => {
-                        const used = (itemForm.sections_used ?? []).includes(s.id)
-                        return <button key={s.id} onClick={() => setItemForm(f => ({ ...f, sections_used: used ? (f.sections_used ?? []).filter(x => x !== s.id) : [...(f.sections_used ?? []), s.id] }))} style={{ fontSize: '0.62rem', padding: '0.1rem 0.3rem', borderRadius: '3px', border: `1px solid ${used ? 'var(--accent)' : 'var(--border)'}`, background: used ? 'var(--accent)' : 'transparent', color: used ? '#0f0f14' : 'var(--muted)', cursor: 'pointer' }}>§{s.number}</button>
+                        const active = (itemForm.sections_used ?? []).includes(s.id)
+                        return <button key={s.id} onClick={() => setItemForm(f => ({ ...f, sections_used: active ? (f.sections_used ?? []).filter(x => x !== s.id) : [...(f.sections_used ?? []), s.id] }))} style={{ fontSize: '0.62rem', padding: '0.1rem 0.3rem', borderRadius: '3px', border: `1px solid ${active ? '#52c484' : 'var(--border)'}`, background: active ? '#52c48420' : 'transparent', color: active ? '#52c484' : 'var(--muted)', cursor: 'pointer' }}>§{s.number}</button>
+                      })}
+                    </div>
+                  </div>
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <div style={{ fontSize: '0.68rem', color: '#d4a84c', marginBottom: '0.2rem' }}>🔓 Sections où il est requis</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem', minHeight: '2rem', maxHeight: '80px', overflowY: 'auto' }}>
+                      {sections.sort((a, b) => a.number - b.number).map(s => {
+                        const active = ((itemForm as any).use_section_ids ?? []).includes(s.id)
+                        return <button key={s.id} onClick={() => setItemForm(f => ({ ...f, use_section_ids: active ? ((f as any).use_section_ids ?? []).filter((x: string) => x !== s.id) : [...((f as any).use_section_ids ?? []), s.id] } as any))} style={{ fontSize: '0.62rem', padding: '0.1rem 0.3rem', borderRadius: '3px', border: `1px solid ${active ? '#d4a84c' : 'var(--border)'}`, background: active ? '#d4a84c20' : 'transparent', color: active ? '#d4a84c' : 'var(--muted)', cursor: 'pointer' }}>§{s.number}</button>
                       })}
                     </div>
                   </div>
                 </div>
-                {itemForm.illustration_url && <img src={itemForm.illustration_url} alt="" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)' }} />}
-                <input value={itemForm.illustration_url ?? ''} onChange={e => setItemForm(f => ({ ...f, illustration_url: e.target.value || undefined }))} placeholder="URL de l'illustration (optionnel)…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.78rem', outline: 'none', boxSizing: 'border-box' }} />
+
+                {/* Radio broadcasts (persistant seulement) */}
+                {itemForm.category === 'persistant' && (
+                  <div>
+                    <div style={{ fontSize: '0.68rem', color: '#a084c8', marginBottom: '0.3rem' }}>📻 Messages radio par acte</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      {((itemForm as any).radio_broadcasts ?? []).map((rb: any, i: number) => (
+                        <div key={i} style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-start' }}>
+                          <input type="number" min={1} value={rb.act} onChange={e => setItemForm(f => { const rb2 = [...((f as any).radio_broadcasts ?? [])]; rb2[i] = { ...rb2[i], act: Number(e.target.value) }; return { ...f, radio_broadcasts: rb2 } as any })} style={{ width: '50px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', textAlign: 'center' }} />
+                          <textarea value={rb.text} onChange={e => setItemForm(f => { const rb2 = [...((f as any).radio_broadcasts ?? [])]; rb2[i] = { ...rb2[i], text: e.target.value }; return { ...f, radio_broadcasts: rb2 } as any })} placeholder="Texte DJ…" rows={2} style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', fontFamily: 'inherit', resize: 'vertical' }} />
+                          <button onClick={() => setItemForm(f => { const rb2 = ((f as any).radio_broadcasts ?? []).filter((_: any, j: number) => j !== i); return { ...f, radio_broadcasts: rb2 } as any })} style={{ background: 'none', border: 'none', color: '#e05555', cursor: 'pointer', fontSize: '0.9rem', padding: '0.15rem' }}>✕</button>
+                        </div>
+                      ))}
+                      <button onClick={() => setItemForm(f => ({ ...f, radio_broadcasts: [...((f as any).radio_broadcasts ?? []), { act: ((f as any).radio_broadcasts?.length ?? 0) + 1, text: '' }] } as any))} style={{ alignSelf: 'flex-start', fontSize: '0.72rem', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid #a084c844', background: 'rgba(160,132,200,0.08)', color: '#a084c8', cursor: 'pointer' }}>+ Ajouter un message</button>
+                    </div>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                   <button onClick={() => { setEditingItem(null); setItemForm({}) }} style={{ fontSize: '0.78rem', padding: '0.3rem 0.75rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>Annuler</button>
                   <button onClick={saveItem} disabled={!itemForm.name || itemSaving} style={{ fontSize: '0.78rem', padding: '0.3rem 0.85rem', borderRadius: '4px', border: 'none', background: 'var(--accent)', color: '#0f0f14', cursor: 'pointer', fontWeight: 'bold', opacity: !itemForm.name || itemSaving ? 0.6 : 1 }}>
@@ -3498,28 +3544,41 @@ export default function BookPage() {
               </div>
             )}
             {/* Liste des objets */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '0.75rem' }}>
               {items.map(item => {
-                const foundSection = item.section_found_id ? sections.find(s => s.id === item.section_found_id) : null
-                const usedSections = (item.sections_used ?? []).map(sid => sections.find(s => s.id === sid)?.number).filter(Boolean).sort((a, b) => (a as number) - (b as number))
+                const cat = (item as any).category ?? 'consommable'
+                const catColor = ITEM_CAT_COLORS[cat] ?? '#9898b4'
+                const pickupNums = (item.sections_used ?? []).map(sid => sections.find(s => s.id === sid)?.number).filter(Boolean).sort((a, b) => (a as number) - (b as number))
+                const useNums = ((item as any).use_section_ids ?? []).map((sid: string) => sections.find(s => s.id === sid)?.number).filter(Boolean).sort((a: number, b: number) => a - b)
+                const needsPositioning = (item.sections_used ?? []).some(sid => {
+                  const sec = sections.find(s => s.id === sid)
+                  return !(sec?.items_on_scene ?? []).some((it: any) => it.item_id === item.id && it.x !== undefined)
+                })
                 return (
-                  <div key={item.id} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+                  <div key={item.id} style={{ background: 'var(--surface-2)', border: `1px solid ${needsPositioning ? catColor + '44' : 'var(--border)'}`, borderRadius: '8px', overflow: 'hidden' }}>
                     <div style={{ display: 'flex', gap: '0.5rem', padding: '0.65rem 0.85rem', alignItems: 'flex-start' }}>
-                      {item.illustration_url && <img src={item.illustration_url} alt="" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
+                      {item.illustration_url
+                        ? <img src={item.illustration_url} alt="" style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '6px', flexShrink: 0, border: `2px solid ${catColor}44` }} />
+                        : <div style={{ width: '52px', height: '52px', borderRadius: '6px', background: `${catColor}18`, border: `2px solid ${catColor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', flexShrink: 0 }}>{cat === 'persistant' ? '♾' : cat === 'arme' ? '⚔️' : '🔑'}</div>
+                      }
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.2rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--foreground)' }}>{item.name}</span>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--muted)', background: 'var(--surface)', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid var(--border)', flexShrink: 0 }}>{ITEM_TYPE_LABELS[item.item_type] ?? item.item_type}</span>
+                          <span style={{ fontSize: '0.6rem', color: catColor, background: `${catColor}18`, padding: '0.1rem 0.35rem', borderRadius: '3px', border: `1px solid ${catColor}44`, flexShrink: 0 }}>{ITEM_CAT_LABELS[cat]}</span>
+                          <span style={{ fontSize: '0.6rem', color: 'var(--muted)', background: 'var(--surface)', padding: '0.1rem 0.3rem', borderRadius: '3px', border: '1px solid var(--border)', flexShrink: 0 }}>{ITEM_TYPE_LABELS[item.item_type] ?? item.item_type}</span>
                         </div>
-                        {item.description && <p style={{ fontSize: '0.75rem', color: 'var(--muted)', margin: 0, lineHeight: 1.4 }}>{item.description}</p>}
-                        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.35rem', fontSize: '0.65rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
-                          {foundSection && <span>📍 Trouvé §{foundSection.number}</span>}
-                          {usedSections.length > 0 && <span>🔗 Utilisé §{usedSections.join(', §')}</span>}
+                        {item.description && <p style={{ fontSize: '0.73rem', color: 'var(--muted)', margin: 0, lineHeight: 1.4 }}>{item.description.slice(0, 90)}{item.description.length > 90 ? '…' : ''}</p>}
+                        <div style={{ display: 'flex', gap: '0.6rem', marginTop: '0.35rem', fontSize: '0.63rem', flexWrap: 'wrap' }}>
+                          {pickupNums.length > 0 && <span style={{ color: '#52c484' }}>📍 Ramassable §{pickupNums.join(', §')}</span>}
+                          {useNums.length > 0 && <span style={{ color: '#d4a84c' }}>🔓 Requis §{useNums.join(', §')}</span>}
+                          {needsPositioning && <span style={{ color: catColor }}>⚠ À positionner</span>}
+                          {(item as any).radio_broadcasts?.length > 0 && <span style={{ color: '#a084c8' }}>📻 {(item as any).radio_broadcasts.length} acte(s)</span>}
+                          {(item as any).cinematique_url && <span style={{ color: '#52a0c8' }}>🎬</span>}
                         </div>
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.4rem', padding: '0.4rem 0.85rem', borderTop: '1px solid var(--border)', background: 'var(--surface)', justifyContent: 'flex-end' }}>
-                      <button onClick={() => { setEditingItem(item.id); setItemForm({ ...item }) }} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>✎ Modifier</button>
+                      <button onClick={() => { setEditingItem(item.id); setItemForm({ ...item } as any) }} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>✎ Modifier</button>
                       <button onClick={async () => { if (!confirm(`Supprimer "${item.name}" ?`)) return; await fetch(`/api/items/${item.id}`, { method: 'DELETE' }); setItems(prev => prev.filter(it => it.id !== item.id)) }} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c', cursor: 'pointer' }}>✕ Supprimer</button>
                     </div>
                   </div>
@@ -6224,7 +6283,7 @@ const SECTION_LAYOUT_DEFAULTS: import('@/types').SectionLayoutSettings = {
   manga_dialog_border_radius: 0,
 }
 
-function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, npcs, mangaSelectedNpcs = [], mangaEmotions = {}, settingsStep, section, sectionChoices, onChoiceClick, simMode, book, captionStyle = 1, textMode = 'descriptif', thoughtStyle = 1, choiceStyle = 3, choiceTitleStyle = 1, onSavePlayerPrefs, openSettingsRef, simPlayRef, onPlayingChange }: {
+function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, npcs, mangaSelectedNpcs = [], mangaEmotions = {}, settingsStep, section, sectionChoices, onChoiceClick, simMode, book, captionStyle = 1, textMode = 'descriptif', thoughtStyle = 1, choiceStyle = 3, choiceTitleStyle = 1, onSavePlayerPrefs, openSettingsRef, simPlayRef, onPlayingChange, simItems, simInventory, onCollectItem }: {
   s: import('@/types').SectionLayoutSettings
   previewMode: 'phone' | 'tablet'
   scale?: number
@@ -6248,6 +6307,9 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   openSettingsRef?: React.MutableRefObject<(() => void) | null>
   simPlayRef?: React.MutableRefObject<{ playing: boolean; toggle: () => void } | null>
   onPlayingChange?: (playing: boolean) => void
+  simItems?: import('@/types').Item[]
+  simInventory?: Record<string, boolean>
+  onCollectItem?: (itemId: string) => void
 }) {
   const DEF = SECTION_LAYOUT_DEFAULTS
   const containerRef = React.useRef<HTMLDivElement>(null)
@@ -6265,12 +6327,38 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   const [simTextVisible, setSimTextVisible] = React.useState(false)
   const [simDisplayedChars, setSimDisplayedChars] = React.useState(0)
   const [simTextDone, setSimTextDone] = React.useState(false)
+  const [transitionChoice, setTransitionChoice] = React.useState<import('@/types').Choice | null>(null)
+  const transitionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // auto-restart on section change
   React.useEffect(() => {
     setSimImgIdx(0); setSimDisplayedChars(0); setSimTextDone(false)
     if (simMode) setSimPlaying(true)
   }, [section?.id])
+
+  // ── Musique de section (simulation) ───────────────────────────────────
+  React.useEffect(() => {
+    if (!simMode) return
+    if (simMusicRef.current) { simMusicRef.current.pause(); simMusicRef.current = null }
+    const url = section?.music_url
+    if (url) {
+      const audio = new Audio(url)
+      audio.loop = true
+      audio.volume = 1.0
+      audio.play().catch(() => {})
+      simMusicRef.current = audio
+    }
+    return () => { if (simMusicRef.current) { simMusicRef.current.pause(); simMusicRef.current = null } }
+  }, [section?.id, simMode])
+
+  const [simMangaOpen, setSimMangaOpen] = React.useState(false)
+  const [simActiveNpc, setSimActiveNpc] = React.useState<import('@/types').Npc | null>(null)
+
+  // ── Duck musique quand la boîte manga est ouverte ─────────────────────
+  React.useEffect(() => {
+    if (!simMusicRef.current) return
+    simMusicRef.current.volume = simMangaOpen ? 0.2 : 1.0
+  }, [simMangaOpen])
 
   // compute playable images (with url)
   const simPlayableImgs = React.useMemo(
@@ -6340,8 +6428,6 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     }, delay)
     return () => clearTimeout(t)
   }, [simMode, simPlaying, simImgIdx, textMode, simPlayableImgs, simIsLastImg])
-  const [simMangaOpen, setSimMangaOpen] = React.useState(false)
-  const [simActiveNpc, setSimActiveNpc] = React.useState<import('@/types').Npc | null>(null)
   // ── Dialogue simulation ───────────────────────────────────────────────
   type SimNpcResponse = { npc_id: string; text: string; agrees: boolean; emotion: string; test_result: string }
   type SimDialogueData = { player_question: string; npc_responses: SimNpcResponse[] }
@@ -6358,6 +6444,7 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   const [simCaptionGroupIdx, setSimCaptionGroupIdx] = React.useState<number>(-1)
   const [simCaptionNpcId, setSimCaptionNpcId] = React.useState<string | null>(null)
   const simAudioRef = React.useRef<HTMLAudioElement | null>(null)
+  const simMusicRef = React.useRef<HTMLAudioElement | null>(null)
   const simCaptionTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
   const simRunRef = React.useRef(0)
 
@@ -6407,6 +6494,46 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     setSimCaptionNpcId(null)
     if (simCaptionTimerRef.current) { clearInterval(simCaptionTimerRef.current); simCaptionTimerRef.current = null }
     if (simAudioRef.current) { simAudioRef.current.pause(); simAudioRef.current = null }
+  }
+
+  function handleChoiceWithTransition(choice: import('@/types').Choice) {
+    if (!simMode) { onChoiceClick?.(choice); return }
+
+    // Image de transition : URL dédiée ou image de la section courante à l'index voulu
+    const imgs = (section?.images ?? []).filter((img: any) => img.url)
+    const idx = choice.transition_image_index ?? 2
+    const imgUrl = choice.transition_image_url ?? imgs[Math.min(idx, imgs.length - 1)]?.url ?? null
+
+    if (!imgUrl) { onChoiceClick?.(choice); return }
+
+    setTransitionChoice(choice)
+
+    // Durée calculée depuis la longueur du texte (15 chars/s, min 2s, max 6s)
+    const text = choice.transition_text ?? ''
+    const durationMs = text.length > 0
+      ? Math.max(2000, Math.min(6000, (text.length / 15) * 1000))
+      : 2500
+
+    // Fondu progressif de la musique sur toute la durée
+    const audio = simMusicRef.current
+    if (audio) {
+      const startVol = audio.volume
+      const steps = 40
+      const stepMs = durationMs / steps
+      let step = 0
+      const fadeId = setInterval(() => {
+        step++
+        if (!simMusicRef.current) { clearInterval(fadeId); return }
+        simMusicRef.current.volume = Math.max(0, startVol * (1 - step / steps))
+        if (step >= steps) clearInterval(fadeId)
+      }, stepMs)
+    }
+
+    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
+    transitionTimerRef.current = setTimeout(() => {
+      setTransitionChoice(null)
+      onChoiceClick?.(choice)
+    }, durationMs)
   }
 
   type CaptionGroup = { text: string; start: number; end: number; charStart?: number; charEnd?: number }
@@ -6926,12 +7053,40 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           outline: interactive ? '1px dashed rgba(212,168,76,0.2)' : 'none',
           cursor: interactive ? (dragging === 'photo_pos' ? 'grabbing' : 'grab') : 'default',
         }}>
-        <style>{`@keyframes simImgIn{from{opacity:0}to{opacity:1}}@keyframes simBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
+        <style>{`@keyframes simImgIn{from{opacity:0}to{opacity:1}}@keyframes simBlink{0%,100%{opacity:1}50%{opacity:0}}@keyframes simItemPulse{0%,100%{box-shadow:0 0 10px rgba(212,168,76,0.5),0 0 22px rgba(212,168,76,0.2)}50%{box-shadow:0 0 18px rgba(212,168,76,0.9),0 0 36px rgba(212,168,76,0.4)}}`}</style>
         <img key={`${section?.id}-${simImgIdx}`}
           src={(simPlayableImgs[simImgIdx]?.url ?? section?.images?.[0]?.url) ?? section?.image_url ?? placeholderImg}
           alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none', animation: simMode ? 'simImgIn 0.6s ease' : 'none' }} />
         {interactive && <ResizeCorner onMouseDown={e => startDrag('photo_size', e)} />}
       </div>
+
+      {/* ── Objets sur scène (simulation, dernière image) ─────────── */}
+      {simMode && simIsLastImg && simTextDone && (() => {
+        const sceneItems = ((section as any)?.items_on_scene ?? []) as { item_id: string; x?: number; y?: number }[]
+        const uncollected = sceneItems.filter(si => !simInventory?.[si.item_id])
+        if (!uncollected.length) return null
+        return uncollected.map(si => {
+          const item = simItems?.find(it => it.id === si.item_id)
+          if (!item) return null
+          const px = (si.x ?? 0.5) * livePhoto.w + livePhoto.x
+          const py = (si.y ?? 0.8) * livePhoto.h + livePhoto.y
+          return (
+            <div key={si.item_id}
+              onClick={() => onCollectItem?.(si.item_id)}
+              title={item.name}
+              style={{ position: 'absolute', left: px, top: py, transform: 'translate(-50%,-50%)', zIndex: 15,
+                width: 44, height: 44, borderRadius: '50%', cursor: 'pointer',
+                background: 'rgba(0,0,0,0.55)', border: '2px solid rgba(212,168,76,0.7)',
+                backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                animation: 'simItemPulse 2s ease-in-out infinite' }}>
+              {item.illustration_url
+                ? <img src={item.illustration_url} alt={item.name} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: '50%' }} />
+                : <span style={{ fontSize: 22 }}>{ITEM_CATEGORY_ICONS[item.category ?? 'persistant'] ?? '📦'}</span>
+              }
+            </div>
+          )
+        })
+      })()}
 
       {/* ── Barre de santé ──────────────────────────────────────────── */}
       {s.health_show && (
@@ -7032,14 +7187,16 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
               const fontSize = simMode ? '17px' : `${(s.choices_font_size ?? 13) * fs * 0.72}px`
               const isHovered = simMode && ci === hoveredChoiceIdx
               const hoverHandlers = simMode ? { onMouseEnter: () => setHoveredChoiceIdx(ci), onMouseLeave: () => setHoveredChoiceIdx(-1) } : {}
+              const isLocked = !!(simMode && (choice as any)?.condition?.item_id && !simInventory?.[(choice as any).condition.item_id])
+              const displayLabel = isLocked ? ((choice as any)?.locked_label ?? '🔒 Chemin verrouillé') : label
 
               if (simMode && choiceStyle === 1) {
                 // ── Rune Forge ──────────────────────────────────────
                 return (
-                  <div key={ci} onClick={choice ? () => onChoiceClick?.(choice) : undefined} {...hoverHandlers}
-                    style={{ position: 'relative', background: isActive ? bgActive : isHovered ? 'linear-gradient(135deg,rgba(30,22,10,0.92),rgba(50,36,12,0.88))' : `linear-gradient(135deg,${choicesBg}e8,${choicesBg}b0)`, border: `1px solid ${isActive ? borderActive : isHovered ? '#d4a84c99' : borderNormal}`, borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(6px)', cursor: choice ? 'pointer' : 'default', outline: isHovered ? '1px solid rgba(212,168,76,0.18)' : '1px solid transparent', outlineOffset: '2px', boxShadow: isHovered ? 'inset 0 1px 0 rgba(212,168,76,0.15),0 0 12px rgba(212,168,76,0.08),inset 0 -1px 0 rgba(0,0,0,0.4)' : 'inset 0 1px 0 rgba(255,255,255,0.04),inset 0 -1px 0 rgba(0,0,0,0.3)', transition: 'background 0.2s,border-color 0.2s,box-shadow 0.2s,outline-color 0.2s', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px', background: isHovered ? 'linear-gradient(90deg,transparent,rgba(212,168,76,0.4),transparent)' : 'linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)', transition: 'background 0.2s' }} />
-                    <span style={{ fontFamily, fontSize, color: isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 500, fontStyle, letterSpacing: '0.04em', textShadow: isHovered ? '0 0 8px rgba(212,168,76,0.3)' : 'none', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{label}</span>
+                  <div key={ci} onClick={choice && !isLocked ? () => handleChoiceWithTransition(choice) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isLocked ? `${choicesBg}80` : isActive ? bgActive : isHovered ? 'linear-gradient(135deg,rgba(30,22,10,0.92),rgba(50,36,12,0.88))' : `linear-gradient(135deg,${choicesBg}e8,${choicesBg}b0)`, border: `1px solid ${isLocked ? 'rgba(255,255,255,0.04)' : isActive ? borderActive : isHovered ? '#d4a84c99' : borderNormal}`, borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(6px)', cursor: choice && !isLocked ? 'pointer' : 'default', outline: isHovered && !isLocked ? '1px solid rgba(212,168,76,0.18)' : '1px solid transparent', outlineOffset: '2px', boxShadow: isHovered && !isLocked ? 'inset 0 1px 0 rgba(212,168,76,0.15),0 0 12px rgba(212,168,76,0.08),inset 0 -1px 0 rgba(0,0,0,0.4)' : 'inset 0 1px 0 rgba(255,255,255,0.04),inset 0 -1px 0 rgba(0,0,0,0.3)', transition: 'background 0.2s,border-color 0.2s,box-shadow 0.2s,outline-color 0.2s', overflow: 'hidden', opacity: isLocked ? 0.45 : 1 }}>
+                    <div style={{ position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px', background: isHovered && !isLocked ? 'linear-gradient(90deg,transparent,rgba(212,168,76,0.4),transparent)' : 'linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)', transition: 'background 0.2s' }} />
+                    <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 500, fontStyle, letterSpacing: '0.04em', textShadow: isHovered && !isLocked ? '0 0 8px rgba(212,168,76,0.3)' : 'none', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{displayLabel}</span>
                   </div>
                 )
               }
@@ -7047,12 +7204,12 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
               if (simMode && choiceStyle === 2) {
                 // ── Scroll Panel ─────────────────────────────────────
                 const accentColors = ['#d4a84c', '#9b59b6', '#e74c3c', '#2ecc71']
-                const accentColor = accentColors[ci % accentColors.length]
+                const accentColor = isLocked ? '#4a4a5a' : accentColors[ci % accentColors.length]
                 return (
-                  <div key={ci} onClick={choice ? () => onChoiceClick?.(choice) : undefined} {...hoverHandlers}
-                    style={{ position: 'relative', background: isActive ? bgActive : isHovered ? 'rgba(212,168,76,0.10)' : `${choicesBg}d0`, borderTop: `1px solid ${isActive ? borderActive : isHovered ? `${accentColor}55` : borderNormal}`, borderRight: `1px solid ${isActive ? borderActive : isHovered ? `${accentColor}55` : borderNormal}`, borderBottom: `1px solid ${isActive ? borderActive : isHovered ? `${accentColor}55` : borderNormal}`, borderLeft: `3px solid ${isActive || isHovered ? accentColor : `${accentColor}44`}`, borderRadius: `${radius}px`, padding: '9px 12px 9px 14px', backdropFilter: 'blur(8px)', cursor: choice ? 'pointer' : 'default', overflow: 'hidden', transition: 'background 0.18s,border-color 0.18s' }}>
-                    <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg,${accentColor}18 0%,transparent 60%)`, opacity: isHovered ? 1 : 0, transition: 'opacity 0.2s', pointerEvents: 'none' }} />
-                    <span style={{ fontFamily, fontSize, color: isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 400, fontStyle, letterSpacing: '0.02em', position: 'relative', transition: 'color 0.18s', display: 'block' }}>{label}</span>
+                  <div key={ci} onClick={choice && !isLocked ? () => handleChoiceWithTransition(choice) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isLocked ? `${choicesBg}80` : isActive ? bgActive : isHovered ? 'rgba(212,168,76,0.10)' : `${choicesBg}d0`, borderTop: `1px solid ${isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderRight: `1px solid ${isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderBottom: `1px solid ${isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderLeft: `3px solid ${(isActive || (isHovered && !isLocked)) ? accentColor : `${accentColor}44`}`, borderRadius: `${radius}px`, padding: '9px 12px 9px 14px', backdropFilter: 'blur(8px)', cursor: choice && !isLocked ? 'pointer' : 'default', overflow: 'hidden', transition: 'background 0.18s,border-color 0.18s', opacity: isLocked ? 0.45 : 1 }}>
+                    <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg,${accentColor}18 0%,transparent 60%)`, opacity: isHovered && !isLocked ? 1 : 0, transition: 'opacity 0.2s', pointerEvents: 'none' }} />
+                    <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 400, fontStyle, letterSpacing: '0.02em', position: 'relative', transition: 'color 0.18s', display: 'block' }}>{displayLabel}</span>
                   </div>
                 )
               }
@@ -7060,19 +7217,19 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
               if (simMode && choiceStyle === 3) {
                 // ── Ghost Button ─────────────────────────────────────
                 return (
-                  <div key={ci} onClick={choice ? () => onChoiceClick?.(choice) : undefined} {...hoverHandlers}
-                    style={{ position: 'relative', background: isActive ? bgActive : isHovered ? 'rgba(255,255,255,0.07)' : 'rgba(10,8,6,0.55)', border: '1px solid transparent', borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(10px)', cursor: choice ? 'pointer' : 'default', overflow: 'hidden', boxShadow: isActive ? `0 0 0 1px ${borderActive},0 2px 12px rgba(212,168,76,0.15)` : isHovered ? '0 0 0 1px rgba(212,168,76,0.45),0 0 0 2px rgba(212,168,76,0.08),0 2px 16px rgba(0,0,0,0.5)' : `0 0 0 1px ${borderNormal},0 2px 8px rgba(0,0,0,0.3)`, transition: 'background 0.2s,box-shadow 0.25s' }}>
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '1px', background: isHovered ? 'linear-gradient(90deg,transparent 5%,rgba(212,168,76,0.5) 50%,transparent 95%)' : 'linear-gradient(90deg,transparent 10%,rgba(255,255,255,0.08) 50%,transparent 90%)', transition: 'background 0.25s', pointerEvents: 'none' }} />
-                    <div style={{ position: 'absolute', top: 0, left: isHovered ? '110%' : '-30%', width: '40%', height: '100%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)', transform: 'skewX(-15deg)', transition: isHovered ? 'left 0.4s ease' : 'left 0s', pointerEvents: 'none' }} />
-                    <span style={{ fontFamily, fontSize, color: isActive ? colorActive : isHovered ? '#fdf6e3' : colorNormal, fontWeight: isHovered ? 500 : fontWeight, fontStyle, letterSpacing: '0.05em', textShadow: isHovered ? '0 1px 4px rgba(0,0,0,0.8),0 0 12px rgba(212,168,76,0.2)' : '0 1px 3px rgba(0,0,0,0.6)', position: 'relative', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{label}</span>
+                  <div key={ci} onClick={choice && !isLocked ? () => handleChoiceWithTransition(choice) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isLocked ? 'rgba(10,8,6,0.35)' : isActive ? bgActive : isHovered ? 'rgba(255,255,255,0.07)' : 'rgba(10,8,6,0.55)', border: '1px solid transparent', borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(10px)', cursor: choice && !isLocked ? 'pointer' : 'default', overflow: 'hidden', boxShadow: isLocked ? `0 0 0 1px rgba(255,255,255,0.04),0 2px 8px rgba(0,0,0,0.2)` : isActive ? `0 0 0 1px ${borderActive},0 2px 12px rgba(212,168,76,0.15)` : isHovered ? '0 0 0 1px rgba(212,168,76,0.45),0 0 0 2px rgba(212,168,76,0.08),0 2px 16px rgba(0,0,0,0.5)' : `0 0 0 1px ${borderNormal},0 2px 8px rgba(0,0,0,0.3)`, transition: 'background 0.2s,box-shadow 0.25s', opacity: isLocked ? 0.45 : 1 }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '1px', background: isHovered && !isLocked ? 'linear-gradient(90deg,transparent 5%,rgba(212,168,76,0.5) 50%,transparent 95%)' : 'linear-gradient(90deg,transparent 10%,rgba(255,255,255,0.08) 50%,transparent 90%)', transition: 'background 0.25s', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', top: 0, left: isHovered && !isLocked ? '110%' : '-30%', width: '40%', height: '100%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)', transform: 'skewX(-15deg)', transition: isHovered && !isLocked ? 'left 0.4s ease' : 'left 0s', pointerEvents: 'none' }} />
+                    <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#fdf6e3' : colorNormal, fontWeight: isHovered && !isLocked ? 500 : fontWeight, fontStyle, letterSpacing: '0.05em', textShadow: isHovered && !isLocked ? '0 1px 4px rgba(0,0,0,0.8),0 0 12px rgba(212,168,76,0.2)' : '0 1px 3px rgba(0,0,0,0.6)', position: 'relative', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{displayLabel}</span>
                   </div>
                 )
               }
 
               // ── Mode normal (hors simulation) ────────────────────
               return (
-                <div key={ci} onClick={simMode && choice ? () => onChoiceClick?.(choice) : undefined} style={{ background: isActive ? bgActive : bgNormal, border: `1px solid ${isActive ? borderActive : borderNormal}`, borderRadius: `${radius}px`, padding: '5px 8px', backdropFilter: 'blur(4px)', cursor: simMode && choice ? 'pointer' : 'default' }}>
-                  <span style={{ fontFamily, fontSize, color: isActive ? colorActive : colorNormal, fontWeight, fontStyle }}>{label}</span>
+                <div key={ci} onClick={simMode && choice && !isLocked ? () => handleChoiceWithTransition(choice) : undefined} style={{ background: isActive ? bgActive : bgNormal, border: `1px solid ${isActive ? borderActive : borderNormal}`, borderRadius: `${radius}px`, padding: '5px 8px', backdropFilter: 'blur(4px)', cursor: simMode && choice && !isLocked ? 'pointer' : 'default', opacity: isLocked ? 0.4 : 1 }}>
+                  <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : colorNormal, fontWeight, fontStyle }}>{displayLabel}</span>
                 </div>
               )
             })}
@@ -7108,15 +7265,28 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           style={{ position: 'absolute', left: liveInv.x, top: liveInv.y, zIndex: 26, cursor: interactive ? (dragging === 'inv_pos' ? 'grabbing' : 'grab') : 'default',
             opacity: simMode ? (simTextDone ? 1 : 0) : 1, transition: 'opacity 0.6s ease' }}>
           <div style={{ background: `#0d0d0d${ovAlpha}`, border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '5px 6px', backdropFilter: 'blur(6px)', pointerEvents: 'none' }}>
-            <div style={{ display: 'flex', gap: '4px' }}>
-              {(['🗡', '🧪'] as const).map((icon, i) => {
-                const iconSz = s.inventory_icon_size ?? 18
-                return (
-                  <div key={i} style={{ width: `${iconSz}px`, height: `${iconSz}px`, border: '1px solid #d4a84c44', borderRadius: '3px', background: 'rgba(212,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: `${Math.round(iconSz * 0.6)}px` }}>{icon}</span>
-                  </div>
-                )
-              })}
+            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', maxWidth: '120px' }}>
+              {simMode
+                ? (simItems ?? []).filter(it => simInventory?.[it.id]).map(it => {
+                    const iconSz = s.inventory_icon_size ?? 18
+                    return (
+                      <div key={it.id} title={it.name} style={{ width: `${iconSz}px`, height: `${iconSz}px`, border: '1px solid #d4a84c66', borderRadius: '3px', background: 'rgba(212,168,76,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                        {it.illustration_url
+                          ? <img src={it.illustration_url} alt={it.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          : <span style={{ fontSize: `${Math.round(iconSz * 0.6)}px` }}>{ITEM_CATEGORY_ICONS[it.category ?? 'persistant'] ?? '📦'}</span>
+                        }
+                      </div>
+                    )
+                  })
+                : (['🗡', '🧪'] as const).map((icon, i) => {
+                    const iconSz = s.inventory_icon_size ?? 18
+                    return (
+                      <div key={i} style={{ width: `${iconSz}px`, height: `${iconSz}px`, border: '1px solid #d4a84c44', borderRadius: '3px', background: 'rgba(212,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontSize: `${Math.round(iconSz * 0.6)}px` }}>{icon}</span>
+                      </div>
+                    )
+                  })
+              }
             </div>
           </div>
         </div>
@@ -7457,19 +7627,21 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
                       const npcPortrait = npc
                         ? (npc.portrait_emotions?.[simNpcEmotions[npc.id] ?? 'neutre'] ?? npc.portrait_url ?? npc.image_url ?? undefined)
                         : undefined
+                      const choiceLocked = !!((choice as any)?.condition?.item_id && !simInventory?.[(choice as any).condition.item_id])
+                      const choiceDisplayLabel = choiceLocked ? ((choice as any)?.locked_label ?? '🔒 Chemin verrouillé') : choice.label
                       return (
                         <div
                           key={choice.id}
-                          onClick={() => { onChoiceClick?.(choice); closeMangaDialog() }}
-                          style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,10,16,0.88)', border: '1px solid rgba(212,168,76,0.5)', borderRadius: '8px', padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,76,0.14)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,168,76,0.95)' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(10,10,16,0.88)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,168,76,0.5)' }}>
-                          {npcPortrait && (
+                          onClick={choiceLocked ? undefined : () => { closeMangaDialog(); handleChoiceWithTransition(choice) }}
+                          style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: choiceLocked ? 'rgba(10,10,16,0.55)' : 'rgba(10,10,16,0.88)', border: `1px solid ${choiceLocked ? 'rgba(255,255,255,0.06)' : 'rgba(212,168,76,0.5)'}`, borderRadius: '8px', padding: '12px 14px', cursor: choiceLocked ? 'default' : 'pointer', transition: 'border-color 0.15s, background 0.15s', opacity: choiceLocked ? 0.45 : 1 }}
+                          onMouseEnter={choiceLocked ? undefined : e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,76,0.14)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,168,76,0.95)' }}
+                          onMouseLeave={choiceLocked ? undefined : e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(10,10,16,0.88)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,168,76,0.5)' }}>
+                          {npcPortrait && !choiceLocked && (
                             <div style={{ position: 'absolute', top: -10, right: -10, width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', border: '1.5px solid #d4a84c', boxShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
                               <img src={npcPortrait} alt={npc?.name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
                             </div>
                           )}
-                          <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: '13px', color: '#fff', lineHeight: 1.5, textAlign: 'center', paddingRight: npcPortrait ? '14px' : 0 }}>{choice.label}</p>
+                          <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: '13px', color: choiceLocked ? '#6b6b80' : '#fff', lineHeight: 1.5, textAlign: 'center', paddingRight: npcPortrait && !choiceLocked ? '14px' : 0 }}>{choiceDisplayLabel}</p>
                         </div>
                       )
                     })}
@@ -7559,6 +7731,27 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
         )
       })()}
 
+      {/* ── Overlay de transition choix (simulation) ─────────────── */}
+      {transitionChoice && simMode && (() => {
+        const imgs = (section?.images ?? []).filter((img: any) => img.url)
+        const idx = transitionChoice.transition_image_index ?? 2
+        const imgUrl = transitionChoice.transition_image_url ?? imgs[Math.min(idx, imgs.length - 1)]?.url ?? null
+        if (!imgUrl) return null
+        return (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 100, background: '#000', display: 'flex', flexDirection: 'column' }}>
+            <style>{`@keyframes transitionFadeIn { from { opacity:0 } to { opacity:1 } }`}</style>
+            <img src={imgUrl} alt="" style={{ flex: 1, width: '100%', objectFit: 'cover', display: 'block', animation: 'transitionFadeIn 0.4s ease both' }} />
+            {transitionChoice.transition_text && (
+              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '70px 24px 36px', background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.65) 55%, transparent 100%)', animation: 'transitionFadeIn 0.7s 0.3s ease both' }}>
+                <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: '16px', fontStyle: 'italic', color: '#ede9df', lineHeight: 1.7, textAlign: 'center', textShadow: '0 2px 12px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.9)' }}>
+                  {transitionChoice.transition_text}
+                </p>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {/* ── Overlay Préférences joueur ────────────────────────────── */}
       {showSettingsOverlay && settingsStep && (
         <div style={{ position: 'absolute', inset: 0, zIndex: 50 }} onClick={simMode ? undefined : () => setShowSettingsOverlay(false)}>
@@ -7576,11 +7769,12 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
 
 // ── Game Simulation Tab ───────────────────────────────────────────────────────
 
-function GameSimTab({ bookId, sections, choices, npcs, protagonist, sectionLayout, introOrder, onNavigate, book }: {
+function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, sectionLayout, introOrder, onNavigate, book }: {
   bookId: string
   sections: import('@/types').Section[]
   choices: import('@/types').Choice[]
   npcs: import('@/types').Npc[]
+  items: import('@/types').Item[]
   protagonist: import('@/types').Npc | null
   sectionLayout: import('@/types').SectionLayoutDevice | null
   introOrder: import('@/types').IntroStep[] | null
@@ -7611,6 +7805,8 @@ function GameSimTab({ bookId, sections, choices, npcs, protagonist, sectionLayou
   }, [sections, choices])
 
   const [currentId, setCurrentId] = React.useState<string | null>(null)
+  // Inventaire joueur : item_id → true si possédé
+  const [inventory, setInventory] = React.useState<Record<string, boolean>>({})
   const [captionStyle, setCaptionStyle] = React.useState<1 | 2 | 3>(1)
   const [textMode, setTextMode] = React.useState<'descriptif' | 'narratif'>('narratif')
   const [thoughtStyle, setThoughtStyle] = React.useState<1 | 2 | 3>(3)
@@ -7711,6 +7907,9 @@ function GameSimTab({ bookId, sections, choices, npcs, protagonist, sectionLayou
                   openSettingsRef={openSettingsRef}
                   simPlayRef={simPlayRef}
                   onPlayingChange={setSimPlayingDisplay}
+                  simItems={items}
+                  simInventory={inventory}
+                  onCollectItem={itemId => setInventory(inv => ({ ...inv, [itemId]: true }))}
                 />
               )}
             </div>
@@ -11120,7 +11319,7 @@ function FichePersonnageTab({ bookId, protagonistNpcId, npcs, setNpcs, imageProv
                   const ms = overlay.typing_speed ?? 70
                   return (
                     <div key={overlay.id} style={{ ...base, animation: `overlay-show 0.01s ${startTime}s both` }}>
-                      {overlay.text.split('').map((char, i) => (
+                      {overlay.text.split('').map((char: string, i: number) => (
                         <span key={i} style={{ display: 'inline-block', animation: `overlay-char 0.06s ${startTime + i * (ms / 1000)}s both` }}>
                           {char === ' ' ? '\u00a0' : char === '\n' ? '\n' : char}
                         </span>
@@ -12859,7 +13058,7 @@ function SectionModal({
                     onPrompts={(prompts, promptsFr) => setEditImages(imgs => imgs.map((img, i) => ({ ...img, description: prompts[i] ?? img.description, description_fr: promptsFr[i] || img.description_fr })))}
                   />
                 </div>
-                {[0, 1, 2, 3].map(i => (
+                {[0, 1, 2].map(i => (
                   <div key={i} style={{ background: 'var(--surface-2)', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.5rem', border: '1px solid var(--border)' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.4rem', fontWeight: 'bold' }}>Image {i + 1}</div>
                     {editImages[i]?.url && (
@@ -13224,9 +13423,9 @@ function SectionModal({
                               <div style={{ marginTop: '0.5rem' }}>
                                 <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Image affichée avec le texte de retour :</div>
                                 <div style={{ display: 'flex', gap: '0.35rem' }}>
-                                  {[0, 1, 2, 3].map(idx => {
+                                  {[0, 1, 2].map(idx => {
                                     const imgUrl = section.images?.[idx]?.url
-                                    const selected = (choice.transition_image_index ?? 3) === idx
+                                    const selected = (choice.transition_image_index ?? 2) === idx
                                     return (
                                       <button key={idx} onClick={async () => {
                                         await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_index: idx }) })
@@ -13273,7 +13472,7 @@ function SectionModal({
                         {!isEditingTransition_ && choice.transition_text && (
                           <div style={{ padding: '0.35rem 0.75rem', background: '#b48edd08', borderTop: '1px solid #b48edd22', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
                             {(() => {
-                              const imgUrl = choice.transition_image_url || section.images?.[(choice.transition_image_index ?? 3)]?.url
+                              const imgUrl = choice.transition_image_url || section.images?.[(choice.transition_image_index ?? 2)]?.url
                               return imgUrl ? <img src={imgUrl} alt="" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0, opacity: choice.transition_image_url ? 1 : 0.7 }} /> : null
                             })()}
                             <p style={{ fontSize: '0.75rem', color: '#b48edd', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>{choice.transition_text}</p>
@@ -13323,9 +13522,9 @@ function SectionModal({
                                 <div style={{ marginTop: '0.5rem' }}>
                                   <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Image affichée avec le texte de retour :</div>
                                   <div style={{ display: 'flex', gap: '0.35rem' }}>
-                                    {[0, 1, 2, 3].map(idx => {
+                                    {[0, 1, 2].map(idx => {
                                       const imgUrl = section.images?.[idx]?.url
-                                      const selected = (choice.return_image_index ?? 3) === idx
+                                      const selected = (choice.return_image_index ?? 2) === idx
                                       return (
                                         <button key={idx} onClick={async () => {
                                           await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ return_image_index: idx }) })
@@ -13346,7 +13545,7 @@ function SectionModal({
                           {!isEditingReturn_ && choice.return_text && (
                             <div style={{ padding: '0.35rem 0.75rem', background: '#4ec9b008', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
                               {(() => {
-                                const imgUrl = section.images?.[(choice.return_image_index ?? 3)]?.url
+                                const imgUrl = section.images?.[(choice.return_image_index ?? 2)]?.url
                                 return imgUrl ? <img src={imgUrl} alt="" style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0, opacity: 0.8 }} /> : null
                               })()}
                               <p style={{ margin: 0, fontSize: '0.75rem', color: '#4ec9b0', fontStyle: 'italic', lineHeight: 1.5 }}>{choice.return_text}</p>
@@ -13438,7 +13637,7 @@ function SectionModal({
                                 style={{ fontSize: '0.62rem', background: 'var(--surface)', border: `1px solid ${d.image_index !== undefined ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '4px', color: d.image_index !== undefined ? 'var(--accent)' : 'var(--muted)', padding: '0.1rem 0.25rem', cursor: 'pointer', outline: 'none', flexShrink: 0 }}
                               >
                                 <option value="">— plan</option>
-                                {[1, 2, 3, 4].map(n => (
+                                {[1, 2, 3].map(n => (
                                   <option key={n} value={n - 1}>Plan {n}</option>
                                 ))}
                               </select>

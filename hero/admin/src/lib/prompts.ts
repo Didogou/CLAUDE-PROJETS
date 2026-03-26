@@ -283,24 +283,66 @@ Réponds UNIQUEMENT avec du JSON brut valide :
 export function buildItemsPrompt(
   title: string,
   theme: string,
-  synopsis: string
+  synopsis: string,
+  totalSections: number
 ): string {
   return `Tu es un auteur expert de livres "Dont Vous Êtes le Héros".
 
 Livre : "${title}" — ${theme}
+Nombre total de sections : ${totalSections}
 
 Synopsis :
 ${synopsis}
 
-Analyse le synopsis et génère TOUS les objets mentionnés ou clairement impliqués (armes, armures, potions, outils, objets de quête, grimoires…).
-Règles :
-- Crée un objet pour chaque item nommé ou fortement suggéré dans le synopsis
-- item_type doit être l'un de : soin, mana, arme, armure, outil, quete, grimoire
-- effect : objet JSON décrivant l'effet mécanique (ex: {"hp_restore":5} ou {"stat":"force","bonus":2} ou {"spell":"boule_de_feu"})
-- description : 1-2 phrases narratives
+Ta mission : générer la liste complète des objets du livre.
 
+─── RÈGLE 1 : objets du synopsis ───
+Le synopsis peut lister explicitement des objets avec leur catégorie (persistant, consommable, arme). Respecte-les tels quels.
+
+─── RÈGLE 2 : objets inventés par toi ───
+Tu PEUX inventer des objets supplémentaires (uniquement consommable ou arme, jamais persistant) qui enrichissent narrativement l'histoire. Ex : un pied de biche, une grenade fumigène, un couteau de cuisine.
+
+─── RÈGLE 3 : catégories ───
+- persistant : reste dans l'inventaire, consultable à tout moment (radio, plan, carte, grimoire central)
+- consommable : disparaît après usage unique (clef, potion, billet)
+- arme : reste dans l'inventaire, utilisable en combat
+
+─── RÈGLE 4 : sections ───
+Pour chaque objet :
+- pickup_section_numbers : liste de numéros de sections (1 à ${totalSections}) où l'objet est physiquement présent et peut être ramassé. L'objet peut être dans plusieurs sections si des chemins alternatifs existent.
+- use_section_numbers : liste de numéros de sections où l'objet est REQUIS pour déverrouiller un choix (porte, passage, information). Uniquement pour consommable et arme. Vide pour persistant.
+- locked_hint : texte affiché dans le choix verrouillé si le joueur n'a pas l'objet (ex: "Cette porte semble nécessiter quelque chose…"). Uniquement si use_section_numbers non vide.
+
+─── RÈGLE 5 : radio ───
+Si un objet persistant est une radio ou équivalent (appareil de communication, scanner…), génère des messages broadcasts pour chaque acte narratif majeur du livre (3 à 5 messages). Chaque message est lu par une voix de DJ/commentatrice radio qui donne des nouvelles sur le joueur depuis l'extérieur (prime, signalement, rumeur).
+
+─── FORMAT ───
 Réponds UNIQUEMENT avec du JSON brut valide :
-[{ "name": "...", "item_type": "arme", "description": "...", "effect": {} }]`
+[{
+  "name": "La Radio",
+  "item_type": "quete",
+  "category": "persistant",
+  "description": "Un vieux transistor crachotant, voix de la DJ Mira.",
+  "effect": {},
+  "pickup_section_numbers": [3],
+  "use_section_numbers": [],
+  "locked_hint": "",
+  "radio_broadcasts": [
+    { "act": 1, "text": "Avis de recherche : une prime de 10 000 crédits est offerte pour..." },
+    { "act": 2, "text": "Des témoins signalent une présence suspecte dans le secteur nord..." }
+  ]
+},
+{
+  "name": "Pied-de-biche",
+  "item_type": "outil",
+  "category": "consommable",
+  "description": "Un outil robuste qui force n'importe quelle serrure rouillée.",
+  "effect": {},
+  "pickup_section_numbers": [7],
+  "use_section_numbers": [14],
+  "locked_hint": "Cette porte semble nécessiter un outil pour être forcée…",
+  "radio_broadcasts": []
+}]`
 }
 
 // ── Phase 1c : lot de sections ─────────────────────────────────────────────────
@@ -316,7 +358,8 @@ export function buildSectionBatchPrompt(
   previousSummaries: string[] = [],
   act?: { title: string; synopsis: string; actNumber: number },
   corrections?: string,
-  seriesBible?: string | null
+  seriesBible?: string | null,
+  itemCatalogue?: Array<{ id: string; name: string; category: string; pickup_section_numbers: number[]; use_section_numbers: number[] }>
 ): string {
   const withMap = !!params.map_style
   const isTu = params.address_form === 'tu'
@@ -341,7 +384,15 @@ ${seriesBible ? `\nBIBLE DE LA SÉRIE (contexte global à respecter) :\n${series
 }${previousSummaries.length ? `\nContinuité narrative — fin du lot précédent :\n${previousSummaries.join('\n')}\nReprends directement depuis cet état narratif.\n` : ''}${corrections ? `\n⚠ CORRECTIONS OBLIGATOIRES pour ce lot (version précédente rejetée) :\n${corrections}\nCes erreurs structurelles ou narratives ont été identifiées — tu DOIS les corriger dans cette version.\n` : ''}
 PNJ disponibles (utilise EXACTEMENT ces noms pour enemy_name) :
 ${npcNames.join(', ')}
-${withMap ? `\nLieux disponibles (utilise EXACTEMENT ces noms pour location_name) :\n${locationNames.join(', ')}\n` : ''}
+${withMap ? `\nLieux disponibles (utilise EXACTEMENT ces noms pour location_name) :\n${locationNames.join(', ')}\n` : ''}${itemCatalogue && itemCatalogue.length > 0 ? `
+Catalogue d'objets (pour items_on_scene et choix verrouillés) :
+${itemCatalogue.map(it => `- "${it.name}" [${it.category}] id:${it.id} | pickup:§${it.pickup_section_numbers.join('§,')} | usage:§${it.use_section_numbers.join('§,')}`).join('\n')}
+
+Règles objets :
+- Si une section de ce lot figure dans les pickup_section_numbers d'un objet, ajoute cet objet dans items_on_scene de la section : [{"item_id":"<id>"}] (pas de position — elle sera définie manuellement)
+- Si une section de ce lot figure dans les use_section_numbers d'un objet, ajoute dans ses choices un choix verrouillé : "condition":{"item_id":"<id>"}, "locked_label":"<texte si objet absent>", "label":"<texte si objet présent>" — ce choix a un target_section normal
+- Un objet peut apparaître dans plusieurs sections si plusieurs chemins existent
+` : ''}
 Génère les sections ${fromSection} à ${toSection} (${batchSize} sections sur ${totalSections} au total).
 Répartition cible pour CE lot : ~${combatInBatch} combat, ~${chanceInBatch} chance, ~${enigmeInBatch} énigme/intel, ~${magieInBatch} magie, reste narration.
 ${isLastBatch ? `\nCe lot contient les DERNIÈRES sections — inclure toutes les fins (victoire et mort) conformément à la difficulté ${diffLabel}.` : `\nCe lot ne contient PAS encore les fins — reserve is_ending:true pour le dernier lot.`}
@@ -368,7 +419,11 @@ Réponds UNIQUEMENT avec du JSON brut valide, sans bloc markdown :
     "is_ending": false,
     "ending_type": null,
     "trial": null,${withMap ? `\n    "location_name": "...",` : ''}
-    "choices": [{ "label": "...", "target_section": ${fromSection + 1}, "sort_order": 0 }]
+    "items_on_scene": [],
+    "choices": [
+      { "label": "...", "target_section": ${fromSection + 1}, "sort_order": 0 },
+      { "label": "Utiliser la clef pour ouvrir la porte", "locked_label": "Cette porte nécessite quelque chose…", "condition": { "item_id": "<id>" }, "target_section": ${fromSection + 2}, "sort_order": 1 }
+    ]
   },
   {
     "number": ${fromSection + 1},
