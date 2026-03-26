@@ -408,6 +408,7 @@ Règles :
 - is_back:true autorisé sur ~15% des sections de narration (retour vers section déjà vue)
 ${withMap ? '- location_name doit correspondre exactement à l\'un des lieux listés ci-dessus' : ''}
 - Nombre de choix : la plupart des sections ont 2 choix. Aux carrefours narratifs importants (dilemme moral, croisement de chemins, interrogatoire), utilise 3 choix. Ne dépasse jamais 3.
+- Label de choix : COURT, 3 à 5 mots maximum, commençant par un verbe à l'infinitif. Exemples valides : "Explorer le parc", "S'enfuir dans la rue", "Parler au garde", "Forcer la serrure". INTERDIT : phrases longues, subordonnées, explications ("Décider de partir car il est dangereux de rester" est invalide).
 - Scènes d'interrogatoire (Q&A mémoriel) : quand un PNJ pose une question au héros, les choix sont les RÉPONSES possibles du héros (ex : "Je mens et dis que...", "Je réponds honnêtement...", "Je refuse de répondre"). Les sections cibles divergent SELON la réponse donnée — dans chaque section cible, le PNJ doit réagir en fonction de la réponse reçue (il s'en souvient). Ce pattern est distinct d'un trial : il n'y a pas de jet de dé, juste un choix de réponse avec conséquences narratives.
 
 Réponds UNIQUEMENT avec du JSON brut valide, sans bloc markdown :
