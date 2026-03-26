@@ -4,7 +4,7 @@ import { translateToEnglish } from '@/lib/ai-utils'
 
 export const maxDuration = 60
 
-type ImageType = 'cover' | 'section' | 'npc' | 'intro'
+type ImageType = 'cover' | 'section' | 'npc' | 'intro' | 'item'
 type Provider = 'replicate' | 'leonardo'
 
 // ── Style suffixes (Replicate) ─────────────────────────────────────────────
@@ -70,6 +70,13 @@ function buildPrompt(type: ImageType, data: Record<string, string>): { prompt: s
       return {
         prompt: `Character portrait. ${data.type ?? ''}. ${visualDesc}. ${originCtx} ${framingCtx} ${data.theme}-inspired design, dramatic lighting, no text, no background clutter. ${styleSuffix}`,
         aspect_ratio: data.framing ? '2:3' : '1:1',
+      }
+    }
+    case 'item': {
+      const desc = data.description?.trim() || data.name?.trim() || ''
+      return {
+        prompt: `Isolated fantasy item on a plain dark background. ${desc}. Close-up product shot, game inventory icon style, dramatic lighting, intricate detail, no text, no watermark. ${styleSuffix}`,
+        aspect_ratio: '1:1',
       }
     }
     case 'intro': {
@@ -175,6 +182,9 @@ export async function POST(req: NextRequest) {
       if (data.protagonist) translatedData.protagonist = await translateToEnglish(data.protagonist)
     } else if (type === 'npc') {
       translatedData.description = await translateToEnglish(data.description ?? '')
+    } else if (type === 'item') {
+      translatedData.description = await translateToEnglish(data.description ?? '')
+      if (data.name) translatedData.name = await translateToEnglish(data.name)
     } else if (type === 'intro') {
       // Traduire prompt_en (ou prompt_fr en fallback si prompt_en vide)
       const rawPrompt = data.prompt_en?.trim() || data.prompt_fr?.trim() || ''

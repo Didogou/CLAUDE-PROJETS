@@ -3426,6 +3426,16 @@ export default function BookPage() {
         const ITEM_TYPE_LABELS: Record<string, string> = { soin: '❤️ Soin', mana: '💧 Mana', arme: '⚔️ Arme', armure: '🛡 Armure', outil: '🔧 Outil', quete: '📜 Quête', grimoire: '📖 Grimoire' }
         const ITEM_CAT_LABELS: Record<string, string> = { persistant: '♾ Persistant', consommable: '🔑 Consommable', arme: '⚔️ Arme' }
         const ITEM_CAT_COLORS: Record<string, string> = { persistant: '#52c484', consommable: '#d4a84c', arme: '#e05555' }
+        async function uploadItemImage(file: File) {
+          const formData = new FormData()
+          formData.append('file', file)
+          const path = editingItem && editingItem !== 'new' ? `books/${id}/items/${editingItem}` : `books/${id}/items/new_${Date.now()}`
+          formData.append('path', path)
+          const res = await fetch('/api/upload-file', { method: 'POST', body: formData })
+          const d = await res.json()
+          if (d.url) setItemForm(f => ({ ...f, illustration_url: d.url }))
+        }
+
         async function saveItem() {
           setItemSaving(true)
           if (editingItem === 'new') {
@@ -3487,6 +3497,21 @@ export default function BookPage() {
                   <div style={{ flex: 1, minWidth: '200px' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🖼 Image de l'objet</div>
                     {itemForm.illustration_url && <img src={itemForm.illustration_url} alt="" style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.35rem', display: 'block' }} />}
+                    <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                      <ImageGenButton
+                        type="item"
+                        provider={imageProvider}
+                        storagePath={editingItem && editingItem !== 'new' ? `books/${id}/items/${editingItem}` : undefined}
+                        data={{ name: itemForm.name ?? '', description: itemForm.description ?? '', style: book.illustration_style ?? 'realistic', illustration_bible: book.illustration_bible ?? '' }}
+                        currentUrl={itemForm.illustration_url}
+                        label="✨ Générer"
+                        onSaved={url => setItemForm(f => ({ ...f, illustration_url: url }))}
+                      />
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        📁 Fichier
+                        <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemImage(f) }} />
+                      </label>
+                    </div>
                     <input value={itemForm.illustration_url ?? ''} onChange={e => setItemForm(f => ({ ...f, illustration_url: e.target.value || undefined }))} placeholder="URL image…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: '200px' }}>
@@ -12164,7 +12189,7 @@ function NarrationPanel({ sectionId, content, onApply, onClose }: {
 // ── Génération d'image (Replicate FLUX) ───────────────────────────────────────
 
 function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 'replicate', storagePath }: {
-  type: 'cover' | 'section' | 'npc'
+  type: 'cover' | 'section' | 'npc' | 'item'
   data: Record<string, string>
   currentUrl?: string
   onSaved: (url: string) => void
