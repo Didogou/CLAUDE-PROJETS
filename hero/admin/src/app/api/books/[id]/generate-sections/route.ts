@@ -4,7 +4,7 @@ import { anthropic, generateText, extractJson, normalizeEndingType, normalizeNpc
 import { buildActSplitPrompt, buildNpcLocationPrompt, buildItemsPrompt, buildSectionBatchPrompt } from '@/lib/prompts'
 import type { BookAct } from '@/types'
 
-export const maxDuration = 600
+export const maxDuration = 300
 
 const BATCH_SIZE = 30
 const VALID_TRIAL_TYPES = new Set(['combat', 'agilite', 'intelligence', 'magie', 'chance', 'crochetage', 'dialogue', 'enigme'])
