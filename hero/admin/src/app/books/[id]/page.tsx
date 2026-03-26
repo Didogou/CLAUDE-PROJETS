@@ -7159,13 +7159,12 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
               onClick={() => onCollectItem?.(si.item_id)}
               title={item.name}
               style={{ position: 'absolute', left: px, top: py, transform: 'translate(-50%,-50%)', zIndex: 15,
-                width: 44, height: 44, borderRadius: '50%', cursor: 'pointer',
+                width: 56, height: 56, borderRadius: '50%', cursor: 'pointer',
                 background: 'rgba(0,0,0,0.55)', border: '2px solid rgba(212,168,76,0.7)',
-                backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                animation: 'simItemPulse 2s ease-in-out infinite' }}>
+                backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {item.illustration_url
-                ? <img src={item.illustration_url} alt={item.name} style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: '50%' }} />
-                : <span style={{ fontSize: 22 }}>{ITEM_CATEGORY_ICONS[item.category ?? 'persistant'] ?? '📦'}</span>
+                ? <img src={item.illustration_url} alt={item.name} style={{ width: 42, height: 42, objectFit: 'cover', borderRadius: '50%' }} />
+                : <span style={{ fontSize: 28 }}>{ITEM_CATEGORY_ICONS[item.category ?? 'persistant'] ?? '📦'}</span>
               }
             </div>
           )
