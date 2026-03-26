@@ -5,7 +5,7 @@ import { translateToEnglish } from '@/lib/ai-utils'
 // POST { text_fr } — sauvegarde le texte FR + retourne la traduction EN pour prévisualisation
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const { text_fr } = await req.json() as { text_fr: string }
+  const { text_fr } = await req.json().catch(() => ({} as { text_fr: string }))
 
   if (!text_fr?.trim()) {
     await supabaseAdmin.from('books').update({ illustration_bible: null }).eq('id', id)

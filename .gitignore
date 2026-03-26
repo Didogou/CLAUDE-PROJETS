@@ -33,5 +33,12 @@ npm-debug.log*
 # Playwright test artifacts
 .playwright-mcp/
 
+# Screenshots et images de debug
+screenshot-*.png
+snap-*.md
+snapshot.md
+fiche-*.png
+fbi-*.png
+
 # .claude/ is intentionally tracked (Claude Code configuration)
 # Add !.claude/ here if it ever gets excluded by a parent rule

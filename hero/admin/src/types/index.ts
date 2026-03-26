@@ -116,6 +116,9 @@ export interface SectionImage {
   url?: string
   description?: string
   style?: IllustrationStyle
+  prompt_fr?: string
+  prompt_en?: string
+  thought?: string
 }
 
 export interface SectionDialogue {
@@ -386,6 +389,7 @@ export interface Book {
   intro_audio_url?: string | null
   intro_order?: IntroStep[] | null
   section_layout?: SectionLayoutDevice | null
+  player_prefs?: { sound: boolean; voice: boolean; text_mode: 1 | 2 } | null
   description?: string
   created_at: string
   updated_at: string

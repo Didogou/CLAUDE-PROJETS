@@ -156,7 +156,7 @@ export default function BookPage() {
   const [editContent, setEditContent] = useState('')
   const [editSummary, setEditSummary] = useState('')
   const [editHint, setEditHint] = useState('')
-  const [editImages, setEditImages] = useState<Array<{ url?: string; description: string; description_fr?: string; style: string; includeProtagonist: boolean }>>(Array.from({ length: 4 }, () => ({ description: '', style: 'realistic', includeProtagonist: false })))
+  const [editImages, setEditImages] = useState<Array<{ url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; style: string; includeProtagonist: boolean }>>(Array.from({ length: 4 }, () => ({ description: '', style: 'realistic', includeProtagonist: false })))
   const [editMusicUrl, setEditMusicUrl] = useState('')
   const [freesoundModal, setFreesoundModal] = useState<{ sectionType: string; onSelect?: (url: string) => void } | null>(null)
   const [narrationPanel, setNarrationPanel] = useState<{ sectionId: string; content: string } | null>(null)
@@ -310,19 +310,30 @@ export default function BookPage() {
     if (!sections.length || !npcs.length) return
     const companionEligible = npcs.filter(n => n.type === 'allié' || n.type === 'neutre')
     if (!companionEligible.length) return
+    const toUpdate: { id: string; companion_npc_ids: string[] }[] = []
     sections.forEach(section => {
       if (!section.content || (section.companion_npc_ids?.length ?? 0) > 0) return
       const found = companionEligible
         .filter(npc => new RegExp(`\\b${npc.name}\\b`, 'i').test(section.content))
         .map(npc => npc.id)
       if (!found.length) return
-      setSections(ss => ss.map(s => s.id === section.id ? { ...s, companion_npc_ids: found } : s))
-      fetch(`/api/sections/${section.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companion_npc_ids: found }),
-      })
+      toUpdate.push({ id: section.id, companion_npc_ids: found })
     })
+    if (!toUpdate.length) return
+    setSections(ss => ss.map(s => {
+      const u = toUpdate.find(t => t.id === s.id)
+      return u ? { ...s, companion_npc_ids: u.companion_npc_ids } : s
+    }))
+    // Envoi séquentiel pour ne pas saturer le pool Supabase
+    ;(async () => {
+      for (const { id: sId, companion_npc_ids } of toUpdate) {
+        await fetch(`/api/sections/${sId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companion_npc_ids }),
+        }).catch(() => {})
+      }
+    })()
   }, [sections.length, npcs.length]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Initialiser l'état d'édition quand on ouvre une section en vue détail ──
@@ -335,7 +346,7 @@ export default function BookPage() {
     setEditHint(sec.hint_text ?? '')
     setEditMusicUrl(sec.music_url ?? '')
     const imgs = sec.images ?? []
-    setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', style: imgs[i]?.style ?? book?.illustration_style ?? 'realistic', includeProtagonist: false })))
+    setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book?.illustration_style ?? 'realistic', includeProtagonist: false })))
     setEditingSection(sectionDetailId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionDetailId])
@@ -812,8 +823,8 @@ export default function BookPage() {
   async function saveSection(sectionId: string) {
     setSectionSaving(sectionId)
     const cleanImages = editImages
-      .filter(img => img.url || img.description.trim())
-      .map(img => ({ url: img.url, description: img.description, style: img.style as any }))
+      .filter(img => img.url || img.description.trim() || img.thought?.trim() || img.prompt_fr?.trim())
+      .map(img => ({ url: img.url, description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined }))
     const cleanMusicUrl = editMusicUrl.trim() || undefined
     const body: Record<string, any> = { content: editContent, summary: editSummary, hint_text: editHint.trim() || null, images: cleanImages, music_url: editMusicUrl.trim() || null }
     await fetch(`/api/sections/${sectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -862,7 +873,7 @@ export default function BookPage() {
     setSectionModal(sectionId); setEditingSection(sectionId)
     setEditContent(s.content); setEditSummary(s.summary ?? ''); setEditHint(s.hint_text ?? ''); setEditMusicUrl(s.music_url ?? '')
     const imgs = s.images ?? []
-    setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: (imgs[i] as any)?.description_fr, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
+    setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
   }
 
   function startCorrectionPath(pathIdx: number) {
@@ -1200,7 +1211,7 @@ export default function BookPage() {
             </div>
 
             <button
-              onClick={() => writeAll(false)}
+              onClick={() => writeAll(true)}
               disabled={writingAll || illustratingAll}
               style={{ padding: '0.3rem 0.75rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: writingAll ? 'var(--muted)' : 'var(--foreground)', cursor: writingAll ? 'default' : 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
             >
@@ -1306,6 +1317,38 @@ export default function BookPage() {
                   placeholder="Astuce affichée au joueur…"
                   style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem', color: 'var(--foreground)', fontSize: '0.85rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', lineHeight: 1.6 }}
                 />
+              </div>
+
+              {/* Temps de lecture / décision */}
+              <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: 'var(--muted)', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.3rem 0.7rem' }}>
+                  📖 Lecture
+                  <input type="number" min={3} max={300} defaultValue={detailSec.reading_time ?? ''}
+                    placeholder="—"
+                    onBlur={async e => {
+                      const v = e.target.value === '' ? null : parseInt(e.target.value)
+                      if (v === detailSec.reading_time) return
+                      await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reading_time: v }) })
+                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, reading_time: v } : s))
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                    style={{ width: '45px', background: 'transparent', border: 'none', outline: 'none', color: 'var(--foreground)', fontSize: '0.8rem', textAlign: 'right' }}
+                  /> s
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: '#c9a84c', background: '#c9a84c11', border: '1px solid #c9a84c33', borderRadius: '6px', padding: '0.3rem 0.7rem' }}>
+                  ⏳ Décision
+                  <input type="number" min={5} max={300} defaultValue={detailSec.decision_time ?? ''}
+                    placeholder="—"
+                    onBlur={async e => {
+                      const v = e.target.value === '' ? null : parseInt(e.target.value)
+                      if (v === detailSec.decision_time) return
+                      await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision_time: v }) })
+                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, decision_time: v } : s))
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                    style={{ width: '45px', background: 'transparent', border: 'none', outline: 'none', color: '#c9a84c', fontSize: '0.8rem', textAlign: 'right' }}
+                  /> s
+                </label>
               </div>
 
               {/* Bouton Sauvegarder */}
@@ -1444,7 +1487,7 @@ export default function BookPage() {
                     const question = questions[qi]
                     setConvGenerateProgress(`Q${qi + 1}/${questions.length} — réponses…`)
                     try {
-                      const dRes = await fetch('/api/dialogue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'manga_group', npcs: orderedNpcs.map(n => ({ id: n.id, name: n.name, description: n.description, speech_style: n.speech_style, type: n.type, intelligence: n.intelligence, available_emotions: Object.keys(n.portrait_emotions ?? {}) })), player_question: question, section_context: detailSec.summary ?? detailSec.content?.slice(0, 400) ?? '', tension_level: tension, book_theme: book?.theme ?? '', age_range: book?.age_range ?? '13-17' }) })
+                      const dRes = await fetch('/api/dialogue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'manga_group', npcs: orderedNpcs.map(n => ({ id: n.id, name: n.name, description: n.description, speech_style: n.speech_style, type: n.type, intelligence: n.intelligence, available_emotions: Object.keys(n.portrait_emotions ?? {}) })), player_question: question, choices: sChoices.map(c => ({ id: c.id, label: c.label })), section_context: detailSec.summary ?? detailSec.content?.slice(0, 400) ?? '', tension_level: tension, book_theme: book?.theme ?? '', age_range: book?.age_range ?? '13-17' }) })
                       const dData = await dRes.json()
                       if (!dRes.ok || !Array.isArray(dData.npc_responses) || dData.npc_responses.length === 0) {
                         setConvGenerateProgress(`Q${qi + 1}/${questions.length} — ⚠ réponse invalide (${dData.error ?? dRes.status}), on continue…`)
@@ -1461,6 +1504,7 @@ export default function BookPage() {
                           if (!npcObj) continue
                           if (!accResponses[npcObj.id]) accResponses[npcObj.id] = {}
                           accResponses[npcObj.id][question] = resp.text
+                          if (resp.suggested_choice_id) accResponses[npcObj.id][`${question}__choice`] = resp.suggested_choice_id
                         }
                         // Voix séquentielles
                         for (let ri = 0; ri < dData.npc_responses.length; ri++) {
@@ -1735,6 +1779,7 @@ export default function BookPage() {
                       {QUESTIONS.map(q => {
                         const draft = convResponseDrafts[q] ?? (testNpc ? savedResponses[testNpc.id]?.[q] : undefined) ?? ''
                         const savedAudioUrl: string | undefined = testNpc ? (savedResponses[testNpc.id] as any)?.[`${q}__audio`] : undefined
+                        const savedChoiceId: string | undefined = testNpc ? (savedResponses[testNpc.id] as any)?.[`${q}__choice`] : undefined
                         const isGenerating = convGeneratingFor === q
                         const isSaved = convSavedKey === q
                         const audioKey = `${testNpc.id}__${q}`
@@ -1789,6 +1834,24 @@ export default function BookPage() {
                                     </button>
                                   )}
                                 </div>
+                                {sChoices.length > 0 && (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem' }}>
+                                    <span style={{ fontSize: '0.62rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Choix suggéré :</span>
+                                    <select
+                                      value={savedChoiceId ?? ''}
+                                      onChange={async e => {
+                                        if (!testNpc) return
+                                        const npcResponses: Record<string, any> = { ...(savedResponses[testNpc.id] ?? {}) }
+                                        if (e.target.value) npcResponses[`${q}__choice`] = e.target.value
+                                        else delete npcResponses[`${q}__choice`]
+                                        await saveAllResponses({ ...savedResponses, [testNpc.id]: npcResponses })
+                                      }}
+                                      style={{ ...inputStyle, fontSize: '0.7rem', padding: '0.15rem 0.4rem', flex: 1 }}>
+                                      <option value="">— aucun —</option>
+                                      {sChoices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                    </select>
+                                  </div>
+                                )}
                               </>
                             )}
                           </div>
@@ -1850,7 +1913,7 @@ export default function BookPage() {
               )
 
               async function extractDialogues() {
-                const res = await fetch(`/api/books/${book.id}/fix-language`, {
+                const res = await fetch(`/api/books/${book!.id}/fix-language`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ section_id: detailSec.id, action: 'extract_dialogues' }),
@@ -1978,9 +2041,22 @@ export default function BookPage() {
                       rows={2}
                       style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.8rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                     />
-                    {editImages[i]?.description_fr && (
-                      <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontStyle: 'italic', padding: '0 0.2rem' }}>🇫🇷 {editImages[i].description_fr}</div>
-                    )}
+                    {editImages[i]?.prompt_fr !== undefined || editImages[i]?.description_fr ? (
+                      <textarea
+                        value={editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''}
+                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: e.target.value } : img))}
+                        placeholder="Description du plan en français…"
+                        rows={2}
+                        style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                    ) : null}
+                    <textarea
+                      value={editImages[i]?.thought ?? ''}
+                      onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, thought: e.target.value } : img))}
+                      placeholder="💭 Pensée du protagoniste pour ce plan…"
+                      rows={2}
+                      style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #a084c822', borderRadius: '5px', padding: '0.4rem 0.6rem', color: '#c8a0e8', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', fontStyle: 'italic' }}
+                    />
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
                       <select value={editImages[i]?.style ?? 'realistic'} onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, style: e.target.value } : img))} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.28rem 0.5rem', color: 'var(--foreground)', fontSize: '0.72rem', outline: 'none', cursor: 'pointer' }}>
                         <option value="realistic">🖼️ Réaliste</option>
@@ -2010,7 +2086,7 @@ export default function BookPage() {
                           const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
                           const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl } : img)
                           setEditImages(() => newImgs)
-                          const cleanImgs = newImgs.filter(img => img.url || img.description.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any }))
+                          const cleanImgs = newImgs.filter(img => img.url || img.description.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined }))
                           fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
                           setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
                         }}
@@ -2018,7 +2094,7 @@ export default function BookPage() {
                     </div>
                     {editImages[i]?.description.trim() && !editImages[i]?.url && (
                       <button onClick={() => {
-                        const cleanImgs = editImages.filter(img => img.url || img.description.trim()).map(img => ({ url: img.url, description: img.description, style: img.style as any }))
+                        const cleanImgs = editImages.filter(img => img.url || img.description.trim() || img.thought?.trim()).map(img => ({ url: img.url, description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined }))
                         fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
                         setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
                       }} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem', alignSelf: 'flex-start' }}>
@@ -2555,7 +2631,7 @@ export default function BookPage() {
             {/* Ligne 1 : Génération de texte */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.65rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 'bold', minWidth: '42px' }}>Texte</span>
-              <button onClick={() => writeAll(false)} disabled={writingAll || illustratingAll || resettingStructure} style={{
+              <button onClick={() => writeAll(true)} disabled={writingAll || illustratingAll || resettingStructure} style={{
                 background: writingAll ? 'var(--surface-2)' : 'var(--surface)',
                 border: `1px solid ${writingAll ? 'var(--border)' : 'var(--success)55'}`, borderRadius: '7px',
                 padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (writingAll || illustratingAll || resettingStructure) ? 'default' : 'pointer',
@@ -2786,7 +2862,7 @@ export default function BookPage() {
                 setEditHint(sec.hint_text ?? '')
                 setEditMusicUrl(sec.music_url ?? '')
                 const imgs = sec.images ?? []
-                setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
+                setEditImages(Array.from({ length: 4 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
               }
 
               return (
@@ -2829,6 +2905,18 @@ export default function BookPage() {
                         ))}
                       </div>
                     </>)}
+                    {/* Thought overlay */}
+                    {allImgs[imgIdx]?.thought && (
+                      <div style={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        background: 'linear-gradient(transparent, #000000cc)',
+                        color: '#d8b4fe', fontSize: '0.65rem', fontStyle: 'italic',
+                        padding: '1.2rem 0.6rem 0.45rem',
+                        pointerEvents: 'none', lineHeight: 1.4,
+                      }}>
+                        💭 {allImgs[imgIdx].thought}
+                      </div>
+                    )}
                     {/* Type badge */}
                     <div style={{
                       position: 'absolute', top: '0.45rem', left: '0.45rem',
@@ -6081,7 +6169,7 @@ const SECTION_LAYOUT_DEFAULTS: import('@/types').SectionLayoutSettings = {
   vignette_size:    52,
   vignette_style:   'circle',
   vignette_border_color: '#d4a84c',
-  vignette_positions: [{ x: 10, y: 458 }, { x: 78, y: 458 }, { x: 146, y: 458 }],
+  vignette_positions: [{ x: 12, y: 350 }, { x: 12, y: 420 }, { x: 12, y: 490 }],
   // HUD
   el_health:        { x: 12, y: 14, w: 366 },
   el_stats:         { x: 8, y: 762 },
@@ -6135,7 +6223,7 @@ const SECTION_LAYOUT_DEFAULTS: import('@/types').SectionLayoutSettings = {
   manga_dialog_border_radius: 0,
 }
 
-function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, npcs, mangaSelectedNpcs = [], mangaEmotions = {}, settingsStep, section, sectionChoices, onChoiceClick, simMode, book }: {
+function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, npcs, mangaSelectedNpcs = [], mangaEmotions = {}, settingsStep, section, sectionChoices, onChoiceClick, simMode, book, captionStyle = 1, textMode = 'descriptif', thoughtStyle = 1, choiceStyle = 3, choiceTitleStyle = 1, onSavePlayerPrefs, openSettingsRef, simPlayRef, onPlayingChange }: {
   s: import('@/types').SectionLayoutSettings
   previewMode: 'phone' | 'tablet'
   scale?: number
@@ -6150,11 +6238,107 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   onChoiceClick?: (choice: import('@/types').Choice) => void
   simMode?: boolean
   book?: import('@/types').Book | null
+  captionStyle?: 1 | 2 | 3
+  textMode?: 'descriptif' | 'narratif'
+  thoughtStyle?: 1 | 2 | 3
+  choiceStyle?: 1 | 2 | 3
+  choiceTitleStyle?: 1 | 2 | 3 | 4 | 5
+  onSavePlayerPrefs?: (prefs: { sound: boolean; voice: boolean; mode: 1 | 2 }) => void
+  openSettingsRef?: React.MutableRefObject<(() => void) | null>
+  simPlayRef?: React.MutableRefObject<{ playing: boolean; toggle: () => void } | null>
+  onPlayingChange?: (playing: boolean) => void
 }) {
   const DEF = SECTION_LAYOUT_DEFAULTS
   const containerRef = React.useRef<HTMLDivElement>(null)
   const interactive = !!onUpdate
   const [showSettingsOverlay, setShowSettingsOverlay] = React.useState(false)
+  React.useEffect(() => { if (openSettingsRef) openSettingsRef.current = () => setShowSettingsOverlay(true) }, [])
+  const [simImgIdx, setSimImgIdx] = React.useState(0)
+  const [simPlaying, setSimPlaying] = React.useState(!!simMode)
+  React.useEffect(() => {
+    if (simPlayRef) simPlayRef.current = { playing: simPlaying, toggle: () => setSimPlaying(v => !v) }
+    onPlayingChange?.(simPlaying)
+  }, [simPlaying])
+  const [simThoughtCount, setSimThoughtCount] = React.useState(0)
+  const [hoveredChoiceIdx, setHoveredChoiceIdx] = React.useState(-1)
+  const [simTextVisible, setSimTextVisible] = React.useState(false)
+  const [simDisplayedChars, setSimDisplayedChars] = React.useState(0)
+  const [simTextDone, setSimTextDone] = React.useState(false)
+
+  // auto-restart on section change
+  React.useEffect(() => {
+    setSimImgIdx(0); setSimDisplayedChars(0); setSimTextDone(false)
+    if (simMode) setSimPlaying(true)
+  }, [section?.id])
+
+  // compute playable images (with url)
+  const simPlayableImgs = React.useMemo(
+    () => (section?.images ?? []).filter((img: any) => img.url),
+    [section?.images]
+  )
+
+  const simIsLastImg = simImgIdx >= Math.max(simPlayableImgs.length - 1, 0)
+
+  // animate thought sentences + descriptif text when image changes
+  React.useEffect(() => {
+    setSimThoughtCount(0)
+    setSimTextVisible(false)
+    setSimDisplayedChars(0)
+    setSimTextDone(false)
+    if (!simMode) return
+    if (textMode === 'narratif') {
+      const thought = simPlayableImgs[simImgIdx]?.thought ?? ''
+      if (!thought) { if (simIsLastImg) setSimTextDone(true); return }
+      const sentences = thought.match(/[^.!?…]+[.!?…]*/g)?.map((s: string) => s.trim()).filter(Boolean) ?? [thought]
+      setSimThoughtCount(1)
+      const timers: ReturnType<typeof setTimeout>[] = []
+      for (let i = 1; i < sentences.length; i++) {
+        timers.push(setTimeout(() => setSimThoughtCount(i + 1), i * 1800))
+      }
+      if (simIsLastImg) {
+        timers.push(setTimeout(() => setSimTextDone(true), sentences.length * 1800 + 400))
+      }
+      return () => timers.forEach(clearTimeout)
+    } else {
+      // En mode descriptif, le texte n'apparaît que sur la dernière image
+      if (!simIsLastImg) return
+      const t = setTimeout(() => setSimTextVisible(true), 400)
+      return () => clearTimeout(t)
+    }
+  }, [section?.id, simImgIdx, textMode, simMode])
+
+  // Typewriter sur la dernière image (mode descriptif)
+  React.useEffect(() => {
+    if (!simTextVisible || textMode !== 'descriptif' || !simIsLastImg) return
+    const fullText = section?.content ?? ''
+    if (!fullText) { setSimTextDone(true); return }
+    setSimDisplayedChars(0)
+    const id = setInterval(() => {
+      setSimDisplayedChars(n => {
+        if (n >= fullText.length) { clearInterval(id); setSimTextDone(true); return n }
+        return n + 4
+      })
+    }, 22)
+    return () => clearInterval(id)
+  }, [simTextVisible, section?.id])
+
+  // auto-advance timer (seulement sur les images non-dernières)
+  React.useEffect(() => {
+    if (!simMode || !simPlaying || simIsLastImg) return
+    const thought = simPlayableImgs[simImgIdx]?.thought ?? ''
+    const sentences = thought.match(/[^.!?…]+[.!?…]*/g)?.map((s: string) => s.trim()).filter(Boolean) ?? []
+    const delay = textMode === 'narratif'
+      ? Math.max(sentences.length * 1800 + 1600, 3500)
+      : 4000
+    const t = setTimeout(() => {
+      setSimImgIdx(i => {
+        const next = i + 1
+        if (next >= simPlayableImgs.length) { setSimPlaying(false); return i }
+        return next
+      })
+    }, delay)
+    return () => clearTimeout(t)
+  }, [simMode, simPlaying, simImgIdx, textMode, simPlayableImgs, simIsLastImg])
   const [simMangaOpen, setSimMangaOpen] = React.useState(false)
   const [simActiveNpc, setSimActiveNpc] = React.useState<import('@/types').Npc | null>(null)
   // ── Dialogue simulation ───────────────────────────────────────────────
@@ -6168,12 +6352,44 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   const [simNpcEmotions, setSimNpcEmotions] = React.useState<Record<string, string>>({})
   const [simPlayerBubbleVisible, setSimPlayerBubbleVisible] = React.useState(false)
   const [simClickedNpcId, setSimClickedNpcId] = React.useState<string | null>(null)
-  const [simCaptionText, setSimCaptionText] = React.useState<string>('')
+  const [simCaptionSentences, setSimCaptionSentences] = React.useState<{ text: string; start: number; end: number; groups: { text: string; start: number; end: number }[] }[]>([])
+  const [simCaptionSentIdx, setSimCaptionSentIdx] = React.useState<number>(-1)
+  const [simCaptionGroupIdx, setSimCaptionGroupIdx] = React.useState<number>(-1)
   const [simCaptionNpcId, setSimCaptionNpcId] = React.useState<string | null>(null)
   const simAudioRef = React.useRef<HTMLAudioElement | null>(null)
   const simCaptionTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+  const simRunRef = React.useRef(0)
+
+  // ── Countdown timer ───────────────────────────────────────────────────
+  const [countdown, setCountdown] = React.useState(() => {
+    const total = (section?.reading_time ?? 0) + (section?.decision_time ?? 0)
+    return total > 0 ? total : 0
+  })
+  const countdownIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+
+  React.useEffect(() => {
+    const total = (section?.reading_time ?? 0) + (section?.decision_time ?? 0)
+    setCountdown(total > 0 ? total : 0)
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
+    if (total > 0) {
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) { clearInterval(countdownIntervalRef.current!); countdownIntervalRef.current = null; return 0 }
+          return prev - 1
+        })
+      }, 1000)
+    }
+    return () => { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current) }
+  }, [section?.id, section?.reading_time, section?.decision_time])
+
+  function formatCountdown(secs: number): string {
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  }
 
   function closeMangaDialog() {
+    simRunRef.current++  // invalide toute instance openMangaDialogue en cours
     setSimMangaOpen(false)
     setSimDialoguePhase('idle')
     setSimDialogueData(null)
@@ -6183,13 +6399,17 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     setSimNpcEmotions({})
     setSimPlayerBubbleVisible(false)
     setSimClickedNpcId(null)
-    setSimCaptionText('')
+    setSimCaptionSentences([])
+    setSimCaptionSentIdx(-1)
+
+    setSimCaptionGroupIdx(-1)
     setSimCaptionNpcId(null)
     if (simCaptionTimerRef.current) { clearInterval(simCaptionTimerRef.current); simCaptionTimerRef.current = null }
     if (simAudioRef.current) { simAudioRef.current.pause(); simAudioRef.current = null }
   }
 
-  type CaptionGroup = { text: string; start: number; end: number }
+  type CaptionGroup = { text: string; start: number; end: number; charStart?: number; charEnd?: number }
+  type CaptionSentence = { text: string; start: number; end: number; groups: CaptionGroup[] }
   type VoiceData = { audio: HTMLAudioElement; groups: CaptionGroup[] }
 
   function buildCaptionGroups(alignment: any, chunkSize = 3): CaptionGroup[] {
@@ -6210,12 +6430,45 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     }
     if (word) words.push({ text: word, start: wordStart, end: ends[ends.length - 1] })
 
+    // Étendre chaque mot jusqu'au début du suivant pour supprimer les micro-gaps
+    for (let i = 0; i < words.length - 1; i++) {
+      words[i].end = words[i + 1].start
+    }
+
     const groups: CaptionGroup[] = []
     for (let i = 0; i < words.length; i += chunkSize) {
       const chunk = words.slice(i, i + chunkSize)
-      groups.push({ text: chunk.map(w => w.text).join(' '), start: chunk[0].start, end: (chunk[chunk.length - 1].end ?? 0) + 0.08 })
+      groups.push({ text: chunk.map(w => w.text).join(' '), start: chunk[0].start, end: chunk[chunk.length - 1].end })
     }
     return groups
+  }
+
+  function buildCaptionSentences(groups: CaptionGroup[]): CaptionSentence[] {
+    if (!groups.length) return []
+    const sentences: CaptionSentence[] = []
+    let current: CaptionGroup[] = []
+
+    function makeSentence(grps: CaptionGroup[]): CaptionSentence {
+      const sentText = grps.map(g => g.text).join(' ')
+      let charPos = 0
+      const groupsWithPos = grps.map(g => {
+        const charStart = charPos
+        const charEnd = charPos + g.text.length
+        charPos += g.text.length + 1
+        return { ...g, charStart, charEnd }
+      })
+      return { text: sentText, start: grps[0].start, end: grps[grps.length - 1].end, groups: groupsWithPos }
+    }
+
+    for (const g of groups) {
+      current.push(g)
+      if (/[.,!?:;]$/.test(g.text.trimEnd())) {
+        sentences.push(makeSentence(current))
+        current = []
+      }
+    }
+    if (current.length) sentences.push(makeSentence(current))
+    return sentences
   }
 
   async function playAudio(voiceData: VoiceData, npcId?: string) {
@@ -6225,20 +6478,51 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     simAudioRef.current = audio
 
     if (groups.length > 0 && npcId) {
+      const sentences = buildCaptionSentences(groups)
       setSimCaptionNpcId(npcId)
-      setSimCaptionText('')
-      simCaptionTimerRef.current = setInterval(() => {
+      setSimCaptionSentences(sentences)
+      setSimCaptionSentIdx(-1)
+      setSimCaptionGroupIdx(-1)
+      const timerId = setInterval(() => {
         const t = audio.currentTime
-        const g = groups.find(g => t >= g.start && t < g.end) ?? null
-        setSimCaptionText(g?.text ?? '')
+        // Chercher la DERNIÈRE phrase dont le start a été atteint (évite que findIndex reste bloqué sur la phrase 0)
+        let sIdx = -1
+        for (let i = sentences.length - 1; i >= 0; i--) {
+          if (t >= sentences[i].start - 0.15) { sIdx = i; break }
+        }
+        // Effacer si la grace period après la fin de la phrase est expirée
+        // Dernière phrase : grace period plus longue (3s) pour laisser le temps de lire
+        const isLast = sIdx === sentences.length - 1
+        const gracePeriod = isLast ? 3.0 : 1.2
+        if (sIdx >= 0 && t > sentences[sIdx].end + gracePeriod) sIdx = -1
+        if (sIdx >= 0) {
+          const gIdx = sentences[sIdx].groups.findIndex(g => t >= g.start && t < g.end)
+          setSimCaptionSentIdx(sIdx)
+          setSimCaptionGroupIdx(gIdx)
+        } else {
+          setSimCaptionSentIdx(-1)
+          setSimCaptionGroupIdx(-1)
+        }
       }, 50)
+      simCaptionTimerRef.current = timerId
     }
 
+    const myTimerId = simCaptionTimerRef.current
     await new Promise<void>(resolve => {
       const done = () => {
-        if (simCaptionTimerRef.current) { clearInterval(simCaptionTimerRef.current); simCaptionTimerRef.current = null }
-        setSimCaptionText('')
-        setSimCaptionNpcId(null)
+        // Ne clear QUE l'interval qui appartient à CET appel playAudio
+        if (myTimerId !== null && simCaptionTimerRef.current === myTimerId) {
+          clearInterval(myTimerId)
+          simCaptionTimerRef.current = null
+        }
+        // Ne resetter les états caption que si cet audio avait des captions
+        // (évite que done() du joueur/audio sans captions efface l'état d'un NPC suivant)
+        if (myTimerId !== null) {
+          setSimCaptionSentences([])
+          setSimCaptionSentIdx(-1)
+          setSimCaptionGroupIdx(-1)
+          setSimCaptionNpcId(null)
+        }
         resolve()
       }
       audio.addEventListener('ended', done, { once: true })
@@ -6275,6 +6559,13 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   }
 
   async function openMangaDialogue(npc: import('@/types').Npc) {
+    // Invalider toute instance précédente et mémoriser ce run
+    simRunRef.current++
+    const myRun = simRunRef.current
+    // Nettoyer l'ancienne session audio/captions avant d'en démarrer une nouvelle
+    if (simCaptionTimerRef.current) { clearInterval(simCaptionTimerRef.current); simCaptionTimerRef.current = null }
+    if (simAudioRef.current) { simAudioRef.current.pause(); simAudioRef.current = null }
+
     setSimMangaOpen(true)
     setSimActiveNpc(npc)
     setSimClickedNpcId(npc.id)
@@ -6286,6 +6577,10 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     setSimAutoNpcIds([])
     setSimNpcEmotions({})
     setSimPlayerBubbleVisible(false)
+    setSimCaptionSentences([])
+    setSimCaptionSentIdx(-1)
+    setSimCaptionGroupIdx(-1)
+    setSimCaptionNpcId(null)
 
     // ── 1. Question aléatoire parmi celles ayant une réponse en BDD ──
     const storedQs = section?.player_questions ?? []
@@ -6388,10 +6683,14 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       await new Promise(r => setTimeout(r, playerReadMs))
     }
 
+    // Si le dialogue a été fermé ou réouvert pendant l'attente, on abandonne
+    if (simRunRef.current !== myRun) return
+
     setSimDialoguePhase('responding')
 
     // ── 5. Séquence automatique — max 3 PNJ, audio depuis BDD uniquement ──
     for (let i = 0; i < savedDbResponses.length; i++) {
+      if (simRunRef.current !== myRun) return
       const resp = savedDbResponses[i]
       const npcObj = sceneNpcs.find(n => n.id === resp.npc_id)
       setSimRevealedIds(prev => [...prev, resp.npc_id])
@@ -6406,7 +6705,7 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           const buf = await res.arrayBuffer()
           const audio = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' })))
           const alignment = getNpcAlignment(resp.npc_id, playerQuestion)
-          const groups = alignment ? buildCaptionGroups(alignment) : []
+          const groups = alignment ? buildCaptionGroups(alignment, 1) : []
           await playAudio({ audio, groups }, resp.npc_id)
         } catch {
           const words = resp.text.trim().split(/\s+/).length
@@ -6416,8 +6715,10 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
         const words = resp.text.trim().split(/\s+/).length
         await new Promise(r => setTimeout(r, Math.max(2500, words / 130 * 60000)))
       }
+      if (simRunRef.current !== myRun) return
       await new Promise(r => setTimeout(r, 300))
     }
+    if (simRunRef.current !== myRun) return
     setSimDialoguePhase('done')
   }
 
@@ -6564,14 +6865,33 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
 
   // ── Data ─────────────────────────────────────────────────────────────
   const placeholderImg = 'https://images.unsplash.com/photo-1519501025264-65ba15a82390?w=800&q=80'
+  const npcBestPortrait = (n: import('@/types').Npc) =>
+    n.portrait_emotions?.['neutre'] ?? n.portrait_url ?? n.image_url ?? undefined
   const sceneCompanions = simMode
     ? npcs.filter(n => (section?.companion_npc_ids ?? []).includes(n.id) && n.type !== 'ennemi' && n.type !== 'boss')
     : npcs.filter(n => n.id !== protagonist?.id).slice(0, 2)
   const vignettes: { name: string; img?: string; npc?: import('@/types').Npc }[] = []
-  if (protagonist) vignettes.push({ name: protagonist.name, img: protagonist.portrait_url ?? protagonist.image_url, npc: protagonist })
-  sceneCompanions.filter(n => n.id !== protagonist?.id).forEach(n => vignettes.push({ name: n.name, img: n.image_url, npc: n }))
-  if (vignettes.length === 0) vignettes.push({ name: 'Protagonist' }, { name: 'Rico' }, { name: 'Mara' })
-  const vigPositions = vignettes.map((_, i) => liveVigPos[i] ?? { x: 10 + i * 68, y: DEF.vignette_positions[0].y })
+  if (protagonist) vignettes.push({ name: protagonist.name, img: npcBestPortrait(protagonist), npc: protagonist })
+  sceneCompanions.filter(n => n.id !== protagonist?.id).forEach(n => vignettes.push({ name: n.name, img: npcBestPortrait(n), npc: n }))
+  if (!simMode && vignettes.length === 0) vignettes.push({ name: 'Protagonist' }, { name: 'Rico' }, { name: 'Mara' })
+  const vigPositions = (() => {
+    if (simMode && vignettes.length > 0) {
+      const anchor = liveVigPos[0] ?? DEF.vignette_positions[0]
+      const szPlayer = Math.round(s.vignette_size * 1.15 * 0.7)  // taille réelle du protagoniste
+      const szNpc    = Math.round(s.vignette_size * 0.7)
+      const firstStep = szPlayer + 40  // espace après le protagoniste
+      const step      = szNpc    + 28  // espace entre NPCs
+      return vignettes.map((_, i) => ({
+        x: anchor.x,
+        y: i === 0 ? anchor.y : anchor.y + firstStep + (i - 1) * step,
+      }))
+    }
+    return vignettes.map((_, i) => {
+      if (liveVigPos[i]) return liveVigPos[i]
+      const lastPos = liveVigPos[liveVigPos.length - 1] ?? { x: 12, y: DEF.vignette_positions[0].y }
+      return { x: lastPos.x, y: lastPos.y + (i - liveVigPos.length + 1) * 70 }
+    })
+  })()
   const fs = previewMode === 'tablet' ? 1.4 : 1
   const ovAlpha = Math.round((s.overlay_opacity ?? 80) * 2.55).toString(16).padStart(2, '0')
   const STATS_PREVIEW = [
@@ -6605,7 +6925,10 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           outline: interactive ? '1px dashed rgba(212,168,76,0.2)' : 'none',
           cursor: interactive ? (dragging === 'photo_pos' ? 'grabbing' : 'grab') : 'default',
         }}>
-        <img src={(section?.images?.[0]?.url) ?? section?.image_url ?? placeholderImg} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+        <style>{`@keyframes simImgIn{from{opacity:0}to{opacity:1}}@keyframes simBlink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
+        <img key={`${section?.id}-${simImgIdx}`}
+          src={(simPlayableImgs[simImgIdx]?.url ?? section?.images?.[0]?.url) ?? section?.image_url ?? placeholderImg}
+          alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none', animation: simMode ? 'simImgIn 0.6s ease' : 'none' }} />
         {interactive && <ResizeCorner onMouseDown={e => startDrag('photo_size', e)} />}
       </div>
 
@@ -6614,7 +6937,9 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
         <div
           onMouseDown={interactive ? e => startDrag('health_pos', e) : undefined}
           onClick={interactive ? e => { e.stopPropagation(); onUpdate?.('health_mode', (s.health_mode ?? 'text') === 'text' ? 'bar' : 'text') } : undefined}
-          style={{ position: 'absolute', left: liveHealth.x, top: liveHealth.y, width: (s.health_mode ?? 'text') === 'text' ? 'fit-content' : liveHealth.w, maxWidth: CW - liveHealth.x, zIndex: 25, cursor: interactive ? 'pointer' : 'default' }}>
+          style={{ position: 'absolute', left: liveHealth.x, top: liveHealth.y, width: (s.health_mode ?? 'text') === 'text' ? 'fit-content' : liveHealth.w, maxWidth: CW - liveHealth.x, zIndex: 25, cursor: interactive ? 'pointer' : 'default',
+            opacity: simMode ? (simTextDone ? 1 : 0) : 1, transition: 'opacity 0.6s ease',
+            pointerEvents: simMode && !simTextDone ? 'none' : 'auto' }}>
           {interactive && (s.health_mode ?? 'text') === 'bar' && (
             <div onMouseDown={e => { e.stopPropagation(); startDrag('health_w', e) }}
               style={{ position: 'absolute', right: -5, top: '50%', transform: 'translateY(-50%)', width: 10, height: 10, background: '#d4a84c', borderRadius: '2px', cursor: 'ew-resize', zIndex: 35 }} />
@@ -6645,25 +6970,50 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       )}
 
       {/* ── Texte narratif ──────────────────────────────────────────── */}
+      {!(simMode && textMode === 'narratif') && (
       <div
         onMouseDown={interactive ? e => startDrag('text_pos', e) : undefined}
-        style={{ position: 'absolute', left: liveText.x, top: liveText.y, width: liveText.w, height: liveText.h, zIndex: 20, cursor: interactive ? (dragging === 'text_pos' ? 'grabbing' : 'grab') : 'default' }}>
+        style={{ position: 'absolute', left: liveText.x, top: liveText.y, width: liveText.w, height: liveText.h, zIndex: 20, cursor: interactive ? (dragging === 'text_pos' ? 'grabbing' : 'grab') : 'default',
+          opacity: simMode ? (simTextVisible ? 1 : 0) : 1, transition: 'opacity 0.5s ease',
+          display: simMode && !simIsLastImg ? 'none' : undefined }}>
         <div style={{ position: 'absolute', inset: 0, background: textBg, overflow: 'hidden', pointerEvents: 'none' }}>
           <div style={{ padding: `8px ${s.text_padding}px 8px`, height: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
             <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: `${s.text_font_size * fs * 0.72}px`, color: '#ede9df', lineHeight: 1.6, overflow: 'hidden', height: '100%' }}>
-              {section?.content ?? 'Le silence pesait sur la rue comme une chape de béton. Rico ajusta sa capuche et scruta les fenêtres obscures en face. Quelque chose clochait — il le sentait dans ses os.'}
+              {simMode
+                ? <>{(section?.content ?? '').slice(0, simDisplayedChars)}{simTextVisible && !simTextDone && <span style={{ animation: 'simBlink 0.7s step-end infinite', color: '#d4a84c' }}>▌</span>}</>
+                : (section?.content ?? 'Le silence pesait sur la rue comme une chape de béton. Rico ajusta sa capuche et scruta les fenêtres obscures en face. Quelque chose clochait — il le sentait dans ses os.')}
             </p>
           </div>
         </div>
         {interactive && <ResizeCorner onMouseDown={e => startDrag('text_size', e)} />}
       </div>
+      )}
+
+      {/* ── "Fais ton choix !" — centré au-dessus des boutons ──────── */}
+      {simMode && (
+        <div style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', zIndex: 22, display: 'flex', justifyContent: 'center', alignItems: 'center', opacity: simTextDone ? 1 : 0, transition: 'opacity 0.6s ease', pointerEvents: 'none' }}>
+          <span style={{ fontFamily: 'Georgia, serif', fontSize: '22px', fontWeight: 700, letterSpacing: '0.2em', textTransform: 'uppercase', color: '#d4a84c', textShadow: '0 0 12px rgba(212,168,76,0.7)', background: 'rgba(255,245,220,0.18)', backdropFilter: 'blur(6px)', borderRadius: '8px', padding: '6px 18px', border: '1px solid rgba(212,168,76,0.25)' }}>
+            ✦ Fais ton choix ! ✦
+          </span>
+        </div>
+      )}
 
       {/* ── Boutons de choix ────────────────────────────────────────── */}
       <div
         onMouseDown={!simMode && interactive ? e => startDrag('choices_pos', e) : undefined}
-        style={{ position: 'absolute', left: liveChoices.x, top: liveChoices.y, width: liveChoices.w, height: liveChoices.h, zIndex: 21, cursor: interactive ? (dragging === 'choices_pos' ? 'grabbing' : 'grab') : 'default' }}>
-        <div style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: simMode ? 'auto' : 'none' }}>
-          <div style={{ padding: '6px', height: '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: '4px', justifyContent: 'center' }}>
+        style={{ position: 'absolute',
+          left: simMode ? 8 : liveChoices.x,
+          top: simMode ? undefined : liveChoices.y,
+          bottom: simMode ? 140 : undefined,
+          width: simMode ? 374 : liveChoices.w,
+          height: simMode ? 'auto' : liveChoices.h,
+          zIndex: 21, cursor: interactive ? (dragging === 'choices_pos' ? 'grabbing' : 'grab') : 'default',
+          opacity: simMode ? (simTextDone ? 1 : 0) : 1,
+          pointerEvents: simMode && !simTextDone ? 'none' : 'auto',
+          transition: 'opacity 0.6s ease',
+          filter: simMode ? 'drop-shadow(0 0 18px rgba(212,168,76,0.35)) drop-shadow(0 0 6px rgba(212,168,76,0.2))' : undefined }}>
+        <div style={{ position: simMode ? 'relative' : 'absolute', inset: simMode ? undefined : 0, overflow: 'hidden', pointerEvents: simMode ? 'auto' : 'none' }}>
+          <div style={{ padding: '6px', height: simMode ? 'auto' : '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: simMode ? '6px' : '4px', justifyContent: 'center' }}>
             {(sectionChoices && sectionChoices.length > 0 ? sectionChoices.map(c => c.label) : ['Entrer par la ruelle', 'Surveiller depuis le toit']).map((label, ci) => {
               const choice = sectionChoices?.[ci]
               const isActive = !simMode && ci === 0
@@ -6678,7 +7028,47 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
               const fontFamily = s.choices_font_family === 'serif' ? 'Georgia, serif' : s.choices_font_family === 'mono' ? 'monospace' : 'system-ui, sans-serif'
               const fontWeight = s.choices_bold ? 700 : 400
               const fontStyle = s.choices_italic ? 'italic' : 'normal'
-              const fontSize = `${(s.choices_font_size ?? 13) * fs * 0.72}px`
+              const fontSize = simMode ? '17px' : `${(s.choices_font_size ?? 13) * fs * 0.72}px`
+              const isHovered = simMode && ci === hoveredChoiceIdx
+              const hoverHandlers = simMode ? { onMouseEnter: () => setHoveredChoiceIdx(ci), onMouseLeave: () => setHoveredChoiceIdx(-1) } : {}
+
+              if (simMode && choiceStyle === 1) {
+                // ── Rune Forge ──────────────────────────────────────
+                return (
+                  <div key={ci} onClick={choice ? () => onChoiceClick?.(choice) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isActive ? bgActive : isHovered ? 'linear-gradient(135deg,rgba(30,22,10,0.92),rgba(50,36,12,0.88))' : `linear-gradient(135deg,${choicesBg}e8,${choicesBg}b0)`, border: `1px solid ${isActive ? borderActive : isHovered ? '#d4a84c99' : borderNormal}`, borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(6px)', cursor: choice ? 'pointer' : 'default', outline: isHovered ? '1px solid rgba(212,168,76,0.18)' : '1px solid transparent', outlineOffset: '2px', boxShadow: isHovered ? 'inset 0 1px 0 rgba(212,168,76,0.15),0 0 12px rgba(212,168,76,0.08),inset 0 -1px 0 rgba(0,0,0,0.4)' : 'inset 0 1px 0 rgba(255,255,255,0.04),inset 0 -1px 0 rgba(0,0,0,0.3)', transition: 'background 0.2s,border-color 0.2s,box-shadow 0.2s,outline-color 0.2s', overflow: 'hidden' }}>
+                    <div style={{ position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px', background: isHovered ? 'linear-gradient(90deg,transparent,rgba(212,168,76,0.4),transparent)' : 'linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)', transition: 'background 0.2s' }} />
+                    <span style={{ fontFamily, fontSize, color: isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 500, fontStyle, letterSpacing: '0.04em', textShadow: isHovered ? '0 0 8px rgba(212,168,76,0.3)' : 'none', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{label}</span>
+                  </div>
+                )
+              }
+
+              if (simMode && choiceStyle === 2) {
+                // ── Scroll Panel ─────────────────────────────────────
+                const accentColors = ['#d4a84c', '#9b59b6', '#e74c3c', '#2ecc71']
+                const accentColor = accentColors[ci % accentColors.length]
+                return (
+                  <div key={ci} onClick={choice ? () => onChoiceClick?.(choice) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isActive ? bgActive : isHovered ? 'rgba(212,168,76,0.10)' : `${choicesBg}d0`, borderTop: `1px solid ${isActive ? borderActive : isHovered ? `${accentColor}55` : borderNormal}`, borderRight: `1px solid ${isActive ? borderActive : isHovered ? `${accentColor}55` : borderNormal}`, borderBottom: `1px solid ${isActive ? borderActive : isHovered ? `${accentColor}55` : borderNormal}`, borderLeft: `3px solid ${isActive || isHovered ? accentColor : `${accentColor}44`}`, borderRadius: `${radius}px`, padding: '9px 12px 9px 14px', backdropFilter: 'blur(8px)', cursor: choice ? 'pointer' : 'default', overflow: 'hidden', transition: 'background 0.18s,border-color 0.18s' }}>
+                    <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg,${accentColor}18 0%,transparent 60%)`, opacity: isHovered ? 1 : 0, transition: 'opacity 0.2s', pointerEvents: 'none' }} />
+                    <span style={{ fontFamily, fontSize, color: isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 400, fontStyle, letterSpacing: '0.02em', position: 'relative', transition: 'color 0.18s', display: 'block' }}>{label}</span>
+                  </div>
+                )
+              }
+
+              if (simMode && choiceStyle === 3) {
+                // ── Ghost Button ─────────────────────────────────────
+                return (
+                  <div key={ci} onClick={choice ? () => onChoiceClick?.(choice) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isActive ? bgActive : isHovered ? 'rgba(255,255,255,0.07)' : 'rgba(10,8,6,0.55)', border: '1px solid transparent', borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(10px)', cursor: choice ? 'pointer' : 'default', overflow: 'hidden', boxShadow: isActive ? `0 0 0 1px ${borderActive},0 2px 12px rgba(212,168,76,0.15)` : isHovered ? '0 0 0 1px rgba(212,168,76,0.45),0 0 0 2px rgba(212,168,76,0.08),0 2px 16px rgba(0,0,0,0.5)' : `0 0 0 1px ${borderNormal},0 2px 8px rgba(0,0,0,0.3)`, transition: 'background 0.2s,box-shadow 0.25s' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '1px', background: isHovered ? 'linear-gradient(90deg,transparent 5%,rgba(212,168,76,0.5) 50%,transparent 95%)' : 'linear-gradient(90deg,transparent 10%,rgba(255,255,255,0.08) 50%,transparent 90%)', transition: 'background 0.25s', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', top: 0, left: isHovered ? '110%' : '-30%', width: '40%', height: '100%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)', transform: 'skewX(-15deg)', transition: isHovered ? 'left 0.4s ease' : 'left 0s', pointerEvents: 'none' }} />
+                    <span style={{ fontFamily, fontSize, color: isActive ? colorActive : isHovered ? '#fdf6e3' : colorNormal, fontWeight: isHovered ? 500 : fontWeight, fontStyle, letterSpacing: '0.05em', textShadow: isHovered ? '0 1px 4px rgba(0,0,0,0.8),0 0 12px rgba(212,168,76,0.2)' : '0 1px 3px rgba(0,0,0,0.6)', position: 'relative', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{label}</span>
+                  </div>
+                )
+              }
+
+              // ── Mode normal (hors simulation) ────────────────────
               return (
                 <div key={ci} onClick={simMode && choice ? () => onChoiceClick?.(choice) : undefined} style={{ background: isActive ? bgActive : bgNormal, border: `1px solid ${isActive ? borderActive : borderNormal}`, borderRadius: `${radius}px`, padding: '5px 8px', backdropFilter: 'blur(4px)', cursor: simMode && choice ? 'pointer' : 'default' }}>
                   <span style={{ fontFamily, fontSize, color: isActive ? colorActive : colorNormal, fontWeight, fontStyle }}>{label}</span>
@@ -6694,7 +7084,8 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       {s.stats_show && (
         <div
           onMouseDown={interactive ? e => startDrag('stats_pos', e) : undefined}
-          style={{ position: 'absolute', left: liveStats.x, top: liveStats.y, zIndex: 26, cursor: interactive ? (dragging === 'stats_pos' ? 'grabbing' : 'grab') : 'default' }}>
+          style={{ position: 'absolute', left: liveStats.x, top: liveStats.y, zIndex: 26, cursor: interactive ? (dragging === 'stats_pos' ? 'grabbing' : 'grab') : 'default',
+            opacity: simMode ? (simTextDone ? 1 : 0) : 1, transition: 'opacity 0.6s ease' }}>
           <div style={{ background: `#0d0d0d${ovAlpha}`, border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '5px 7px', backdropFilter: 'blur(6px)', pointerEvents: 'none' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '3px 8px' }}>
               {STATS_PREVIEW.map(({ icon, label, val }) => (
@@ -6713,7 +7104,8 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       {s.inventory_show && (
         <div
           onMouseDown={interactive ? e => startDrag('inv_pos', e) : undefined}
-          style={{ position: 'absolute', left: liveInv.x, top: liveInv.y, zIndex: 26, cursor: interactive ? (dragging === 'inv_pos' ? 'grabbing' : 'grab') : 'default' }}>
+          style={{ position: 'absolute', left: liveInv.x, top: liveInv.y, zIndex: 26, cursor: interactive ? (dragging === 'inv_pos' ? 'grabbing' : 'grab') : 'default',
+            opacity: simMode ? (simTextDone ? 1 : 0) : 1, transition: 'opacity 0.6s ease' }}>
           <div style={{ background: `#0d0d0d${ovAlpha}`, border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '5px 6px', backdropFilter: 'blur(6px)', pointerEvents: 'none' }}>
             <div style={{ display: 'flex', gap: '4px' }}>
               {(['🗡', '🧪'] as const).map((icon, i) => (
@@ -6746,12 +7138,13 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
               margin: 0,
               padding: 0,
             }
+            const display = formatCountdown(countdown)
             return (
               <div style={{ background: 'rgba(0,0,0,0.35)', borderRadius: `${sz * 0.2}px`, padding: 0, pointerEvents: 'none', userSelect: 'none', position: 'relative', lineHeight: 1 }}>
                 {/* Segments fantômes */}
-                <span style={{ ...fontStyle, color: `${col}18`, position: 'absolute', top: 0, left: 0 }}>88:88</span>
-                {/* Heure réelle */}
-                <span style={{ ...fontStyle, color: col, textShadow: glow, position: 'relative' }}>23:14</span>
+                <span style={{ ...fontStyle, color: `${col}18`, position: 'absolute', top: 0, left: 0 }}>00:00</span>
+                {/* Compte à rebours */}
+                <span style={{ ...fontStyle, color: countdown === 0 ? col + '66' : col, textShadow: countdown === 0 ? 'none' : glow, position: 'relative' }}>{display}</span>
               </div>
             )
           })()}
@@ -6891,14 +7284,14 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           <div key={i}
             onMouseDown={interactive ? e => startDrag('vignette_pos', e, i) : undefined}
             onClick={simMode && i > 0 && v.npc ? (e) => { e.stopPropagation(); openMangaDialogue(v.npc!) } : undefined}
-            style={{ position: 'absolute', left: pos.x, top: pos.y, zIndex: 27, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', cursor: simMode && i > 0 && v.npc ? 'pointer' : interactive ? (isVigDragging ? 'grabbing' : 'grab') : 'default' }}>
-            <div style={{ width: `${sz}px`, height: `${sz}px`, borderRadius: s.vignette_style === 'circle' ? '50%' : '6px', overflow: 'hidden', border: `2px solid ${i === 0 ? s.vignette_border_color : '#3a3a48'}`, background: '#1a1a1f', flexShrink: 0, pointerEvents: 'none' }}>
+            style={{ position: 'absolute', left: pos.x, top: pos.y, width: `${sz}px`, zIndex: 27, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', cursor: simMode && i > 0 && v.npc ? 'pointer' : interactive ? (isVigDragging ? 'grabbing' : 'grab') : 'default', opacity: simMode ? (simTextDone ? 1 : 0) : 1, transition: 'opacity 0.6s ease', pointerEvents: simMode && !simTextDone ? 'none' : 'auto' }}>
+            <div style={{ width: `${sz}px`, height: `${sz}px`, borderRadius: s.vignette_style === 'circle' ? '50%' : '6px', overflow: 'hidden', border: `2px solid ${i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#3a3a48') : '#3a3a48'}`, boxShadow: `0 0 ${sz * 0.35}px ${(i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#3a3a48') : '#3a3a48')}88, 0 0 ${sz * 0.7}px ${(i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#3a3a48') : '#3a3a48')}33`, background: '#1a1a1f', flexShrink: 0, pointerEvents: 'none' }}>
               {v.img
                 ? <img src={v.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 10%' }} />
                 : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${sz * 0.35}px`, opacity: 0.3 }}>🧑</div>
               }
             </div>
-            <span style={{ fontSize: `${5 * fs}px`, color: i === 0 ? s.vignette_border_color : '#9898b4', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap', pointerEvents: 'none' }}>{v.name}</span>
+            <span style={{ fontSize: `${6.5 * fs}px`, color: i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#9898b4') : '#9898b4', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap', pointerEvents: 'none', background: 'rgba(0,0,0,0.6)', borderRadius: '3px', padding: '1px 4px' }}>{v.name}</span>
           </div>
         )
       })}
@@ -6931,8 +7324,29 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           return `0 ${Math.round(blur/4)}px ${blur}px rgba(${r},${g},${b},${op})`
         })()
 
+        const col = s.clock_color ?? '#ff3333'
+        const mangaClockSz = (s.clock_font_size ?? 18) * fs * 1.8
+        const mangaClockDisplay = formatCountdown(countdown)
+        const mangaClockGlow = `0 0 ${mangaClockSz * 0.4}px ${col}, 0 0 ${mangaClockSz * 0.8}px ${col}44`
+        const mangaClockFontStyle: React.CSSProperties = {
+          fontFamily: '"Courier New", "Lucida Console", monospace',
+          fontSize: `${mangaClockSz}px`,
+          fontWeight: 700,
+          letterSpacing: `${mangaClockSz * 0.08}px`,
+          lineHeight: 1,
+        }
+
         return (
-          <div onClick={closeMangaDialog} style={{ position: 'absolute', inset: 0, zIndex: 49, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(2px)' }}>
+          <div onClick={closeMangaDialog} style={{ position: 'absolute', inset: 0, zIndex: 49, background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(2px)' }}>
+            {/* Timer agrandi — centré au-dessus de la dialog */}
+            {s.clock_show && (
+              <div style={{ position: 'absolute', left: dlg.x, width: W, top: dlg.y - mangaClockSz - 10, display: 'flex', justifyContent: 'center', pointerEvents: 'none', zIndex: 50 }}>
+                <div style={{ background: 'rgba(0,0,0,0.55)', borderRadius: `${mangaClockSz * 0.2}px`, position: 'relative', lineHeight: 1 }}>
+                  <span style={{ ...mangaClockFontStyle, color: `${col}18`, position: 'absolute', top: 0, left: 0 }}>00:00</span>
+                  <span style={{ ...mangaClockFontStyle, color: countdown === 0 ? col + '66' : col, textShadow: countdown === 0 ? 'none' : mangaClockGlow, position: 'relative' }}>{mangaClockDisplay}</span>
+                </div>
+              </div>
+            )}
             <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', left: dlg.x, top: dlg.y, width: W, height: H, background: bgColor, overflow: 'hidden', border: dlgBorder, borderRadius: dlgBorderRadius, boxShadow: shadow }}>
 
               {/* Panneaux NPC — ordre fixe (slots 0-3), opacité pilotée par simActiveBubbleId */}
@@ -6974,23 +7388,35 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
                     {portrait && (
                       <img src={portrait} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
                     )}
-                    {panelImg && <img src={panelImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', mixBlendMode: (s.manga_panel_blend_mode ?? 'normal') as any }} />}
+                    {panelImg && <img src={panelImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', mixBlendMode: (s.manga_panel_blend_mode ?? 'normal') as React.CSSProperties['mixBlendMode'] }} />}
                     {/* Nom NPC — visible tant que sa bulle n'est pas affichée */}
                     {isActive && !isBubbleActive && (
                       <div style={{ position: 'absolute', bottom: 6, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
                         <span style={{ fontFamily: 'Georgia, serif', fontSize: '7px', fontWeight: 700, color: s.manga_npc_name_color ?? '#d4a84c', textShadow: '0 1px 4px #000', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{npc.name}</span>
                       </div>
                     )}
-                    {/* Texte CapCut — NPC actif dans la séquence */}
-                    {isBubbleActive && resp && (
-                      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 6px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', pointerEvents: 'none' }}>
-                        <p style={{ margin: 0, fontFamily: '"Arial Black", Arial, sans-serif', fontSize: '8.5px', fontWeight: 900, color: '#fff', lineHeight: 1.35, textAlign: 'center', textShadow: '0 0 10px #000, 0 2px 4px #000', letterSpacing: '0.03em' }}>
-                          {simCaptionNpcId === npc.id
-                            ? simCaptionText
-                            : resp.text.replace(/\[[^\]]+\]/g, '').replace(/\s+/g, ' ').trim()}
-                        </p>
-                      </div>
-                    )}
+                    {/* Texte CapCut — phrase entière + surligneur jaune synchronisé */}
+                    {isBubbleActive && resp && simCaptionNpcId === npc.id && simCaptionSentIdx >= 0 && simCaptionSentences[simCaptionSentIdx] && (() => {
+                      const sent = simCaptionSentences[simCaptionSentIdx]
+                      const activeGroup = simCaptionGroupIdx >= 0 ? sent.groups[simCaptionGroupIdx] : null
+                      const activeGroupStart = activeGroup ? (activeGroup as any).charStart ?? -1 : -1
+                      const activeGroupEnd = activeGroup ? (activeGroup as any).charEnd ?? -1 : -1
+                      return (
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 6px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', pointerEvents: 'none' }}>
+                          <p style={{ margin: 0, fontFamily: '"Arial Black", Arial, sans-serif', fontSize: '11px', fontWeight: 900, lineHeight: 1.5, textAlign: 'center', letterSpacing: '0.03em', wordBreak: 'break-word' }}>
+                            {sent.text.split('').map((char, ci) => {
+                              const inHighlight = activeGroupStart >= 0 && ci >= activeGroupStart && ci < activeGroupEnd
+                              const spanStyle: React.CSSProperties = captionStyle === 2
+                                ? { color: inHighlight ? '#FFB347' : 'rgba(255,220,180,0.45)', textShadow: inHighlight ? '0 0 5px rgba(255,140,0,1), 0 0 14px rgba(255,80,0,0.6)' : '0 1px 4px rgba(0,0,0,0.9)', transition: 'color 0.1s, text-shadow 0.1s' }
+                                : captionStyle === 3
+                                ? { color: inHighlight ? '#ffffff' : 'rgba(255,255,255,0.18)', textShadow: inHighlight ? '0 0 12px rgba(255,255,255,0.9), 0 2px 4px rgba(0,0,0,0.9)' : 'none', transition: 'color 0.07s, text-shadow 0.1s' }
+                                : { color: inHighlight ? '#e0f8ff' : 'rgba(255,255,255,0.4)', textShadow: inHighlight ? '0 0 4px #00d4ff, 0 0 12px #00aaff, 0 0 22px #0077ff' : '0 1px 3px rgba(0,0,0,0.8)', transition: 'color 0.08s, text-shadow 0.12s' }
+                              return <span key={ci} style={spanStyle}>{char}</span>
+                            })}
+                          </p>
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}
@@ -7004,16 +7430,126 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
                 {/* Texte CapCut — question joueur persistante */}
                 {simPlayerBubbleVisible && simDialogueData?.player_question && (
                   <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 6px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', pointerEvents: 'none' }}>
-                    <p style={{ margin: 0, fontFamily: '"Arial Black", Arial, sans-serif', fontSize: '8px', fontWeight: 900, color: '#ffe580', lineHeight: 1.35, textAlign: 'center', textShadow: '0 0 10px #000, 0 2px 4px #000', letterSpacing: '0.03em' }}>
+                    <p style={{ margin: 0, fontFamily: '"Arial Black", Arial, sans-serif', fontSize: '11px', fontWeight: 900, color: '#ffe580', lineHeight: 1.35, textAlign: 'center', textShadow: '0 0 10px #000, 0 2px 4px #000', letterSpacing: '0.03em' }}>
                       {simDialogueData.player_question}
                     </p>
                   </div>
                 )}
               </div>
+
+              {/* ── Overlay choix — phase done ──────────────────────────── */}
+              {simDialoguePhase === 'done' && sectionChoices && sectionChoices.length > 0 && (() => {
+                const playerQuestion = simDialogueData?.player_question ?? ''
+                const npcRaw: Record<string, any> = (section as any)?.player_responses ?? {}
+                // Pour chaque choix, trouver quel NPC l'a suggéré
+                const choiceNpc = (choiceId: string) =>
+                  simSceneNpcs.find(n => npcRaw[n.id]?.[`${playerQuestion}__choice`] === choiceId) ?? null
+                return (
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'space-evenly', gap: '10px', padding: '16px 14px' }}>
+                    {sectionChoices.map(choice => {
+                      const npc = choiceNpc(choice.id)
+                      const npcPortrait = npc
+                        ? (npc.portrait_emotions?.[simNpcEmotions[npc.id] ?? 'neutre'] ?? npc.portrait_url ?? npc.image_url ?? undefined)
+                        : undefined
+                      return (
+                        <div
+                          key={choice.id}
+                          onClick={() => { onChoiceClick?.(choice); closeMangaDialog() }}
+                          style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(10,10,16,0.88)', border: '1px solid rgba(212,168,76,0.5)', borderRadius: '8px', padding: '12px 14px', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,76,0.14)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,168,76,0.95)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(10,10,16,0.88)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,168,76,0.5)' }}>
+                          {npcPortrait && (
+                            <div style={{ position: 'absolute', top: -10, right: -10, width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', border: '1.5px solid #d4a84c', boxShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
+                              <img src={npcPortrait} alt={npc?.name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
+                            </div>
+                          )}
+                          <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: '13px', color: '#fff', lineHeight: 1.5, textAlign: 'center', paddingRight: npcPortrait ? '14px' : 0 }}>{choice.label}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </div>
-            {/* Tap pour fermer */}
-            <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
-              <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.35)', fontFamily: 'Georgia, serif' }}>Appuyez pour fermer</span>
+            {/* Tap pour fermer — masqué pendant l'affichage des choix */}
+            {simDialoguePhase !== 'done' && (
+              <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
+                <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.35)', fontFamily: 'Georgia, serif' }}>Appuyez pour fermer</span>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
+      {/* ── Bulle de pensée (mode narratif) ──────────────────────── */}
+      {simMode && textMode === 'narratif' && !simTextDone && (() => {
+        const thought = simPlayableImgs[simImgIdx]?.thought?.trim() ?? ''
+        if (!thought) return null
+        const sentences = thought.match(/[^.!?…]+[.!?…]*/g)?.map((s: string) => s.trim()).filter(Boolean) ?? [thought]
+        const visibleSentences = sentences.slice(0, simThoughtCount)
+        if (!visibleSentences.length) return null
+        const dots = simPlayableImgs.length > 1 ? (
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 5, pointerEvents: 'none' }}>
+            {simPlayableImgs.map((_, i) => (
+              <div key={i} style={{ width: i === simImgIdx ? 14 : 5, height: 5, borderRadius: 3, background: i === simImgIdx ? 'rgba(200,160,232,0.85)' : 'rgba(200,160,232,0.25)', transition: 'all 0.3s ease' }} />
+            ))}
+          </div>
+        ) : null
+
+        // ── Variante 1 : Cinematic Strip ─────────────────────────
+        if (thoughtStyle === 1) return (
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 22, pointerEvents: 'none' }}>
+            <style>{`@keyframes thoughtFadeIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:translateY(0) } }`}</style>
+            {dots && <div style={{ marginBottom: 8 }}>{dots}</div>}
+            <div style={{ background: 'linear-gradient(to top, rgba(5,3,12,0.97) 60%, rgba(5,3,12,0))', borderTop: '1px solid rgba(200,160,232,0.3)', padding: '18px 20px 28px' }}>
+              <div style={{ fontSize: '11px', color: 'rgba(200,160,232,0.45)', marginBottom: '8px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>💭 Pensées</div>
+              {visibleSentences.map((sent, i) => (
+                <p key={i} style={{ margin: i > 0 ? '5px 0 0' : '0', fontFamily: 'Georgia, serif', fontSize: '15px', fontStyle: 'italic', color: '#e8caff', lineHeight: 1.6, textShadow: '0 1px 8px rgba(0,0,0,0.9)', animation: 'thoughtFadeIn 0.5s ease both', animationDelay: `${i * 0.08}s` }}>
+                  {sent}
+                </p>
+              ))}
+            </div>
+          </div>
+        )
+
+        // ── Variante 2 : Manga Caption ────────────────────────────
+        if (thoughtStyle === 2) return (
+          <div style={{ position: 'absolute', bottom: '14%', left: '50%', transform: 'translateX(-50%)', width: '86%', zIndex: 22, pointerEvents: 'none' }}>
+            <style>{`
+              @keyframes thoughtFadeIn { from { opacity:0; transform:translateY(10px) scale(0.98) } to { opacity:1; transform:translateY(0) scale(1) } }
+              @keyframes bubbleGlow { 0%,100% { box-shadow:0 0 18px rgba(180,130,255,0.18),0 6px 32px rgba(0,0,0,0.75) } 50% { box-shadow:0 0 28px rgba(180,130,255,0.32),0 6px 32px rgba(0,0,0,0.75) } }
+            `}</style>
+            <div style={{ background: 'rgba(8,5,18,0.88)', border: '1px solid rgba(200,160,232,0.35)', borderRadius: '4px 18px 18px 18px', padding: '14px 18px 16px', backdropFilter: 'blur(10px)', animation: 'bubbleGlow 3s ease-in-out infinite', position: 'relative' }}>
+              <div style={{ position: 'absolute', top: -1, left: -1, width: 10, height: 10, borderTop: '2px solid rgba(200,160,232,0.7)', borderLeft: '2px solid rgba(200,160,232,0.7)', borderRadius: '4px 0 0 0' }} />
+              <div style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderBottom: '2px solid rgba(200,160,232,0.7)', borderRight: '2px solid rgba(200,160,232,0.7)', borderRadius: '0 0 18px 0' }} />
+              <div style={{ fontSize: '13px', marginBottom: '8px', lineHeight: 1 }}>💭</div>
+              {visibleSentences.map((sent, i) => (
+                <p key={i} style={{ margin: i > 0 ? '7px 0 0' : '0', fontFamily: 'Georgia, serif', fontSize: '14px', fontStyle: 'italic', color: '#e2c4ff', lineHeight: 1.65, textShadow: '0 1px 6px rgba(0,0,0,0.8)', animation: 'thoughtFadeIn 0.45s cubic-bezier(0.22,1,0.36,1) both', animationDelay: `${i * 0.1}s` }}>
+                  {sent}
+                </p>
+              ))}
+            </div>
+            {dots && <div style={{ marginTop: 8 }}>{dots}</div>}
+          </div>
+        )
+
+        // ── Variante 3 : Ghost Overlay ────────────────────────────
+        return (
+          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 22, pointerEvents: 'none' }}>
+            <style>{`@keyframes thoughtFadeIn { from { opacity:0; transform:translateY(12px) } to { opacity:1; transform:translateY(0) } }`}</style>
+            <div style={{ background: 'linear-gradient(to top, rgba(2,1,8,0.95) 0%, rgba(2,1,8,0.7) 40%, transparent 100%)', padding: '60px 22px 22px' }}>
+              {dots && <div style={{ marginBottom: 14 }}>{dots}</div>}
+              <div style={{ width: 28, height: 1, background: 'linear-gradient(to right, transparent, rgba(200,160,232,0.6), transparent)', margin: '0 auto 12px' }} />
+              <div style={{ textAlign: 'center' }}>
+                {visibleSentences.map((sent, i) => (
+                  <p key={i} style={{ margin: i > 0 ? '6px 0 0' : '0', fontFamily: 'Georgia, serif', fontSize: '17px', fontStyle: 'italic', color: '#edd9ff', lineHeight: 1.65, letterSpacing: '0.02em', textShadow: '0 2px 12px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.8)', animation: 'thoughtFadeIn 0.6s cubic-bezier(0.16,1,0.3,1) both', animationDelay: `${i * 0.12}s` }}>
+                    {sent}
+                  </p>
+                ))}
+              </div>
+              <div style={{ width: 28, height: 1, background: 'linear-gradient(to right, transparent, rgba(200,160,232,0.4), transparent)', margin: '12px auto 0' }} />
             </div>
           </div>
         )
@@ -7021,8 +7557,13 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
 
       {/* ── Overlay Préférences joueur ────────────────────────────── */}
       {showSettingsOverlay && settingsStep && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 50 }} onClick={() => setShowSettingsOverlay(false)}>
-          <SettingsStepPreview step={settingsStep} fullscreen />
+        <div style={{ position: 'absolute', inset: 0, zIndex: 50 }} onClick={simMode ? undefined : () => setShowSettingsOverlay(false)}>
+          <SettingsStepPreview
+            step={settingsStep}
+            fullscreen
+            simMode={simMode}
+            onSave={prefs => { onSavePlayerPrefs?.(prefs); setShowSettingsOverlay(false) }}
+          />
         </div>
       )}
     </div>
@@ -7066,6 +7607,13 @@ function GameSimTab({ bookId, sections, choices, npcs, protagonist, sectionLayou
   }, [sections, choices])
 
   const [currentId, setCurrentId] = React.useState<string | null>(null)
+  const [captionStyle, setCaptionStyle] = React.useState<1 | 2 | 3>(1)
+  const [textMode, setTextMode] = React.useState<'descriptif' | 'narratif'>('narratif')
+  const [thoughtStyle, setThoughtStyle] = React.useState<1 | 2 | 3>(3)
+  const [choiceStyle, setChoiceStyle] = React.useState<1 | 2 | 3>(3)
+  const openSettingsRef = React.useRef<(() => void) | null>(null)
+  const simPlayRef = React.useRef<{ playing: boolean; toggle: () => void } | null>(null)
+  const [simPlayingDisplay, setSimPlayingDisplay] = React.useState(true)
   React.useEffect(() => {
     if (reachableNodes.length > 0 && !currentId) setCurrentId(reachableNodes[0].id)
   }, [reachableNodes])
@@ -7109,6 +7657,15 @@ function GameSimTab({ bookId, sections, choices, npcs, protagonist, sectionLayou
     if (target) setCurrentId(target.id)
   }
 
+  async function handleSavePlayerPrefs(prefs: { sound: boolean; voice: boolean; mode: 1 | 2 }) {
+    setTextMode(prefs.mode === 2 ? 'narratif' : 'descriptif')
+    await fetch(`/api/books/${bookId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_prefs: { sound: prefs.sound, voice: prefs.voice, text_mode: prefs.mode } }),
+    })
+  }
+
   if (reachableNodes.length === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
@@ -7142,6 +7699,14 @@ function GameSimTab({ bookId, sections, choices, npcs, protagonist, sectionLayou
                   mangaEmotions={mangaEmotions}
                   settingsStep={settingsStep}
                   book={book}
+                  captionStyle={captionStyle}
+                  textMode={textMode}
+                  thoughtStyle={thoughtStyle}
+                  choiceStyle={choiceStyle}
+                  onSavePlayerPrefs={handleSavePlayerPrefs}
+                  openSettingsRef={openSettingsRef}
+                  simPlayRef={simPlayRef}
+                  onPlayingChange={setSimPlayingDisplay}
                 />
               )}
             </div>
@@ -7151,7 +7716,62 @@ function GameSimTab({ bookId, sections, choices, npcs, protagonist, sectionLayou
 
       {/* ── Panneau latéral — nœuds ── */}
       <div style={{ width: 260, background: '#0e0e14', borderLeft: '1px solid #1e1e28', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ padding: '1rem 1rem 0.5rem', borderBottom: '1px solid #1e1e28' }}>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Style dialogue</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([1, 2, 3] as const).map(n => {
+              const labels: Record<number, string> = { 1: '🔵 Neon', 2: '🟠 Ember', 3: '⚪ Spot' }
+              const active = captionStyle === n
+              return (
+                <button key={n} onClick={() => setCaptionStyle(n)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.58rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#d4a84c' : '#1e1e28'}`, background: active ? 'rgba(212,168,76,0.15)' : 'rgba(255,255,255,0.03)', color: active ? '#d4a84c' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {labels[n]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Mode texte</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {(['descriptif', 'narratif'] as const).map(m => {
+              const active = textMode === m
+              return (
+                <button key={m} onClick={() => setTextMode(m)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.58rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#a084c8' : '#1e1e28'}`, background: active ? 'rgba(160,132,200,0.15)' : 'rgba(255,255,255,0.03)', color: active ? '#c8a0e8' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {m === 'descriptif' ? '📖 Descriptif' : '💭 Narratif'}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Style pensées</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([1, 2, 3] as const).map(n => {
+              const labels: Record<number, string> = { 1: '🎬 Strip', 2: '💬 Manga', 3: '👻 Ghost' }
+              const active = thoughtStyle === n
+              return (
+                <button key={n} onClick={() => setThoughtStyle(n)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.58rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#a084c8' : '#1e1e28'}`, background: active ? 'rgba(160,132,200,0.15)' : 'rgba(255,255,255,0.03)', color: active ? '#c8a0e8' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {labels[n]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Style choix</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([1, 2, 3] as const).map(n => {
+              const labels: Record<number, string> = { 1: '⚒ Forge', 2: '📜 Scroll', 3: '💎 Ghost' }
+              const active = choiceStyle === n
+              return (
+                <button key={n} onClick={() => setChoiceStyle(n)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.58rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#d4a84c' : '#1e1e28'}`, background: active ? 'rgba(212,168,76,0.12)' : 'rgba(255,255,255,0.03)', color: active ? '#d4a84c' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {labels[n]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem 0.5rem', borderBottom: '1px solid #1e1e28' }}>
           <p style={{ margin: 0, fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>🎮 Nœuds chargés ({reachableNodes.length})</p>
           <p style={{ margin: '4px 0 0', fontSize: '0.6rem', color: 'var(--muted)' }}>BFS depuis §1 · cliquez pour naviguer</p>
         </div>
@@ -7179,7 +7799,15 @@ function GameSimTab({ bookId, sections, choices, npcs, protagonist, sectionLayou
             )
           })}
         </div>
-        <div style={{ padding: '0.75rem', borderTop: '1px solid #1e1e28' }}>
+        <div style={{ padding: '0.75rem', borderTop: '1px solid #1e1e28', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button
+            onClick={() => { simPlayRef.current?.toggle(); setSimPlayingDisplay(v => !v) }}
+            style={{ width: '100%', padding: '6px', borderRadius: 6, border: `1px solid ${simPlayingDisplay ? '#d4a84c88' : '#1e1e28'}`, background: simPlayingDisplay ? 'rgba(212,168,76,0.1)' : 'rgba(255,255,255,0.03)', color: simPlayingDisplay ? '#d4a84c' : 'var(--muted)', fontSize: '0.65rem', cursor: 'pointer', fontWeight: simPlayingDisplay ? 700 : 400 }}>
+            {simPlayingDisplay ? '⏸ Pause' : '▶ Lecture auto'}
+          </button>
+          <button onClick={() => openSettingsRef.current?.()} style={{ width: '100%', padding: '6px', borderRadius: 6, border: '1px solid #a084c844', background: 'rgba(160,132,200,0.08)', color: '#c8a0e8', fontSize: '0.65rem', cursor: 'pointer' }}>
+            ⚙ Préférences joueur
+          </button>
           <button onClick={() => onNavigate('section_layout')} style={{ width: '100%', padding: '6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--muted)', fontSize: '0.65rem', cursor: 'pointer' }}>
             ← Éditer la mise en page
           </button>
@@ -8302,10 +8930,12 @@ function PlayerSettingsTab({ bookId, introOrder, onSaved }: {
 
 // ── Settings Step Preview ─────────────────────────────────────────────────────
 
-function SettingsStepPreview({ step, scale = 1, fullscreen = false }: {
+function SettingsStepPreview({ step, scale = 1, fullscreen = false, simMode = false, onSave }: {
   step: import('@/types').IntroStep
   scale?: number
   fullscreen?: boolean
+  simMode?: boolean
+  onSave?: (prefs: { sound: boolean; voice: boolean; mode: 1 | 2 }) => void
 }) {
   const [soundOn, setSoundOn] = React.useState(true)
   const [voiceOn, setVoiceOn] = React.useState(true)
@@ -8361,9 +8991,13 @@ function SettingsStepPreview({ step, scale = 1, fullscreen = false }: {
         </div>
       ))}
 
-      {/* Bouton COMMENCER */}
-      <div style={{ width: '100%', marginTop: fullscreen ? '16px' : '10px', background: '#d4a84c', borderRadius: '4px', padding: fullscreen ? '12px' : '8px', textAlign: 'center', cursor: 'pointer' }}>
-        <span style={{ fontFamily: 'Georgia, serif', fontWeight: 900, fontStyle: 'italic', fontSize: fullscreen ? '13px' : '8.5px', color: '#0d0d0d', letterSpacing: '2px', textTransform: 'uppercase' }}>COMMENCER L'AVENTURE</span>
+      {/* Bouton COMMENCER / ENREGISTRE */}
+      <div
+        onClick={e => { e.stopPropagation(); if (simMode && onSave) onSave({ sound: soundOn, voice: voiceOn, mode }) }}
+        style={{ width: '100%', marginTop: fullscreen ? '16px' : '10px', background: '#d4a84c', borderRadius: '4px', padding: fullscreen ? '12px' : '8px', textAlign: 'center', cursor: 'pointer' }}>
+        <span style={{ fontFamily: 'Georgia, serif', fontWeight: 900, fontStyle: 'italic', fontSize: fullscreen ? '13px' : '8.5px', color: '#0d0d0d', letterSpacing: '2px', textTransform: 'uppercase' }}>
+          {simMode ? 'ENREGISTRE TON CHOIX' : "COMMENCER L'AVENTURE"}
+        </span>
       </div>
     </div>
   )
@@ -11901,7 +12535,7 @@ function FreesoundModal({ sectionType, onSelect, onClose }: {
 
 // ── SectionModal ──────────────────────────────────────────────────────────────
 
-type EditImage = { url?: string; description: string; description_fr?: string; style: string; includeProtagonist: boolean }
+type EditImage = { url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; style: string; includeProtagonist: boolean }
 
 function SectionModal({
   section, choices, book, npcs, sections,
@@ -12111,40 +12745,36 @@ function SectionModal({
             {openSubs.has(0) && (
               <div style={{ padding: '0.85rem', borderTop: '1px solid var(--border)' }}>
                 {/* Temps de lecture / décision */}
-                {(section.reading_time != null || section.decision_time != null) && (
-                  <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                    {section.reading_time != null && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.68rem', color: 'var(--muted)', background: 'var(--surface-2)', borderRadius: '4px', padding: '0.1rem 0.45rem' }}>
-                        📖
-                        <input type="number" min={3} max={300} defaultValue={section.reading_time}
-                          onBlur={async e => {
-                            const v = parseInt(e.target.value)
-                            if (!v || v === section.reading_time) return
-                            await fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reading_time: v }) })
-                            setSections(ss => ss.map(s => s.id === section.id ? { ...s, reading_time: v } : s))
-                          }}
-                          onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                          style={{ width: '38px', background: 'transparent', border: 'none', outline: 'none', color: 'var(--muted)', fontSize: '0.68rem', padding: 0, textAlign: 'right' }}
-                        /> s lecture
-                      </label>
-                    )}
-                    {section.decision_time != null && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.68rem', color: '#c9a84c', background: '#c9a84c18', borderRadius: '4px', padding: '0.1rem 0.45rem' }}>
-                        ⏳
-                        <input type="number" min={5} max={300} defaultValue={section.decision_time}
-                          onBlur={async e => {
-                            const v = parseInt(e.target.value)
-                            if (!v || v === section.decision_time) return
-                            await fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision_time: v }) })
-                            setSections(ss => ss.map(s => s.id === section.id ? { ...s, decision_time: v } : s))
-                          }}
-                          onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-                          style={{ width: '38px', background: 'transparent', border: 'none', outline: 'none', color: '#c9a84c', fontSize: '0.68rem', padding: 0, textAlign: 'right' }}
-                        /> s décision
-                      </label>
-                    )}
-                  </div>
-                )}
+                <div style={{ display: 'flex', gap: '0.6rem', marginBottom: '0.65rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.68rem', color: 'var(--muted)', background: 'var(--surface-2)', borderRadius: '4px', padding: '0.1rem 0.45rem' }}>
+                    📖
+                    <input type="number" min={3} max={300} defaultValue={section.reading_time ?? ''}
+                      placeholder="—"
+                      onBlur={async e => {
+                        const v = e.target.value === '' ? null : parseInt(e.target.value)
+                        if (v === section.reading_time) return
+                        await fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reading_time: v }) })
+                        setSections(ss => ss.map(s => s.id === section.id ? { ...s, reading_time: v } : s))
+                      }}
+                      onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                      style={{ width: '38px', background: 'transparent', border: 'none', outline: 'none', color: 'var(--muted)', fontSize: '0.68rem', padding: 0, textAlign: 'right' }}
+                    /> s lecture
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.68rem', color: '#c9a84c', background: '#c9a84c18', borderRadius: '4px', padding: '0.1rem 0.45rem' }}>
+                    ⏳
+                    <input type="number" min={5} max={300} defaultValue={section.decision_time ?? ''}
+                      placeholder="—"
+                      onBlur={async e => {
+                        const v = e.target.value === '' ? null : parseInt(e.target.value)
+                        if (v === section.decision_time) return
+                        await fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision_time: v }) })
+                        setSections(ss => ss.map(s => s.id === section.id ? { ...s, decision_time: v } : s))
+                      }}
+                      onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                      style={{ width: '38px', background: 'transparent', border: 'none', outline: 'none', color: '#c9a84c', fontSize: '0.68rem', padding: 0, textAlign: 'right' }}
+                    /> s décision
+                  </label>
+                </div>
 
                 <label style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.3rem' }}>
                   Résumé (max 12 mots)
@@ -12240,11 +12870,22 @@ function SectionModal({
                       rows={2}
                       style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.4rem 0.5rem', color: 'var(--foreground)', fontSize: '0.8rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '0.25rem' }}
                     />
-                    {editImages[i]?.description_fr && (
-                      <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontStyle: 'italic', marginBottom: '0.4rem', padding: '0 0.25rem' }}>
-                        🇫🇷 {editImages[i].description_fr}
-                      </div>
-                    )}
+                    {(editImages[i]?.prompt_fr !== undefined || editImages[i]?.description_fr) ? (
+                      <textarea
+                        value={editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''}
+                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: e.target.value } : img))}
+                        placeholder="Description du plan en français…"
+                        rows={2}
+                        style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.4rem 0.5rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '0.25rem' }}
+                      />
+                    ) : null}
+                    <textarea
+                      value={editImages[i]?.thought ?? ''}
+                      onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, thought: e.target.value } : img))}
+                      placeholder="💭 Pensée du protagoniste…"
+                      rows={2}
+                      style={{ width: '100%', background: 'var(--surface)', border: '1px solid #a084c822', borderRadius: '4px', padding: '0.4rem 0.5rem', color: '#c8a0e8', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '0.25rem', fontStyle: 'italic' }}
+                    />
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
                       <select value={editImages[i]?.style ?? 'realistic'} onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, style: e.target.value } : img))} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.5rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', cursor: 'pointer' }}>
                         <option value="realistic">🖼️ Réaliste</option>
@@ -12281,7 +12922,7 @@ function SectionModal({
                           // Save clean URL (without cache-buster) to DB
                           const cleanImages = newImgs
                             .filter(img => img.url || img.description.trim())
-                            .map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any }))
+                            .map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined }))
                           fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImages }) })
                           setSections(ss => ss.map(s => s.id === section.id ? { ...s, images: cleanImages } : s))
                         }}
@@ -12289,7 +12930,7 @@ function SectionModal({
                     </div>
                     {editImages[i]?.description.trim() && !editImages[i]?.url && (
                       <button onClick={() => {
-                        const cleanImages = editImages.filter(img => img.url || img.description.trim()).map(img => ({ url: img.url, description: img.description, style: img.style as any }))
+                        const cleanImages = editImages.filter(img => img.url || img.description.trim() || img.thought?.trim()).map(img => ({ url: img.url, description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined }))
                         fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImages }) })
                         setSections(ss => ss.map(s => s.id === section.id ? { ...s, images: cleanImages } : s))
                       }} style={{ marginTop: '0.3rem', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem' }}>

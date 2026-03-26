@@ -72,7 +72,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         // Load sections + choices + locations
         const { data: sections } = await supabaseAdmin
           .from('sections')
-          .select('id, number, summary, content, narrative_arc, is_ending, ending_type, trial, location_id')
+          .select('id, number, summary, content, narrative_arc, is_ending, ending_type, trial, location_id, images')
           .eq('book_id', id)
           .order('number')
 
@@ -134,6 +134,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         let written = 0
+        const writtenContent = new Map<string, { id: string; number: number; summary: string; content: string; type: string }>()
 
         // Process in batches
         for (let batchStart = 0; batchStart < total; batchStart += BATCH_SIZE) {
@@ -179,6 +180,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             if (content && !isStubContent(content)) {
               await supabaseAdmin.from('sections').update({ content, status: 'draft' }).eq('id', s.id)
               written++
+              writtenContent.set(s.id, { id: s.id, number: s.number, summary: s.summary ?? `Section ${s.number}`, content, type: sectionType(s) })
               controller.enqueue(send({ type: 'section_done', number: s.number, written, total }))
             } else {
               controller.enqueue(send({ type: 'section_skipped', number: s.number, reason: content ? 'stub_content' : 'not_in_response' }))
@@ -201,12 +203,65 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               if (retryContent && !isStubContent(retryContent)) {
                 await supabaseAdmin.from('sections').update({ content: retryContent, status: 'draft' }).eq('id', s.id)
                 written++
+                writtenContent.set(s.id, { id: s.id, number: s.number, summary: s.summary ?? `Section ${s.number}`, content: retryContent, type: sectionType(s) })
                 controller.enqueue(send({ type: 'section_done', number: s.number, written, total }))
               } else {
                 controller.enqueue(send({ type: 'section_failed', number: s.number, reason: 'stub_after_retry' }))
               }
             } catch (retryErr: any) {
               controller.enqueue(send({ type: 'section_failed', number: s.number, reason: retryErr.message }))
+            }
+          }
+
+          // ── Passe 2 : plans + pensées du PJ ────────────────────────────────
+          const batchWritten = batch.filter(s => writtenContent.has(s.id))
+          if (batchWritten.length > 0) {
+            controller.enqueue(send({ type: 'pass2_start', sections: batchWritten.map(s => s.number) }))
+            try {
+              const pass2Sections = batchWritten.map(s => writtenContent.get(s.id)!)
+              const pass2User = [
+                `LIVRE : ${book.title}`,
+                `THÈME : ${book.theme}`,
+                book.protagonist_description ? `PROTAGONISTE : ${book.protagonist_description}` : '',
+                '',
+                'Pour chaque section ci-dessous, génère exactement 4 plans visuels séquencés dans ce format :',
+                '§§NUMÉRO§§',
+                '[{"prompt_fr":"description visuelle en français (1-2 phrases)","prompt_en":"english visual description (1-2 sentences)","thought":"pensée intime du protagoniste, langage jeune et brut (1-2 phrases)"},...]',
+                '',
+                '---',
+                ...pass2Sections.map(s =>
+                  `§§${s.number}§§\nRÉSUMÉ : ${s.summary}\nTYPE : ${s.type}\nTEXTE : ${s.content.slice(0, 400)}`
+                ),
+              ].filter(Boolean).join('\n')
+
+              const rawPlans = await callMistral(
+                'Tu es un storyboarder pour un livre-jeu interactif. Pour chaque section, génère exactement 4 plans visuels séquencés. Utilise le format §§N§§ suivi d\'un tableau JSON strict. La pensée du protagoniste doit être en langage jeune/urbain, brute et émotionnelle — jamais neutre. Réponds UNIQUEMENT dans le format demandé, sans commentaire.',
+                pass2User,
+                Math.min(8000, batchWritten.length * 900)
+              )
+              const plansMap = parseContentMap(rawPlans)
+              for (const s of batchWritten) {
+                const raw = plansMap.get(s.number)
+                if (!raw) continue
+                try {
+                  const jsonStr = raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '')
+                  const plans = JSON.parse(jsonStr) as Array<{ prompt_fr?: string; prompt_en?: string; thought?: string }>
+                  if (!Array.isArray(plans) || plans.length < 1) continue
+                  const existingImgs: any[] = (s as any).images ?? []
+                  const images = Array.from({ length: 4 }, (_, idx) => ({
+                    ...(existingImgs[idx] ?? {}),
+                    prompt_fr: plans[idx]?.prompt_fr || undefined,
+                    prompt_en: plans[idx]?.prompt_en || undefined,
+                    thought: plans[idx]?.thought || undefined,
+                  }))
+                  await supabaseAdmin.from('sections').update({ images }).eq('id', s.id)
+                  controller.enqueue(send({ type: 'plans_done', number: s.number }))
+                } catch {
+                  controller.enqueue(send({ type: 'plans_error', number: s.number, reason: 'parse_failed' }))
+                }
+              }
+            } catch (pass2Err: any) {
+              controller.enqueue(send({ type: 'pass2_error', message: pass2Err.message }))
             }
           }
         }

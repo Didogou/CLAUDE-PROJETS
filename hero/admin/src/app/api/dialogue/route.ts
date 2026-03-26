@@ -40,6 +40,7 @@ export interface MangaNpcResponse {
   agrees: boolean
   emotion: string
   test_result: 'success' | 'partial' | 'failure'
+  suggested_choice_id?: string | null
 }
 
 export interface DialogueRequest {
@@ -59,11 +60,10 @@ export interface DialogueRequest {
   address_form?: 'tu' | 'vous'
   section_context: string
   tension_level: number    // 0–10
-  // mode question
+  // mode question / post_choice / manga_group — choices available to the player
   is_intervention?: boolean
-  // mode post_choice
   chosen_choice?: { label: string; section_number: number }
-  choices?: { label: string; section_number: number }[]
+  choices?: { id?: string; label: string; section_number?: number }[]
   book_theme: string
   age_range: string
   past_encounters?: PastEncounter[]
@@ -134,6 +134,14 @@ JSON uniquement : { "questions": ["...", "...", "..."] }`
         ? `Le joueur pose la question : "${player_question}"`
         : `Génère aussi une courte question contextuelle que le joueur pose au groupe (5-8 mots, ${address_form === 'tu' ? 'tutoiement' : 'vouvoiement'}).`
 
+      const choicesBlock = choices.length > 0
+        ? `\nChoix narratifs disponibles pour le joueur :\n${choices.map((c, i) => `  ${i + 1}. id="${c.id ?? i}" → "${c.label}"`).join('\n')}\n`
+        : ''
+
+      const suggestedChoiceRule = choices.length > 0
+        ? `- "suggested_choice_id" : si le PNJ conseille clairement un des choix ci-dessus (test_result "success" d'un allié, ou tromperie d'un ennemi), mets l'id exact du choix suggéré. Sinon null.`
+        : ''
+
       const prompt = `Tu gères un dialogue de groupe dans un roman "Dont Vous Êtes le Héros" (thème : ${book_theme}, public : ${age_range} ans).
 
 Contexte : ${section_context}
@@ -141,7 +149,7 @@ Tension : ${tension_level}/10 (${tensionDesc})
 
 Personnages présents :
 ${npcList}
-
+${choicesBlock}
 ${questionLine}
 
 Le premier PNJ (${primaryNpc.name}) est le principal — les autres réagissent à sa réponse ET à la question du joueur.
@@ -150,11 +158,12 @@ Pour chaque PNJ génère une réponse de 2 phrases + 1 phrase de clôture (3 au 
 - "agrees" : true si le PNJ approuve globalement la position du PNJ principal, false s'il s'y oppose
 - "emotion" : DOIT être une des émotions disponibles du PNJ (ou "neutre" si la liste est vide)
 - "test_result" : résultat narratif pour ce PNJ ("success" | "partial" | "failure") selon son intelligence (${primaryNpc.intelligence}/20) et la tension (${tension_level}/10)
+${suggestedChoiceRule}
 
 JSON uniquement — utilise exactement la valeur npc_id="..." de chaque PNJ ci-dessus :
 {
   ${!player_question ? '"player_question": "...",\n  ' : ''}"npc_responses": [
-    { "npc_id": "${npcs[0]?.id ?? 'uuid-du-pnj'}", "text": "réplique avec [tag]", "agrees": true, "emotion": "...", "test_result": "success" }
+    { "npc_id": "${npcs[0]?.id ?? 'uuid-du-pnj'}", "text": "réplique avec [tag]", "agrees": true, "emotion": "...", "test_result": "success"${choices.length > 0 ? ', "suggested_choice_id": "id-du-choix-ou-null"' : ''} }
   ]
 }`
 
@@ -175,6 +184,9 @@ JSON uniquement — utilise exactement la valeur npc_id="..." de chaque PNJ ci-d
         return NextResponse.json({ error: 'parse error', raw }, { status: 500 })
       }
     }
+
+    // Guard : les modes suivants requièrent un npc
+    if (!npc) return NextResponse.json({ error: 'npc required' }, { status: 400 })
 
     // ── Mode résumé mémoriel ────────────────────────────────────────────────
     if (generate_memory_summary) {
