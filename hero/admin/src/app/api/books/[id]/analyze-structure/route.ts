@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { anthropic, extractJson } from '@/lib/ai-utils'
 
 const VALID_TRIAL_TYPES = new Set(['combat', 'agilite', 'intelligence', 'magie', 'chance', 'crochetage', 'dialogue', 'enigme'])
 
@@ -167,7 +168,24 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // 7. Significant backward links (>15 sections back)
+  // 7. Choix sans cible (target_section_id = null)
+  for (const c of choicesArr) {
+    if (c.target_section_id === null) {
+      const sec = sectionById.get(c.section_id)
+      issues.push({
+        id: `choice_no_target_${c.id}`,
+        severity: 'critical',
+        type: 'choice_no_target',
+        sections: [sec?.number ?? 0],
+        section_id: c.section_id,
+        choice_id: c.id,
+        description: `§${sec?.number ?? '?'} : le choix "${c.label}" n'a pas de section cible — joueur bloqué.`,
+        manual: { fields: [{ key: 'target_section_number', label: 'Rediriger vers la section n°', placeholder: 'ex: 91' }], action: 'fix_choice_target', static_params: { choice_id: c.id } },
+      })
+    }
+  }
+
+  // 8. Significant backward links (>15 sections back)
   for (const c of choicesArr) {
     const from = sectionById.get(c.section_id)
     const to = c.target_section_id ? sectionById.get(c.target_section_id) : null
@@ -184,7 +202,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  // 8. Mutual cycles (A→B→A, not self-loops)
+  // 9. Cycles (mutuels A↔B et longs A→B→C→A)
   const targetMap = new Map<string, string[]>()
   for (const c of choicesArr) {
     if (c.target_section_id && c.target_section_id !== c.section_id) {
@@ -193,6 +211,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
   const reportedCycles = new Set<string>()
+
+  // Cycles mutuels (A↔B)
   for (const [sId, targets] of targetMap) {
     for (const tId of targets) {
       if ((targetMap.get(tId) ?? []).includes(sId)) {
@@ -210,6 +230,63 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
           })
         }
       }
+    }
+  }
+
+  // Cycles longs à 3 nœuds (A→B→C→A)
+  for (const [aId, aTargets] of targetMap) {
+    for (const bId of aTargets) {
+      for (const cId of (targetMap.get(bId) ?? [])) {
+        if (cId !== aId && (targetMap.get(cId) ?? []).includes(aId)) {
+          const aN = sectionById.get(aId)?.number ?? 0
+          const bN = sectionById.get(bId)?.number ?? 0
+          const cN = sectionById.get(cId)?.number ?? 0
+          const key = [aN, bN, cN].sort((a, b) => a - b).join('_')
+          if (!reportedCycles.has(key)) {
+            reportedCycles.add(key)
+            issues.push({
+              id: `long_cycle_${key}`,
+              severity: 'narrative',
+              type: 'long_cycle',
+              sections: [aN, bN, cN],
+              description: `§${aN} → §${bN} → §${cN} → §${aN} : cycle à 3 sections — risque de boucle narrative.`,
+            })
+          }
+        }
+      }
+    }
+  }
+
+  // 10. Sections orphelines (BFS exhaustif depuis §1)
+  const startSec = sectionsArr.find(s => s.number === 1)
+  if (startSec) {
+    const reachable = new Set<string>([startSec.id])
+    const bfsQueue = [startSec.id]
+    while (bfsQueue.length > 0) {
+      const cur = bfsQueue.shift()!
+      const sec = sectionById.get(cur)
+      if (!sec || sec.is_ending) continue
+      const trial = sec.trial
+      for (const nextId of [trial?.success_section_id, trial?.failure_section_id].filter((x): x is string => !!x)) {
+        if (!reachable.has(nextId)) { reachable.add(nextId); bfsQueue.push(nextId) }
+      }
+      for (const c of outgoing.get(cur) ?? []) {
+        if (c.target_section_id && !reachable.has(c.target_section_id)) {
+          reachable.add(c.target_section_id); bfsQueue.push(c.target_section_id)
+        }
+      }
+    }
+    for (const sec of sectionsArr) {
+      if (sec.is_ending || sec.number === 1 || reachable.has(sec.id)) continue
+      issues.push({
+        id: `orphan_${sec.number}`,
+        severity: 'narrative',
+        type: 'orphan_section',
+        sections: [sec.number],
+        section_id: sec.id,
+        description: `§${sec.number} : section orpheline — aucun chemin depuis §1 ne l'atteint.`,
+        autofix: { label: 'Connecter automatiquement (IA)', action: 'connect_orphan', params: { section_id: sec.id } },
+      })
     }
   }
 
@@ -292,6 +369,83 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (error) throw error
         return NextResponse.json({ ok: true })
       }
+      case 'connect_orphan': {
+        // Charger la section orpheline
+        const { data: orphan } = await supabaseAdmin
+          .from('sections').select('id, number, summary').eq('id', p.section_id).single()
+        if (!orphan) return NextResponse.json({ error: 'Section introuvable' }, { status: 404 })
+
+        // Charger toutes les sections + choix pour reconstruire le graphe
+        const { data: allSections } = await supabaseAdmin
+          .from('sections').select('id, number, summary, is_ending, trial')
+          .eq('book_id', id).order('number')
+        const allSectionIds = (allSections ?? []).map((s: any) => s.id)
+        const { data: allChoices } = await supabaseAdmin
+          .from('choices').select('section_id, target_section_id')
+          .in('section_id', allSectionIds)
+
+        // BFS pour trouver les sections accessibles depuis §1
+        const secMap  = new Map((allSections ?? []).map((s: any) => [s.id, s]))
+        const numToId = new Map((allSections ?? []).map((s: any) => [s.number, s.id]))
+        const outMap  = new Map<string, string[]>()
+        for (const c of allChoices ?? []) {
+          if (!c.target_section_id) continue
+          if (!outMap.has(c.section_id)) outMap.set(c.section_id, [])
+          outMap.get(c.section_id)!.push(c.target_section_id)
+        }
+        const startId = numToId.get(1)
+        const reachable = new Set<string>()
+        if (startId) {
+          const q = [startId]; reachable.add(startId)
+          while (q.length > 0) {
+            const cur = q.shift()!
+            const s = secMap.get(cur) as any
+            if (!s || s.is_ending) continue
+            const t = s.trial as any
+            for (const nextId of [t?.success_section_id, t?.failure_section_id].filter(Boolean)) {
+              if (!reachable.has(nextId)) { reachable.add(nextId); q.push(nextId) }
+            }
+            for (const nextId of outMap.get(cur) ?? []) {
+              if (!reachable.has(nextId)) { reachable.add(nextId); q.push(nextId) }
+            }
+          }
+        }
+
+        // Candidats : sections accessibles, non-fins, proches du numéro de l'orpheline
+        const orphanNum = orphan.number as number
+        const candidates = (allSections ?? [])
+          .filter((s: any) => reachable.has(s.id) && !s.is_ending && s.id !== orphan.id)
+          .sort((a: any, b: any) => Math.abs(a.number - orphanNum) - Math.abs(b.number - orphanNum))
+          .slice(0, 20)
+          .map((s: any) => `§${s.number}: ${s.summary ?? '(sans résumé)'}`)
+        if (!candidates.length)
+          return NextResponse.json({ error: 'Aucune section accessible pour connecter cette orpheline' }, { status: 422 })
+
+        // Haiku choisit le meilleur prédécesseur et génère le libellé du choix
+        const msg = await anthropic.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 256,
+          messages: [{ role: 'user', content: `Section orpheline §${orphanNum} : "${orphan.summary ?? ''}"\n\nSections accessibles candidates (à connecter vers §${orphanNum}) :\n${candidates.join('\n')}\n\nQuelle section devrait avoir un choix menant à §${orphanNum} ? Libellé immersif (3-5 mots).\nJSON brut : {"predecessor_number": N, "label": "..."}` }],
+        })
+        const raw  = msg.content[0].type === 'text' ? msg.content[0].text : ''
+        const fix  = JSON.parse(extractJson(raw))
+        const pred = (allSections ?? []).find((s: any) => s.number === fix.predecessor_number) as any
+        if (!pred) return NextResponse.json({ error: `Section §${fix.predecessor_number} introuvable` }, { status: 404 })
+
+        const { data: existingOut } = await supabaseAdmin
+          .from('choices').select('sort_order').eq('section_id', pred.id)
+          .order('sort_order', { ascending: false }).limit(1)
+        const nextOrder = ((existingOut?.[0]?.sort_order ?? -1) + 1)
+
+        const { error } = await supabaseAdmin.from('choices').insert({
+          section_id: pred.id, target_section_id: orphan.id,
+          label: fix.label || `Continuer`, requires_trial: false,
+          sort_order: nextOrder, is_back: false,
+        })
+        if (error) throw error
+        return NextResponse.json({ ok: true, message: `§${pred.number} → §${orphanNum} connectées ("${fix.label}")` })
+      }
+
       default:
         return NextResponse.json({ error: `Action inconnue: ${action}` }, { status: 400 })
     }

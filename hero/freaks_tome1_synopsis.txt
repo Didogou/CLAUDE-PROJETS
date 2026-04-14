@@ -1,0 +1,822 @@
+> NOTE TECHNIQUE — GÉNÉRATION :
+> - Niveau de détail : micro-narratif. Chaque section couvre
+>   30 secondes à 2 minutes de jeu (une décision, un obstacle,
+>   un échange).
+> - La mort de Zac est un événement narratif, pas un game-over.
+>   Retirer Zac de companion_npc_ids à partir de sa section de disparition
+>   sur chaque chemin. Sa mort est révélée visuellement dans la section finale.
+> - Une seule fin victoire (amère). Toutes les autres fins = mort du joueur.
+
+---
+
+# Freaks — TOME 1 : LE BRONX
+## Document de Synopsis — Projet Livre-Jeu
+
+---
+
+## CONTEXTE ET POINT DE DÉPART
+
+New York, été 2000. La chaleur de la journée colle encore aux trottoirs
+du Bronx lorsque la nuit tombe sur Van Cortlandt Park. Des centaines de
+membres de gangs de toute la ville se sont réunis à l'appel de Cypress,
+le leader visionnaire des Reapers, qui rêve d'unifier tous les
+gangs de New York sous une bannière commune. Tu es Travis, lieutenant
+des Freaks, un gang de Coney Island venu en délégation comme tous les
+autres — désarmés, selon le pacte, six hommes représentant leur couleur
+face à la ville entière.
+
+L'événement déclencheur est brutal et immédiat : au milieu du discours
+de Cypress, un coup de feu claque. Le leader tombe. Dans la confusion qui
+suit, Pastor B., chef psychopathe des Grinders, pointe son doigt vers tes
+hommes et crie que ce sont les Freaks qui ont tiré. La foule bascule
+en une seconde. Des centaines de regards se fixent sur toi avec une
+haine froide et unanime. La fuite est la seule option.
+
+Vous êtes six : Toi, Travis le tacticien, Shawn l'impulsif, Zac le discret,
+James le fidèle, Jesse le malin, Adam le silencieux. Le Bronx
+appartient au gang des Reapers. Dès cette première nuit, une voix douce
+et presque hypnotique résonne depuis un poste abandonné sur un banc du
+parc — la DJ de Radio One. Elle annonce que la tête des Freaks est mise à
+prix. Sa voix reviendra depuis des bodegas, des voitures, des fenêtres
+ouvertes — fil rouge sonore de toute la traversée, avant que le groupe
+ait sa propre radio.
+
+---
+
+## ENJEUX ET OBJECTIF PRINCIPAL
+
+L'objectif est simple à énoncer, impossible à accomplir : atteindre
+la station 161st Street-Yankee Stadium vivants pour prendre le métro
+vers Harlem et tenter de rentrer. Chaque gang de New York a désormais une raison de te tuer.
+La tête des Freaks est mise à prix.
+
+L'enjeu profond est celui de la cohésion du groupe sous pression extrême.
+Travis doit garder ses hommes ensemble — y compris Shawn, dont l'impulsivité
+peut tout faire exploser —, traverser un territoire qu'il ne connaît pas,
+et prendre des décisions dont certaines coûteront peut-être une vie.
+Dès ce premier tome, la question se pose : jusqu'où Travis est-il prêt
+à sacrifier un homme pour sauver les autres ?
+
+Les Reapers contrôlent les rues du Bronx. Leur nouveau chef Krugger est
+méthodique, ses sentinelles sont postées à chaque carrefour stratégique.
+Krugger n'apparaît qu'une seule fois de tout le tome — en bas de l'escalier
+nord du quai de 161st Street, immobile, qui regarde la rame partir. Il ne
+court pas. Il marche. Il regarde Travis. Pas un mot.
+
+---
+
+## STRUCTURE DU TOME
+
+Le tome est organisé en trois blocs narratifs distincts :
+
+```
+Tronc commun départ : ~40-50 sections  (Van Cortlandt Park → Kingsbridge Armory)
+Chemin A            : ~80 sections     (métro ligne 1 → rues → ligne D)
+Chemin B            : ~80 sections     (rues, 100% surface)
+Chemin C            : ~80 sections     (toits et berges)
+Tronc victoire      : ~10-15 sections  (161st Street-Yankee Stadium)
+```
+
+Le groupe reste ensemble pendant tout le tronc commun. La grande bifurcation
+a lieu à la Kingsbridge Armory, sous adrénaline, en quelques secondes.
+Les trois chemins convergent à 161st Street pour la scène finale.
+
+---
+
+## TRONC COMMUN — DÉPART
+### Van Cortlandt Park → Kingsbridge Armory (~40-50 sections)
+
+Le récit commence dans le parc plongé dans l'obscurité, les néons lointains
+dessinant des halos orangés dans la brume. Le groupe se reconstitue dans la
+panique des premières minutes.
+
+Premier choix dans le parc : se cacher dans les bois près de Van Cortlandt
+Lake — La Carte est trouvée ici (carte du Bronx identifiant angles morts et
+raccourcis, premier objet du jeu, positionné visuellement sur l'image de
+scène) — les lampes torches des Reapers arrivent, fuite forcée. Ou fuir
+immédiatement par la lisière est. Les deux options convergent à la sortie
+du parc.
+
+La rencontre avec Faye survient à la sortie : coincée entre deux patrouilles
+des Reapers, elle propose un marché. Elle connaît les horaires des sentinelles
+et les angles morts du dispositif de Krugger. En échange : une escorte jusqu'à
+la station suivante. Le Paquet de cigarettes facilite la négociation. Si la
+confiance est accordée, elle donne le Couteau. Premier choix moral du tome.
+
+Le groupe choisit ensuite un des trois axes pour rejoindre la Kingsbridge
+Armory — ils restent ensemble sur tout le trajet.
+
+### AXE 1 — Jerome Avenue (sous les rails du métro aérien)
+Tension mécanique : ne pas faire de bruit, ne pas déclencher. Les piliers
+en béton du métro aérien créent un couloir de chausse-trappes sonores.
+Trois obstacles successifs : guetteurs avec voiture en travers West 238th
+(attendre la rame, allée du garage — Shawn peut faire tomber un bidon →
+COMBAT Drez matraque, James parle aux guetteurs → COMBAT si échec) ; Reapers
+sur le quai aérien West 235th avec lampes torches (s'aplatir contre les
+piliers, porte d'entrepôt — Shawn veut courir, Travis retient : tension
+Travis/Shawn) ; Reaper isolé à la station-service West 231st (Jesse arnaque →
+COMBAT Rooks couteau si raté, contourner par derrière).
+
+### AXE 2 — Sedgwick Avenue / Bailey Avenue (quartier résidentiel)
+Tension de la normalité : des civils sont là, des enfants sur les perrons.
+Se trahir soi-même est le vrai danger. Voiture Reapers en ronde lente sur
+Bailey Avenue — Adam prend la tête et règle l'allure, son silence devient
+une arme. Bodega sur Sedgwick/233rd contrôlé par deux Reapers — Jesse entre
+comme client en diversion, attendre qu'ils rentrent, ruelle derrière → COMBAT
+Rooks couteau. Cour intérieure d'immeuble — une vieille femme les voit et
+reconnaît les couleurs : Travis lui fait signe humainement, Jesse lui parle
+doucement, Shawn fait un geste menaçant → elle crie → COMBAT Reapers de quartier.
+
+### AXE 3 — Les hauteurs (Riverdale / Fort Independence Park)
+Travis dans son élément — hauteur, observation, maîtrise. Seul axe avec
+avantage informationnel. Montée boisée depuis la sortie sud-ouest du parc :
+Travis prend naturellement la tête, Shawn s'impatiente, James calme.
+Descente aux berges de la Harlem River : seul moment de répit du tome —
+zone sans patrouille, eau noire et silence. James demande à Travis :
+"Tu penses qu'on va s'en sortir ?" Travis ne répond pas. Point de vue depuis
+le sommet — Travis observe les rotations de Krugger (débloque angle mort au
+beat suivant), ou neutralise T-Rex sur son toit → COMBAT chaîne → Veste de
+Reap's. Descente Fort Independence Park : traverser pendant l'angle mort
+(uniquement si rotations observées), escaliers de secours, Jesse en diversion
+→ COMBAT si Jesse coincé.
+
+### Convergence : Kingsbridge Armory
+Les trois axes aboutissent ici — la base avancée de Krugger, bâtiment
+quasi-médiéval éclairé de l'intérieur. Deux sections d'approche : Travis
+repère un Reaper légèrement en retrait avec une radio à la ceinture. Travis
+part seul — vol furtif au passage d'une rame, diversion Jesse 3 secondes,
+ou Reaper qui pose la radio sur un capot. Si repéré : alarme immédiate.
+
+La Radio est obtenue ici, à la jonction — garantie pour tous les chemins.
+
+La cavalcade : un Reaper les voit. Piège en tenaille sur Kingsbridge Road —
+passer en force (ÉPREUVE DE FORCE, Shawn ouvre le passage) ou se faufiler sous
+les rails Jerome Avenue (ÉPREUVE D'AGILITÉ). Si demi-tour vers McClellan Street :
+voiture bloque l'intersection — forcer la porte de service métallique (ÉPREUVE
+DE FORCE) ou sauter par-dessus les capots (ÉPREUVE D'AGILITÉ). Travis crie une
+direction en courant. Les trois chemins s'ouvrent.
+
+---
+
+## CHEMINS PARALLÈLES
+
+### CARTE NARRATIVE SYNTHÉTIQUE
+
+```
+                              Van Cortlandt Park
+                                     |
+                    [Axe 1 : Jerome Ave]  [Axe 2 : Sedgwick/Bailey]  [Axe 3 : Riverdale/Hauteurs]
+                                     |
+                              Kingsbridge Armory  ←── Radio obtenue ici
+                                     |
+             CHEMIN A ──────────────>|<────────────── CHEMIN B ──────────────>|<──────── CHEMIN C
+         (métro ligne 1)             |             (rues, surface)            |        (toits/berges)
+              |                      |                    |                   |              |
+       Marble Hill/231st             |            Jerome Ave / Fordham        |     Kingsbridge toits
+       (Carte de métro)              |            (Batte, Cigarettes)         |       → Harlem River
+              |                      |                    |                   |              |
+       Rame ligne 1                  |             Mission solo Travis        |      Mission solo Travis
+              |                      |              → Plan annoté             |       → 4 visages
+       Sortie forcée                 |               → 4 visages              |              |
+              |                      |                    |                   |     T-Rex sur les toits
+       Grand Concourse               |           University Heights           |     (COMBAT inévitable)
+              |                      |              T-Rex (toits)             |              |
+       Station 170th St              |                    |                   |    Descente arrière-cours
+              |                      |           Ruelles Yankee Stadium       |              |
+              |______________________|___________________|___________________|
+                                            |
+                                   161st Street-Yankee Stadium
+                                    Tronc commun — Victoire
+```
+
+---
+
+### CHEMIN A — Métro → Rues → Métro
+
+Depuis la bifurcation, Travis crie "La station !" Le groupe court vers
+Broadway — 7 blocs à l'ouest depuis la Kingsbridge Armory — pour accéder
+à la station Marble Hill/231st Street, ligne 1 direction sud. Si Faye a été
+acceptée dans le tronc, ses infos sur les patrouilles indiquent quelles
+stations sont surveillées — avantage immédiat dès l'approche.
+
+Beat 1 — Accès station Marble Hill : Reapers postés en surface devant
+l'entrée. Entrée de service grille forcée (ÉPREUVE D'AGILITÉ) ; Jesse achète
+des tickets comme civil, le groupe descend un par un ; attendre le passage
+d'une rame (fenêtre de 15 secondes). Si repérés : COMBAT Reapers de surface.
+La Carte de métro est trouvée sur le quai — elle identifie les stations avec
+patrouilles Reapers connues, utile pour toute la suite.
+
+Beat 2 — Sur le quai : un homme en civil sur le banc d'en face. Regard neutre.
+Peut-être un Reaper, peut-être pas. Monter immédiatement, attendre la suivante,
+se disperser dans différents wagons.
+
+Beat 3 — Dans la rame (tension statique) : l'homme monte lui aussi. La rame
+est un monde à part — civils ordinaires, néons, bruit des rails. Contraste brutal
+avec les rues. Zac est assis légèrement à l'écart, regarde par la fenêtre —
+sa discrétion dans l'espace confiné devient presque une absence. Personne
+ne le surveille vraiment.
+
+Beat 4 — Sortie forcée : checkpoint Reapers visible sur le quai de Burnside.
+Sortir en urgence à la station précédente, ou traverser les wagons jusqu'à
+la porte de communication (ÉPREUVE D'AGILITÉ). Retour en surface.
+
+Beat 5 — Grand Concourse à pied : avenue large et exposée. La Carte de métro
+aide à identifier les angles morts. Zac progresse toujours légèrement en
+retrait — présence de plus en plus silencieuse, de plus en plus périphérique.
+
+Beat 6 — L'incident Shawn : une sentinelle isolée des Reapers. Shawn veut
+la neutraliser. Travis retient avec force (James appuie) — Zac disparaît
+quelques sections plus loin, personne ne remarque exactement quand. Laisser
+faire Shawn → COMBAT sentinelle → Zac s'interpose → disparaît hors-champ.
+Jesse détourne → Zac disparaît quand même, un peu plus loin. Dans les trois
+cas, Zac ne remonte pas.
+
+Beat 7 — Station 170th Street, ligne D : Travis compte. Shawn. James. Jesse.
+Adam. Cinq. Personne ne dit le nom de Zac. La rame D entre en gare.
+
+Objets disponibles : Carte de métro (Beat 1, quai Marble Hill), Radio
+(depuis la jonction), Couteau (si Faye acceptée)
+Combats : Beat 1 si entrée ratée / Beat 6 si Shawn incontrôlable
+
+---
+
+### CHEMIN B — 100% Rues
+
+Depuis la bifurcation, Travis crie "Les rues !" Le groupe plonge vers le
+sud sous les rails de Jerome Avenue — terrain connu depuis l'Axe 1 du tronc,
+mais beaucoup plus profond dans le territoire Reapers. L'atmosphère change :
+les piliers se multiplient, les garages et ateliers se succèdent, la lumière
+se fait rare. C'est le chemin le plus long et le plus sensoriel.
+
+Beat 1 — Garages de Jerome Avenue : zone semi-industrielle, ateliers fermés
+mais pas tous verrouillés. Un garage entrouvert — la Batte à l'intérieur.
+Une veste de travail abandonnée sur un établi — le Paquet de cigarettes dans
+la poche. S'arrêter coûte du temps.
+
+Beat 2 — Première patrouille organisée (Drez en tête) : pas une sentinelle
+isolée — une vraie patrouille en formation. Se fondre dans l'ombre entre
+les piliers ; couper par l'entrée de service d'un immeuble (ÉPREUVE
+D'AGILITÉ) ; affrontement direct → COMBAT : Drez matraque + 2 Reapers, difficile.
+Si Shawn veut foncer — Travis le retient — James calme.
+
+Beat 3 — Smoke à son poste (Fordham Road) : Fordham Road est la rue la plus
+surveillée du territoire. Néons, angles dégagés. Smoke tient l'angle —
+nerveux, yeux qui bougent, parle trop, imprévisible. Contourner par les
+ruelles parallèles ; Jesse l'engage en bavardage (résultat jamais certain) ;
+attendre un changement de patrouille (ÉPREUVE D'INTELLIGENCE). COMBAT
+possible si Smoke craque.
+
+Beat 4 — La mission solo de Travis (toits de Fordham) : Travis accède aux
+toits pour observer le dispositif complet de Krugger et produit le Plan
+annoté — carte complète avec annotations manuscrites, déverrouille raccourcis
+et angles morts dans University Heights. Travis part seul. James prend la tête.
+Shawn n'a plus de bride. Ce qui se passe en bas : Shawn s'approche d'une
+sentinelle isolée. Zac s'interpose — sans un mot, instinctivement. Ce qui
+suit se passe hors-champ. Quand Travis redescend : quatre visages. Shawn
+regarde ailleurs. James dit juste "On y va." La Veste de Reap's est sur la
+sentinelle neutralisée. La mort de Zac n'est jamais montrée directement.
+Elle est dans le silence de ces quatre visages.
+
+Beat 5 — University Heights (T-Rex sur les toits) : T-Rex voit tout d'en haut.
+Progresser collés aux façades dans l'angle mort (Plan annoté identifie ces
+zones) ; Veste de Reap's — Travis se fait passer pour un Reaper (ÉPREUVE
+DE CHANCE) ; T-Rex descend → COMBAT : massif, chaîne.
+
+Beat 6 — Krugger resserre l'étau : radios qui crépitent, patrouilles
+convergentes. Ruelles derrière le Yankee Stadium — course finale.
+
+Objets disponibles : Batte (Beat 1), Paquet de cigarettes (Beat 1),
+Plan annoté (Beat 4), Veste de Reap's (Beat 4), Radio (depuis jonction),
+Couteau (si Faye acceptée)
+Combats : Beat 2 Drez / Beat 3 Smoke / Beat 5 T-Rex
+Cœur émotionnel : Beat 4 — Travis part, revient. Quatre visages. Le silence
+de James. Zac n'est plus là.
+
+---
+
+### CHEMIN C — Toits et passages cachés
+
+Depuis la bifurcation, Travis crie "En haut !" Le groupe monte par l'escalier
+de secours — les toits du Bronx de nuit. Travis est dans son élément naturel.
+Le chemin le moins confrontationnel mais le plus moralement chargé.
+
+Beat 1 — De toit en toit (Kingsbridge) : un saut, 1,5 mètres de vide,
+4 étages en dessous. Travis saute en premier, tend la main (Zac est le
+dernier, silencieux) ; passage intérieur via couloir commun, risque locataires ;
+corde trouvée sur un toit — Jesse installe un passage tendu (ÉPREUVE
+D'INTELLIGENCE). Le bruit est l'ennemi principal.
+
+Beat 2 — Berges de la Harlem River (zone neutre) : descente temporaire au
+niveau de la rue, berges. Territoire de personne. Eau noire, silence lourd.
+Seul moment du tome où personne ne court, personne ne se cache. James s'approche
+de Travis : "Tu penses qu'on va s'en sortir ?" Travis ne répond pas. Zac,
+légèrement en retrait, regarde l'eau. Personne ne fait attention à lui.
+
+Beat 3 — Le choix moral (adolescent sur un toit) : un adolescent du quartier
+— 15-16 ans — les voit depuis un toit voisin. Pas un Reaper. Il ouvre la
+bouche. Travis lui parle directement, voix basse : "T'as rien vu. On fait de
+mal à personne." ; Jesse lui propose de l'argent — le gamin guide le groupe
+sur un bloc ; Shawn fait un pas → Travis intervient ou laisse faire. Si Shawn
+agit : le gamin crie → COMBAT Reapers alertés. C'est la question centrale du
+tome dans son expression la plus pure.
+
+Beat 4 — Mission solo Travis (toits University Avenue) : Travis s'isole pour
+observer le PC de Krugger. Shawn fait les cent pas. James surveille les accès.
+Zac s'assoit au bord de la terrasse, dos au vide, regard vers les lumières de
+la ville — dernière image de lui. Quand Travis revient : quatre visages. Personne
+ne sait exactement quand Zac a disparu. Sa discrétion, qui était sa force, est ce
+qui l'a rendu invisible au moment où il aurait fallu le voir.
+
+Beat 5 — T-Rex sur les toits (son terrain) : T-Rex est AU MÊME NIVEAU — un toit
+de l'autre côté d'une ruelle. La rencontre est inévitable. Contourner par toit
+adjacent, saut risqué (ÉPREUVE D'AGILITÉ) ; se figer et attendre qu'il tourne
+le dos (20 secondes) ; affrontement → COMBAT : T-Rex chaîne, sur son terrain —
+avantage pour lui. Si vaincu : Veste de Reap's.
+
+Beat 6 — Descente et passages entre immeubles : cours intérieures, escaliers de
+service. Arrivée par un accès secondaire au quai — presque désert.
+
+Objets disponibles : Radio (depuis jonction), Veste de Reap's (Beat 5 si
+T-Rex vaincu), Couteau (si Faye acceptée)
+Combats : Beat 3 Reapers alertés si Shawn agit / Beat 5 T-Rex (inévitable si
+pas esquivé)
+Cœur : Beat 3 — le choix moral face à un innocent. Beat 4 — Zac assis au
+bord du vide, dernière image de lui.
+
+---
+
+## TRONC COMMUN — VICTOIRE
+### 161st Street-Yankee Stadium (~10-15 sections)
+
+Les trois chemins convergent ici. Depuis les métros, depuis les rues, depuis
+les toits — cinq Freaks émergent dans les ruelles autour du Yankee Stadium.
+Épuisés, traumatisés, amputés d'un. La masse sombre du Stadium se découpe
+dans le ciel d'été. Krugger a compris le mouvement — ses hommes convergent.
+
+Beat 1 — La course finale : les derniers blocs se courent. Reapers derrière,
+sur les côtés. Pas de choix ici — juste courir. Les néons orange du Stadium
+dans la nuit.
+
+Beat 2 — Le quai : ils descendent. Quai presque désert. Néons qui clignotent
+sur le carrelage blanc. Travis compte. Cinq. Dix secondes de silence absolu.
+Puis des pas dans les escaliers — des deux côtés du quai. Pris en tenaille.
+
+Beat 3 — La bagarre finale : Reapers aux deux extrémités du quai. Le grondement
+de la rame D monte depuis le tunnel. Tenir jusqu'à l'ouverture des portes.
+Shawn lâché — tout le tome Travis l'a retenu, ici il le laisse, Shawn fonce,
+ouvre un couloir, COMBAT de groupe chaotique. Travis utilise la Radio sur
+la fréquence Reapers — fausse information → ÉPREUVE D'INTELLIGENCE : 20 secondes
+d'hésitation. La Veste de Reap's — Travis l'enfile, avance vers le groupe de
+gauche comme s'il était des leurs → ÉPREUVE DE CHANCE. Ces options sont les
+payoffs directs des objets portés tout au long du chemin.
+
+Beat 4 — Krugger apparaît : pour la première et unique fois du tome, en bas
+de l'escalier nord du quai. Il ne court pas. Il marche. Il regarde Travis.
+Pas un mot. La rame D entre en gare dans un vacarme assourdissant. Les portes
+s'ouvrent. Ils montent un par un. Travis en dernier. Il compte. Shawn. James.
+Jesse. Adam. Les portes commencent à se fermer. Travis bloque avec son bras —
+ÉPREUVE DE FORCE pour tenir les portes ouvertes. Sur le quai : Zac. Il est là.
+Il arrive maintenant, en courant. Derrière lui, deux Reapers qui courent aussi.
+Travis tient les portes. Les Reapers atteignent Zac avant qu'il touche les portes.
+Les portes se ferment.
+
+Beat 5 — La rame repart : lentement. Shawn s'effondre sur un siège. James
+ferme les yeux. Jesse regarde le sol. Adam ne bouge pas. Travis reste debout,
+face à la vitre. La voix automatique : "Prochain arrêt : Harlem, 125th Street."
+
+Beat 6 — La dernière image (fin du tome 1) : Travis regarde par la fenêtre.
+Sur le quai qui rétrécit dans le tunnel — Zac. Debout. Deux Reapers qui courent
+vers lui. Les néons blancs du quai de 161st Street. La masse sombre du Yankee
+Stadium derrière les fenêtres qui défilent. Krugger au bout du quai, immobile,
+qui regarde la rame partir. Les rails qui s'éloignent dans le noir. Le tunnel.
+La dernière image du tome 1.
+
+NOTE CAPITALE sur Zac : Sur chacun des trois chemins (A, B, C), Zac
+"disparaît hors-champ" — le lecteur ne voit jamais exactement ce qui lui arrive.
+Sa discrétion naturelle fait qu'on ne remarque pas le moment précis où il n'est
+plus là. Sur le quai, il réapparaît — bref moment de soulagement, de miracle
+possible. Puis les portes. La disparition hors-champ des chemins n'était pas sa
+mort — c'était sa séparation du groupe. La mort, c'est ici, sur le quai, sous
+les yeux de Travis. C'est pour ça qu'elle est si dévastatrice.
+Aucun mécanisme de game-over lié à Zac. Aucune annonce en texte.
+Tout est dans l'image finale.
+
+---
+
+## POINTS DE CONVERGENCE
+
+| Lieu                          | Moment clé                                            |
+|-------------------------------|-------------------------------------------------------|
+| Van Cortlandt Park            | Coup de feu, première voix de la DJ, premier choix   |
+| Van Cortlandt Lake            | La Carte trouvée (si cacher) — premier objet          |
+| Rencontre avec Faye           | Premier choix moral du tome                           |
+| Kingsbridge Armory            | Grande bifurcation — Travis crie une direction        |
+| Kingsbridge Armory            | La Radio obtenue — garantie pour tous les chemins     |
+| Mission solo Travis / Zac     | Sur chaque chemin — 4 visages, silence, absence       |
+| Confrontation Shawn           | Travis canalise ou lâche — trajectoire du tome        |
+| Quai 161st Street             | Krugger (1 apparition), bagarre finale, image de Zac  |
+
+---
+
+## ATMOSPHÈRE ET STYLE ATTENDUS
+
+Le ton est celui d'un thriller urbain nocturne, tendu et sensoriel.
+La chaleur moite de l'été new-yorkais, l'odeur de goudron et de bière
+renversée, le crissement des semelles sur le gravier — chaque détail
+physique ancre le lecteur dans un espace concret et dangereux.
+La voix de la DJ de Radio One est le fil rouge sonore du tome : douce,
+presque sensuelle, elle incarne une menace diffuse et omniprésente.
+
+Le rythme doit alterner entre séquences d'adrénaline pure — les courses,
+les confrontations — et moments de tension statique où l'attente est
+plus oppressante que l'action.
+
+Les images fortes à conserver : les néons orangés dans la brume, les
+carreaux blancs du quai, la voix de la DJ dans le silence du parc, le doigt
+de Pastor B. pointé dans l'obscurité, la masse sombre du Yankee Stadium dans
+la nuit d'été, les portes qui se ferment sur Zac.
+
+---
+
+## LIENS AVEC LA SÉRIE
+
+Ce tome est le fondement de tout. Il introduit les six Freaks, établit
+la dynamique entre Travis (cerveau) et Shawn (force brute), et pose le
+personnage de Zac comme le membre le plus vulnérable — et le plus
+sacrifié. La mort de Zac est la blessure émotionnelle qui traverse toute
+la série.
+
+Le territoire des Reapers est le premier d'une longue série. Chaque
+tome suivant reprend la même structure — un gang, un territoire, une nuit.
+
+Conséquences sur la série :
+- Zac est mort — cette perte est évoquée dans chaque tome suivant
+- Travis porte ce deuil jusqu'à la dernière page du tome 6
+- Le groupe arrive à Harlem à cinq, pas à six
+
+---
+
+## LIEUX DU TOME 1
+### Corridor Nord-Sud (Van Cortlandt Park vers 161st Street)
+
+1.  Van Cortlandt Park — clairière principale
+2.  Van Cortlandt Park — lisière / sortie est
+3.  Van Cortlandt Lake — bois, obscurité, lampes Reapers
+4.  Jerome Avenue — piliers du métro aérien
+5.  Jerome Avenue — zone semi-industrielle / garages
+6.  Bailey Avenue — trottoirs résidentiels, civils sur les perrons
+7.  Sedgwick Avenue — bodega, façades d'immeubles
+8.  Riverdale — collines boisées, sortie sud-ouest du parc
+9.  Fort Independence Park — terrain découvert, descente exposée
+10. Kingsbridge Armory — base avancée de Krugger, bâtiment quasi-médiéval
+11. Station Marble Hill/231st Street — ligne 1
+12. Burnside Avenue
+13. Tremont — Grand Concourse
+14. Ruelles aux carcasses de voitures brûlées
+15. Fordham Road — trottoirs / avenue principale
+16. Toits de Fordham — poste de commandement de Krugger
+17. Berges de la Harlem River
+18. University Heights — immeubles résidentiels
+19. University Avenue — toits
+20. Arrière-cours / passages entre immeubles
+21. Station 170th Street
+22. Ruelles derrière le Yankee Stadium
+23. Station 161st Street-Yankee Stadium — quai
+
+---
+
+## PERSONNAGES DU PROJET
+
+Note de style — dialogue : Langage de la rue new-yorkaise de l'été 2000 :
+argot urbain, phrases courtes, économie de mots, familiarité brute.
+Tutoiement systématique entre membres du même gang.
+- Freaks : rue brute, instinctive, loyale
+- Reapers : politique et élevé, registre de leader
+- Grinders : erratique et imprévisible
+
+---
+
+### Travis
+- Rôle : Protagoniste — le héros incarné par le lecteur
+- Gang : Freaks
+- Origine : Blanc
+- Allure : 18-20 ans, athlétique et équilibré, cheveux courts très
+  serrés, regard intense mais humain. Tatouage Freaks visible.
+  Jean large, basket et casquette noires des Freaks.
+- Personnalité : Tacticien froid, sens des responsabilités aigu,
+  capable de peser des choix impossibles.
+- Style de dialogue : Sobre et direct, commande sans hausser la voix.
+  Phrases courtes, registre rue new-yorkaise.
+
+---
+
+### Shawn
+- Rôle : Allié — membre des Freaks
+- Type PNJ : allié
+- Gang : Freaks
+- Allure : 18-20 ans, colossal, cheveux mi-longs bouclés, regard
+  agressif toujours en chasse. Tatouage Freaks.
+  Jogging large, basket et casquette noires des Freaks.
+- Personnalité : Impulsif, violent, loyal d'une loyauté instinctive.
+- Style de dialogue : Brusque, vulgaire, court. Réagit avant de réfléchir.
+- combat_sections : []
+
+---
+
+### Zac
+- Rôle : Allié — membre des Freaks
+- Type PNJ : allié
+- Gang : Freaks
+- Allure : 18-20 ans, mince et agile, locks courts, regard calme
+  et attentif. Tatouage Freaks discret.
+  Baggy large, basket et casquette noires des Freaks.
+- Personnalité : Discret, observateur, capable d'agir seul sans filet.
+  Sa discrétion, qui est sa force, est ce qui le rend vulnérable —
+  facile à perdre de vue sans que personne ne s'en aperçoive.
+- Style de dialogue : Peu loquace, précis quand il parle.
+- combat_sections : []
+- NOTE CRITIQUE : Zac disparaît hors-champ sur chaque chemin (A, B, C)
+  pendant la mission solo de Travis. Il n'est jamais montré en train de mourir.
+  Sur le quai de 161st Street, il réapparaît brièvement — puis les portes
+  se ferment. La dernière image du tome : Zac debout sur le quai qui
+  rétrécit dans le tunnel, deux Reapers qui courent vers lui. Pas un mot
+  en texte. Tout est dans l'image. Retirer Zac de companion_npc_ids
+  à partir de sa section de disparition sur chaque chemin.
+
+---
+
+### James
+- Rôle : Allié — membre des Freaks
+- Type PNJ : allié
+- Gang : Freaks
+- Origine : Afro-Américain
+- Allure : 18-20 ans, athlétique et solide, cheveux courts plats,
+  regard sérieux mais bienveillant. Sourire facile.
+  Jogging large, basket et casquette noires des Freaks.
+- Style de dialogue : Chaleureux, rassurant, parfois naïf.
+- combat_sections : []
+
+---
+
+### Jesse
+- Rôle : Allié — membre des Freaks
+- Type PNJ : allié
+- Gang : Freaks
+- Origine : Hispanique
+- Allure : 18-20 ans, gabarit moyen, cheveux courts avec dégradé,
+  regard malicieux toujours en train de calculer. Tatouage Freaks.
+  Jean large, basket et casquette noires des Freaks.
+- Style de dialogue : Ironique, rapide, second degré.
+- combat_sections : []
+
+---
+
+### Adam
+- Rôle : Allié — membre des Freaks
+- Type PNJ : allié
+- Gang : Freaks
+- Origine : Blanc
+- Allure : 18-20 ans, s'efface volontairement, cheveux clairs
+  coupés court, regard pénétrant. Cicatrice discrète.
+  Jean normal, basket et casquette noires des Freaks.
+- Style de dialogue : Quasi inexistant. Quand il parle, ça compte.
+- combat_sections : []
+
+---
+
+### La DJ de Radio One
+- Rôle : PNJ — voix narrative omnisciente
+- Type PNJ : neutre
+- Origine : Afro-Américaine
+- Allure : 20-25 ans. Jamais vue — voix uniquement.
+  Douce et sensuelle, presque hypnotique.
+- Personnalité : Omnisciente, neutre en apparence. Elle annonce.
+- Style de dialogue : Lisse, registre radio, légèrement suranné.
+- combat_sections : []
+
+---
+
+### Krugger
+- Rôle : Antagoniste du tome 1 — Nouveau chef des Reapers
+- Type PNJ : boss
+- Gang : Reapers
+- Origine : Afro-Américain
+- Allure : 20 ans, imposant et autoritaire, crâne rasé, regard
+  dur qui jauge et condamne. Tenue de gang soignée aux couleurs
+  des Reapers.
+- Personnalité : Méthodique, organisateur, froid.
+- Style de dialogue : Militaire et ordonné, commandements courts.
+- combat_sections : []
+- NOTE : Krugger n'apparaît physiquement qu'une seule fois dans tout le tome —
+  en bas de l'escalier nord du quai de 161st Street, dans la scène finale.
+  Il ne court pas. Il marche. Il regarde Travis. Pas un mot. Puis la rame
+  repart et il reste immobile sur le quai qui rétrécit dans le tunnel.
+  Sa présence se fait sentir avant ça dans la précision des patrouilles,
+  les radios qui crépitent, les silhouettes aperçues sur les toits.
+
+---
+
+### Pastor B.
+- Rôle : Antagoniste principal — chef des Grinders
+- Type PNJ : boss
+- Gang : Grinders
+- Origine : Blanc
+- Allure : 20-25 ans, mince et imprévisible, cheveux longs et
+  sales, regard instable. Un sourire qui arrive au mauvais moment.
+- Personnalité : Psychopathe, imprévisible.
+- Style de dialogue : Erratique, charme et violence dans la même réplique.
+- combat_sections : []
+
+---
+
+### Cypress
+- Rôle : PNJ pivot — leader des Reapers, tué dans l'introduction
+- Type PNJ : neutre
+- Gang : Reapers
+- Origine : Afro-Américain
+- Allure : 26 ans, grand et charismatique, locks mi-longs, regard
+  brûlant. Couleurs des Reapers portées avec fierté.
+- Personnalité : Visionnaire, charismatique. Rêvait d'unifier tous les gangs.
+- Style de dialogue : Politique et élevé — registre de leader public.
+- Stats : force 6, agilité 5, intelligence 15, magie 0, endurance 8, chance 5
+- combat_sections : []
+- NOTE : Cypress ne combat jamais. Il est abattu hors champ dans la
+  section d'introduction. Cypress mort est plus puissant que Cypress vivant.
+  Son image — le discours interrompu — doit revenir comme hantise narrative.
+
+---
+
+### Faye
+- Rôle : PNJ alliée potentielle
+- Type PNJ : neutre
+- Origine : Blanche
+- Allure : 18-20 ans, nerveuse et agile, cheveux mi-longs libérés,
+  regard vif qui calcule en temps réel. Vêtements sombres et pratiques.
+- Personnalité : Pragmatique. Elle négocie sa survie avec ce qu'elle sait.
+- Style de dialogue : Direct, marchand — un deal, pas une amitié.
+- combat_sections : []
+
+---
+
+## PNJ SECONDAIRES — REAPERS
+(combat_sections laissés vides — Claude les positionnera lors de la génération)
+
+### Drez
+- Rôle : Lieutenant de Krugger — zone Jerome Avenue
+- Type PNJ : ennemi
+- Gang : Reapers
+- Allure : 25 ans, carré, regard froid. Veste noire Reapers.
+- Style de dialogue : Froid, méthodique, ordres secs, économie totale de mots.
+- weapon_type : matraque
+- combat_sections : []
+
+### Smoke
+- Rôle : Sentinelle — Fordham Road
+- Type PNJ : ennemi
+- Gang : Reapers
+- Allure : 22 ans, nerveux, yeux qui bougent sans cesse. Veste Reapers.
+- Style de dialogue : Nerveux, parle trop, se contredit.
+- weapon_type : poing_américain
+- combat_sections : []
+
+### Cal
+- Rôle : Garde — Station Fordham Road
+- Type PNJ : ennemi
+- Gang : Reapers
+- Allure : 35 ans, fatigué, regard désabusé. Veste Reapers usée.
+- Style de dialogue : Ancien, prudent, ton désabusé.
+  Peut être convaincu par le dialogue plutôt que par la force.
+- weapon_type : matraque
+- combat_sections : []
+
+### T-Rex
+- Rôle : Patrouille toits — University Heights et Kingsbridge
+- Type PNJ : ennemi
+- Gang : Reapers
+- Allure : 28 ans, massif, silencieux. Veste noire Reapers, chaîne au cou.
+- Style de dialogue : Quasi inexistant. Grogne plus qu'il ne parle.
+- weapon_type : chaîne
+- combat_sections : []
+
+### Rooks
+- Rôle : Coursier de Krugger
+- Type PNJ : ennemi
+- Gang : Reapers
+- Allure : 19 ans, maigre, vif. Veste Reapers trop grande.
+- Style de dialogue : Jeune, zélé, argot Reapers appuyé, parle en abréviations.
+- weapon_type : couteau
+- combat_sections : []
+
+---
+
+## GANGS DU PROJET
+
+- Freaks : rue brute, instinctive, loyale
+  Code vestimentaire : Streetwear, jean large ou jogging large, casquette noire écrit Freaks
+  Territoire : Coney Island
+
+- Reapers : politique et élevé, registre de leader qui dépasse le simple gang
+  Code vestimentaire : Vestes noires, stylées et bien habillés
+  Territoire : Bronx
+
+- Grinders : erratique et imprévisible, les phrases partent dans tous les sens
+  Code vestimentaire : Jeans usés, bottes lourdes, débardeurs, cuir, vêtements sales
+  Territoire : Harlem
+
+- Vipers : Impitoyable
+  Code vestimentaire : Soigneux, blancs, chaînes en or
+  Territoire : Midtown Manhattan
+
+- Hunters : Hystérique
+  Code vestimentaire : Large baggy, veste verte
+  Territoire : Central Park New York
+
+- Brooklyn : Hispanique
+  Code vestimentaire : Pantalon en cuir, veste colorée
+  Territoire : Brooklyn
+
+---
+
+## OBJETS DU TOME 1
+
+Note : Les objets sont des ancres narratives concrètes. Leur présence
+doit toujours sembler naturelle. Un objet non trouvé ne doit jamais
+bloquer la progression, mais son absence doit se faire sentir.
+
+---
+
+### La Carte
+- Catégorie : persistant / item_type : quete
+- Localisation : Van Cortlandt Lake — bois près du lac, trouvée pendant
+  la phase "se cacher" au tout début du jeu. Premier objet du jeu.
+  Positionnée visuellement sur l'image de scène.
+- Chemins : Tronc commun (tous les chemins si trouvée)
+- Condition d'accès : Choisir "se cacher" au premier embranchement du parc
+- Utilité : Carte du Bronx identifiant angles morts et raccourcis
+  (zones imprécises — maintenir l'incertitude même avec l'objet)
+- Utilisation : Multiple
+
+### Le Plan annoté
+- Catégorie : persistant / item_type : quete
+- Localisation : Obtenu après la mission solo de Travis sur les toits de Fordham
+- Chemins : B
+- Condition d'accès : Mission de Travis réussie
+- Utilité : Version complète annotée — déverrouille raccourcis et angles
+  morts inaccessibles avec La Carte simple
+- Utilisation : Multiple
+- Illustration : Même carte que La Carte, annotée au stylo par Travis
+
+### La Radio
+- Catégorie : persistant / item_type : quete
+- Localisation : Kingsbridge Armory — volée sur un Reaper lors de
+  l'approche de la jonction. Garantie pour tous les chemins.
+- Chemins : A, B, C (tous)
+- Condition d'accès : Travis réussit l'approche furtive à la jonction
+- Utilité : Écouter la DJ et diffuser de fausses informations sur les
+  fréquences Reapers (payoff décisif dans la bagarre finale au quai)
+- Utilisation : Multiple
+
+### Le Couteau
+- Catégorie : arme / item_type : arme / weapon_type : couteau
+- Localisation : Donné par Faye en échange de son escorte
+- Chemins : A, B, C (si Faye rencontrée)
+- Condition d'accès : Lié à la décision de faire confiance à Faye
+- Utilité : Double usage — arme ou outil selon la situation
+- Utilisation : Multiple
+- Notes : Vient de Faye — renforce son ambiguïté
+
+### Le Paquet de Cigarettes
+- Catégorie : consommable / item_type : outil
+- Localisation : Trouvé dans une veste abandonnée (Beat 1 Chemin B)
+  ou disponible dans le tronc si fouille effectuée
+- Chemins : A, B
+- Condition d'accès : Si le joueur fouille
+- Utilité : Amadouer Faye pour faciliter le deal ; diversion possible
+- Utilisation : Unique
+
+### La Veste de Reap's
+- Catégorie : consommable / item_type : outil
+- Localisation : Prise sur un Reapers neutralisé
+  (Axe 3 tronc si T-Rex vaincu / Beat 4 Chemin B / Beat 5 Chemin C)
+- Chemins : B, C (et Axe 3 du tronc)
+- Condition d'accès : Après neutralisation d'un Reapers dans la bonne section
+- Utilité : Déguisement — Travis passe pour un Reaper le temps d'une section
+- Utilisation : Unique
+
+### La Batte
+- Catégorie : arme / item_type : arme / weapon_type : batte_de_baseball
+- Localisation : Garage ouvert de Jerome Avenue (Beat 1 Chemin B)
+- Chemins : B
+- Condition d'accès : Chemin B uniquement
+- Utilité : Arme de mêlée
+- Utilisation : Multiple
+
+### La Carte de métro
+- Catégorie : consommable / item_type : outil
+- Localisation : Trouvée sur le quai de la station Marble Hill/231st Street
+- Chemins : A
+- Condition d'accès : Chemin A uniquement
+- Utilité : Identifie les stations avec patrouilles Reapers connues
+- Utilisation : Unique
+
+## TYPE D'ARME : Couteau, Batte de baseball, Matraque, Poing américain, Chaîne

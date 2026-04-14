@@ -252,35 +252,49 @@ JSON valide UNIQUEMENT :
     const narrativeSections = narrativeNums.map(n => sectionByNumber.get(n)).filter(Boolean)
 
     if (narrativeSections.length > 0) {
-      // Traiter par lots de 8 pour éviter la troncature JSON
-      const BATCH_SIZE = 8
+      // Traiter par lots de 15 (contexte élargi pour cohérence narrative)
+      const BATCH_SIZE = 15
       for (let i = 0; i < narrativeSections.length; i += BATCH_SIZE) {
         const batch = narrativeSections.slice(i, i + BATCH_SIZE)
+
+        // Contexte élargi : sections voisines de chaque section du lot
+        const batchNums = new Set(batch.map(s => s!.number))
+        const contextNums = new Set<number>()
+        for (const s of batch) {
+          for (let d = -3; d <= 3; d++) contextNums.add(s!.number + d)
+        }
+        const contextSections = sections
+          .filter(s => contextNums.has(s.number) && !batchNums.has(s.number))
+          .map(s => {
+            const choices = choicesBySecNum.get(s.number) ?? []
+            return `§${s.number}[ctx]: ${(s.content ?? '').slice(0, 120).replace(/\n/g, ' ')} ${choices.map(c => `→§${c.targetNumber ?? '?'}`).join(' ')}`
+          }).join('\n')
+
         const narrativeContent = batch.map(s => {
           const choices = choicesBySecNum.get(s!.number) ?? []
           const choiceStr = choices.map(c => `  → "${c.label}" → §${c.targetNumber ?? '?'}`).join('\n')
           return `§${s!.number}:\n${s!.content ?? '(vide)'}\n${choiceStr ? 'CHOIX:\n' + choiceStr : 'CHOIX: aucun'}`
         }).join('\n\n---\n\n')
 
-        const pass3Prompt = `Tu es un éditeur de LDVELH. Corrige TOUTES les incohérences narratives listées. Aucun skip n'est autorisé.
+        const pass3Prompt = `Tu es un éditeur de LDVELH. Corrige les incohérences narratives listées ci-dessous.
 
 LIVRE : "${book.title}" (${book.theme})
 
 RAPPORT D'INCOHÉRENCES (extrait pertinent) :
 ${incoBlock}
 
-SECTIONS À CORRIGER (lot ${Math.floor(i / BATCH_SIZE) + 1}) :
+SECTIONS À CORRIGER (lot ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(narrativeSections.length / BATCH_SIZE)}) :
 ${narrativeContent}
 
-INDEX DES AUTRES SECTIONS :
-${condensedIndex}
+SECTIONS DE CONTEXTE VOISINES (ne pas modifier) :
+${contextSections}
 
-RÈGLES ABSOLUES :
-- Tu DOIS produire une correction pour chaque section du lot — "impossible" n'existe pas
+RÈGLES :
 - Incohérence géographique → réécris pour justifier ou corriger le trajet
-- Personnage disparu (ex: Cleon) → mentionne son sort dans la section la plus pertinente
-- Gang/faction cité sans introduction → ajoute une ligne d'intro dans une section antérieure
+- Personnage disparu → mentionne son sort dans la section la plus pertinente
+- Gang/faction sans introduction → ajoute une ligne d'intro
 - Contradiction logique → réécris pour supprimer la contradiction
+- Si une section ne nécessite pas de correction → omets-la du JSON (ne pas forcer)
 - Style Pierre Bordage : 2ème personne, phrases courtes, immersif
 - Préserve les choix existants sauf contradiction directe
 

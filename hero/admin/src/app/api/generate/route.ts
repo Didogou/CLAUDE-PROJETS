@@ -357,6 +357,17 @@ export async function POST(req: NextRequest) {
       }
 
       await supabaseAdmin.from('sections').update({ trial }).eq('id', sectionId)
+
+      // Résoudre les compagnons de combat → companion_npc_ids
+      const companionNames: string[] = rawTrial.combat_companions ?? []
+      if (companionNames.length > 0) {
+        const companionIds = companionNames
+          .map((name: string) => npcNameMap.get(name.toLowerCase())?.id)
+          .filter((id): id is string => !!id)
+        if (companionIds.length > 0) {
+          await supabaseAdmin.from('sections').update({ companion_npc_ids: companionIds }).eq('id', sectionId)
+        }
+      }
     }
 
     // 9. Générer le prologue

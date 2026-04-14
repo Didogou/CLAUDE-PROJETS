@@ -1,0 +1,1 @@
+ALTER TABLE combat_moves ADD COLUMN IF NOT EXISTS hint_text TEXT;

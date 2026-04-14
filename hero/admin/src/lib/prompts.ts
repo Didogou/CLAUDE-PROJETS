@@ -13,16 +13,19 @@ const WEAPON_GUIDE: Record<string, string> = {
 }
 
 const DIFFICULTY_GUIDE: Record<string, string> = {
-  facile:    'Ennemis faibles (force 3-7, endurance 6-10). Fins : 4-6 victoires, 1-2 morts. Beaucoup de récompenses, épreuves rares. XP: ennemi 30-60, boss 80-120. Nombreux objets de soin. La majorité des chemins mène à la victoire.',
-  normal:    'Ennemis équilibrés (force 5-12, endurance 8-15). Fins : 3-4 victoires, 2-3 morts. Récompenses modérées. XP: ennemi 50-100, boss 150-200. Mix équilibré de chemins victoire et mort.',
-  difficile: 'Ennemis forts (force 8-16, endurance 12-22). Fins : 2-3 victoires, 4-5 morts. Récompenses rares. XP: ennemi 80-130, boss 200-280. Pénalités sévères. La plupart des chemins mènent à la mort — la victoire est rare et méritée.',
-  expert:    'Ennemis redoutables (force 12-18, endurance 18-35). Fins : 1-2 victoires seulement, 5-7 morts. Récompenses très rares. XP: ennemi 100-180, boss 250-350. Chaque erreur peut être fatale. Il n\'existe qu\'un ou deux chemins étroits vers la victoire.',
+  facile:    'Ennemis faibles (force 3-7, endurance 6-10). Beaucoup de récompenses, épreuves rares. XP: ennemi 30-60, boss 80-120. Nombreux objets de soin.',
+  normal:    'Ennemis équilibrés (force 5-12, endurance 8-15). Récompenses modérées. XP: ennemi 50-100, boss 150-200.',
+  difficile: 'Ennemis forts (force 8-16, endurance 12-22). Récompenses rares. XP: ennemi 80-130, boss 200-280. Pénalités sévères.',
+  expert:    'Ennemis redoutables (force 12-18, endurance 18-35). Récompenses très rares. XP: ennemi 100-180, boss 250-350. Chaque erreur peut être fatale.',
 }
 
 export function buildBookStructurePrompt(params: GenerateBookParams): string {
   const { title, theme, age_range, context_type, language, num_sections, difficulty, content_mix, map_style } = params
   const lang = language === 'fr' ? 'français' : 'anglais'
   const diffLabel = { facile: 'Facile', normal: 'Normal', difficile: 'Difficile', expert: 'Expert' }[difficulty]
+  const victoryCount = params.num_victory_endings ?? 2
+  const deathCount = params.num_death_endings ?? ({ facile: 2, normal: 3, difficile: 5, expert: 6 }[difficulty] ?? 3)
+  const endingsRule = `- Le livre doit comporter EXACTEMENT ${victoryCount} fin(s) victoire (is_ending:true, ending_type:"victory") et ${deathCount} fins mort (is_ending:true, ending_type:"death"). Ces proportions sont imposées par l'auteur — ne pas en inventer d'autres.`
   const weaponGuide = WEAPON_GUIDE[theme] ?? 'Armes cohérentes avec l\'univers du livre.'
   const withMap = !!map_style
   const isTu = params.address_form === 'tu'
@@ -79,7 +82,7 @@ Génère la structure complète du livre en JSON avec ${withMap ? 'trois' : 'deu
 3. Les lieux de l'aventure (carte).` : ''}
 
 Règles pour les PNJ :
-- Crée entre 4 et 10 PNJ cohérents avec l'univers (ennemis, boss, alliés, neutres, marchands)
+- Crée entre ${Math.max(6, Math.ceil(num_sections / 25))} et ${Math.max(10, Math.ceil(num_sections / 15))} PNJ cohérents avec l'univers (ennemis, boss, alliés, neutres, marchands)
 - Les boss ont des stats élevées (endurance 20-40, force 10-18)
 - Les ennemis ordinaires ont des stats moyennes (endurance 8-15, force 5-12)
 - Les alliés/neutres ont des stats cohérentes avec leur rôle narratif
@@ -91,7 +94,7 @@ Règles pour les PNJ :
 - Les stats vont de 1 à 20 (sauf endurance boss jusqu'à 40)
 
 ${withMap ? `Règles pour les lieux (carte) :
-- Crée entre 5 et 15 lieux uniques qui couvrent tous les espaces narratifs de l'aventure
+- Crée entre ${Math.max(8, Math.ceil(num_sections / 18))} et ${Math.max(15, Math.ceil(num_sections / 12))} lieux uniques qui couvrent tous les espaces narratifs de l'aventure
 - Plusieurs sections peuvent se passer dans le même lieu (ex: 3 sections dans "La Taverne du Dragon")
 - Les noms de lieux sont courts, évocateurs, cohérents avec l'univers "${theme}"
 - Chaque lieu a un emoji "icon" représentatif (🏰 donjon, 🌲 forêt, 🏙️ ville, ⚓ port, etc.)
@@ -107,14 +110,16 @@ ${withMap ? `Règles pour les lieux (carte) :
 - Choix "rebrousser chemin" : dans environ 15% des sections de narration (pas d'épreuve, pas de fin), tu PEUX ajouter un choix avec "is_back": true qui permet au joueur de revenir vers une section précédente narrativement cohérente (une section déjà visitée dans le cheminement logique). Ce choix doit avoir un libellé naturel et immersif (ex: "Retourner à l'auberge", "Revenir sur tes pas", "Repartir vers la forêt"). Il est interdit de pointer vers une section qui n'existe pas encore dans le flux narratif.
 - INTERDIT : deux sections de combat (trial.type = "combat") consécutives dans le même chemin narratif — toujours intercaler au moins une section de narration, dialogue, chance ou autre épreuve entre deux combats
 - Les épreuves de combat DOIVENT référencer "enemy_name" avec le nom exact d'un PNJ créé ci-dessus
+- COMBATS MULTI-PERSONNAGES : si la narration implique plusieurs combattants, ajouter le champ optionnel "combat_companions" dans le trial (tableau de noms exacts de PNJ). Inclure : les alliés PNJ qui se battent aux côtés du joueur ET les ennemis supplémentaires au-delà de l'ennemi principal. Exemples narratifs : le joueur et un allié affrontent deux gardes → "combat_companions": ["NomAllié", "DeuxièmeGarde"] ; trois bandits attaquent ensemble → enemy_name = chef + "combat_companions": ["Bandit1", "Bandit2"]. Si le joueur combat seul (ex: "Restez en arrière, je m'en occupe !"), ne pas inclure ce champ ou le laisser vide. Maximum 3 compagnons au total (alliés + ennemis supp.).
 - OBLIGATION : toute section avec un trial DOIT avoir success_section ET failure_section définis
-- En cas de victoire : attribuer xp_reward (boss: 150-300 XP, ennemi: 50-100 XP) et item_rewards si l'histoire le permet (tableau de strings, ex: ["Épée +2", "Potion de soin"])
+- En cas de victoire : attribuer xp_reward (boss: 150-300 XP, ennemi: 50-100 XP)
 - En cas d'échec : définir endurance_loss_on_failure (dégâts subis) et une section de repli narrative. IMPORTANT : l'échec d'un combat ne mène PAS automatiquement à la mort — la plupart des défaites doivent mener à une section narrative (fuite, capture, blessure grave, repli forcé). Seuls les combats contre un boss final ou à un moment clairement fatal peuvent mener à une fin mort (is_ending:true). Une défaite ordinaire = conséquences narratives, pas game over.
 - Combats magiques (type "magie") : inclure mana_cost (coût en mana du sort lancé, ex: 3)
 - Les épreuves non-combat (agilite, intelligence, chance, crochetage) n'ont pas d'enemy_name mais ont obligatoirement success_section et failure_section
 - Les sections de type "dialogue" utilisent trial.type = "dialogue" et référencent un PNJ via enemy_name. Elles ont obligatoirement : success_section (joueur convainc/obtient ce qu'il veut), failure_section (joueur échoue ou offense le PNJ), "dialogue_opening" (première réplique du PNJ en restant dans son speech_style), "dialogue_goal" (ce que le joueur doit accomplir dans la conversation, ex: "Convaincre le marchand de vous révéler l'emplacement du temple caché")
-- Le nombre de fins victoire et de fins mort doit respecter strictement les proportions indiquées dans le guide de difficulté ci-dessus
+${endingsRule}
 - Les embranchements doivent former un arbre cohérent sans sections orphelines
+- Chaque section DOIT avoir un champ "tension_level" (entier 1 à 5) indiquant l'intensité dramatique de la scène : 1 = calme/repos/dialogue serein, 2 = exploration/légère incertitude, 3 = tension modérée/enjeu présent, 4 = danger/combat/fuite/confrontation forte, 5 = climax/boss/moment de mort imminente. Ce champ pilote le rythme du pouls affiché dans l'interface de jeu.
 
 IMPORTANT : ta réponse doit commencer IMMÉDIATEMENT par { et se terminer par }. Aucun texte avant, aucun texte après, aucun bloc \`\`\`json. Uniquement du JSON brut valide dans ce format :
 {${withMap ? `
@@ -168,28 +173,30 @@ IMPORTANT : ta réponse doit commencer IMMÉDIATEMENT par { et se terminer par }
     {
       "number": 1,
       "summary": "Vous arrivez aux portes de la cité maudite",
+      "tension_level": 2,
       "is_ending": false,
       "ending_type": null,
       "trial": null,${withMap ? `
       "location_name": "La Taverne du Dragon",` : ''}
       "choices": [
-        { "label": "...", "target_section": 2, "sort_order": 0 },
-        { "label": "...", "target_section": 5, "sort_order": 1 },
-        { "label": "Retourner à l'auberge", "target_section": 1, "sort_order": 2, "is_back": true }
+        { "label": "...", "archetype": "Discrétion", "target_section": 2, "sort_order": 0 },
+        { "label": "...", "archetype": "Passage en force", "target_section": 5, "sort_order": 1 },
+        { "label": "Retourner à l'auberge", "archetype": "Prudence", "target_section": 1, "sort_order": 2, "is_back": true }
       ]
     },
     {
       "number": 3,
+      "tension_level": 4,
       "is_ending": false,
       "ending_type": null,
       "trial": {
         "type": "combat",
         "stat": "force",
         "enemy_name": "Garde de la Tour",
+        "combat_companions": [],
         "success_section": 7,
         "failure_section": 12,
         "xp_reward": 75,
-        "item_rewards": ["Épée courte", "10 pièces d'argent"],
         "endurance_loss_on_failure": 3
       },${withMap ? `
       "location_name": "La Forêt Maudite",` : ''}
@@ -199,7 +206,169 @@ IMPORTANT : ta réponse doit commencer IMMÉDIATEMENT par { et se terminer par }
 }`
 }
 
-// ── Phase 0 : Découpe en 3 actes ──────────────────────────────────────────────
+// ── Phase 0a : Carte des jonctions (livres à chemins parallèles) ──────────────
+
+export function buildJunctionMapPrompt(
+  title: string,
+  theme: string,
+  synopsis: string,
+  totalSections: number,
+  previousAttemptErrors?: string[],
+  pathSynopses?: { trunk_start?: string; paths: Record<string, string>; trunk_end?: string }
+): string {
+  // Extraire les sections les plus pertinentes : chercher CHEMIN, POINTS DE CONVERGENCE, CARTE
+  // Le synopsis peut être très long (>50 000 chars) — on prend l'intro + les sections structurelles
+  const synopsisForPrompt = (() => {
+    const cheminIdx = synopsis.search(/CHEMIN\s+[A-Z]/i)
+    const convergenceIdx = synopsis.search(/POINTS?\s+DE\s+CONVERGENCE/i)
+    const carteIdx = synopsis.search(/CARTE\s+NARRATIVE/i)
+    const structureStart = Math.min(
+      ...[cheminIdx, convergenceIdx, carteIdx].filter(i => i > -1)
+    )
+    if (structureStart === Infinity || structureStart === -1) {
+      // Pas de structure explicite — prendre les 8000 premiers chars
+      return synopsis.slice(0, 8000)
+    }
+    // Intro (2000 chars) + section structurelle complète (jusqu'à 10 000 chars après)
+    const intro = synopsis.slice(0, 2000)
+    const structure = synopsis.slice(structureStart, structureStart + 10000)
+    return `${intro}\n\n[...]\n\n${structure}`
+  })()
+
+  // Quand pathSynopses est fourni, on n'injecte que l'intro du synopsis global (contexte PNJ/univers)
+  // La structure narrative vient des pathSynopses — évite la redondance et les conflits
+  const synopsisBlock = pathSynopses
+    ? synopsis.slice(0, 1500)  // intro uniquement : contexte, PNJ, univers
+    : synopsisForPrompt
+
+  // Taille max de la jonction start : si pathSynopses fourni, le tronc peut être long (≤ 20% du total)
+  const maxStartSections = pathSynopses ? Math.round(totalSections * 0.20) : 20
+  const maxEndSections = 20
+
+  // Exemple adapté selon la présence ou non de pathSynopses
+  const pathCount = pathSynopses ? Object.keys(pathSynopses.paths).length : 3
+  const exStartSections = pathSynopses ? Math.round(totalSections * 0.15) : 15
+  const exSegSections = Math.round((totalSections - exStartSections - 12) / pathCount)
+
+  return `Tu es l'architecte narratif d'un livre-jeu à chemins parallèles.
+
+Livre : "${title}" — ${theme}
+Nombre total de sections : ${totalSections}
+
+Contexte et univers :
+${synopsisBlock}
+
+DÉFINITIONS :
+- Jonction : groupe de sections PARTAGÉES par tous les chemins (points de convergence)
+- Segment : groupe de sections propres à UN SEUL chemin entre deux jonctions
+
+Ta mission : concevoir le plan de répartition en ${totalSections} sections.
+
+${pathSynopses ? `ARCHITECTURE NARRATIVE VALIDÉE — à respecter exactement :
+
+${pathSynopses.trunk_start ? `TRONC COMMUN DÉPART (jonction "start") — contenu narratif imposé :
+${pathSynopses.trunk_start}
+
+` : ''}${Object.entries(pathSynopses.paths).map(([id, syn]) => syn ? `CHEMIN ${id} — contenu narratif imposé :
+${syn}
+` : '').join('\n')}${pathSynopses.trunk_end ? `TRONC COMMUN VICTOIRE (jonction "end") — contenu narratif imposé :
+${pathSynopses.trunk_end}
+
+` : ''}CONSIGNES :
+- Utilise les IDs de chemins (${Object.keys(pathSynopses.paths).join(', ')}) tels quels dans ta réponse JSON
+- Distribue les sections_count proportionnellement à la densité narrative de chaque synopsis
+- Le tronc départ peut dépasser 20 sections si son synopsis est dense — respecte son envergure narrative
+- N'invente PAS de chemins supplémentaires, n'ajoute PAS de jonctions intermédiaires non prévues
+
+` : `Si le synopsis décrit des chemins explicites (voies d'exfiltration, routes alternatives, factions…), utilise-les comme base.
+Sinon, invente 2 à 4 chemins narrativement cohérents avec le thème (ex : "Par les toits", "Par le métro", "Infiltration directe").`}
+
+RÈGLES :
+1. Jonction "start" = intro commune, partagée par tous les chemins — MAX ${maxStartSections} sections
+2. Jonction "end" = dénouement commun — MAX ${maxEndSections} sections
+3. Chaque chemin a au moins 1 segment entre "start" et "end"
+4. ${pathSynopses ? `N'ajoute PAS de jonctions intermédiaires — l'architecture est start + chemins + end uniquement` : `Tu peux ajouter des jonctions intermédiaires si le synopsis l'impose — MAX 15 sections chacune`}
+5. La somme de TOUS les sections_count (jonctions + segments) doit être EXACTEMENT ${totalSections}
+6. Les sections_count reflètent la longueur narrative : chemins plus complexes = plus de sections
+7. Chaque jonction et segment doit avoir un synopsis de 1-2 phrases qui résume ce qui s'y passe
+8. Chaque segment de chemin doit avoir un sections_count ≥ 15
+
+RÈGLES ANTI-ENTONNOIR (OBLIGATOIRES — violations = plan invalide) :
+9. JONCTIONS CUMULÉES ≤ 25% : la somme de TOUTES les jonctions (start + end + intermédiaires) doit être au maximum ${Math.round(totalSections * 0.25)} sections. Si tu dépasses cette limite, ton plan est invalide.
+10. SEGMENTS PAR CHEMIN ≥ 20% : chaque chemin individuel doit avoir au moins ${Math.round(totalSections * 0.20)} sections dans ses segments exclusifs (somme des sections_count de ses segments). C'est non négociable.
+11. DIVERSITÉ NARRATIVE : les chemins doivent raconter des histoires véritablement différentes — lieux, PNJ, épreuves, enjeux propres à chaque voie.
+
+EXEMPLE CORRECT pour ${totalSections} sections avec ${pathCount} chemins :
+  start(${exStartSections}) + [${Object.keys(pathSynopses?.paths ?? {A:'',B:'',C:''}).map(id => `${id}-seg(${exSegSections})`).join(', ')}] + end(12)
+  → jonctions = ${exStartSections + 12} sections (${Math.round((exStartSections + 12) / totalSections * 100)}% du total) ✓  — segments = ${totalSections - exStartSections - 12} sections ✓
+
+EXEMPLE INCORRECT (à ne jamais faire) :
+  start(80) + jonctions-intermédiaires(150) + [A-seg(20), B-seg(20), C-seg(20)] + end(20)
+  → jonctions = 250 sections (81% du total) ❌ REJETÉ — les chemins sont purement cosmétiques
+${previousAttemptErrors?.length ? `
+⚠ ERREURS DE TA TENTATIVE PRÉCÉDENTE — à corriger obligatoirement :
+${previousAttemptErrors.map(e => `- ${e}`).join('\n')}
+` : ''}
+Réponds UNIQUEMENT en JSON brut valide (exemple pour 3 chemins — TOUS les chemins doivent figurer dans "paths") :
+{
+  "junctions": [
+    {
+      "id": "start",
+      "name": "Introduction commune",
+      "paths": ["A","B","C"],
+      "sections_count": 15,
+      "synopsis": "Le protagoniste se retrouve au point de départ. Il évalue ses options et choisit sa voie."
+    },
+    {
+      "id": "end",
+      "name": "Dénouement commun",
+      "paths": ["A","B","C"],
+      "sections_count": 12,
+      "synopsis": "Les chemins convergent vers le climax final et les multiples fins."
+    }
+  ],
+  "paths": [
+    {
+      "id": "A",
+      "label": "Voie A — description courte",
+      "segments": [
+        {
+          "from_junction": "start",
+          "to_junction": "end",
+          "sections_count": 80,
+          "synopsis": "Chemin A : lieux, PNJ et enjeux propres à cette voie. Histoire distincte."
+        }
+      ]
+    },
+    {
+      "id": "B",
+      "label": "Voie B — description courte",
+      "segments": [
+        {
+          "from_junction": "start",
+          "to_junction": "end",
+          "sections_count": 80,
+          "synopsis": "Chemin B : lieux, PNJ et enjeux propres à cette voie. Histoire distincte."
+        }
+      ]
+    },
+    {
+      "id": "C",
+      "label": "Voie C — description courte",
+      "segments": [
+        {
+          "from_junction": "start",
+          "to_junction": "end",
+          "sections_count": 80,
+          "synopsis": "Chemin C : lieux, PNJ et enjeux propres à cette voie. Histoire distincte."
+        }
+      ]
+    }
+  ]
+}`
+}
+
+// ── Phase 0b : Découpe en actes (livres linéaires) ────────────────────────────
 
 export function buildActSplitPrompt(
   title: string,
@@ -239,7 +408,8 @@ Réponds UNIQUEMENT avec du JSON brut valide :
 
 export function buildNpcLocationPrompt(
   params: Pick<GenerateBookParams, 'title' | 'theme' | 'context_type' | 'age_range' | 'language' | 'num_sections' | 'difficulty' | 'map_style' | 'description' | 'address_form'> & { book_summary?: string },
-  seriesBible?: string | null
+  seriesBible?: string | null,
+  weaponTypes: string[] = []
 ): string {
   const withMap = !!params.map_style
   const weaponGuide = WEAPON_GUIDE[params.theme] ?? "Armes cohérentes avec l'univers."
@@ -258,23 +428,27 @@ Génère UNIQUEMENT les PNJ et les lieux (pas les sections).
 
 Règles PNJ :
 - OBLIGATOIRE : tout personnage nommé dans le synopsis/résumé DOIT être créé comme PNJ (exemple : si "Shawn" et "Travis" sont mentionnés, ils doivent apparaître dans la liste)
-- En plus des personnages nommés : ajouter des PNJ secondaires pour atteindre 6 à 12 PNJ au total (ennemis, boss, alliés, neutres, marchands)
+- En plus des personnages nommés : ajouter des PNJ secondaires pour atteindre ${Math.max(6, Math.ceil(params.num_sections / 25))} à ${Math.max(12, Math.ceil(params.num_sections / 15))} PNJ au total (ennemis, boss, alliés, neutres, marchands)
 - Boss : endurance 20-40, force 10-18. Ennemis : endurance 8-15, force 5-12
-- Chaque PNJ : name, type, description, appearance, origin, force, agilite, intelligence, magie, endurance, chance, special_ability, resistances, loot, speech_style, dialogue_intro
+- Chaque PNJ : name, type, description, appearance, origin, group_name, force, agilite, intelligence, magie, endurance, chance, special_ability, resistances, loot, speech_style, dialogue_intro
 - RÈGLE TYPE (critique) : déduire le type depuis le synopsis. Valeurs exactes autorisées : "ennemi", "boss", "allié", "neutre", "marchand". Si le synopsis indique qu'un personnage est un compagnon, ami, allié ou mentor du héros → type OBLIGATOIREMENT "allié". Si antagoniste principal → "boss". Si antagoniste secondaire → "ennemi". Si marchand ou prestataire → "marchand". Si ambivalent → "neutre". Ne jamais mettre "ennemi" par défaut pour un personnage clairement allié.
 - appearance : description physique précise (morphologie, couleur cheveux/yeux, cicatrices, vêtements, accessoires). 2-3 phrases. Si le personnage est décrit dans le synopsis, utiliser exactement cette description.
 - origin : origine géographique, sociale ou raciale du personnage. 1-2 phrases. Si le personnage est décrit dans le synopsis, utiliser exactement cette origine.
+- group_name : nom du gang, clan, équipe ou faction du personnage tel qu'il apparaît dans le synopsis (ex : "Les Wolves", "Crew du Bronx", "Garde Noire"). Si le personnage n'appartient à aucun groupe nommé, mettre null. CRITIQUE : extraire ce nom exactement depuis le synopsis/résumé — ne pas inventer.
 - speech_style : accent, niveau de langue, tics, expressions. Ex : "Vieux sage : métaphores, vocabulaire soutenu, ne répond jamais directement"
+${weaponTypes.length > 1 ? `\nTYPES D'ARMES DISPONIBLES : ${weaponTypes.join(', ')}\nChaque PNJ ennemi/boss doit avoir un weapon_type parmi cette liste.` : ''}
+- ARMES ENNEMIS (obligatoire pour ennemi/boss) : tout PNJ de type "ennemi" ou "boss" DOIT avoir le champ weapon_type (string). Valeurs autorisées : "couteau", "batte", "pistolet", "fusil", "matraque", "hache", "épée", "arc", "main_nue" ou tout autre arme cohérente avec l'univers. "main_nue" signifie qu'il se bat à mains nues sans arme. Pour les alliés/neutres/marchands, weapon_type est null.
+- SECTIONS COMBAT (obligatoire pour ennemi/boss) : tout PNJ de type "ennemi" ou "boss" DOIT avoir le champ combat_sections : tableau de numéros de sections où ce PNJ affronte le héros en combat (ex : [5, 12]). Si le PNJ ne combat jamais, mettre []. Répartis les combats de manière cohérente avec le synopsis.
 ${withMap ? `
 Règles lieux :
-- 8 à 15 lieux couvrant tous les espaces narratifs
+- ${Math.max(8, Math.ceil(params.num_sections / 18))} à ${Math.max(15, Math.ceil(params.num_sections / 12))} lieux couvrant tous les espaces narratifs
 - Coordonnées x/y (0-100) cohérentes géographiquement
 - Chaque lieu : name (court, évocateur), x, y, icon (emoji)` : ''}
 
 Réponds UNIQUEMENT avec du JSON brut valide :
 {${withMap ? `
   "locations": [{ "name": "...", "x": 30, "y": 50, "icon": "🏰" }],` : ''}
-  "npcs": [{ "name": "...", "type": "boss", "description": "...", "appearance": "Grand, cheveux gris, cicatrice sur la joue gauche, cape noire usée.", "origin": "Ancien chevalier de l'empire déchu, exilé depuis vingt ans.", "force": 14, "agilite": 8, "intelligence": 12, "magie": 0, "endurance": 28, "chance": 5, "special_ability": "...", "resistances": "...", "loot": "...", "speech_style": "...", "dialogue_intro": null }]
+  "npcs": [{ "name": "...", "type": "boss", "description": "...", "appearance": "Grand, cheveux gris, cicatrice sur la joue gauche, cape noire usée.", "origin": "Ancien chevalier de l'empire déchu, exilé depuis vingt ans.", "group_name": "Garde Noire", "force": 14, "agilite": 8, "intelligence": 12, "magie": 0, "endurance": 28, "chance": 5, "special_ability": "...", "resistances": "...", "loot": "...", "speech_style": "...", "dialogue_intro": null, "weapon_type": "épée", "combat_sections": [15, 28] }]
 }`
 }
 
@@ -284,8 +458,14 @@ export function buildItemsPrompt(
   title: string,
   theme: string,
   synopsis: string,
-  totalSections: number
+  totalSections: number,
+  enemyWeapons: Array<{ npc_name: string; weapon_type: string; combat_sections: number[] }> = [],
+  weaponTypes: string[] = []
 ): string {
+  const weaponBlock = enemyWeapons.length > 0
+    ? `\n─── RÈGLE 6 : armes des ennemis ───\nLes ennemis suivants portent des armes récupérables après défaite. Pour chaque arme listée ci-dessous, génère un objet de catégorie "arme" avec item_type "arme" et le champ weapon_type correspondant. Le pickup_section_numbers doit contenir la section qui suit le combat (section combat + 1, si possible). Si plusieurs combats pour le même type d'arme, inclure plusieurs sections.\n${enemyWeapons.map(ew => `- ${ew.npc_name} → arme : "${ew.weapon_type}" — sections combat : [${ew.combat_sections.join(', ')}] → disponible à partir de la section ${Math.min(...ew.combat_sections) + 1}`).join('\n')}\nChaque arme ennemie doit apparaître comme objet avec : "item_type": "arme", "category": "arme", "weapon_type": "<valeur>", "pickup_section_numbers": [N] (N = section après défaite de l'ennemi).\n`
+    : ''
+
   return `Tu es un auteur expert de livres "Dont Vous Êtes le Héros".
 
 Livre : "${title}" — ${theme}
@@ -300,7 +480,7 @@ Ta mission : générer la liste complète des objets du livre.
 Le synopsis peut lister explicitement des objets avec leur catégorie (persistant, consommable, arme). Respecte-les tels quels.
 
 ─── RÈGLE 2 : objets inventés par toi ───
-Tu PEUX inventer des objets supplémentaires (uniquement consommable ou arme, jamais persistant) qui enrichissent narrativement l'histoire. Ex : un pied de biche, une grenade fumigène, un couteau de cuisine.
+Tu DOIS inventer des objets supplémentaires pour atteindre un minimum de ${Math.max(8, Math.ceil(totalSections / 30))} objets au total (uniquement consommable ou arme, jamais persistant). Ces objets enrichissent les chemins alternatifs et les déverrouillages narratifs. Ex : un pied de biche, une grenade fumigène, un couteau de cuisine. Plus le livre est long, plus les objets doivent être distribués sur des sections distantes pour créer de vraies bifurcations conditionnelles.
 
 ─── RÈGLE 3 : catégories ───
 - persistant : reste dans l'inventaire, consultable à tout moment (radio, plan, carte, grimoire central)
@@ -315,7 +495,7 @@ Pour chaque objet :
 
 ─── RÈGLE 5 : radio ───
 Si un objet persistant est une radio ou équivalent (appareil de communication, scanner…), génère des messages broadcasts pour chaque acte narratif majeur du livre (3 à 5 messages). Chaque message est lu par une voix de DJ/commentatrice radio qui donne des nouvelles sur le joueur depuis l'extérieur (prime, signalement, rumeur).
-
+${weaponBlock}${weaponTypes.length > 1 ? `\nRÈGLE ARMES : Tout item de item_type "arme" DOIT avoir un champ "weapon_type" parmi : ${weaponTypes.join(', ')}\n` : ''}
 ─── FORMAT ───
 Réponds UNIQUEMENT avec du JSON brut valide :
 [{
@@ -342,13 +522,55 @@ Réponds UNIQUEMENT avec du JSON brut valide :
   "use_section_numbers": [14],
   "locked_hint": "Cette porte semble nécessiter un outil pour être forcée…",
   "radio_broadcasts": []
+},
+{
+  "name": "Couteau de combat",
+  "item_type": "arme",
+  "category": "arme",
+  "weapon_type": "couteau",
+  "description": "Un couteau récupéré sur un ennemi vaincu.",
+  "effect": {},
+  "pickup_section_numbers": [6],
+  "use_section_numbers": [],
+  "locked_hint": "",
+  "radio_broadcasts": []
 }]`
 }
 
 // ── Phase 1c : lot de sections ─────────────────────────────────────────────────
 
+export interface PathBatchContext {
+  type: 'junction' | 'path_segment'
+  // Pour les jonctions
+  junctionName?: string
+  junctionSynopsis?: string
+  convergingPaths?: string[]
+  divergenceTargets?: Array<{ pathId: string; pathLabel: string; firstSection: number }>  // entrées des chemins à couvrir
+  // Pour les segments de chemin
+  pathId?: string
+  pathLabel?: string
+  segmentSynopsis?: string        // synopsis du segment généré par la junction map
+  segmentFrom?: number            // première section du segment entier (ex: 16)
+  segmentTo?: number              // dernière section du segment entier (ex: 99)
+  toJunctionFrom?: number         // première section de la jonction de sortie (ex: 100)
+  fromJunctionName?: string
+  fromJunctionSections?: string   // ex: "§1-§8"
+  toJunctionName?: string
+  toJunctionSections?: string     // ex: "§77-§82"
+  // Sections des autres chemins (pour que Claude sache où renvoyer)
+  allocationSummary?: string      // ex: "Chemin A: §9-§88 | Chemin B: §89-§183 | Jonction Faye: §77-§82"
+}
+
+export interface BatchOptions {
+  condensedHistory?: string        // résumé condensé des lots précédents (P1.2)
+  endingsCount?: { victory: number; death: number }  // fins déjà générées (P1.4)
+  progressInBook?: number          // % avancement 0-100 (P2.1)
+  lastSectionWasCombat?: boolean   // dernier lot terminé sur un combat (P2.5)
+  defeatedEnemies?: Array<{ npc_name: string; section: number }>  // ennemis vaincus dans les lots précédents
+}
+
 export function buildSectionBatchPrompt(
-  params: Pick<GenerateBookParams, 'title' | 'theme' | 'context_type' | 'age_range' | 'language' | 'difficulty' | 'num_sections' | 'content_mix' | 'map_style' | 'address_form'> & { synopsis?: string; book_summary?: string },
+  params: Pick<GenerateBookParams, 'title' | 'theme' | 'context_type' | 'age_range' | 'language' | 'difficulty' | 'num_sections' | 'num_victory_endings' | 'num_death_endings' | 'content_mix' | 'map_style' | 'address_form'> & { synopsis?: string; book_summary?: string },
   npcNames: string[],
   locationNames: string[],
   fromSection: number,
@@ -359,12 +581,18 @@ export function buildSectionBatchPrompt(
   act?: { title: string; synopsis: string; actNumber: number },
   corrections?: string,
   seriesBible?: string | null,
-  itemCatalogue?: Array<{ id: string; name: string; category: string; pickup_section_numbers: number[]; use_section_numbers: number[] }>
+  itemCatalogue?: Array<{ id: string; name: string; category: string; pickup_section_numbers: number[]; use_section_numbers: number[] }>,
+  combatAssignments?: Map<number, { npc_id: string; npc_name: string; enemy_weapon_type: string }>,
+  combatTypesList: Array<{ id: string; name: string; type: string }> = [],
+  pathContext?: PathBatchContext,
+  options?: BatchOptions
 ): string {
   const withMap = !!params.map_style
   const isTu = params.address_form === 'tu'
   const mix = params.content_mix ?? { combat: 20, chance: 10, enigme: 10, magie: 5 }
   const diffLabel = { facile: 'Facile', normal: 'Normal', difficile: 'Difficile', expert: 'Expert' }[params.difficulty]
+
+  const { condensedHistory, endingsCount, progressInBook, lastSectionWasCombat, defeatedEnemies } = options ?? {}
 
   const toCount = (pct: number) => Math.max(1, Math.round((pct / 100) * totalSections))
   const batchSize = toSection - fromSection + 1
@@ -374,26 +602,87 @@ export function buildSectionBatchPrompt(
   const enigmeInBatch  = Math.max(0, Math.round(toCount(mix.enigme)  * batchRatio))
   const magieInBatch   = Math.max(0, Math.round(toCount(mix.magie)   * batchRatio))
 
+  // P1.5 — filtrer catalogue d'items : seulement ceux pertinents pour ce lot
+  const batchItemCatalogue = itemCatalogue?.filter(it =>
+    it.pickup_section_numbers.some(n => n >= fromSection && n <= toSection) ||
+    it.use_section_numbers.some(n => n >= fromSection && n <= toSection)
+  )
+
   const narrative = params.synopsis?.trim() || params.book_summary?.trim() || ''
+
+  const batchCombatAssignments = combatAssignments
+    ? Array.from(combatAssignments.entries())
+        .filter(([secNum]) => secNum >= fromSection && secNum <= toSection)
+    : []
+  const combatAssignmentsBlock = batchCombatAssignments.length > 0
+    ? `\nSECTIONS COMBAT — ennemis assignés (obligatoire) :\n${batchCombatAssignments.map(([secNum, a]) => `§${secNum} → "${a.npc_name}" (npc_id: "${a.npc_id}", arme: ${a.enemy_weapon_type})`).join('\n')}\nPour chaque section listée ci-dessus, le trial DOIT inclure les champs : "npc_id": "<id>", "enemy_weapon_type": "<weapon_type>" — en plus des champs habituels.\n`
+    : ''
+
+  const combatTypesBlock = combatTypesList.length > 0
+    ? `\nTYPES DE COMBAT DISPONIBLES (utiliser l'id exact dans combat_type_id) :\n${combatTypesList.map(ct => `- "${ct.name}" (type: ${ct.type}) → id: "${ct.id}"`).join('\n')}\nPour les sections combat, assigner le combat_type_id le plus cohérent narrativement.\n`
+    : ''
+
+  const pathContextBlock = pathContext
+    ? pathContext.type === 'junction'
+      ? `\n=== JONCTION PARTAGÉE : "${pathContext.junctionName}" ===
+Chemins qui convergent ici : ${pathContext.convergingPaths?.join(', ')}
+${pathContext.junctionSynopsis ? `Contenu narratif : ${pathContext.junctionSynopsis}` : ''}
+${pathContext.allocationSummary ? `Plan d'allocation global : ${pathContext.allocationSummary}` : ''}
+${pathContext.divergenceTargets?.length ? `
+⚠ DIVERGENCE OBLIGATOIRE — entrées des chemins à couvrir par les choix de sortie :
+${pathContext.divergenceTargets.map(t => `- Chemin ${t.pathId} ("${t.pathLabel}") : premier choix DOIT pointer vers §${t.firstSection}`).join('\n')}
+Distribue ces cibles sur les dernières sections de cette jonction (max 3 choix par section). Chaque chemin DOIT être accessible depuis cette jonction.` : ''}
+Ces sections sont communes à plusieurs chemins. Elles doivent rester narrativement neutres vis-à-vis du chemin pris par le joueur — ne pas supposer d'où il vient.\n`
+      : `\n=== CHEMIN ${pathContext.pathId} : "${pathContext.pathLabel}" ===
+Segment : de "${pathContext.fromJunctionName}" (${pathContext.fromJunctionSections}) vers "${pathContext.toJunctionName}" (${pathContext.toJunctionSections})
+Plage COMPLÈTE de ce segment : §${pathContext.segmentFrom ?? '?'} à §${pathContext.segmentTo ?? '?'}
+${pathContext.segmentSynopsis ? `Contenu narratif de ce segment : ${pathContext.segmentSynopsis}` : ''}
+${pathContext.allocationSummary ? `Plan d'allocation global : ${pathContext.allocationSummary}` : ''}
+
+⚠ CONTRAINTE STRICTE — CIBLES DES CHOIX (respecter absolument) :
+- Sections §${pathContext.segmentFrom}-§${(pathContext.segmentTo ?? 1) - 1} (intérieur du segment) : tous leurs choix DOIVENT pointer vers §${pathContext.segmentFrom}-§${pathContext.segmentTo}. INTERDIT de pointer vers §1-§${(pathContext.segmentFrom ?? 1) - 1}.
+- Section §${pathContext.segmentTo} (DERNIÈRE du segment) : au moins 1 choix DOIT pointer vers §${pathContext.toJunctionFrom} (première section de la jonction "${pathContext.toJunctionName}"). Les autres choix de §${pathContext.segmentTo} peuvent pointer à l'intérieur du segment.
+- trial.success_section et trial.failure_section obéissent aux mêmes règles de plage.
+- Un échec de combat/épreuve dans ce segment peut renvoyer vers §${pathContext.segmentFrom} (début du segment) — JAMAIS vers §1.\n`
+    : ''
+
+  // P2.1 — phase narrative selon la progression
+  const progressPct = progressInBook ?? Math.round((fromSection / totalSections) * 100)
+  const tensionPhase = progressPct < 20
+    ? `Phase d'exposition (${progressPct}%) : installe les enjeux, tensions faibles, rythme posé.`
+    : progressPct < 45
+    ? `Phase de montée en tension (${progressPct}%) : complications croissantes, révélations partielles, rythme qui s'accélère.`
+    : progressPct < 70
+    ? `Phase de tension maximale (${progressPct}%) : confrontations majeures, révélations importantes, décisions cruciales.`
+    : progressPct < 90
+    ? `Phase de climax (${progressPct}%) : tout s'accélère, les cartes sont sur table, chaque section compte.`
+    : `Phase finale (${progressPct}%) : dénouement, les arcs narratifs se referment, fins proches.`
+
+  // P1.4 — calcul fins restantes à générer
+  const targetVictory = params.num_victory_endings ?? 1
+  const targetDeath = params.num_death_endings ?? ({ facile: 2, normal: 3, difficile: 5, expert: 6 }[params.difficulty] ?? 3)
+  const remainingVictory = targetVictory - (endingsCount?.victory ?? 0)
+  const remainingDeath = targetDeath - (endingsCount?.death ?? 0)
 
   return `Tu génères un lot de sections pour le livre DYEH "${params.title}" (${params.theme}, ${params.context_type}, ${params.age_range} ans).
 Adresse : ${isTu ? 'tutoiement ("tu")' : 'vouvoiement ("vous")'} — Difficulté : ${diffLabel}
-${seriesBible ? `\nBIBLE DE LA SÉRIE (contexte global à respecter) :\n${seriesBible.slice(0, 1500)}\n` : ''}${act
+${seriesBible ? `\nBIBLE DE LA SÉRIE (contexte global à respecter) :\n${seriesBible.slice(0, 1500)}\n` : ''}${pathContextBlock}${act
   ? `\n=== ACTE ${act.actNumber} : "${act.title}" ===\n${act.synopsis}\n`
   : narrative ? `\nSynopsis général :\n${narrative.slice(0, 2000)}\n` : ''
-}${previousSummaries.length ? `\nContinuité narrative — fin du lot précédent :\n${previousSummaries.join('\n')}\nReprends directement depuis cet état narratif.\n` : ''}${corrections ? `\n⚠ CORRECTIONS OBLIGATOIRES pour ce lot (version précédente rejetée) :\n${corrections}\nCes erreurs structurelles ou narratives ont été identifiées — tu DOIS les corriger dans cette version.\n` : ''}
+}${condensedHistory ? `\nHistorique narratif (lots précédents) :\n${condensedHistory}\n` : ''}${previousSummaries.length ? `\nContinuité immédiate — dernières sections générées :\n${previousSummaries.join('\n')}\nReprends directement depuis cet état narratif.\n` : ''}${corrections ? `\n⚠ CORRECTIONS OBLIGATOIRES pour ce lot (version précédente rejetée) :\n${corrections}\nCes erreurs structurelles ou narratives ont été identifiées — tu DOIS les corriger dans cette version.\n` : ''}
+Phase narrative : ${tensionPhase}
 PNJ disponibles (utilise EXACTEMENT ces noms pour enemy_name) :
 ${npcNames.join(', ')}
-${withMap ? `\nLieux disponibles (utilise EXACTEMENT ces noms pour location_name) :\n${locationNames.join(', ')}\n` : ''}${itemCatalogue && itemCatalogue.length > 0 ? `
-Catalogue d'objets (pour items_on_scene et choix verrouillés) :
-${itemCatalogue.map(it => `- "${it.name}" [${it.category}] id:${it.id} | pickup:§${it.pickup_section_numbers.join('§,')} | usage:§${it.use_section_numbers.join('§,')}`).join('\n')}
+${withMap ? `\nLieux disponibles (utilise EXACTEMENT ces noms pour location_name) :\n${locationNames.join(', ')}\n` : ''}${batchItemCatalogue && batchItemCatalogue.length > 0 ? `
+Catalogue d'objets pertinents pour ce lot (§${fromSection}-§${toSection}) :
+${batchItemCatalogue.map(it => `- "${it.name}" [${it.category}] id:${it.id} | pickup:§${it.pickup_section_numbers.filter(n => n >= fromSection && n <= toSection).join(',§')} | usage:§${it.use_section_numbers.filter(n => n >= fromSection && n <= toSection).join(',§')}`).join('\n')}
 
 Règles objets :
 - Si une section de ce lot figure dans les pickup_section_numbers d'un objet, ajoute cet objet dans items_on_scene de la section : [{"item_id":"<id>"}] (pas de position — elle sera définie manuellement)
 - Si une section de ce lot figure dans les use_section_numbers d'un objet, ajoute dans ses choices un choix verrouillé : "condition":{"item_id":"<id>"}, "locked_label":"<texte si objet absent>", "label":"<texte si objet présent>" — ce choix a un target_section normal
 - Un objet peut apparaître dans plusieurs sections si plusieurs chemins existent
-` : ''}
-Génère les sections ${fromSection} à ${toSection} (${batchSize} sections sur ${totalSections} au total).
+` : ''}${combatAssignmentsBlock}${combatTypesBlock}
+Génère les sections ${fromSection} à ${isLastBatch ? `~${toSection} (cible : ${batchSize} sections, tu peux ajuster entre ${toSection - 5} et ${toSection + 5} si la narration le requiert pour conclure de façon optimale)` : `${toSection} (${batchSize} sections)`} sur ~${totalSections} au total.
 Répartition cible pour CE lot : ~${combatInBatch} combat, ~${chanceInBatch} chance, ~${enigmeInBatch} énigme/intel, ~${magieInBatch} magie, reste narration.
 ${isLastBatch ? `\nCe lot contient les DERNIÈRES sections — inclure toutes les fins (victoire et mort) conformément à la difficulté ${diffLabel}.` : `\nCe lot ne contient PAS encore les fins — reserve is_ending:true pour le dernier lot.`}
 
@@ -401,14 +690,33 @@ Règles :
 - Section ${fromSection === 1 ? '1 = point de départ de l\'aventure' : `${fromSection} = suite directe des sections précédentes`}
 - summary : 1 à 2 phrases (20-30 mots) décrivant l'action et l'enjeu de la scène
 - hint : 1 phrase d'aide subtile pour le joueur s'il est bloqué — oriente sans révéler (ex: "Certains objets ramassés plus tôt pourraient s'avérer utiles ici." ou "Observer l'environnement attentivement révèle parfois ce que les apparences cachent."). Ne jamais donner la solution directement.
-- INTERDIT : deux sections combat consécutives dans le même chemin
-- Tout trial DOIT avoir success_section ET failure_section pointant vers des sections de CE lot ou des lots précédents (${1} à ${toSection})
-- OBLIGATOIRE : toute épreuve de combat (type "combat") DOIT avoir enemy_name avec le nom EXACT d'un PNJ de la liste ci-dessus. Sans enemy_name, le combat est invalide.
-- RÈGLE CRITIQUE — failure_section des combats : l'échec d'un combat NE MÈNE PAS à une fin mort sauf cas exceptionnel (boss final, piège mortel). Dans la grande majorité des cas, failure_section pointe vers une section narrative de conséquence (fuite, blessure, capture, repli, humiliation). Les fins mort (is_ending:true, ending_type:"death") sont réservées aux fins du livre conformément au guide de difficulté — pas aux défaites intermédiaires.
-- is_back:true autorisé sur ~15% des sections de narration (retour vers section déjà vue)
+- INTERDIT : deux sections combat consécutives dans le même chemin${lastSectionWasCombat ? ` — ATTENTION : la dernière section du lot précédent était un combat. La section §${fromSection} NE PEUT PAS être un combat.` : ''}
+- INTERDIT : la section §1 (point de départ) ne peut JAMAIS être un combat — c'est une introduction narrative qui pose le contexte
+${pathContext?.type === 'path_segment' && pathContext.segmentFrom != null
+  ? `- Tout trial DOIT avoir success_section ET failure_section.
+  success_section : DOIT pointer vers §${pathContext.segmentFrom}-§${pathContext.segmentTo} (intérieur du chemin)${pathContext.toJunctionFrom != null ? ` — EXCEPTION pour §${pathContext.segmentTo} uniquement : success_section peut pointer vers §${pathContext.toJunctionFrom} (entrée de la jonction de sortie)` : ''}.
+  failure_section : DOIT pointer vers §${pathContext.segmentFrom}-§${toSection} — JAMAIS vers §1 ni hors du chemin.`
+  : `- Tout trial DOIT avoir success_section ET failure_section. success_section peut pointer vers n'importe quelle section du livre (§1 à §${totalSections}) — un succès fait avancer le héros. failure_section doit pointer vers §1 à §${toSection} (sections déjà générées ou ce lot) — un échec renvoie en arrière ou en zone connue.`
+}
+- COMBAT — format multi-adversaires : utilise TOUJOURS le tableau "enemies" (même pour un seul ennemi). Chaque entrée = un adversaire distinct avec son npc_name EXACT de la liste. Exemples de configuration :
+  * 1 vs 1 : "enemies": [{ "npc_name": "Reapers Chef", "force": 8, "endurance": 12, "enemy_weapon_type": "couteau" }]
+  * 1 vs 2 (embuscade, gang) : "enemies": [{ "npc_name": "Reapers Sbire 1", "force": 5, "endurance": 8 }, { "npc_name": "Reapers Sbire 2", "force": 5, "endurance": 8 }]
+  * 1 vs 3 max (maximum autorisé — situations de groupe, émeutes, embuscades multiples)
+  Ne jamais dépasser 3 adversaires. Les combats 1 vs 2 ou 1 vs 3 sont réservés aux scènes de groupe narrativement justifiées (gang, brigade, embuscade). La majorité des combats restent 1 vs 1.
+- PERSISTANCE DES ENNEMIS — un adversaire vaincu (succès d'un combat) ne peut pas réapparaître comme ENNEMI dans les sections suivantes du MÊME chemin narratif. Il peut réapparaître dans d'autres rôles (PNJ neutre, allié, fuite) ou sur un chemin divergent.${defeatedEnemies && defeatedEnemies.length > 0 ? `\n  Adversaires déjà vaincus dans les lots précédents (NE PAS réutiliser comme ennemi combat sur ce chemin) :\n${defeatedEnemies.map(e => `  - ${e.npc_name} (vaincu à §${e.section})`).join('\n')}` : ''}
+- RÈGLE CRITIQUE — failure_section des combats : l'échec d'un combat NE MÈNE PAS à une fin mort sauf cas exceptionnel (boss final, piège mortel). Dans la grande majorité des cas, failure_section pointe vers une section narrative de conséquence (fuite, blessure, capture, repli, humiliation)${pathContext?.type === 'path_segment' && pathContext.segmentFrom != null ? ` — dans la plage §${pathContext.segmentFrom}-§${pathContext.segmentTo} uniquement` : ''}. Les fins mort (is_ending:true, ending_type:"death") sont réservées aux fins du livre — pas aux défaites intermédiaires.
+${isLastBatch
+  ? `- FINS OBLIGATOIRES : ce lot est le dernier. Génère EXACTEMENT ${remainingVictory} fin(s) victoire (is_ending:true, ending_type:"victory") et ${remainingDeath} fin(s) mort (is_ending:true, ending_type:"death") supplémentaires. ${endingsCount && (endingsCount.victory > 0 || endingsCount.death > 0) ? `(Fins déjà générées dans les lots précédents : ${endingsCount.victory} victoire, ${endingsCount.death} mort — ne pas les compter dans ce lot.)` : ''}`
+  : `- Ce lot NE CONTIENT PAS les fins — is_ending:true est INTERDIT dans ce lot. Les fins sont réservées au dernier lot.${(endingsCount?.victory ?? 0) > 0 || (endingsCount?.death ?? 0) > 0 ? ` (${(endingsCount?.victory ?? 0) + (endingsCount?.death ?? 0)} fin(s) détectée(s) dans des lots précédents — les ignorer et ne pas en ajouter ici.)` : ''}`
+}
+${pathContext?.type === 'path_segment' && pathContext.segmentFrom != null
+  ? `- is_back:true autorisé sur ~15% des sections de narration — UNIQUEMENT vers des sections dans §${pathContext.segmentFrom}-§${pathContext.segmentTo} (INTERDIT de revenir vers la jonction précédente §1-§${(pathContext.segmentFrom ?? 1) - 1})`
+  : `- is_back:true autorisé sur ~15% des sections de narration (retour vers section déjà vue)`
+}
 ${withMap ? '- location_name doit correspondre exactement à l\'un des lieux listés ci-dessus' : ''}
 - Nombre de choix : la plupart des sections ont 2 choix. Aux carrefours narratifs importants (dilemme moral, croisement de chemins, interrogatoire), utilise 3 choix. Ne dépasse jamais 3.
 - Label de choix : COURT, 3 à 5 mots maximum, commençant par un verbe à l'infinitif. Exemples valides : "Explorer le parc", "S'enfuir dans la rue", "Parler au garde", "Forcer la serrure". INTERDIT : phrases longues, subordonnées, explications ("Décider de partir car il est dangereux de rester" est invalide).
+- Archétype de choix : chaque choix doit avoir un champ "archetype" — 2 à 4 mots caractérisant la nature de l'action (tempérament, style, approche). Exemples : "Passage en force", "Discrétion", "Prise de risque", "Courage", "Ruse", "Prudence", "Intimidation", "Empathie", "Improvisation", "Fuite". Choisis un archétype distinct par choix au sein d'une même section.
 - Scènes d'interrogatoire (Q&A mémoriel) : quand un PNJ pose une question au héros, les choix sont les RÉPONSES possibles du héros (ex : "Je mens et dis que...", "Je réponds honnêtement...", "Je refuse de répondre"). Les sections cibles divergent SELON la réponse donnée — dans chaque section cible, le PNJ doit réagir en fonction de la réponse reçue (il s'en souvient). Ce pattern est distinct d'un trial : il n'y a pas de jet de dé, juste un choix de réponse avec conséquences narratives.
 
 Réponds UNIQUEMENT avec du JSON brut valide, sans bloc markdown :
@@ -435,7 +743,9 @@ Réponds UNIQUEMENT avec du JSON brut valide, sans bloc markdown :
     "trial": {
       "type": "combat",
       "stat": "force",
-      "enemy_name": "${npcNames[0] ?? 'Nom du PNJ'}",
+      "enemies": [
+        { "npc_name": "${npcNames[0] ?? 'Nom du PNJ'}", "force": 8, "endurance": 12, "enemy_weapon_type": "couteau" }
+      ],
       "success_section": ${fromSection + 2},
       "failure_section": ${fromSection + 3},
       "xp_reward": 75,
@@ -444,6 +754,113 @@ Réponds UNIQUEMENT avec du JSON brut valide, sans bloc markdown :
     "choices": []
   }
 ]}`
+}
+
+// ── Deux passes : squelette + enrichissement ─────────────────────────────────
+
+export function buildSkeletonPrompt(
+  params: Pick<GenerateBookParams, 'title' | 'theme' | 'context_type' | 'age_range' | 'language' | 'difficulty' | 'num_sections' | 'num_victory_endings' | 'num_death_endings' | 'content_mix' | 'address_form'>,
+  npcNames: string[],
+  segmentFrom: number,
+  segmentTo: number,
+  totalSections: number,
+  pathContext: PathBatchContext,
+  endingsCount: { victory: number; death: number },
+  isLastSegment: boolean
+): string {
+  const count = segmentTo - segmentFrom + 1
+  const mix = params.content_mix ?? { combat: 20, chance: 10, enigme: 10, magie: 5 }
+  const batchRatio = count / totalSections
+  const combatCount = Math.max(1, Math.round((mix.combat / 100) * totalSections * batchRatio))
+  const chanceCount = Math.max(0, Math.round((mix.chance / 100) * totalSections * batchRatio))
+  const enigmeCount = Math.max(0, Math.round((mix.enigme / 100) * totalSections * batchRatio))
+  const targetVictory = params.num_victory_endings ?? 1
+  const targetDeath = params.num_death_endings ?? ({ facile: 2, normal: 3, difficile: 5, expert: 6 }[params.difficulty] ?? 3)
+  const remainingVictory = Math.max(0, targetVictory - endingsCount.victory)
+  const remainingDeath = Math.max(0, targetDeath - endingsCount.death)
+  const isTu = params.address_form === 'tu'
+
+  return `Tu génères le SQUELETTE DE NAVIGATION pour le livre DYEH "${params.title}" (${params.theme}).
+
+Ce squelette définit la structure de navigation pour ${count} sections (§${segmentFrom}–§${segmentTo}).
+Une seconde passe enrichira le contenu textuel — pour l'instant : résumés courts (15-25 mots) et navigation précise.
+
+CHEMIN ${pathContext.pathId} : "${pathContext.pathLabel}"
+Plage complète : §${segmentFrom}–§${segmentTo}
+Jonction d'entrée : "${pathContext.fromJunctionName}" (${pathContext.fromJunctionSections})
+Jonction de sortie : "${pathContext.toJunctionName}" (${pathContext.toJunctionSections})
+${pathContext.segmentSynopsis ? `\nSynopsis du segment :\n${pathContext.segmentSynopsis}\n` : ''}${pathContext.allocationSummary ? `\nPlan d'allocation global : ${pathContext.allocationSummary}\n` : ''}
+Adresse : ${isTu ? 'tutoiement ("tu")' : 'vouvoiement ("vous")'}
+PNJ disponibles : ${npcNames.join(', ')}
+
+─── RÈGLES DE NAVIGATION ABSOLUES ───
+- Sections §${segmentFrom}–§${segmentTo - 1} (intérieur) : TOUS les choix ET trials pointent UNIQUEMENT vers §${segmentFrom}–§${segmentTo}
+- Section §${segmentTo} (DERNIÈRE) : au moins 1 choix DOIT pointer vers §${pathContext.toJunctionFrom} (jonction "${pathContext.toJunctionName}")
+  Les autres choix de §${segmentTo} peuvent pointer vers l'intérieur du segment (§${segmentFrom}–§${segmentTo})
+- failure_section : JAMAIS vers §1 — toujours dans §${segmentFrom}–§${segmentTo}
+- INTERDIT de pointer vers n'importe quelle section hors de §${segmentFrom}–§${segmentTo} (sauf la dernière vers §${pathContext.toJunctionFrom})
+
+─── TYPES DE SECTIONS À DISTRIBUER ───
+- ~${combatCount} combat(s) — INTERDIT : 2 combats consécutifs. Section §${segmentFrom} = introduction, jamais combat.
+- ~${chanceCount} chance, ~${enigmeCount} énigme/intelligence, reste narration
+- 2–3 choix par section narrative, 0 choix pour les sections trial (trial gère le routage)
+${isLastSegment
+  ? `- FINS OBLIGATOIRES dans ce segment : ${remainingVictory} fin(s) victoire (ending_type:"victory") + ${remainingDeath} fin(s) mort (ending_type:"death")`
+  : `- is_ending:true INTERDIT ici — les fins sont dans le dernier segment du livre`}
+
+─── FORMAT ───
+Réponds UNIQUEMENT avec du JSON brut valide :
+{ "sections": [
+  { "number": ${segmentFrom}, "summary": "Résumé court (15-25 mots)", "is_ending": false, "ending_type": null,
+    "trial": null,
+    "choices": [
+      { "label": "Aller à droite", "target_section": ${segmentFrom + 3} },
+      { "label": "Rester en position", "target_section": ${segmentFrom + 7} }
+    ]
+  },
+  { "number": ${segmentFrom + 1}, "summary": "...", "is_ending": false, "ending_type": null,
+    "trial": { "type": "combat", "stat": "force", "success_section": ${segmentFrom + 4}, "failure_section": ${segmentFrom + 2} },
+    "choices": []
+  }
+] }`
+}
+
+export function buildEnrichmentPrompt(
+  params: Pick<GenerateBookParams, 'title' | 'theme' | 'context_type' | 'age_range' | 'language' | 'difficulty' | 'map_style' | 'address_form'> & { synopsis?: string; book_summary?: string },
+  npcNames: string[],
+  locationNames: string[],
+  skeletonSections: any[],
+  seriesBible?: string | null
+): string {
+  const withMap = !!params.map_style
+  const isTu = params.address_form === 'tu'
+  const narrative = params.synopsis?.trim() || params.book_summary?.trim() || ''
+
+  const skeletonJson = JSON.stringify(skeletonSections, null, 2)
+
+  return `Tu enrichis des sections squelette pour le livre DYEH "${params.title}" (${params.theme}, ${params.context_type}, ${params.age_range} ans).
+Adresse : ${isTu ? 'tutoiement ("tu")' : 'vouvoiement ("vous")'} — Difficulté : ${params.difficulty}
+${narrative ? `\nSynopsis général :\n${narrative.slice(0, 1500)}\n` : ''}${seriesBible ? `\nBible de la série :\n${seriesBible.slice(0, 800)}\n` : ''}
+PNJ disponibles : ${npcNames.join(', ')}
+
+─── SQUELETTE À ENRICHIR ───
+${skeletonJson}
+
+─── CE QUE TU DOIS AJOUTER ───
+Pour chaque section :
+1. summary : améliore le résumé (20-35 mots, vivant, atmosphérique, sensoriel)
+2. hint : 1 phrase d'aide subtile pour le joueur bloqué (sans révéler la solution directe)${withMap && locationNames.length > 0 ? `\n3. location_name : nom exact parmi : ${locationNames.join(', ')}` : ''}
+
+─── RÈGLES IMPÉRATIVES ───
+- NE MODIFIE PAS : number, choices[].target_section, trial.success_section, trial.failure_section, is_ending, ending_type
+- Les labels de choix peuvent être légèrement améliorés (3-5 mots, verbe infinitif) mais les cibles sont FIXES
+- Conserve le type et stat des trials
+- Pour les sections is_ending:true : summary évocateur (victoire triomphante ou mort tragique, 20-30 mots)
+
+Réponds UNIQUEMENT avec du JSON brut valide :
+{ "sections": [
+  { "number": N, "summary": "...", "hint": "...", ${withMap ? `"location_name": "...", ` : ''}"is_ending": false, "ending_type": null, "trial": {..._ou_null}, "choices": [...] }
+] }`
 }
 
 // ── Phase 2 : génération du contenu narratif ─────────────────────────────────

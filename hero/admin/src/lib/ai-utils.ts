@@ -44,12 +44,33 @@ export function fixJsonControlChars(raw: string): string {
 }
 
 export function extractJson(raw: string): string {
-  let cleaned = raw.replace(/^```(?:json)?\s*/im, '').replace(/\s*```\s*$/m, '').trim()
-  if (!cleaned.startsWith('{') && !cleaned.startsWith('[')) {
-    const start = raw.search(/[{\[]/)
-    const end   = Math.max(raw.lastIndexOf('}'), raw.lastIndexOf(']'))
-    if (start !== -1 && end !== -1) cleaned = raw.slice(start, end + 1)
+  // Supprimer les blocs markdown où qu'ils soient dans la chaîne
+  const stripped = raw.replace(/```(?:json)?\s*/g, '').replace(/```/g, '').trim()
+  // Chercher un début JSON valide : { ou [{ ou [" ou [] — pas juste [ seul (évite [COMBAT], [FIN]…)
+  const objStart = stripped.indexOf('{')
+  const arrStart = stripped.search(/\[\s*[{\["'\-\d\]tf]/)  // [ suivi d'un caractère JSON valide
+  let start: number
+  if (objStart === -1 && arrStart === -1) return fixJsonControlChars(stripped)
+  if (objStart === -1) start = arrStart
+  else if (arrStart === -1) start = objStart
+  else start = Math.min(objStart, arrStart)
+  // Trouver la fin par comptage de brackets équilibrés (évite lastIndexOf sur contenu parasite)
+  const opener = stripped[start]
+  const closer = opener === '{' ? '}' : ']'
+  let depth = 0
+  let inString = false
+  let escape = false
+  let end = -1
+  for (let i = start; i < stripped.length; i++) {
+    const ch = stripped[i]
+    if (escape) { escape = false; continue }
+    if (ch === '\\' && inString) { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+    if (ch === opener) depth++
+    else if (ch === closer) { depth--; if (depth === 0) { end = i; break } }
   }
+  const cleaned = end !== -1 ? stripped.slice(start, end + 1) : stripped.slice(start)
   return fixJsonControlChars(cleaned)
 }
 
@@ -143,6 +164,9 @@ export async function generateText(
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   })
+  if (msg.stop_reason === 'max_tokens') {
+    throw new Error(`TRONCATURE — modèle=${claudeModel} max_tokens=${maxTokens} atteint. Augmente max_tokens ou réduis la taille du lot.`)
+  }
   return msg.content[0].type === 'text' ? msg.content[0].text : ''
 }
 

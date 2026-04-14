@@ -43,14 +43,15 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'fix_combat_enemy',
-    description: 'Assigne un PNJ ennemi à une section de combat sans ennemi. Utilise le nom exact d\'un PNJ de type ennemi/boss disponible dans get_structure.',
+    description: 'Assigne un PNJ ennemi à une section de combat sans ennemi. Utilise npc_id (champ "id" de enemy_npcs dans get_structure) en priorité — c\'est le moyen le plus fiable. npc_name est un fallback si npc_id n\'est pas disponible.',
     input_schema: {
       type: 'object',
       properties: {
         section_number: { type: 'number' },
-        npc_name: { type: 'string', description: 'Nom exact du PNJ ennemi ou boss' },
+        npc_id: { type: 'string', description: 'UUID du PNJ (champ "id" de enemy_npcs) — prioritaire sur npc_name' },
+        npc_name: { type: 'string', description: 'Nom du PNJ ennemi ou boss — utilisé si npc_id absent' },
       },
-      required: ['section_number', 'npc_name'],
+      required: ['section_number'],
     },
   },
   {
@@ -212,7 +213,7 @@ async function executeTool(name: string, input: Record<string, any>, bookId: str
         total_sections: sections?.length ?? 0,
         total_choices: choices?.length ?? 0,
         sections: structuredSections,
-        enemy_npcs: (npcs ?? []).map((n: any) => `${n.name} (${n.type}, F:${n.force} E:${n.endurance})`),
+        enemy_npcs: (npcs ?? []).map((n: any) => ({ id: n.id, name: n.name, display: `${n.name} (${n.type}, F:${n.force} E:${n.endurance})` })),
         issues_summary: allIssues,
         critical_count: allIssues.length,
       }
@@ -235,8 +236,17 @@ async function executeTool(name: string, input: Record<string, any>, bookId: str
     case 'fix_combat_enemy': {
       const { data: sec } = await supabaseAdmin.from('sections').select('id, trial').eq('book_id', bookId).eq('number', input.section_number).single()
       if (!sec) throw new Error(`§${input.section_number} introuvable`)
-      const { data: npc } = await supabaseAdmin.from('npcs').select('id, name, force, endurance').eq('book_id', bookId).ilike('name', input.npc_name).single()
-      if (!npc) throw new Error(`PNJ "${input.npc_name}" introuvable`)
+      let npc: any = null
+      if (input.npc_id) {
+        const { data } = await supabaseAdmin.from('npcs').select('id, name, force, endurance').eq('book_id', bookId).eq('id', input.npc_id).maybeSingle()
+        npc = data
+      }
+      if (!npc && input.npc_name) {
+        const baseName = input.npc_name.split(/\s*\(/)[0].trim()
+        const { data } = await supabaseAdmin.from('npcs').select('id, name, force, endurance').eq('book_id', bookId).ilike('name', `${baseName}%`).limit(1).maybeSingle()
+        npc = data
+      }
+      if (!npc) throw new Error(`PNJ "${input.npc_id ?? input.npc_name ?? 'inconnu'}" introuvable`)
       await supabaseAdmin.from('sections').update({ trial: { ...(sec.trial as object ?? {}), npc_id: npc.id, enemy: { name: npc.name, force: npc.force, endurance: npc.endurance } } }).eq('id', sec.id)
       return { ok: true, message: `§${input.section_number} → ennemi "${npc.name}"` }
     }

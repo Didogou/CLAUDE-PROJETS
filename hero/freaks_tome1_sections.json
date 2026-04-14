@@ -1,0 +1,3146 @@
+{
+  "titre": "Freaks — Tome 1 : Le Bronx",
+  "objets": [
+    {
+      "name": "Paquet de cigarettes",
+      "item_type": "quete",
+      "category": "consommable",
+      "description": "Un paquet presque plein, trouvé dans l'herbe du parc. Utile pour briser la glace.",
+      "effect": {
+        "dialogue_bonus": true
+      },
+      "section_found": "§3B",
+      "sections_used": [
+        "§5"
+      ],
+      "caché_dans_image": true
+    },
+    {
+      "name": "La Carte",
+      "item_type": "plan",
+      "category": "persistant",
+      "description": "Une carte du Bronx annotée — angles morts, raccourcis, points de contrôle des Reapers.",
+      "effect": {
+        "navigation_bonus": true
+      },
+      "section_found": "§2AA-B / §2AA-C",
+      "sections_used": [
+        "tronc commun — bonus sur épreuves de navigation"
+      ],
+      "caché_dans_image": true
+    },
+    {
+      "name": "Couteau",
+      "item_type": "arme",
+      "category": "persistant",
+      "weapon_type": "couteau",
+      "description": "Un couteau de poche glissé par Faye. Au cas où.",
+      "effect": {
+        "combat_bonus": 2
+      },
+      "section_found": "§5",
+      "sections_used": [
+        "combats — bonus +2 en Force"
+      ],
+      "caché_dans_image": false,
+      "notes_dev": "Donné par Faye uniquement si dialogue §5 réussi ET paquet de cigarettes en inventaire."
+    },
+    {
+      "name": "Bandana Reaper",
+      "item_type": "quete",
+      "category": "persistant",
+      "description": "Le bandana d'un Reaper neutralisé. Porter les couleurs de l'ennemi peut ouvrir des portes.",
+      "effect": {
+        "disguise": true
+      },
+      "section_found": "§13",
+      "sections_used": [
+        "à définir sur les chemins parallèles"
+      ],
+      "caché_dans_image": false
+    },
+    {
+      "name": "Téléphone Reaper",
+      "item_type": "quete",
+      "category": "persistant",
+      "description": "Un téléphone déverrouillé pris à un Reaper dans la ruelle. Des contacts, des messages — et un moyen d'appeler la copine de Travis pour avoir des infos sur ce qui se dit dehors.",
+      "effect": {
+        "call_girlfriend": true
+      },
+      "section_found": "§4-sedgwick-bodega-B-echec",
+      "sections_used": [
+        "à définir"
+      ],
+      "caché_dans_image": false,
+      "notes_dev": "Travis appelle sa copine (nom à définir) — elle a des infos sur Cypress et ce qui se dit sur les Freaks. Usage et section à définir ultérieurement."
+    },
+    {
+      "name": "Radio",
+      "item_type": "quete",
+      "category": "persistant",
+      "description": "Une radio volée à un Reaper de l'Armory. Permet d'écouter la DJ de Radio One et les communications des Reapers — et de diffuser de fausses informations.",
+      "effect": {
+        "listen_dj": true,
+        "broadcast": true
+      },
+      "section_found": "§15",
+      "sections_used": [
+        "§finale — diffuse de fausses infos au quai de 161st Street"
+      ],
+      "caché_dans_image": false,
+      "radio_broadcasts": "à définir — voix de la DJ par acte"
+    },
+    {
+      "name": "Clé de voiture",
+      "item_type": "quete",
+      "category": "consommable",
+      "description": "Une clé de voiture récupérée dans la rue. Ouvre une vieille caisse garée près de la station-service — pile grillée, inutilisable pour conduire, mais le coffre est ouvert.",
+      "effect": {},
+      "section_found": "§9-echec-B",
+      "sections_used": [
+        "§10",
+        "§10-C"
+      ],
+      "caché_dans_image": false,
+      "notes_dev": "Consommée en §10-C — pile grillée, la voiture ne démarre pas. L'objet disparaît de l'inventaire."
+    }
+  ],
+  "templates_ennemis": {
+    "note": "Tous les ennemis sont appelés 'Reaper' dans les sections combat. Stats sur 20. Tous combattent à mains nues (pacte de désarmement).",
+    "reaper_standard": {
+      "force": 10,
+      "agilite": 8,
+      "endurance": 12
+    },
+    "reaper_elite": {
+      "force": 14,
+      "agilite": 12,
+      "endurance": 16
+    },
+    "membre_de_gang": {
+      "force": 9,
+      "agilite": 10,
+      "endurance": 10
+    }
+  },
+  "tronc_commun": [
+    {
+      "id": "§1",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, nuit",
+      "npcs": [
+        "Cypress (au podium)",
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Travis observe la foule réunie pour le discours de Cypress. Quelque chose cloche — des regards fuyants, une tension inexplicable. Son instinct lui parle.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu commences à te déplacer discrètement vers la lisière des arbres.",
+          "cible": "§2A",
+          "epreuve": null
+        },
+        {
+          "label": "Tu restes immobile. C'est le Bronx, pas Coney Island. Ce sentiment, tu l'ignores.",
+          "cible": "§2B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2A",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, lisière des arbres",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu longes discrètement la lisière des arbres quand le coup de feu claque. Tu es en marge — tu vois Cypress tomber, la foule se figer. Tu as une seconde d'avance sur tout le monde.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu attrapes tes gars un par un et leur fais signe de te suivre entre les arbres.",
+          "cible": "§2AA",
+          "epreuve": null
+        },
+        {
+          "label": "Tu restes là et tu observes la scène.",
+          "cible": "§2AB",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2AA",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, entre les arbres",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Dans l'obscurité des arbres, une voix crie dans la foule : \"Les Freaks, c'est eux !\" Travis se fige. Il échange un regard avec ses gars — personne ne bouge. La situation vient de basculer. Plus loin dans les arbres, des clochards dorment autour d'un feu de poubelle.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Vous longez la lisière et filez vers la sortie est.",
+          "cible": "§3",
+          "epreuve": null
+        },
+        {
+          "label": "Vous restez tapis dans les arbres et attendez que ça se calme.",
+          "cible": "§2AA-B",
+          "epreuve": null
+        },
+        {
+          "label": "Vous vous glissez vers les clochards pour vous fondre parmi eux.",
+          "cible": "§2AA-C",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2AA-C",
+      "type": "chance",
+      "lieu": "Van Cortlandt Park, près des clochards",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "clochards"
+      ],
+      "objets": [
+        "La Carte (cachée dans l'image)"
+      ],
+      "resume": "Tu te glisses vers les clochards endormis autour du feu de poubelle. Si l'un d'eux se réveille, ça crie. Tu te poses parmi eux, immobile.",
+      "notes_dev": "La Carte est cachée dans l'image de cette scène — cliquable par le joueur.",
+      "choix": [
+        {
+          "label": "Succès — Personne ne se réveille. Les lampes torches des Reapers passent au loin.",
+          "cible": "§4",
+          "epreuve": null,
+          "note": "avec Carte si trouvée"
+        },
+        {
+          "label": "Échec — Un clochard ouvre les yeux et vous dévisage.",
+          "cible": "§2AA-C-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2AA-C-echec",
+      "type": "dialogue",
+      "lieu": "Van Cortlandt Park, près des clochards",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Clochard"
+      ],
+      "objets": [],
+      "resume": "Un clochard ouvre les yeux et vous dévisage. Il tend la main — il veut de l'argent pour se taire.",
+      "notes_dev": "Boîte de dialogue. Succès : tu lui glisses quelques dollars, il referme les yeux. Échec : tu refuses, il fait du bruit.",
+      "choix": [
+        {
+          "label": "Succès — Tu lui glisses quelques dollars. Il referme les yeux.",
+          "cible": "§4",
+          "epreuve": null,
+          "malus": "perd quelques dollars",
+          "money_cost": 20
+        },
+        {
+          "label": "Échec — Tu refuses. Il commence à faire du bruit.",
+          "cible": "§2AA-C-fuite",
+          "epreuve": null
+        }
+      ],
+      "discussion_scene": {
+        "npc_name": "Clochard",
+        "npc_opening": "Hé… hé toi. J'vous ai vu mais j'ai rien vu. Rien du tout. Mais… ça vaut bien quelques dollars, non ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Tiens, prends cinq dollars et rendors-toi, vieux soulard.",
+            "emotion_label": "Pragmatique",
+            "npc_response": "Hey, mais cinq dollars, tu te les fous au cul, donne-moi 20 dollars ou j'crie.",
+            "sub_choices": [
+              {
+                "id": "sc1",
+                "player_text": "Tiens, prends 20 dollars et ferme ta gueule.",
+                "emotion_label": "Pragmatique",
+                "npc_response": "Toute façon vous êtes morts, bande de ploucs.",
+                "section_choice_id": "§4"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "Cuve ton vin et rendors-toi, vieux soulard.",
+            "emotion_label": "Intimidant",
+            "npc_response": "Hey, y sont là ! y sont là ! les enculés.",
+            "section_choice_id": "§2AA-C-fuite"
+          }
+        ]
+      }
+    },
+    {
+      "id": "§2AA-C-fuite",
+      "type": "agilite",
+      "lieu": "Van Cortlandt Park, près des clochards",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Le clochard commence à crier. Tu bondis et fais signe aux gars de courir. Des lampes torches se retournent dans votre direction.",
+      "notes_dev": "Sans Carte sur ce chemin.",
+      "choix": [
+        {
+          "label": "Succès — Vous disparaissez dans les arbres avant qu'ils vous localisent.",
+          "cible": "§4",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2AA-B",
+      "type": "chance",
+      "lieu": "Van Cortlandt Park, entre les arbres",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Vous vous accroupissez dans l'obscurité. Les lampes torches percent les arbres. Shawn serre les dents. Tu poses la main sur son épaule — pas encore. Tu attends le bon moment pour filer.",
+      "notes_dev": "Travis n'a pas trouvé le paquet de cigarettes sur ce chemin. Converge vers §4 sans cet objet.",
+      "choix": [
+        {
+          "label": "Succès — Les lampes s'éloignent. Vous filez vers la sortie est.",
+          "cible": "§4",
+          "epreuve": null,
+          "note": "sans paquet de cigarettes"
+        },
+        {
+          "label": "Échec — Une lampe vous éclaire en plein.",
+          "cible": "§2AA-B-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2AA-B-echec",
+      "type": "combat",
+      "lieu": "Van Cortlandt Park, entre les arbres",
+      "npcs": [
+        "Marcus"
+      ],
+      "objets": [],
+      "resume": "Une lampe vous éclaire en plein. Un Reaper s'avance seul dans les arbres. Dans la confusion générale, les autres n'ont rien vu. Il faut régler ça vite et en silence.",
+      "notes_dev": "Travis n'a pas trouvé le paquet de cigarettes sur ce chemin.",
+      "combat_config": {
+        "allies": [],
+        "ennemis": [
+          "Marcus"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Le Reaper à terre. Vous filez vers la sortie est.",
+          "cible": "§4",
+          "epreuve": null,
+          "note": "sans paquet de cigarettes"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2AB",
+      "type": "chance",
+      "lieu": "Van Cortlandt Park, lisière des arbres",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam (dans la foule)"
+      ],
+      "objets": [],
+      "resume": "Tu restes immobile dans l'ombre des arbres et tu observes. Cypress est à terre. La foule cherche. Tu vois tes gars — dispersés, perdus dans la masse. Tu siffles doucement pour les attirer vers toi.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Ils t'entendent et se glissent vers les arbres.",
+          "cible": "§2AA",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Les Reapers leur tombent dessus. Ils t'ont repéré.",
+          "cible": "§2AB-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2AB-echec",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, lisière des arbres",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Reapers"
+      ],
+      "objets": [],
+      "resume": "Les Reapers leur tombent dessus avant qu'ils puissent bouger. Trop nombreux. Un doigt se pointe vers toi dans l'ombre — ils t'ont repéré.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2B",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, centre de la foule",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Le coup de feu claque. Tu es au cœur de la masse. Cypress s'effondre. La foule se fige une seconde, puis des centaines de têtes pivotent, des regards cherchent. Tu es coincé de toutes parts.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu trouves Shawn du regard et tu lui fais signe.",
+          "cible": "§2BA",
+          "epreuve": null
+        },
+        {
+          "label": "Tu appelles tes gars.",
+          "cible": "§2BB",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§2BA",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, centre de la foule",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Shawn te voit et se faufile vers toi, les autres suivent. Mais la foule commence à se retourner — quelqu'un crie \"Les Freaks !\" Un type te bloque le passage, les poings serrés.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu le pousses et tu fonces.",
+          "cible": "§2BAA",
+          "epreuve": "force"
+        },
+        {
+          "label": "Tu baisses la tête et tu te glisses sur le côté.",
+          "cible": "§2BAB",
+          "epreuve": "agilite"
+        }
+      ]
+    },
+    {
+      "id": "§2BAB",
+      "type": "agilite",
+      "lieu": "Van Cortlandt Park, centre de la foule",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu baisses la tête et tu te glisses sur le côté, cherchant un interstice dans la masse compacte. Un coude dans les côtes, une épaule qui te repousse — tu te faufiles centimètre par centimètre, Shawn dans ton sillage.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Tu trouves le passage. Le groupe se glisse derrière toi vers la lisière.",
+          "cible": "§3",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — La foule se referme sur toi. Tu perds du temps, des coups de coude, du souffle.",
+          "cible": "§3",
+          "epreuve": null,
+          "malus": "endurance -2 Travis et Shawn"
+        }
+      ]
+    },
+    {
+      "id": "§2BAA",
+      "type": "force",
+      "lieu": "Van Cortlandt Park, centre de la foule",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu pousses le type de toutes tes forces et tu fonces. Shawn écarte les autres dans ton sillage.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous percez et atteignez la lisière.",
+          "cible": "§3",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Tu tombes. La foule se referme. Shawn te relève et te traîne vers les arbres.",
+          "cible": "§3",
+          "epreuve": null,
+          "malus": "endurance -2 Travis et Shawn"
+        }
+      ]
+    },
+    {
+      "id": "§2BB",
+      "type": "chance",
+      "lieu": "Van Cortlandt Park, centre de la foule",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu appelles tes gars. Ils se retournent — mais la foule aussi. Tous les regards convergent vers toi.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — La confusion générale couvre ton cri. Le groupe se rassemble et file.",
+          "cible": "§2BAA",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — Trois types foncent sur toi.",
+          "cible": "§2BB-echec",
+          "epreuve": "combat"
+        }
+      ]
+    },
+    {
+      "id": "§2BB-echec",
+      "type": "combat",
+      "lieu": "Van Cortlandt Park, centre de la foule",
+      "npcs": [
+        "Shawn",
+        "DeShawn",
+        "Tony",
+        "Ricky"
+      ],
+      "objets": [],
+      "resume": "Trois types ont entendu. Ils foncent sur toi avant que le groupe soit rassemblé. La foule s'écarte autour de vous. Shawn est encore à dix mètres.",
+      "notes_dev": "",
+      "combat_config": {
+        "allies": [],
+        "ennemis": [
+          "DeShawn",
+          "Tony",
+          "Ricky"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Tu t'en sors. Vous filez vers la lisière.",
+          "cible": "§3",
+          "epreuve": null,
+          "malus": "endurance -3"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, lisière est",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Le groupe se faufile tête baissée le long de la lisière, à l'ombre des arbres. Personne ne parle. Des lampes torches balayent le parc derrière vous. La sortie est visible au loin.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Vous accélérez et sortez du parc.",
+          "cible": "§3B",
+          "epreuve": null
+        },
+        {
+          "label": "Une lampe torche se rapproche — vous vous plaquiez contre les arbres.",
+          "cible": "§3-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3B",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, lisière est",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [
+        "Paquet de cigarettes (trouvé ici)"
+      ],
+      "resume": "Dans la cohue de la fuite, ton pied bute sur quelque chose dans l'herbe — un paquet de cigarettes presque plein, abandonné par quelqu'un qui a couru. Tu le ramasses sans réfléchir.",
+      "notes_dev": "Section de transition — pas de choix. Si le joueur a le paquet de cigarettes en inventaire et clique dessus dans §4, un dialogue s'ouvre avec Faye — l'objet facilite la négociation et débloque le Couteau.",
+      "choix": [
+        {
+          "label": "→ Suite",
+          "cible": "§3B-police",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3B-police",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, rue principale",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Le groupe débouche dans la rue. À cent mètres, une voiture de police roule au pas, gyrophares éteints. Ils patrouillent depuis le coup de feu. Tu fais signe à tout le monde de marcher normalement — ne pas courir, ne pas regarder.",
+      "notes_dev": "",
+      "discussion_scene": {
+        "npc_name": "Zac",
+        "npc_opening": "Hé, Travis — les flics. Tu fais quoi ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "On marche. Normalement. Personne regarde.",
+            "emotion_label": "calme",
+            "npc_response": "Ok ok, je t'suis.",
+            "section_choice_id": "§3B-police-chance"
+          },
+          {
+            "id": "c2",
+            "player_text": "Je vais leur parler, ils peuvent nous aider.",
+            "emotion_label": "désespéré",
+            "npc_response": "T'es sérieux là ? On est des Freaks, ils vont nous embarquer direct !",
+            "sub_choices": [
+              {
+                "id": "c2a",
+                "player_text": "J'ai pas le choix, Zac.",
+                "emotion_label": "résigné",
+                "npc_response": "",
+                "section_choice_id": "§3B-police-signal"
+              },
+              {
+                "id": "c2b",
+                "player_text": "T'as raison. On marche.",
+                "emotion_label": "calme",
+                "npc_response": "Voilà.",
+                "section_choice_id": "§3B-police-chance"
+              }
+            ]
+          }
+        ]
+      },
+      "choix": [
+        {
+          "label": "Tu marches tranquillement.",
+          "cible": "§3B-police-chance",
+          "epreuve": "chance"
+        },
+        {
+          "label": "Tu vois en la police un moyen de t'en sortir. Tu leur fais signe.",
+          "cible": "§3B-police-signal",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3B-police-chance",
+      "type": "chance",
+      "lieu": "Van Cortlandt Park, rue principale",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu fais signe à tout le monde — marchez normalement. Ne courez pas. Ne regardez pas. La voiture roule au pas vers vous.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — La voiture passe sans s'arrêter. Vous soufflez.",
+          "cible": "§4",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — La voiture ralentit. Un projecteur s'allume.",
+          "cible": "§3B-police-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3B-police-signal",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, rue principale",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu lèves la main vers la voiture de police. Shawn te attrape par le bras — trop tard. La voiture s'arrête. Les deux portières s'ouvrent en même temps. Les flics voient vos couleurs, ils voient le parc en chaos derrière vous. Ils n'ont pas besoin d'en savoir plus.",
+      "notes_dev": "Mauvaise décision — les Freaks sont les suspects désignés du meurtre de Cypress. Arrestation immédiate.",
+      "choix": [
+        {
+          "label": "FIN — Vous êtes arrêtés.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3B-police-echec",
+      "type": "agilite",
+      "lieu": "Rue principale, Van Cortlandt Park",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Le projecteur balaye le trottoir et vous trouve. Une portière s'ouvre. Tu cries aux gars de courir — pas question de se faire embarquer ce soir.",
+      "notes_dev": "Épreuve d'Agilité — semer la voiture de police.",
+      "choix": [
+        {
+          "label": "Succès — Vous semez la voiture dans les ruelles.",
+          "cible": "§4",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — Ils vous rattrapent. FIN — arrestation.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3-B",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, lisière est",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Une lampe torche se rapproche dans votre dos. Vous vous plaquiez contre les arbres, immobiles. Le faisceau balaye lentement l'herbe à vos pieds.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu retiens ta respiration et tu attends.",
+          "cible": "§3-BA",
+          "epreuve": "chance"
+        },
+        {
+          "label": "Tu fais signe au groupe de reculer plus profond dans les arbres.",
+          "cible": "§3-BB",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3-BB-A",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, lisière est",
+      "npcs": [
+        "Zac"
+      ],
+      "objets": [
+        "Paquet de cigarettes (caché dans l'image)"
+      ],
+      "resume": "Tu t'accroupis dans l'herbe froide, les mains à plat sur le sol. L'obscurité est totale. Tes doigts ratissent lentement — herbe, terre, cailloux. Quelque part là-dedans, la chaîne de Zac.",
+      "notes_dev": "Paquet de cigarettes caché dans l'image — le joueur doit cliquer dessus pour le ramasser. caché_dans_image: true.",
+      "caché_dans_image": true,
+      "choix": [
+        {
+          "label": "Vous repartez.",
+          "cible": "§3B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3-BA",
+      "type": "chance",
+      "lieu": "Van Cortlandt Park, lisière est",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Le faisceau balaie lentement l'herbe à vos pieds. Tu poses la main sur l'épaule de Shawn — immobile. La torche s'attarde une seconde sur le tronc à côté de toi. Ton cœur cogne.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — La lampe continue son chemin. Vous repartez.",
+          "cible": "§3B",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Le faisceau revient sur vous. Un Reaper crie.",
+          "cible": "§3-BA-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3-BA-echec",
+      "type": "combat",
+      "lieu": "Van Cortlandt Park, lisière est",
+      "npcs": [
+        "Lamar"
+      ],
+      "objets": [],
+      "resume": "Le faisceau revient et s'immobilise sur toi. Un cri. Un Reaper plonge dans les arbres vers vous — seul, mais rapide. Les autres n'ont pas encore réagi. Il faut régler ça avant qu'ils entendent.",
+      "notes_dev": "",
+      "combat_config": {
+        "allies": [],
+        "ennemis": [
+          "Lamar"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Vous le neutralisez en silence.",
+          "cible": "§3B",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§3-BB",
+      "type": "narratif",
+      "lieu": "Van Cortlandt Park, lisière est",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [
+        "Paquet de cigarettes (trouvé ici)"
+      ],
+      "resume": "Tu fais signe au groupe de reculer dans les arbres. Vous vous enfoncez dans l'obscurité, loin de la lisière. La lampe passe et s'éloigne. Vous attendez. Shawn souffle entre ses dents. Zac chuchote qu'il a perdu un truc dans l'herbe en reculant.",
+      "notes_dev": "",
+      "discussion_scene": {
+        "npc_name": "Zac",
+        "npc_opening": "Attends Travis — j'ai perdu un truc dans l'herbe en reculant.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "On a pas le temps pour ça bordel !",
+            "emotion_label": "impatient",
+            "npc_response": "J'ai perdu ma chaine en or. Trente secondes Travis, et ensuite on y va.",
+            "sub_choices": [
+              {
+                "id": "c1a",
+                "player_text": "Ok. Les gars, trente secondes — on cherche la chaine de Zac.",
+                "emotion_label": "résigné",
+                "npc_response": "Merci.",
+                "section_choice_id": "§3-BB-A"
+              },
+              {
+                "id": "c1b",
+                "player_text": "Non mec, on y va. Avec ou sans toi.",
+                "emotion_label": "ferme",
+                "npc_response": "Pas cool mon pote.",
+                "section_choice_id": "§3B"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "T'as perdu quoi ? ils vont nous voir putain !",
+            "emotion_label": "stressé",
+            "npc_response": "Ma chaine en or. Il faut qu'on la trouve.",
+            "sub_choices": [
+              {
+                "id": "c2a",
+                "player_text": "Tu veux te faire planter pour une chaine ? On y va !",
+                "emotion_label": "ferme",
+                "npc_response": "",
+                "section_choice_id": "§3B"
+              },
+              {
+                "id": "c2b",
+                "player_text": "Ok. Les gars, trente secondes — on cherche la chaine de Zac.",
+                "emotion_label": "résigné",
+                "npc_response": "Merci.",
+                "section_choice_id": "§3-BB-A"
+              }
+            ]
+          }
+        ]
+      },
+      "choix": [
+        {
+          "label": "Tu fouilles discrètement l'herbe.",
+          "cible": "§3-BB-A",
+          "epreuve": null,
+          "condition": "après discussion Zac"
+        },
+        {
+          "label": "Pas le temps. Vous repartez.",
+          "cible": "§3B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4",
+      "type": "narratif",
+      "lieu": "Sortie est de Van Cortlandt Park",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye (nouvelle)"
+      ],
+      "objets": [
+        "Paquet de cigarettes (si trouvé)"
+      ],
+      "resume": "À la sortie du parc, une fille vous dévisage — Faye. Elle vous a reconnus. Son regard passe de toi à Shawn, sa main tremble légèrement. Elle hésite entre crier et fuir.",
+      "notes_dev": "Si le joueur n'a pas le paquet de cigarettes, le dialogue avec Faye est plus difficile.",
+      "choix": [
+        {
+          "label": "Tu lèves les mains lentement et tu la calmes à voix basse.",
+          "cible": "§5",
+          "epreuve": null
+        },
+        {
+          "label": "Tu l'ignores et le groupe file vers Jerome Avenue.",
+          "cible": "§7-sans-faye",
+          "epreuve": null
+        },
+        {
+          "label": "Tu l'ignores et le groupe file vers Sedgwick Avenue.",
+          "cible": "§4-sedgwick",
+          "epreuve": null
+        },
+        {
+          "label": "Tu l'ignores et le groupe file vers les hauteurs de Riverdale.",
+          "cible": "§4-riverdale",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§5",
+      "type": "dialogue",
+      "lieu": "Sortie est de Van Cortlandt Park",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [
+        "Couteau (donné par Faye si succès + cigarettes)"
+      ],
+      "resume": "Travis lève les mains lentement et fait signe de se calmer. Faye recule d'un pas mais ne crie pas. Le silence s'étire. Elle vous regarde l'un après l'autre.",
+      "notes_dev": "Pensée Travis avec cigarettes : 'Je fume pas, mais ça valait le coup. On peut lui faire confiance.' Pensée Travis sans cigarettes (succès) : 'Elle a hésité longtemps. Mais elle est là.'",
+      "discussion_scene": {
+        "npc_name": "Faye",
+        "npc_opening": "C'est vous les Freaks ? Merde, mais vous êtes des malades mentaux, vous avez buté Cypress !",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Tu crois ça toi ? Tu penses qu'on a traversé tout New York pour foutre le bordel dans le Bronx ?",
+            "emotion_label": "défensif",
+            "npc_response": "J'en sais rien, tout le monde vous accuse. Moi je veux pas être mêlée à tout ça.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Tu veux un peu de fric ? Je te donne tout ce que j'ai et tu nous sors de cette merde.",
+                "emotion_label": "négociateur",
+                "npc_response": "J'ai besoin d'une clope, t'en as ?",
+                "sub_choices": [
+                  {
+                    "id": "c111",
+                    "player_text": "Non, on ne fume pas. Allez, on dégage.",
+                    "emotion_label": "résigné",
+                    "npc_response": "",
+                    "section_choice_id": "§5-fail"
+                  },
+                  {
+                    "id": "c112",
+                    "player_text": "Tiens, je te file le paquet.",
+                    "emotion_label": "calme",
+                    "npc_response": "",
+                    "section_choice_id": "§6",
+                    "condition": "paquet_de_cigarettes"
+                  }
+                ]
+              },
+              {
+                "id": "c12",
+                "player_text": "Va te faire foutre, on a pas besoin de toi.",
+                "emotion_label": "agressif",
+                "npc_response": "",
+                "section_choice_id": "§5-fail"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "C'est pas nous. Les mecs au parc étaient super nerveux, je te jure. Tu connais le quartier, aide-nous.",
+            "emotion_label": "sincère",
+            "npc_response": "Et j'ai quoi moi en échange, hein ? T'as une clope ?",
+            "sub_choices": [
+              {
+                "id": "c22",
+                "player_text": "Non, on ne fume pas. Allez, on dégage.",
+                "emotion_label": "résigné",
+                "npc_response": "",
+                "section_choice_id": "§5-fail"
+              },
+              {
+                "id": "c23",
+                "player_text": "Tiens, je te file le paquet.",
+                "emotion_label": "calme",
+                "npc_response": "",
+                "section_choice_id": "§6",
+                "condition": "paquet_de_cigarettes"
+              }
+            ]
+          }
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Faye accepte, oriente vers Jerome Avenue.",
+          "cible": "§6",
+          "epreuve": null,
+          "objets_gagnes": [
+            "Couteau"
+          ]
+        },
+        {
+          "label": "Échec — Faye refuse et part en les insultant.",
+          "cible": "§5-fail",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§5-fail",
+      "type": "narratif",
+      "lieu": "Sortie est de Van Cortlandt Park",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Faye vous envoie balader et disparaît en courant. Shawn ricane. Vous êtes seuls, sans info sur les rotations des Reapers.",
+      "notes_dev": "Converge vers §7-sans-faye — malus -2 sur toutes les épreuves Chance et Agilité jusqu'à §14.",
+      "choix": [
+        {
+          "label": "→ Vous filez vers Jerome Avenue sans guide.",
+          "cible": "§7-sans-faye",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§6",
+      "type": "narratif",
+      "lieu": "Sortie est de Van Cortlandt Park, direction Jerome Avenue",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "Faye indique Jerome Avenue — les piliers du métro aérien offrent de l'ombre et des angles morts. Elle connaît les rotations. Le groupe se met en mouvement, Faye en tête, Travis juste derrière.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu la laisses guider, vous suivez son rythme.",
+          "cible": "§7",
+          "epreuve": null
+        },
+        {
+          "label": "Tu prends la tête du groupe.",
+          "cible": "§6-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§6-B",
+      "type": "narratif",
+      "lieu": "Sortie est de Van Cortlandt Park, direction Jerome Avenue",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "Tu prends la tête. Faye chuchote les indications dans ton dos — angle mort ici, sentinelle dans deux blocs. Tu lui fais confiance.",
+      "notes_dev": "Converge vers §7 — même chemin, Travis en tête plutôt que Faye.",
+      "choix": [
+        {
+          "label": "→ Suite",
+          "cible": "§7",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§7-sans-faye",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, sous les rails de la ligne 4, approche West 238th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Des cris lointains depuis le parc, des klaxons. Le groupe avance à l'aveugle sous les piliers. Devant, une voiture barre West 238th — deux guetteurs Reapers. À droite, une rangée de garages dans l'ombre.",
+      "notes_dev": "Sans Faye — malus -2 sur toutes les épreuves Chance et Agilité jusqu'à §14. Converge sur §8 avec malus actif.",
+      "choix": [
+        {
+          "label": "Tu attends le passage d'une rame pour traverser.",
+          "cible": "§8",
+          "epreuve": null
+        },
+        {
+          "label": "Tu fais signe au groupe vers les garages.",
+          "cible": "§7-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§7",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, sous les rails de la ligne 4, approche West 238th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "Des cris lointains depuis le parc, des klaxons. Faye avance vite. Devant, une voiture barre West 238th — deux guetteurs Reapers. À droite, une rangée de garages dans l'ombre.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu attends le passage d'une rame pour traverser.",
+          "cible": "§8",
+          "epreuve": null
+        },
+        {
+          "label": "Tu fais signe à ton groupe de se diriger vers les garages.",
+          "cible": "§7-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§7-B",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, garages West 238th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu fais signe vers les garages sur la droite. Le groupe se glisse dans l'ombre entre les portes métalliques. Les guetteurs sont de l'autre côté de la rue.",
+      "notes_dev": "Converge vers §10 directement — le groupe contourne West 238th sans épreuve.",
+      "choix": [
+        {
+          "label": "→ Vous ressortez de l'autre côté des garages.",
+          "cible": "§10",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§8",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, piliers du métro aérien, West 238th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "Vous vous plaquiez contre un pilier. Les guetteurs ne bougent pas. Le sol commence à vibrer — une rame arrive. Travis fait signe à Shawn de s'engager en premier. Shawn s'élance.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu le suis immédiatement, tout le groupe traverse.",
+          "cible": "§9",
+          "epreuve": "chance",
+          "malus": -4
+        },
+        {
+          "label": "Tu le retiens par le bras — pas encore.",
+          "cible": "§8-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§8-B",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, piliers du métro aérien, West 238th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "Tu attrapes Shawn par le bras — pas encore. Il se fige, les dents serrées. La rame passe dans un grondement. Le silence revient. Les guetteurs n'ont pas bougé.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "→ Maintenant. Tout le groupe traverse.",
+          "cible": "§9",
+          "epreuve": "chance"
+        }
+      ]
+    },
+    {
+      "id": "§9",
+      "type": "chance",
+      "lieu": "Jerome Avenue, West 238th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "Le groupe traverse dans le grondement de la rame. Les guetteurs — est-ce qu'ils ont regardé ?",
+      "notes_dev": "Si issu de §8 option A (traversée immédiate) → malus -4 sur le jet de Chance. Si issu de §8-B (attente) → pas de malus.",
+      "choix": [
+        {
+          "label": "Succès — Les guetteurs regardaient ailleurs. Vous passez.",
+          "cible": "§10",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Un guetteur se retourne.",
+          "cible": "§9-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§9-echec",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, West 238th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye",
+        "2 guetteurs Reapers"
+      ],
+      "objets": [],
+      "resume": "La rame est à peine passée qu'un guetteur pivote — mauvais timing. Son regard accroche le groupe en pleine rue. Il ouvre la bouche. Son équipier bondit de la caisse sur laquelle il était assis.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu fonces vers les garages.",
+          "cible": "§9-echec-A",
+          "epreuve": "agilite"
+        },
+        {
+          "label": "Tu leur fais face.",
+          "cible": "§9-echec-B",
+          "epreuve": "combat"
+        }
+      ]
+    },
+    {
+      "id": "§10",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, sous les rails de la ligne 4, approche West 235th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [
+        "Clé de voiture (si trouvée)"
+      ],
+      "resume": "Le groupe avance tête baissée entre les piliers, collés aux murs. Personne ne parle. En haut, des ombres penchées au bord des rails balayent la rue en contrebas avec des torches. Soudain un faisceau vous éclaire en plein.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu t'aplatis contre le pilier et fais signe aux autres.",
+          "cible": "§11",
+          "epreuve": "chance"
+        },
+        {
+          "label": "Tu lèves la tête vers les Reapers et tu hurles : \"Ils sont où ces enculés de Freaks ?\"",
+          "cible": "§10-B",
+          "epreuve": "intelligence"
+        },
+        {
+          "label": "Tu diriges la télécommande vers les voitures garées autour.",
+          "cible": "§10-C",
+          "epreuve": null,
+          "condition": "Clé de voiture"
+        }
+      ]
+    },
+    {
+      "id": "§10-C",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, sous les rails de la ligne 4, approche West 235th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [
+        "Clé de voiture (consommée — pile grillée)"
+      ],
+      "resume": "Tu pointes la télécommande vers les voitures garées le long du trottoir et tu appuies. Un bip bref, un coup de klaxon, les feux d'une berline qui s'allument une seconde. Les têtes en hauteur pivotent vers le bruit. Tu fais signe au groupe — maintenant.",
+      "notes_dev": "Succès garanti — récompense l'utilisation intelligente de l'objet. La télécommande est déchargée après usage.",
+      "choix": [
+        {
+          "label": "→ Vous passez dans l'angle mort pendant que les Reapers regardent ailleurs.",
+          "cible": "§12",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§10-B",
+      "type": "intelligence",
+      "lieu": "Jerome Avenue, West 235th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Reaper en hauteur"
+      ],
+      "objets": [],
+      "resume": "Tu lèves la tête et cries que tu cherches les Freaks, que tu les as vus partir par là. Le Reaper en hauteur t'observe.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Il te croit et pointe une direction. Vous en profitez pour filer.",
+          "cible": "§12",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Il n'est pas convaincu. Une voix crie de descendre.",
+          "cible": "§11-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§11",
+      "type": "chance",
+      "lieu": "Jerome Avenue, West 235th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "Plaqués contre le pilier, vous retenez votre souffle. La torche balaye lentement. Est-ce qu'il vous a vus ?",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — La torche passe sur vous sans s'arrêter. Vous attendez quelques secondes et repartez.",
+          "cible": "§12",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — La torche revient sur vous. Une voix crie d'en haut.",
+          "cible": "§11-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§11-echec",
+      "type": "combat",
+      "lieu": "Jerome Avenue, West 235th",
+      "npcs": [
+        "Darius",
+        "Hector"
+      ],
+      "objets": [],
+      "resume": "La torche revient. Une voix crie d'en haut. Darius et Hector descendent du quai au pas de course. Au loin, d'autres pas — des renforts qui arrivent. Il faut régler ça vite et en silence.",
+      "notes_dev": "Combat 4v2 : Travis, Shawn, Zac, James vs Darius et Hector. Jesse et Adam couvrent les arrières. Faye ne combat pas. Pression temporelle — des renforts arrivent, il faut faire vite.",
+      "combat_config": {
+        "allies": [
+          "Shawn",
+          "Zac",
+          "James"
+        ],
+        "ennemis": [
+          "Darius",
+          "Hector"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Vous les neutralisez et fuyez.",
+          "cible": "§12",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§12",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, sous les rails, approche West 231st",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "Vous longez les rails jusqu'à la station-service de West 231st. Elle est éclairée — un Reaper isolé traîne devant, à la lumière des néons. Il n'a pas l'air pressé. Jesse se rapproche de Travis et chuchote qu'il peut gérer ça.",
+      "notes_dev": "",
+      "discussion_scene": {
+        "npc_name": "Jesse",
+        "npc_opening": "Ecoute mec, j'peux l'embrouiller le gars, laisse-moi faire. J'suis un putain de génie pour ça.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Tu vas lui dire quoi frère ? T'as une idée au moins ?",
+            "emotion_label": "sceptique",
+            "npc_response": "Oui mec. Je vais lui demander une clope et lui dire que mon frère est un Reaper, qu'il les chasse autour du parc.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Ok, go. Je reste derrière la bagnole, je passe derrière lui et je l'assomme.",
+                "emotion_label": "concentré",
+                "npc_response": "C'est parti mec.",
+                "section_choice_id": "§13"
+              },
+              {
+                "id": "c12",
+                "player_text": "T'es pas crédible. J'y vais moi, toi tu passes derrière et tu tapes fort.",
+                "emotion_label": "décidé",
+                "npc_response": "Je vais l'éteindre ce fils de pute.",
+                "section_choice_id": "§12-B"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "Je vais le faire moi. Je vais l'embrouiller, lui dire que je suis un gars de Central, que les Freaks sont restés autour du parc.",
+            "emotion_label": "décidé",
+            "npc_response": "Et moi je fais quoi ? J'suis bon à ça, tu sais ça, non ?",
+            "sub_choices": [
+              {
+                "id": "c21",
+                "player_text": "Non, je m'en occupe. Je lui braque sa putain de radio et on se barre en courant. Préviens les autres.",
+                "emotion_label": "ferme",
+                "npc_response": "Ok, on y va.",
+                "section_choice_id": "§12-B"
+              },
+              {
+                "id": "c22",
+                "player_text": "Ok, ok. Fais-le si tu insistes.",
+                "emotion_label": "résigné",
+                "npc_response": "C'est parti mec.",
+                "section_choice_id": "§13"
+              }
+            ]
+          }
+        ]
+      },
+      "choix": [
+        {
+          "label": "Tu laisses Jesse tenter son arnaque.",
+          "cible": "§13",
+          "epreuve": null
+        },
+        {
+          "label": "Tu fais signe au groupe de contourner par derrière.",
+          "cible": "§12-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§12-B",
+      "type": "agilite",
+      "lieu": "Station-service West 231st, derrière",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu fais signe de contourner par derrière. Le groupe longe le mur de la station-service dans l'obscurité, à quelques mètres du Reaper.",
+      "notes_dev": "Pas de Bandana Reaper sur ce chemin.",
+      "choix": [
+        {
+          "label": "Succès — Vous passez sans être vus.",
+          "cible": "§14",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Une poubelle tombe. Le Reaper se retourne.",
+          "cible": "§12-B-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§12-B-echec",
+      "type": "combat",
+      "lieu": "Station-service West 231st",
+      "npcs": [
+        "Tyrone"
+      ],
+      "objets": [],
+      "resume": "Une poubelle bascule dans le noir — un bruit de métal qui résonne contre le mur de la station-service. Trop fort. Le Reaper se retourne, scrute l'obscurité de la ruelle. Il vous a vus.",
+      "notes_dev": "Pas de Bandana Reaper sur ce chemin.",
+      "combat_config": {
+        "allies": [],
+        "ennemis": [
+          "Tyrone"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Vous le neutralisez.",
+          "cible": "§14",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§13",
+      "type": "chance",
+      "lieu": "Station-service West 231st",
+      "npcs": [
+        "Jesse",
+        "Reaper isolé"
+      ],
+      "objets": [
+        "Bandana Reaper (obtenu si succès)"
+      ],
+      "resume": "Jesse s'avance seul, décontracté. Il engage la conversation, gesticule, capte l'attention du Reaper. Tu observes depuis l'ombre — c'est maintenant ou jamais.",
+      "notes_dev": "Épreuve de chance — Jesse distrait le Reaper. Succès : Travis se faufile derrière, le colle au sol et l'assomme. Pas de corde — il l'assomme. Échec : le Reaper repère le manège.",
+      "choix": [
+        {
+          "label": "Succès — Travis se faufile derrière lui, le colle au sol et l'assomme. Tu lui arraches son bandana.",
+          "cible": "§14",
+          "epreuve": null,
+          "objets_gagnes": [
+            "Bandana Reaper"
+          ]
+        },
+        {
+          "label": "Échec — Le Reaper repère le manège et frappe Jesse.",
+          "cible": "§13-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§13-echec",
+      "type": "narratif",
+      "lieu": "Station-service West 231st",
+      "npcs": [
+        "Kareem",
+        "Renforts Reapers"
+      ],
+      "objets": [],
+      "resume": "Le Reaper jette un coup d'œil par-dessus l'épaule de Jesse et te voit dans l'ombre. Il attrape Jesse par le col et lui envoie un coup. Jesse s'effondre. Au coin de la rue, des silhouettes fondent sur vous.",
+      "notes_dev": "",
+      "combat_config": {
+        "allies": [
+          "Jesse"
+        ],
+        "ennemis": [
+          "Kareem"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Tu fuis avec le groupe avant qu'ils arrivent.",
+          "cible": "§13-echec-fuite",
+          "epreuve": "agilite"
+        },
+        {
+          "label": "Vous faites face.",
+          "cible": "§13-echec-combat",
+          "epreuve": "combat"
+        }
+      ]
+    },
+    {
+      "id": "§14",
+      "type": "narratif",
+      "lieu": "Jerome Avenue, approche Kingsbridge Armory",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye"
+      ],
+      "objets": [],
+      "resume": "La Kingsbridge Armory apparaît au bout de la rue — un bâtiment quasi-médiéval éclairé de l'intérieur. Faye s'arrête et chuchote : \"C'est leur QG. Fais gaffe. Moi j'habite deux blocs plus loin.\" Elle disparaît dans la nuit. Tu repères un Reaper légèrement en retrait, une radio accrochée à la ceinture.",
+      "notes_dev": "Faye quitte le groupe ici. Si le joueur vient de §7-sans-faye, pas de mention de Faye — le groupe arrive seul.",
+      "discussion_scene": {
+        "npc_name": "Shawn",
+        "npc_opening": "Ecoute mec, j'y vais, je lui braque sa radio et on fonce. Ils sont branchés sur Radio One — on doit savoir ce qui se dit sur nous.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Frère, t'es sûr que ça passe ?",
+            "emotion_label": "sceptique",
+            "npc_response": "Oui mec, j'suis rapide, le mec va rien capter.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Ok, go. Mais je reste derrière.",
+                "emotion_label": "prudent",
+                "npc_response": "C'est parti mec.",
+                "section_choice_id": "§14-B"
+              },
+              {
+                "id": "c12",
+                "player_text": "J'y vais moi, toi tu restes derrière.",
+                "emotion_label": "décidé",
+                "npc_response": "T'es lent frero, mais ok.",
+                "section_choice_id": "§15"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "Je vais le faire, toi tu restes derrière.",
+            "emotion_label": "décidé",
+            "npc_response": "Et moi je fais quoi derrière ? J'suis bon à ça, tu sais ça, non ?",
+            "sub_choices": [
+              {
+                "id": "c21",
+                "player_text": "Non, je m'en occupe. Je lui braque sa putain de radio et on se barre en courant. Préviens les autres.",
+                "emotion_label": "ferme",
+                "npc_response": "Ok, c'est parti.",
+                "section_choice_id": "§15"
+              },
+              {
+                "id": "c22",
+                "player_text": "Ok, ok. Fais-le si tu insistes.",
+                "emotion_label": "résigné",
+                "npc_response": "C'est parti mec.",
+                "section_choice_id": "§14-B"
+              }
+            ]
+          }
+        ]
+      },
+      "choix": [
+        {
+          "label": "Tu pars seul récupérer la radio.",
+          "cible": "§15",
+          "epreuve": "agilite"
+        },
+        {
+          "label": "Tu envoies Shawn en diversion.",
+          "cible": "§14-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§14-B",
+      "type": "narratif",
+      "lieu": "Kingsbridge Armory, abords",
+      "npcs": [
+        "Shawn",
+        "Reaper"
+      ],
+      "objets": [],
+      "resume": "Shawn s'avance vers le Reaper, décontracté. Il engage la conversation, gesticule, lui montre quelque chose au loin. Le Reaper se retourne. Tu as trois secondes.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu fonces pour voler la radio.",
+          "cible": "§15",
+          "epreuve": "agilite"
+        }
+      ]
+    },
+    {
+      "id": "§15",
+      "type": "agilite",
+      "lieu": "Kingsbridge Armory, abords",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [
+        "Radio"
+      ],
+      "resume": "Tu te faufiles seul dans l'ombre, collé aux murs. Le Reaper est de dos, la radio posée sur un capot. Tu attends le bon moment.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Tu attrapes la radio et disparais dans l'ombre.",
+          "cible": "§16",
+          "epreuve": null,
+          "objets_gagnes": [
+            "Radio"
+          ]
+        },
+        {
+          "label": "Échec — Le Reaper se retourne. Alarme immédiate.",
+          "cible": "§15-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§15-echec",
+      "type": "combat",
+      "lieu": "Kingsbridge Armory, abords",
+      "npcs": [
+        "Jerome",
+        "Malik"
+      ],
+      "objets": [
+        "Radio"
+      ],
+      "resume": "Le Reaper se retourne et crie. Des silhouettes sortent de l'Armory au pas de course. Avant qu'il réagisse, tu arraches la radio et tu cours — mais tu prends des coups en fuyant.",
+      "notes_dev": "Radio obtenue même sur ce chemin, mais le joueur prend endurance -3.",
+      "combat_config": {
+        "allies": [],
+        "ennemis": [
+          "Jerome",
+          "Malik"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Tu arraches la radio et tu fuis sous les coups.",
+          "cible": "§16",
+          "epreuve": null,
+          "objets_gagnes": [
+            "Radio"
+          ],
+          "malus": "endurance -3"
+        },
+        {
+          "label": "FIN — mort du joueur si tu n'arrives pas à fuir.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§16",
+      "type": "narratif",
+      "lieu": "Kingsbridge Road",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [
+        "Radio (si obtenue)"
+      ],
+      "resume": "Tu rejoins le groupe, la radio en main. Soudain des cris — ils arrivent en masse, en courant, de partout. Un piège en tenaille se referme sur Kingsbridge Road.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu cries à Shawn d'ouvrir le passage et tu fonces dans le tas.",
+          "cible": "§17",
+          "epreuve": "force"
+        },
+        {
+          "label": "Tu fais signe de se faufiler sous les rails de Jerome Avenue.",
+          "cible": "§16-B",
+          "epreuve": "agilite"
+        },
+        {
+          "label": "Demi-tour vers McClellan Street.",
+          "cible": "§16-C",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§16-B",
+      "type": "agilite",
+      "lieu": "Jerome Avenue, sous les rails",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu fais signe de plonger sous les rails. Le groupe se jette au sol et rampe entre les piliers pendant que les Reapers courent au-dessus.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous ressortez de l'autre côté. Vous courez.",
+          "cible": "§18",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Un Reaper vous repère sous les rails.",
+          "cible": "§16-B-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§16-B-echec",
+      "type": "combat",
+      "lieu": "Jerome Avenue, sous les rails",
+      "npcs": [
+        "Reggie"
+      ],
+      "objets": [],
+      "resume": "Une paire de semelles s'arrête juste au-dessus de toi. Le Reaper se penche, sa lampe balaie l'espace entre les piliers. Vos regards se croisent. Il crie et traverse les rails vers les escaliers.",
+      "notes_dev": "",
+      "combat_config": {
+        "allies": [],
+        "ennemis": [
+          "Reggie"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Vous le neutralisez et foncez.",
+          "cible": "§18",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§16-C",
+      "type": "narratif",
+      "lieu": "McClellan Street",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Demi-tour. Vous remontez vers McClellan Street. Une voiture bloque l'intersection — de l'autre côté, une grille de parking.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu forces la grille de parking.",
+          "cible": "§16-C-A",
+          "epreuve": "force"
+        },
+        {
+          "label": "Tu sautes par-dessus les capots.",
+          "cible": "§16-C-B",
+          "epreuve": "agilite"
+        }
+      ]
+    },
+    {
+      "id": "§16-C-A",
+      "type": "force",
+      "lieu": "McClellan Street",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu repères la grille de parking sur le côté — une vieille grille roulante, rouillée. Tu recules d'un pas et tu t'y jettes de tout ton poids. Le métal grince, résiste une seconde. Shawn met l'épaule en même temps que toi.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous passez. Vous courez.",
+          "cible": "§18",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§16-C-B",
+      "type": "agilite",
+      "lieu": "McClellan Street",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu prends de l'élan et tu bondis sur le capot de la voiture qui bloque l'intersection. Le métal s'enfonce sous ton poids. Tu passes de l'autre côté en roulé-boulé. Derrière toi, le groupe saute l'un après l'autre.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous passez. Vous courez.",
+          "cible": "§18",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§17",
+      "type": "force",
+      "lieu": "Kingsbridge Road",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu cries à Shawn et tu fonces dans le tas. Shawn est déjà là, épaule en avant. Le groupe suit dans votre sillage.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous percez la ligne. Le groupe s'engouffre derrière vous.",
+          "cible": "§18",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Tu te retrouves bloqué, cerné.",
+          "cible": "§17-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§17-echec",
+      "type": "narratif",
+      "lieu": "Kingsbridge Road",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Reapers"
+      ],
+      "objets": [],
+      "resume": "La ligne n'a pas cédé. Les Reapers se referment en arc de cercle — devant, sur les côtés. Shawn est coincé à deux mètres de toi, dos au mur. Il crie ton nom. Le groupe attend derrière.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu cries aux gars de filer sans toi et tu retiens les Reapers.",
+          "cible": "§17-echec-sacrifice",
+          "epreuve": null
+        },
+        {
+          "label": "Vous tentez de passer en force ensemble.",
+          "cible": "§17-echec-combat",
+          "epreuve": "combat"
+        }
+      ]
+    },
+    {
+      "id": "§17-echec-sacrifice",
+      "type": "narratif",
+      "lieu": "Kingsbridge Road",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu retiens les Reapers le temps que le groupe passe. Tu prends des coups. Mais ils s'en sortent.",
+      "notes_dev": "Malus endurance sévère — Travis perd 5 points.",
+      "choix": [
+        {
+          "label": "→ Tu te débarrasses du dernier et tu cours.",
+          "cible": "§18",
+          "epreuve": null,
+          "malus": "endurance -5"
+        }
+      ]
+    },
+    {
+      "id": "§17-echec-combat",
+      "type": "combat",
+      "lieu": "Kingsbridge Road",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "Antoine",
+        "Curtis",
+        "Leroy"
+      ],
+      "objets": [],
+      "resume": "Shawn se place à ta gauche, Zac à ta droite. Le groupe forme un bloc. Les trois Reapers hésitent une fraction de seconde — puis ils foncent. C'est serré, brutal, dans le bruit et la fumée des rails.",
+      "notes_dev": "",
+      "combat_config": {
+        "allies": [
+          "Shawn",
+          "Zac",
+          "James",
+          "Jesse",
+          "Adam"
+        ],
+        "ennemis": [
+          "Antoine",
+          "Curtis",
+          "Leroy"
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Vous percez.",
+          "cible": "§18",
+          "epreuve": null,
+          "malus": "endurance -3"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§18",
+      "type": "narratif",
+      "lieu": "Kingsbridge Road, fuite",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Vous courez. Des cris derrière vous, des pas qui résonnent sur le bitume. James trébuche, Adam le rattrape par le bras sans ralentir. La radio dans ta main grésille. Tu cherches une issue des yeux — les rues s'ouvrent devant toi.",
+      "notes_dev": "BIFURCATION — fin du tronc commun. Les trois chemins s'ouvrent.",
+      "choix": [
+        {
+          "label": "Tu cries \"Le métro !\" et tu files vers la station Jerome Ave.",
+          "cible": "CHEMIN-A-§1",
+          "epreuve": null
+        },
+        {
+          "label": "Tu cries \"Les rues !\" et tu continues en surface.",
+          "cible": "CHEMIN-B-§1",
+          "epreuve": null
+        },
+        {
+          "label": "Tu cries \"Les toits !\" et tu vises les hauteurs.",
+          "cible": "CHEMIN-C-§1",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick",
+      "type": "narratif",
+      "lieu": "Sedgwick Avenue, quartier résidentiel",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu ignores la fille et le groupe file vers Sedgwick Avenue. Des immeubles, des perrons, des enfants assis sur les marches malgré l'heure. Adam prend naturellement la tête et règle l'allure — son silence devient une arme. Une voiture de Reapers passe en ronde lente sur Bailey Avenue.",
+      "notes_dev": "Sans Faye — malus -2 sur toutes les épreuves jusqu'à §14.",
+      "choix": [
+        {
+          "label": "Tu laisses Adam gérer, tu marches à son rythme.",
+          "cible": "§4-sedgwick-AA",
+          "epreuve": null
+        },
+        {
+          "label": "Tu accélères pour dépasser la voiture.",
+          "cible": "§4-sedgwick-AB",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-AB",
+      "type": "agilite",
+      "lieu": "Bailey Avenue",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu accélères sans un mot. Le groupe comprend et suit. La voiture des Reapers roule au pas — si vous doublez avant qu'ils réagissent, vous passez dans leur angle mort. Il faut être rapides et naturels.",
+      "notes_dev": "Malus -2 si sans Faye.",
+      "choix": [
+        {
+          "label": "Succès — Vous doublez la voiture avant que le conducteur réagisse. Vous disparaissez dans le bloc suivant.",
+          "cible": "§4-sedgwick-cour",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Pas assez rapides. La voiture ralentit et se cale à votre hauteur.",
+          "cible": "§4-sedgwick-AA",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-AA",
+      "type": "narratif",
+      "lieu": "Bailey Avenue",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Reapers (voiture)"
+      ],
+      "objets": [],
+      "resume": "La voiture des Reapers roule au pas à côté de vous. Les vitres sont baissées. Tu tournes la tête — un Reaper côté passager te fixe depuis le siège le plus proche de toi.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu tentes un coup de poing sur le passager.",
+          "cible": "§4-sedgwick-AA-A",
+          "epreuve": "force"
+        },
+        {
+          "label": "Tu tournes la tête et continues à marcher.",
+          "cible": "§4-sedgwick-AA-B",
+          "epreuve": "chance"
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-AA-A",
+      "type": "force",
+      "lieu": "Bailey Avenue",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Reapers (voiture)"
+      ],
+      "objets": [],
+      "resume": "Tu passes le bras par la vitre et frappes le passager. La voiture fait une embardée. Shawn est déjà sur le conducteur.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — La voiture monte sur le trottoir. Tu cours.",
+          "cible": "§4-sedgwick-bodega",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Ils descendent, la haine sur le visage.",
+          "cible": "§4-sedgwick-AA-A-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-AA-A-echec",
+      "type": "combat",
+      "lieu": "Bailey Avenue",
+      "npcs": [
+        "2 Reapers"
+      ],
+      "objets": [],
+      "resume": "Le conducteur se redresse, reprend le volant et écrase le frein. La voiture s'immobilise en travers de la rue. Les deux portières s'ouvrent en même temps. Ils ont la haine.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Tu les repousses et tu t'enfuis.",
+          "cible": "§4-sedgwick-bodega",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-AA-B",
+      "type": "chance",
+      "lieu": "Bailey Avenue",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Reapers (voiture)"
+      ],
+      "objets": [],
+      "resume": "Tu tournes la tête et continues à marcher. La voiture roule toujours au pas.",
+      "notes_dev": "Malus -2 si sans Faye.",
+      "choix": [
+        {
+          "label": "Succès — La voiture accélère et disparaît au coin.",
+          "cible": "§4-sedgwick-bodega",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — La voiture s'arrête. Une portière s'ouvre.",
+          "cible": "§4-sedgwick-AA-A-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-bodega",
+      "type": "narratif",
+      "lieu": "Sedgwick Avenue / West 233rd",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "2 Reapers"
+      ],
+      "objets": [],
+      "resume": "Au coin de Sedgwick et 233rd, une bodega encore ouverte éclaire la rue. Deux Reapers sont appuyés contre la vitrine. Vous devez passer devant eux, pas le choix.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu demandes à Jesse d'avancer, l'air de rien.",
+          "cible": "§4-sedgwick-bodega-A",
+          "epreuve": "chance"
+        },
+        {
+          "label": "Tu fais signe de te suivre, de longer la ruelle derrière le bâtiment.",
+          "cible": "§4-sedgwick-bodega-B",
+          "epreuve": "agilite"
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-bodega-A",
+      "type": "chance",
+      "lieu": "Sedgwick Avenue / West 233rd",
+      "npcs": [
+        "Jesse",
+        "2 Reapers"
+      ],
+      "objets": [],
+      "resume": "Jesse s'avance seul, mains dans les poches, décontracté. Il passe devant les deux Reapers sans s'arrêter. Tu attends dans l'ombre.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Les Reapers ne réagissent pas. Le groupe passe un par un.",
+          "cible": "§4-sedgwick-cour",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Un Reaper interpelle Jesse.",
+          "cible": "§4-sedgwick-bodega-A-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-bodega-A-echec",
+      "type": "combat",
+      "lieu": "Sedgwick Avenue / West 233rd",
+      "npcs": [
+        "Jesse",
+        "2 Reapers"
+      ],
+      "objets": [],
+      "resume": "Un des Reapers appuyés contre la vitrine tend le bras et attrape Jesse par la manche. Il l'attire vers lui, lui parle dans l'oreille. Jesse essaie de sourire — ça ne passe pas. Tu sors de l'ombre.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous repoussez les deux Reapers et fuyez.",
+          "cible": "§4-sedgwick-cour",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-bodega-B",
+      "type": "agilite",
+      "lieu": "Ruelle derrière la bodega",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Le groupe longe le mur et se faufile dans la ruelle derrière la bodega. Sombre, étroite, des poubelles partout.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous passez sans bruit.",
+          "cible": "§4-sedgwick-cour",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Une poubelle tombe. Les Reapers sursautent et se tournent vers vous.",
+          "cible": "§4-sedgwick-bodega-B-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-bodega-B-echec",
+      "type": "combat",
+      "lieu": "Ruelle derrière la bodega",
+      "npcs": [
+        "2 Reapers"
+      ],
+      "objets": [
+        "Téléphone Reaper"
+      ],
+      "resume": "Les deux Reapers se retournent et s'avancent vers la ruelle. L'un d'eux sort son téléphone — il appelle du renfort. Pas le temps de reculer.",
+      "notes_dev": "Le téléphone tombe pendant le combat — Travis peut le ramasser en fuyant.",
+      "combat_config": {
+        "allies": [],
+        "ennemis": [
+          "Reaper 1",
+          "Reaper 2"
+        ]
+      },
+      "butin": [
+        {
+          "npc": "Reaper",
+          "objet": "Téléphone Reaper",
+          "description": "Un téléphone déverrouillé — contacts, messages, peut-être des infos sur les Reapers."
+        }
+      ],
+      "choix": [
+        {
+          "label": "Succès — Vous les repoussez et fuyez. Tu ramasses le téléphone en passant.",
+          "cible": "§4-sedgwick-cour",
+          "epreuve": null,
+          "malus": "endurance -2",
+          "objets_gagnes": [
+            "Téléphone Reaper"
+          ]
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-cour",
+      "type": "narratif",
+      "lieu": "Cour intérieure d'immeuble, Sedgwick Avenue",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "vieille femme"
+      ],
+      "objets": [],
+      "resume": "Tu traverses une cour intérieure pour couper. Une vieille femme est assise sur son perron — elle te voit et reconnaît tes couleurs. Son regard se durcit.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu lui fais signe de la main.",
+          "cible": "§4-sedgwick-cour-A",
+          "epreuve": "intelligence"
+        },
+        {
+          "label": "Jesse lui parle doucement à voix basse.",
+          "cible": "§4-sedgwick-cour-B",
+          "epreuve": "intelligence"
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-cour-A",
+      "type": "intelligence",
+      "lieu": "Cour intérieure d'immeuble",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Vieille femme"
+      ],
+      "objets": [],
+      "resume": "Tu la regardes dans les yeux et tu lui fais signe — calme, humain. Pas de menace. Juste un geste qui dit : s'il te plaît.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Elle détourne le regard et rentre chez elle.",
+          "cible": "§14",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Elle crie. Des Reapers de quartier rappliqueraient.",
+          "cible": "§4-sedgwick-cour-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-cour-B",
+      "type": "intelligence",
+      "lieu": "Cour intérieure d'immeuble",
+      "npcs": [
+        "Jesse",
+        "Vieille femme"
+      ],
+      "objets": [],
+      "resume": "Jesse s'approche et lui parle doucement — il lui dit qu'ils ne veulent pas d'ennuis, juste passer.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Elle hésite puis rentre chez elle.",
+          "cible": "§14",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Elle crie.",
+          "cible": "§4-sedgwick-cour-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-sedgwick-cour-echec",
+      "type": "combat",
+      "lieu": "Cour intérieure d'immeuble",
+      "npcs": [
+        "Reapers de quartier"
+      ],
+      "objets": [],
+      "resume": "Elle ouvre la bouche et crie à pleins poumons. Des fenêtres s'allument. Des voix depuis les étages. Des pas dans l'escalier de service — sûrement des Reapers du quartier qui connaissent chaque recoin de cette cour.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Tu repousses les Reapers et le groupe fuit.",
+          "cible": "§14",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale",
+      "type": "narratif",
+      "lieu": "Riverdale, montée boisée, sortie sud-ouest du parc",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Tu ignores la fille et le groupe file vers les hauteurs. La montée boisée depuis la sortie sud-ouest est raide — de l'herbe sèche, des arbres serrés, les lumières du Bronx qui s'étalent en contrebas. Tu prends naturellement la tête. Shawn s'impatiente, James le calme à voix basse.",
+      "notes_dev": "Sans Faye.",
+      "choix": [
+        {
+          "label": "Tu observes les rotations des hommes de Krugger depuis le sommet.",
+          "cible": "§4-riverdale-A",
+          "epreuve": "intelligence"
+        },
+        {
+          "label": "Tu descends directement vers les berges de la Harlem River.",
+          "cible": "§4-riverdale-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-A",
+      "type": "intelligence",
+      "lieu": "Riverdale, sommet — vue plongeante sur le Bronx",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Du sommet, les lumières du Bronx s'étalent devant toi. Tu repères les silhouettes des hommes de Krugger en contrebas — leurs lampes, leurs rotations, les intervalles entre chaque passage.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Tu mémorises les angles morts.",
+          "cible": "§4-riverdale-B",
+          "epreuve": null,
+          "bonus": "angle mort débloqué"
+        },
+        {
+          "label": "Échec — Trop confus, trop de mouvements. Tu descends sans certitude.",
+          "cible": "§4-riverdale-B-danger",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-B-danger",
+      "type": "narratif",
+      "lieu": "Descente vers les berges, Riverdale",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "patrouille Reapers"
+      ],
+      "objets": [],
+      "resume": "Tu descends sans repères. Dans le noir, une patrouille de Reapers coupe le chemin — tu les vois trop tard.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Tu fais signe au groupe de se plaquer au sol.",
+          "cible": "§4-riverdale-B-danger-A",
+          "epreuve": "chance"
+        },
+        {
+          "label": "Tu fais demi-tour et tu remontes.",
+          "cible": "§4-riverdale-B-danger-B",
+          "epreuve": "agilite"
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-B-danger-A",
+      "type": "chance",
+      "lieu": "Descente vers les berges, Riverdale",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Patrouille Reapers"
+      ],
+      "objets": [],
+      "resume": "Tu fais signe — tout le monde au sol. Le groupe se couche dans l'herbe sèche sans un bruit. La patrouille avance à quelques mètres, lampes pointées vers le bas de la pente. Ils ne regardent pas derrière eux.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Ils ne vous voient pas.",
+          "cible": "§4-riverdale-B",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Une lampe balaie dans ta direction.",
+          "cible": "§4-riverdale-B-danger-combat",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-B-danger-B",
+      "type": "agilite",
+      "lieu": "Descente vers les berges, Riverdale",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Patrouille Reapers"
+      ],
+      "objets": [],
+      "resume": "Tu fais signe de remonter en silence. Le groupe pivote et grimpe dans le noir.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous disparaissez dans les arbres.",
+          "cible": "§4-riverdale-B",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Un bruit — la patrouille se retourne.",
+          "cible": "§4-riverdale-B-danger-combat",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-B-danger-combat",
+      "type": "combat",
+      "lieu": "Descente vers les berges, Riverdale",
+      "npcs": [
+        "James",
+        "Patrouille Reapers"
+      ],
+      "objets": [],
+      "resume": "La lampe vous trouve. Les Reapers foncent. Dans le noir et la pente, c'est brutal et rapide.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Tu repousses la patrouille. Le groupe dévale vers les berges.",
+          "cible": "§4-riverdale-B",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-B",
+      "type": "narratif",
+      "lieu": "Berges de la Harlem River",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Les berges de la Harlem River — eau noire et silence. Pas de patrouille ici. Le groupe souffle pour la première fois depuis le parc. James se rapproche et demande à voix basse : \"Tu penses qu'on va s'en sortir ?\" Tu ne réponds pas.",
+      "notes_dev": "",
+      "discussion_scene": {
+        "npc_name": "James",
+        "npc_opening": "Travis... t'as vu ce qui s'est passé là-bas ? Cypress est mort. Les gens nous ont pointés du doigt. Qu'est-ce qui va se passer si on se fait chopper ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "On se fera pas chopper.",
+            "emotion_label": "déterminé",
+            "npc_response": "T'en sais rien. Les Reapers, la police — tout le monde va nous chercher. On rentre où ce soir ?",
+            "sub_choices": [
+              {
+                "id": "c1a",
+                "player_text": "On rentre pas. On finit ce qu'on a commencé.",
+                "emotion_label": "ferme",
+                "npc_response": "...ok. Je te fais confiance.",
+                "section_choice_id": "§4-riverdale-C"
+              },
+              {
+                "id": "c1b",
+                "player_text": "Je sais pas encore. Mais on reste ensemble.",
+                "emotion_label": "sincère",
+                "npc_response": "C'est tout ce que je voulais entendre.",
+                "section_choice_id": "§4-riverdale-C"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "J'ai peur James. Mais on a pas le choix.",
+            "emotion_label": "honnête",
+            "npc_response": "Moi aussi j'ai peur. Mais t'aurais pu nous dire de partir, et t'as pas fait ça. Alors je reste.",
+            "section_choice_id": "§4-riverdale-C"
+          },
+          {
+            "id": "c3",
+            "player_text": "C'est pas le moment pour ça.",
+            "emotion_label": "froid",
+            "npc_response": "T'as raison. Désolé.",
+            "section_choice_id": "§4-riverdale-C"
+          }
+        ]
+      },
+      "choix": [
+        {
+          "label": "→ Descente vers Fort Independence Park.",
+          "cible": "§4-riverdale-C",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-C",
+      "type": "agilite",
+      "lieu": "Fort Independence Park, descente",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam"
+      ],
+      "objets": [],
+      "resume": "Fort Independence Park — des escaliers de secours rouillés descendent entre les arbres. Des hommes de Krugger patrouillent en bas. Si tu as mémorisé les rotations, tu sais exactement quand traverser. Sinon, tu y vas à l'aveugle.",
+      "notes_dev": "Bonus si rotations mémorisées en §4-riverdale-A — malus réduit sur le jet.",
+      "choix": [
+        {
+          "label": "Succès — Le groupe passe.",
+          "cible": "§14",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Un Reaper vous repère. Il s'approche seul — il veut négocier.",
+          "cible": "§4-riverdale-C-echec",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-C-echec",
+      "type": "dialogue",
+      "lieu": "Fort Independence Park",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Reaper isolé"
+      ],
+      "objets": [],
+      "resume": "Un Reaper vous repère. Il s'approche seul, à voix basse — il a vu ce qui s'est passé au parc. Il veut de l'argent pour se taire.",
+      "notes_dev": "",
+      "discussion_scene": {
+        "npc_name": "Reaper isolé",
+        "npc_opening": "Stop. Bougez pas. J'ai tout vu au parc — Cypress, vous, tout. Les Reapers cherchent des Freaks ce soir. Vous avez un problème.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Écoute, je te file trente dollars et t'as rien vu.",
+            "emotion_label": "négociateur",
+            "npc_response": "Montre.",
+            "condition": "30_dollars",
+            "sub_choices": [
+              {
+                "id": "c1a",
+                "player_text": "Tiens.",
+                "emotion_label": "calme",
+                "npc_response": "",
+                "section_choice_id": "§14",
+                "objets_perdus": []
+              },
+              {
+                "id": "c1b",
+                "player_text": "Laisse tomber.",
+                "emotion_label": "froid",
+                "npc_response": "",
+                "section_choice_id": "§4-riverdale-C-echec-combat"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "On veut juste passer. On t'a rien fait.",
+            "emotion_label": "calme",
+            "npc_response": "C'est pas mon problème. Dégagez ou j'appelle.",
+            "section_choice_id": "§4-riverdale-C-echec-combat"
+          },
+          {
+            "id": "c3",
+            "player_text": "T'as intérêt à te taire.",
+            "emotion_label": "menaçant",
+            "npc_response": "Tu me menaces ? Ici, chez moi ?",
+            "section_choice_id": "§4-riverdale-C-echec-combat"
+          }
+        ]
+      },
+      "choix": [
+        {
+          "label": "Succès — Tu paies. Il disparaît dans le noir.",
+          "cible": "§14",
+          "epreuve": null,
+          "objets_perdus": [],
+          "money_cost": 30
+        },
+        {
+          "label": "Échec — Il crie.",
+          "cible": "§4-riverdale-C-echec-combat",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§4-riverdale-C-echec-combat",
+      "type": "combat",
+      "lieu": "Fort Independence Park",
+      "npcs": [
+        "James",
+        "Reaper isolé",
+        "Renforts Reapers"
+      ],
+      "objets": [],
+      "resume": "Il crie et recule d'un pas. En bas du parc, des lampes torches bougent — ils ont entendu. Tu comptes trois, quatre silhouettes qui remontent la pente vers vous. Pas le choix.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Tu repousses les Reapers et fuis.",
+          "cible": "§14",
+          "epreuve": null,
+          "malus": "endurance -3"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§9-echec-A",
+      "type": "agilite",
+      "lieu": "Jerome Avenue, West 238th",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "2 guetteurs Reapers"
+      ],
+      "objets": [],
+      "resume": "Un guetteur se retourne et te voit. Tu cries aux gars de courir et tu fonces vers l'allée des garages.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous disparaissez dans l'allée avant qu'ils attrapent.",
+          "cible": "§10",
+          "epreuve": null
+        },
+        {
+          "label": "Échec — Ils vous bloquent l'accès.",
+          "cible": "§9-echec-B",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§9-echec-B",
+      "type": "combat",
+      "lieu": "Jerome Avenue, West 238th",
+      "npcs": [
+        "Shawn",
+        "Calvin",
+        "Andre"
+      ],
+      "objets": [],
+      "resume": "Tu cries aux gars de courir et tu fais face. Shawn reste à tes côtés. Deux contre deux — les guetteurs foncent.",
+      "notes_dev": "Combat 2v2 : Travis + Shawn vs Calvin et Andre. Les autres (Zac, James, Jesse, Adam) fuient.",
+      "combat_config": {
+        "allies": [
+          "Shawn"
+        ],
+        "ennemis": [
+          "Calvin",
+          "Andre"
+        ]
+      },
+      "butin": [
+        {
+          "npc": "Reaper guetteur",
+          "objet": "argent",
+          "montant": 20
+        },
+        {
+          "npc": "Reaper guetteur 2",
+          "objet": "Clé de voiture",
+          "description": "Une clé avec télécommande — ouvre la voiture des guetteurs garée sur Jerome Avenue."
+        }
+      ],
+      "choix": [
+        {
+          "label": "Succès — Les deux guetteurs à terre. Tu continues.",
+          "cible": "§10",
+          "epreuve": null,
+          "malus": "endurance -2"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§13-echec-fuite",
+      "type": "agilite",
+      "lieu": "Station-service West 231st",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Reaper isolé",
+        "3 Reapers"
+      ],
+      "objets": [],
+      "resume": "Le Reaper résiste et crie. Des renforts rappliquent au coin de la rue. Tu cries aux gars de courir avant qu'ils arrivent.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous prenez de l'avance et semez les renforts.",
+          "cible": "§14",
+          "epreuve": null,
+          "malus": "endurance -1"
+        },
+        {
+          "label": "Échec — Ils vous rattrapent.",
+          "cible": "§13-echec-combat",
+          "epreuve": null
+        }
+      ]
+    },
+    {
+      "id": "§13-echec-combat",
+      "type": "combat",
+      "lieu": "Station-service West 231st",
+      "npcs": [
+        "Shawn",
+        "Zac",
+        "James",
+        "Jesse",
+        "Adam",
+        "Faye",
+        "Reaper isolé",
+        "renforts Reapers"
+      ],
+      "objets": [],
+      "resume": "Les renforts sont là, ils occupent la sortie. Tu regardes Jesse à terre, ton groupe autour de toi, et tu sais que courir ne suffit plus. Six Reapers en demi-cercle te font face. Tu serres les poings.",
+      "notes_dev": "",
+      "choix": [
+        {
+          "label": "Succès — Vous repoussez les Reapers et fuyez.",
+          "cible": "§14",
+          "epreuve": null,
+          "malus": "endurance -3"
+        },
+        {
+          "label": "Échec — FIN — mort du joueur.",
+          "cible": "FIN-MORT",
+          "epreuve": null
+        }
+      ]
+    }
+  ],
+  "inventaire_depart": [
+    "30 dollars"
+  ],
+  "notes_globales": [
+    "Tous les résumés sont à la 2ème personne (tu) — à corriger en passe globale avant envoi à Mistral.",
+    "Sans Faye : malus -2 sur toutes les épreuves Chance et Agilité jusqu'à §14.",
+    "30 dollars : objet de départ. Dépensé en §4-riverdale-C-echec si le joueur paie le Reaper.",
+    "Bandana Reaper : obtenu en §13 succès. Usage à définir.",
+    "Couteau : obtenu via Faye si dialogue §5 succès + paquet de cigarettes en inventaire.",
+    "Radio : obtenue en §15 succès. Garantie pour tous les chemins post-Armory."
+  ],
+  "branches_a_ecrire": [
+    "§4-sedgwick-AA-A-echec — Combat conducteur reprend le contrôle",
+    "§4-sedgwick-bodega-A-echec — Combat bodega Jesse interpellé",
+    "§4-sedgwick-cour-A-echec-combat — Combat Reapers de quartier",
+    "§4-riverdale-C-echec-combat — Combat si négociation échoue",
+    "§9-echec-A-echec-combat — Combat si fuite vers garages échoue",
+    "§13-echec-fuite-echec — Combat si fuite renforts échoue"
+  ]
+}

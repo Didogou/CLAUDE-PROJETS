@@ -32,7 +32,7 @@ export type MapVisibility = 'full' | 'found' | 'fog'
 export type MapType = 'none' | 'fog' | 'found' | 'known'
 export type SectionStatus = 'draft' | 'in_progress' | 'validated'
 export type ContextType = 'Aventure' | 'Intrigue' | 'Suspense' | 'Enquête' | 'Horreur' | 'Fantasy' | 'Science-Fiction'
-export type ItemType = 'soin' | 'mana' | 'arme' | 'armure' | 'outil' | 'quete' | 'grimoire'
+export type ItemType = 'soin' | 'mana' | 'arme' | 'armure' | 'outil' | 'quete' | 'grimoire' | 'plan'
 export type ItemCategory = 'persistant' | 'consommable' | 'arme'
 
 export interface RadioBroadcast {
@@ -43,8 +43,9 @@ export interface RadioBroadcast {
 
 export interface SceneItem {
   item_id: string
-  x?: number           // % horizontal sur l'image (0-100)
-  y?: number           // % vertical sur l'image (0-100)
+  x?: number           // fraction horizontale sur l'image (0–1)
+  y?: number           // fraction verticale sur l'image (0–1)
+  scale?: number       // multiplicateur de taille (1 = 56px)
 }
 export type TrialType = 'combat' | 'agilite' | 'intelligence' | 'magie' | 'chance' | 'crochetage' | 'dialogue'
 export type EndingType = 'victory' | 'death'
@@ -91,20 +92,33 @@ export interface Enemy {
   description?: string
 }
 
+export interface CombatParticipant {
+  npc_id?: string
+  npc_name: string
+  force: number
+  endurance: number
+  enemy_weapon_type?: string
+}
+
 export interface Trial {
   type: TrialType
   stat: keyof StatModifiers
   success_section_id?: string
   failure_section_id?: string
+  // Combat simple (rétrocompatible)
   enemy?: Enemy
   npc_id?: string
+  enemy_weapon_type?: string
+  // Combat multiple (N adversaires)
+  enemies?: CombatParticipant[]   // si renseigné, remplace enemy + npc_id
   xp_reward?: number
-  item_rewards?: string[]
   mana_cost?: number
   endurance_loss_on_failure?: number
+  // Combat-specific
+  combat_intro_thought?: string
   // Dialogue-specific
-  dialogue_opening?: string   // première réplique du PNJ
-  dialogue_goal?: string      // ce que le joueur doit obtenir/convaincre
+  dialogue_opening?: string
+  dialogue_goal?: string
 }
 
 export interface DialogueMessage {
@@ -118,9 +132,13 @@ export interface Item {
   name: string
   item_type: ItemType
   category: ItemCategory          // persistant | consommable | arme
+  weapon_type?: string | null     // ex: 'couteau', 'batte', 'pistolet' (si item_type === 'arme')
   description?: string
-  illustration_url?: string       // image de l'objet (fiche item)
+  illustration_url?: string       // miniature de l'objet (icône sur la scène)
+  detail_url?: string             // image agrandie affichée quand le joueur clique sur l'objet
+  fold_sound_url?: string         // son joué au dépliage/pliage (type plan)
   cinematique_url?: string        // vidéo courte jouée au ramassage
+  npc_id?: string | null          // PNJ qui porte/possède cet item
   section_found_id?: string
   sections_used: string[]         // sections où l'item est à positionner (pickup)
   use_section_ids?: string[]      // sections où l'item est requis (usage/déverrou)
@@ -129,23 +147,66 @@ export interface Item {
   created_at: string
 }
 
+// ── Séquence narrative par image ─────────────────────────────────────────────
+
+export interface TextSequenceItem {
+  type: 'narrative' | 'thought'
+  text: string
+}
+
 export interface SectionImage {
   url?: string
   description?: string
   style?: IllustrationStyle
   prompt_fr?: string
   prompt_en?: string
-  thought?: string
+  thought?: string                  // legacy — fallback si text_sequence absent
+  text_sequence?: TextSequenceItem[] // narratif + pensées alternés
+  bubble_positions?: Record<string, { x: number; y: number }> // speaker → position % sur l'image
 }
 
-export interface SectionDialogue {
-  text: string
-  speaker?: string   // nom du locuteur, "joueur" ou null si inconnu
-  npc_id?: string    // id du PNJ si identifié
-  source: 'content' | 'transition'
-  image_index?: number  // 0-2 : plan sur lequel afficher la bulle
-  voice_prompt?: string  // override du prompt de jeu d'acteur pour cette réplique
-  audio_url?: string     // URL Supabase Storage du MP3 sauvegardé
+// ── Scène de discussion (dernière image) ──────────────────────────────────────
+
+export interface DiscussionItemExchange {
+  direction: 'npc_gives' | 'player_gives'
+  item_id: string
+  accept_text: string
+  refuse_text: string
+  accept_sub_choices?: DiscussionSubChoice[]
+  refuse_sub_choices?: DiscussionSubChoice[]
+}
+
+export interface DiscussionSubChoice {
+  id: string
+  player_text: string
+  emotion_label: string
+  npc_response: string              // réponse du PNJ à ce niveau (remplace npc_capitulation)
+  npc_response_audio_url?: string
+  target_section_id?: string        // UUID section cible (navigation si fin de conversation)
+  item_exchange?: DiscussionItemExchange
+  sub_choices?: DiscussionSubChoice[]
+}
+
+export interface DiscussionChoice {
+  id: string
+  player_text: string               // ce que dit le joueur
+  emotion_label: string             // ex: "Prudent" "Courageux" "Discret"
+  npc_response: string              // réaction du PNJ
+  npc_capitulation?: string         // texte si le PNJ cède (dernier sous-choix)
+  npc_response_audio_url?: string
+  target_section_id?: string        // UUID section cible (FK réelle en DB)
+  condition_item?: string           // ex: "paquet_de_cigarettes"
+  item_exchange?: DiscussionItemExchange
+  sub_choices?: DiscussionChoice[]
+}
+
+export interface DiscussionScene {
+  scene_id?: string                 // UUID de discussion_scenes (source de vérité)
+  npc_id: string                    // PNJ qui parle
+  npc_opening: string               // première réplique du PNJ
+  npc_opening_audio_url?: string    // audio ElevenLabs pré-généré
+  choices: DiscussionChoice[]
+  outcome_thought?: string          // pensée du protagoniste après la discussion
 }
 
 export interface Section {
@@ -156,6 +217,7 @@ export interface Section {
   summary?: string
   narrative_arc?: NarrativeArc | null
   music_url?: string
+  music_start_time?: number   // offset en secondes pour démarrer la piste
   content_en?: string
   image_url?: string
   images?: SectionImage[]
@@ -173,12 +235,14 @@ export interface Section {
   tension_level?: number
   npc_question_used?: Record<string, boolean>  // npcId → true si question déjà utilisée
   continues_timer?: boolean
-  dialogues?: SectionDialogue[]
   hint_text?: string
-  player_questions?: string[]
-  player_responses?: Record<string, Record<string, string>>
-  conv_first_npc_id?: string | null
   items_on_scene?: SceneItem[]    // items ramassables sur la dernière image
+  phrase_distribution?: string[][]  // phrases assignées par image [[img0phrases], [img1phrases], [img2phrases]]
+  combat_type_id?: string | null
+  combat_props?: string[]
+  combat_image_url?: string | null
+  discussion_scene?: DiscussionScene | null
+  money_loot?: number | null        // argent récupérable sur cette section (ennemi battu, etc.)
 }
 
 export interface Choice {
@@ -197,6 +261,10 @@ export interface Choice {
   return_text?: string
   return_image_index?: number
   is_back?: boolean
+  archetype?: string              // ex: "Passage en force", "Discrétion", "Prise de risque"
+  money_cost?: number | null      // montant déduit si le joueur choisit cette option
+  is_default?: boolean            // sélectionné automatiquement quand le countdown atteint 0
+  transition_img_settings?: { model: string; style: string; aspect_ratio: string; section_ref_idx: number | null; description?: string; prompt_fr?: string }
 }
 
 export interface Location {
@@ -213,6 +281,38 @@ export interface BookAct {
   synopsis: string
   from_section: number
   to_section: number
+}
+
+// ── Structure à chemins parallèles ──────────────────────────────────────────
+
+export interface JunctionSection {
+  id: string           // identifiant court ex: "start", "faye", "end"
+  name: string         // nom narratif ex: "Van Cortlandt Park"
+  paths: string[]      // chemins qui convergent ici ex: ["A","B","C","D"]
+  sections_count: number
+  synopsis: string
+  from_section?: number  // assigné après allocation
+  to_section?: number
+}
+
+export interface PathSegment {
+  from_junction: string  // id de la jonction d'entrée
+  to_junction: string    // id de la jonction de sortie
+  sections_count: number
+  synopsis: string
+  from_section?: number  // assigné après allocation
+  to_section?: number
+}
+
+export interface NarrativePath {
+  id: string             // ex: "A", "B", "C", "D"
+  label: string          // ex: "Métro → Rues → Métro"
+  segments: PathSegment[]
+}
+
+export interface ParallelBookStructure {
+  junctions: JunctionSection[]
+  paths: NarrativePath[]
 }
 
 export interface IntroStep {
@@ -242,6 +342,7 @@ export interface IntroFrame {
   id: string
   order: number
   framing: IntroFraming
+  perspective?: string
   prompt_fr: string
   prompt_en: string
   duration: IntroDuration
@@ -284,9 +385,15 @@ export interface SectionLayoutSettings {
   // Vignettes personnages
   vignettes_show: boolean
   vignette_size: number
-  vignette_style: 'circle' | 'card'
+  vignette_style: 'circle' | 'card' | 'tile'
   vignette_border_color: string
   vignette_positions: { x: number; y: number }[]
+  vignette_tile_name_size: number       // taille police du nom dans tuile
+  vignette_tile_text_color: string      // couleur texte dans tuile
+  vignette_tile_bg_opacity: number      // opacité du fond côté nom (0-100)
+  vignette_tile_show_hp: boolean        // barre HP sous le nom (NPCs uniquement)
+  vignette_tile_name_x: number          // décalage X du nom dans tuile
+  vignette_tile_name_y: number          // décalage Y du nom dans tuile
   // HUD (canvas libre)
   el_health:    { x: number; y: number; w: number }
   el_stats:     { x: number; y: number }
@@ -375,6 +482,12 @@ export interface SectionLayoutSettings {
 
 export type SectionLayoutDevice = { phone?: Partial<SectionLayoutSettings>; tablet?: Partial<SectionLayoutSettings> }
 
+export interface PathSynopses {
+  trunk_start?: string        // synopsis du tronc commun de départ
+  paths: Record<string, string>  // { A: "...", B: "...", C: "..." }
+  trunk_end?: string          // synopsis du tronc commun de victoire (optionnel)
+}
+
 export interface Book {
   id: string
   title: string
@@ -410,6 +523,11 @@ export interface Book {
   intro_order?: IntroStep[] | null
   section_layout?: SectionLayoutDevice | null
   player_prefs?: { sound: boolean; voice: boolean; text_mode: 1 | 2 } | null
+  weapon_types?: string[]          // liste des types d'armes du livre
+  combat_layout?: CombatLayoutSettings | null  // template visuel des écrans de combat
+  has_branches?: boolean           // activer la génération à chemins parallèles
+  path_synopses?: PathSynopses | null  // synopsis par segment narratif (tronc + chemins + victoire)
+  skeleton_cache?: any             // cache temporaire du squelette (passe 1 du mode 2 passes)
   description?: string
   created_at: string
   updated_at: string
@@ -435,6 +553,7 @@ export interface Npc {
   loot?: string
   appearance?: string         // description physique : morphologie, traits, vêtements
   origin?: string             // origine et background du personnage
+  group_name?: string         // nom du gang / clan / équipe du personnage
   speech_style?: string       // façon de parler, accent, tics de langage
   dialogue_intro?: string     // texte narrateur avant le dialogue
   voice_id?: string           // ElevenLabs voice ID
@@ -447,7 +566,123 @@ export interface Npc {
   name_image_url?: string            // image du nom stylisé (logo/graffiti)
   name_image_settings?: Record<string, unknown>
   portrait_emotions?: Record<string, string>  // emotion → url ex: { tendu: '...', souriant: '...' }
+  combat_v3?: NpcCombatV3                     // images de combat QCM cinématique
   created_at: string
+}
+
+// ── Images de combat V3 (QCM cinématique) ─────────────────────────────────────
+export interface NpcCombatV3 {
+  neutral_url?: string                    // en garde — fond pendant le tour du joueur
+  hit_url?: string                        // encaisse un coup — après attaque réussie du joueur
+  dodge_url?: string                      // esquive — après attaque ratée du joueur
+  ko_url?: string                         // KO / à terre — affiché à la victoire
+  attack_urls?: Record<string, string>    // { "Coup haut": "url…" } — une par move ennemi (indice visuel QTE)
+  // Portraits blessés (protagoniste) — utilisés selon le % de PV restants
+  portrait_75_url?: string | null         // portrait affiché à ≤75% PV
+  portrait_50_url?: string | null         // portrait affiché à ≤50% PV
+  portrait_25_url?: string | null         // portrait affiché à ≤25% PV
+}
+
+// ── Layout visuel des écrans de combat (éditeur modèle) ───────────────────────
+export interface CombatLayoutSettings {
+  v3?: {
+    bg: {
+      vignette_opacity: number            // 0-1 — assombrir les bords pour lisibilité
+      filter: 'none' | 'desaturate' | 'contrast' | 'dark'
+      subject_position: 'center' | 'left' | 'right'
+    }
+    narrative: {
+      position_y: number                  // % depuis le haut (0-100)
+      bg_opacity: number                  // 0-1
+      bg_color: string
+      font_size: number                   // px
+      font_color: string
+      padding: number                     // px
+      style: 'roman' | 'manuscrit' | 'sobre'
+    }
+    choices: {
+      position_y: number                  // % depuis le bas (0-100)
+      style: 'card' | 'filled' | 'outlined' | 'text_only'
+      accent_color: string
+      font_size: number
+      gap: number                         // px entre boutons
+      appear: 'cascade' | 'fade' | 'flash_cascade' | 'typewriter'
+      appear_delay_ms: number             // délai avant apparition des choix
+      cascade_stagger_ms: number          // décalage entre chaque bouton
+    }
+    hp: {
+      height: number                      // px
+      player_color: string
+      enemy_color: string
+      player_name_color: string           // couleur du nom du joueur
+      enemy_name_color: string            // couleur du nom de l'ennemi
+      show_numbers: boolean
+      show_names: boolean
+      player_x: number                    // px depuis la gauche
+      player_y: number                    // px depuis le haut
+      enemy_x: number
+      enemy_y: number
+      bar_width: number                   // px largeur de chaque barre
+    }
+    transition: {
+      type: 'cut' | 'flash_white' | 'flash_red' | 'fade' | 'zoom_fade'
+      duration_ms: number
+    }
+    impact: {
+      screen_shake: boolean
+      damage_font_size: number
+      damage_color: string
+      flash_on_hit: boolean
+    }
+    timing: {
+      image_hold_ms: number               // silence après changement d'image
+      narrative_hold_ms: number           // silence après texte, avant apparition des choix
+      action_hold_ms: number              // durée affichage "Tu frappes / Il frappe"
+      result_hold_ms: number              // durée affichage "Touché / Raté / Aïe / Esquivé"
+    }
+    player_turn: {
+      text: string                        // "Que fais-tu ?" — affiché quand c'est le tour joueur
+      position_y: number                  // px depuis le bas
+      bg_color: string                    // couleur fond derrière le texte
+      bg_opacity: number                  // 0-1
+    }
+    action_text: {
+      position_y: number                  // % depuis le haut — "Tu frappes / Il frappe"
+      font_size: number                   // px
+      color: string                       // couleur
+    }
+    phase_texts: {
+      player_hit:  { action: string; result: string }   // joueur frappe et touche
+      player_miss: { action: string; result: string }   // joueur frappe et rate
+      enemy_hit:   { action: string; result: string }   // ennemi frappe et touche
+      enemy_miss:  { action: string; result: string }   // ennemi frappe et rate
+    }
+    end_screens: {
+      victory_text: string          // ex: "Tu as gagné !"
+      defeat_text: string           // ex: "Tu es KO."
+    }
+    player_label: {
+      show: boolean
+      position_x: number
+      position_y: number
+      font_size: number
+      color: string
+      bold: boolean
+    }
+    npc_label: {
+      show: boolean
+      position_x: number                  // px depuis la gauche
+      position_y: number                  // px depuis le haut
+      font_size: number
+      color: string
+      bold: boolean
+    }
+    dice?: {
+      mode: 'simple' | 'interactive'      // simple = auto-roule animé | interactive = le joueur tape pour arrêter
+      timeout_ms: number                  // ms avant arrêt auto (0 = jamais)
+      show_enemy_score: boolean           // révéler le score ennemi pendant la parade
+    }
+  }
 }
 
 export interface ContentMix {
@@ -470,6 +705,8 @@ export interface GenerateBookParams {
   language: Language
   difficulty: Difficulty
   num_sections: number
+  num_victory_endings?: number   // nombre de fins victoire — défaut 2. Mettre 1 pour une série où chaque tome a une fin unique.
+  num_death_endings?: number     // nombre de fins mort — défaut calculé selon difficulté si absent
   content_mix: ContentMix
   map_style?: MapStyle | null
   map_visibility: MapVisibility
@@ -477,4 +714,72 @@ export interface GenerateBookParams {
   synopsis?: string
   ai_model?: AiModel
   address_form?: AddressForm
+}
+
+export type CombatantState =
+  | 'normal'
+  | 'stunned'       // sonné, tête touchée
+  | 'bent_low'      // plié en deux (ventre, parties)
+  | 'off_balance'   // déséquilibré (balayage, poussée)
+  | 'backed_up'     // acculé, reculé
+  | 'grounded'      // au sol — force un tour de récupération
+  | 'fleeing'       // tentative de fuite
+
+export type CombatMoveType = 'attack' | 'recovery' | 'contextual' | 'tactical'
+
+export interface CombatMove {
+  id: string
+  combat_type_id: string
+  name: string
+  narrative_text: string
+  narrative_text_npc?: string        // version ennemi ex: "Il fonce sur toi et te percute"
+  bonus_malus: number
+  damage: number
+  is_parry: boolean
+  paired_move_id?: string | null
+  is_contextual: boolean
+  prop_required?: string | null
+  weapon_type?: string | null        // null = universel (main nue + toute arme)
+  hint_text?: string | null          // texte hint affiché au joueur dans le bouton de choix
+  icon_url?: string | null           // icône custom (image) pour le move, fallback sur emoji
+  sort_order: number
+  created_at: string
+  // Combat V4 — états contextuels
+  move_type?: CombatMoveType        // défaut: 'attack'
+  creates_state?: CombatantState | null   // état créé sur la cible si coup réussi
+  required_state?: CombatantState | null  // état requis sur la cible pour afficher ce move
+  required_self_state?: CombatantState | null // état requis sur soi (recovery quand grounded)
+  narrative_on_hit?: string | null    // "Touché, il se baisse..."
+  narrative_on_miss?: string | null   // texte si raté
+  // Champ virtuel peuplé côté client
+  paired_move?: CombatMove | null
+}
+
+export interface CombatType {
+  id: string
+  book_id: string
+  name: string
+  type: 'rue' | 'coup_de_feu' | 'surprise'
+  description?: string
+  created_at: string
+  // Champ virtuel peuplé côté client
+  moves?: CombatMove[]
+}
+
+// Stats joueur avec valeur courante + max
+export interface PlayerStats {
+  force_current: number
+  force_max: number
+  agilite_current: number
+  agilite_max: number
+  intelligence_current: number
+  intelligence_max: number
+  magie_current: number
+  magie_max: number
+  endurance_current: number
+  endurance_max: number
+  chance_current: number
+  chance_max: number
+  volonte_current: number
+  volonte_max: number
 }

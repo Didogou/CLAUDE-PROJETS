@@ -224,9 +224,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 `THÈME : ${book.theme}`,
                 book.protagonist_description ? `PROTAGONISTE : ${book.protagonist_description}` : '',
                 '',
-                'Pour chaque section ci-dessous, génère exactement 4 plans visuels séquencés dans ce format :',
+                'Pour chaque section ci-dessous, génère exactement 3 plans visuels séquencés dans ce format :',
                 '§§NUMÉRO§§',
-                '[{"prompt_fr":"description visuelle en français (1-2 phrases)","prompt_en":"english visual description (1-2 sentences)","thought":"pensée intime du protagoniste, langage jeune et brut (1-2 phrases)"},...]',
+                '[{"prompt_fr":"description visuelle en français (1-2 phrases)","prompt_en":"english visual description (1-2 sentences)","text_sequence":[{"type":"narrative","text":"phrase narrative courte décrivant la scène, ton cinématographique (1-2 phrases)"},{"type":"thought","text":"pensée intime du protagoniste, langage jeune et brut, émotionnel (1-2 phrases)"}]},...]',
+                '',
+                'RÈGLES text_sequence :',
+                '- "narrative" : voix du narrateur, ton sobre et visuel, décrit ce qui se passe dans le plan',
+                '- "thought" : voix intérieure du protagoniste, langage direct, jeune, brut — jamais neutre',
+                '- Chaque plan doit avoir les deux types, dans cet ordre : narrative puis thought',
                 '',
                 '---',
                 ...pass2Sections.map(s =>
@@ -235,9 +240,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               ].filter(Boolean).join('\n')
 
               const rawPlans = await callMistral(
-                'Tu es un storyboarder pour un livre-jeu interactif. Pour chaque section, génère exactement 4 plans visuels séquencés. Utilise le format §§N§§ suivi d\'un tableau JSON strict. La pensée du protagoniste doit être en langage jeune/urbain, brute et émotionnelle — jamais neutre. Réponds UNIQUEMENT dans le format demandé, sans commentaire.',
+                'Tu es un storyboarder pour un livre-jeu interactif. Pour chaque section, génère exactement 3 plans visuels séquencés. Utilise le format §§N§§ suivi d\'un tableau JSON strict. Chaque plan a un "text_sequence" avec deux items : {type:"narrative"} (voix narrateur, cinématographique) puis {type:"thought"} (pensée protagonist, langage jeune/urbain, émotionnel). Réponds UNIQUEMENT dans le format demandé, sans commentaire.',
                 pass2User,
-                Math.min(8000, batchWritten.length * 900)
+                Math.min(9000, batchWritten.length * 1000)
               )
               const plansMap = parseContentMap(rawPlans)
               for (const s of batchWritten) {
@@ -245,14 +250,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 if (!raw) continue
                 try {
                   const jsonStr = raw.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '')
-                  const plans = JSON.parse(jsonStr) as Array<{ prompt_fr?: string; prompt_en?: string; thought?: string }>
+                  const plans = JSON.parse(jsonStr) as Array<{ prompt_fr?: string; prompt_en?: string; text_sequence?: Array<{ type: string; text: string }> }>
                   if (!Array.isArray(plans) || plans.length < 1) continue
                   const existingImgs: any[] = (s as any).images ?? []
                   const images = Array.from({ length: 3 }, (_, idx) => ({
                     ...(existingImgs[idx] ?? {}),
                     prompt_fr: plans[idx]?.prompt_fr || undefined,
                     prompt_en: plans[idx]?.prompt_en || undefined,
-                    thought: plans[idx]?.thought || undefined,
+                    text_sequence: plans[idx]?.text_sequence?.length ? plans[idx].text_sequence : undefined,
                   }))
                   await supabaseAdmin.from('sections').update({ images }).eq('id', s.id)
                   controller.enqueue(send({ type: 'plans_done', number: s.number }))

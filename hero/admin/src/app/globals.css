@@ -43,3 +43,19 @@ body {
 
 /* Rail icon hover */
 aside a:hover { background: #222 !important; color: #d4a84c !important; }
+
+@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+@keyframes diceShake {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-3px, -2px) rotate(-5deg); }
+  50% { transform: translate(3px, 1px) rotate(5deg); }
+  75% { transform: translate(-1px, 3px) rotate(-2deg); }
+}
+@keyframes termGlow {
+  0%, 100% { box-shadow: 0 0 0 1px #e0383880, 0 0 8px 2px #e0383840, inset 0 0 8px rgba(224,56,56,0.15); }
+  50%       { box-shadow: 0 0 0 2px #e03838cc, 0 0 18px 5px #e0383860, inset 0 0 14px rgba(224,56,56,0.25); }
+}
+@keyframes termScan {
+  from { background-position: 0 0; }
+  to   { background-position: 0 4px; }
+}

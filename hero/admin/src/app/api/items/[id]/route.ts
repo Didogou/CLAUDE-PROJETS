@@ -10,6 +10,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('category' in body) allowed.category = body.category
   if ('description' in body) allowed.description = body.description ?? null
   if ('illustration_url' in body) allowed.illustration_url = body.illustration_url ?? null
+  if ('detail_url' in body) allowed.detail_url = body.detail_url ?? null
+  if ('fold_sound_url' in body) allowed.fold_sound_url = body.fold_sound_url ?? null
   if ('cinematique_url' in body) allowed.cinematique_url = body.cinematique_url ?? null
   if ('section_found_id' in body) allowed.section_found_id = body.section_found_id ?? null
   if ('sections_used' in body) allowed.sections_used = body.sections_used ?? []

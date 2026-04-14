@@ -1,0 +1,2176 @@
+{
+  "titre": "Duke Duo — DYEH Livre 1",
+  "introduction": "Le système de Citaire a basculé.\n\nIl y a deux jours, l'Empire s'est effondré. Les Empereurs ont été exécutés sur la place du Palais, en direct, sur tous les câbles intermonde. La Junte révolutionnaire de Liane Fergusson a pris le pouvoir. Les anciennes lois n'existent plus. Les nouvelles n'existent pas encore.\n\nVous êtes Duke Duo, méca-libre. Prototype unique fabriqué dans les ateliers de la société MécaGen, vous êtes doté de facultés psychiques extraordinaires — la capacité de sonder les pensées humaines. Votre modèle a remporté le prix de l'innovation au salon interplanétaire Méca de Cirius, avant que l'instance suprême MécaTech ne prohibe toute recherche sur la psychique robotique et n'interrompe votre production. Vous êtes le seul spécimen de votre espèce. Un verrou technique a été implanté dans votre système pour vous empêcher d'utiliser vos pouvoirs — mais vous avez échappé à la procédure R. R comme recyclage : en méca tondeur de pelouse par exemple, ou pire, vérificateur des dates de validité des extincteurs de toute la ville. Vous en frissonnez encore — si tant est qu'un méca puisse frissonner. Bien que, vous n'êtes plus un méca ordinaire. Vous êtes un méca-libre, affranchi... grâce à vos implants Émotionnels Humains.\n\nVous exercez comme détective privé sur Cirius — armé de votre meilleur atout : l'élégance et la politesse que vous cultivez avec esprit.\n\nVotre haut-de-forme vissé de côté sur votre tête est une mise en scène, une œuvre d'art, un coup de pinceau génial. Votre toile presque transparente épouse le haut de votre corps, un fil d'or tressé cintre vos hanches, vos chausses pailletées d'éclats argentés concentrent toutes les attentions. Votre visage droit aux pommettes découpées, vos iris d'une noirceur pure, votre manière si particulière de réfléchir — paupières relevées, pupilles figées — tout en vous est calculé, ingénié, et pourtant sincère.\n\nCe matin, sur votre bureau, une enveloppe scellée de la Junte, et dans la salle d'attente habituellement vide, une cliente qui patiente depuis vingt minutes.\n\nUne cliente que vous saluez avec tout le respect dû à sa condition de cliente. Une cliente que vous laissez poireauter un peu, juste assez pour lui signifier que vos occupations sont soutenues.",
+  "templates_ennemis": {},
+  "tronc_commun": [
+    {
+      "id": "§1",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius, J+2 après la chute de l'Empire",
+      "npcs": ["Duke Duo"],
+      "objets": ["Enveloppe scellée de la Junte"],
+      "resume": "Duke dans son bureau, observe la rue depuis sa fenêtre. Cirius deux jours après la chute de l'Empire, tout est suspendu. Patrouilles de méca-révolutionnaires dans les rues, portraits arrachés. Sur son bureau : une enveloppe scellée de la Junte et une cliente qui attend dans le couloir depuis vingt minutes.",
+      "notes_dev": "Ton Duke : ironique, élégant, décalé. Duke ne connaît pas encore Epsi — première rencontre en §14.",
+      "choix": [
+        { "label": "Ouvrir l'enveloppe.", "cible": "§3", "epreuve": null },
+        { "label": "Faire entrer la cliente.", "cible": "§8", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§3",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Duke Duo"],
+      "objets": ["Convocation de Liane Fergusson"],
+      "resume": "Duke ouvre l'enveloppe. Convocation de Liane Fergusson — pas de formule de politesse. Juste un lieu, une heure, son nom. Au bas du message : transmis par le secrétariat général, une certaine Epsi. Joli prénom du reste... Duke attrape son haut-de-forme. La cliente attendra.",
+      "notes_dev": "Première mention d'Epsi — Duke ne la connaît pas encore, mais le prénom l'interpelle.",
+      "choix": [
+        { "label": "Partir.", "cible": "§14", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§8",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Cliente"],
+      "objets": [],
+      "resume": "La cliente entre. Femme humaine, la quarantaine, déterminée. Mari qui rentre tard depuis trois semaines, sans explication. Elle veut des preuves exploitables — divorce, pension, partage des actifs.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Lire discrètement son esprit.", "cible": "§9", "epreuve": null },
+        { "label": "Poser des questions classiques.", "cible": "§11", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§9",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Cliente"],
+      "objets": [],
+      "resume": "Duke s'immisce dans l'esprit de la cliente. Pas de chagrin — de la détermination. Elle sait déjà. Ce qu'elle veut : une preuve exploitable. Divorce, pension, partage des actifs.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Continuer.", "cible": "§9-dial", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§9-dial",
+      "type": "dialogue",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Cliente"],
+      "objets": [],
+      "resume": "La cliente expose sa demande. Elle veut une preuve exploitable en trois soirs. Elle propose 40 000 gaches, moitié maintenant.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Accepter la mission.", "cible": "§10A", "epreuve": null },
+        { "label": "Décliner.", "cible": "§10B", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "La Cliente",
+        "npc_opening": "Je veux que vous le suiviez. Trois soirs suffisent. Je paie bien.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Quarante mille. Pour suivre un mari infidèle.",
+            "emotion_label": "ironique",
+            "npc_response": "Pour suivre un homme qui pense avoir tout prévu. Ce n'est pas la même chose.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Pourquoi moi spécifiquement ?",
+                "emotion_label": "neutre",
+                "npc_response": "On m'a dit que vous voyez ce que les autres ne voient pas. J'ai besoin de quelqu'un qui ne se trompe pas.",
+                "section_choice_id": "§10"
+              },
+              {
+                "id": "c12",
+                "player_text": "Moitié maintenant — en transfert crypté ?",
+                "emotion_label": "pragmatique",
+                "npc_response": "En transfert crypté. Je ne me promène pas avec 20 000 gaches.",
+                "section_choice_id": "§10"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "Vous savez déjà qu'il vous trompe. Pourquoi une preuve ?",
+            "emotion_label": "direct",
+            "npc_response": "Parce que savoir ne suffit pas devant un juge. Et parce que je veux qu'il le sache que je sais.",
+            "section_choice_id": "§10"
+          },
+          {
+            "id": "c3",
+            "player_text": "Je ne prends pas ce genre de dossier.",
+            "emotion_label": "dédaigneux",
+            "npc_response": "Soixante mille. Tout maintenant.",
+            "sub_choices": [
+              {
+                "id": "c31",
+                "player_text": "Marché conclu.",
+                "emotion_label": "pragmatique",
+                "npc_response": "Je savais que vous étiez raisonnable.",
+                "section_choice_id": "§10A"
+              },
+              {
+                "id": "c32",
+                "player_text": "Ni à quarante, ni à soixante.",
+                "emotion_label": "ferme",
+                "npc_response": "...",
+                "section_choice_id": "§10B"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§10",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Cliente"],
+      "objets": [],
+      "resume": "La cliente attend. Duke décide.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Accepter la mission — 40 000 gaches.", "cible": "§10A", "epreuve": null },
+        { "label": "Décliner. L'enveloppe de la Junte attend.", "cible": "§10B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§10A",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Cliente"],
+      "objets": [],
+      "resume": "Duke accepte. 20 000 gaches en transfert crypté, séance tenante. La cliente repart avec un reçu et une date. Duke pose l'enveloppe de la Junte dans le tiroir du bas. La Junte attendra.",
+      "notes_dev": "Variable système : MISSION-CLIENTE = EN COURS",
+      "choix": [
+        { "label": "Surveiller le mari.", "cible": "§6", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§10B",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Cliente"],
+      "objets": [],
+      "resume": "Duke décline. Trop banal, mauvais moment. La cliente repart sans son détective. L'enveloppe de la Junte attend sur le bureau.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Ouvrir l'enveloppe.", "cible": "§13", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§11",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Cliente"],
+      "objets": [],
+      "resume": "Duke pose des questions classiques — habitudes, noms inconnus, horaires. Il note sans sonder. Il a sa réponse de toute façon.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Accepter le dossier.", "cible": "§12", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§12",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": ["Cliente"],
+      "objets": [],
+      "resume": "Duke accepte le dossier, demande à la cliente de revenir dans deux jours. Elle repart avec un espoir fragile. L'enveloppe scellée attend.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Ouvrir l'enveloppe.", "cible": "§13", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§13",
+      "type": "narratif",
+      "lieu": "Bureau de Duke — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke ouvre l'enveloppe. Convocation de Liane Fergusson — pas de formule de politesse. Un lieu, une heure, son nom. Au bas : transmis par Epsi. Duke relit le nom d'Epsi une seconde de trop.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Partir immédiatement.", "cible": "§14", "epreuve": null },
+        { "label": "D'abord surveiller le mari infidèle.", "cible": "§6", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§6",
+      "type": "agilite",
+      "lieu": "Rues de Cirius — devant le bâtiment de travail du mari",
+      "npcs": ["Mari infidèle"],
+      "objets": [],
+      "resume": "Duke attend devant le bâtiment de travail du mari. Il le reconnaît dès qu'il sort. Il le suit à distance. L'homme est nerveux, se retourne régulièrement.",
+      "notes_dev": "Trial Agilité — rester dans l'ombre sans se faire repérer.",
+      "choix": [
+        { "label": "Succès — Duke reste dans l'ombre.", "cible": "§7B", "epreuve": null },
+        { "label": "Échec — Le mari voit Duke.", "cible": "§7A", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7A",
+      "type": "narratif",
+      "lieu": "Rues de Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Le mari voit Duke. Regards croisés. L'homme accélère, s'engouffre dans un immeuble. Duke note l'adresse. Le communicateur vibre — Epsi, urgent.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Décrocher.", "cible": "§7A-dial", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7A-dial",
+      "type": "dialogue",
+      "lieu": "Rues de Cirius — communication entrante",
+      "npcs": ["Epsi"],
+      "objets": [],
+      "resume": "Epsi appelle. Duke flirte, Epsi s'impatiente. Menace de procédure R. Duke doit décider.",
+      "notes_dev": "Choix 1.2.1 → mort. Tous les autres → §7A-choix ou §14.",
+      "choix": [
+        { "label": "Terminer la mission et rejoindre la Junte dans deux heures.", "cible": "§7A-choix", "epreuve": null },
+        { "label": "Partir immédiatement.", "cible": "§14", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Epsi",
+        "npc_opening": "Bonjour une nouvelle fois, Monsieur Duo. Êtes-vous en chemin ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Bonjour chère Epsi, quel plaisir d'entendre de nouveau le son de votre voix. Je reconnais un timbre issu d'ExpertAudio React — êtes-vous équipée de ce merveilleux système ?",
+            "emotion_label": "charmeur",
+            "npc_response": "Monsieur Duo, vous êtes charmant, mais Madame Fergusson vous attend. Je vous conseille de ne pas trop la faire patienter... il en va de votre sécurité, Monsieur.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Chère Epsi, j'ai déjà accepté un contrat, je travaille sur une enquête passionnante, si vous permettez, je serai ravi de vous partager quelques éléments subjuguants.",
+                "emotion_label": "enthousiaste",
+                "npc_response": "Monsieur, j'accepterai volontiers, mais ce soir, si vous ne vous rendez pas immédiatement au siège de la Junte, vous serez en procédure R — peut-être recyclé en méca-distributeur, ou en enjoliveur de méca-car.",
+                "sub_choices": [
+                  {
+                    "id": "c111",
+                    "player_text": "Je ne saurais résister à votre invitation, Madame. Je me mets en route de suite.",
+                    "emotion_label": "conciliant",
+                    "npc_response": "Je lui dirai que vous êtes déjà en route.",
+                    "section_choice_id": "§14"
+                  },
+                  {
+                    "id": "c112",
+                    "player_text": "Êtes-vous une méca-libre, chère Epsi ?",
+                    "emotion_label": "curieux",
+                    "npc_response": "Je suis une méca, propriété exclusive de Mme Liane Fergusson, cheffe de la révolution. Que dois-je répondre à ma maîtresse ?",
+                    "sub_choices": [
+                      {
+                        "id": "c1121",
+                        "player_text": "Quelle tristesse. Je suis un méca-libre, chère Epsi. Je me rendrai à votre convocation demain à la première heure, promis.",
+                        "emotion_label": "désinvolte",
+                        "npc_response": "...",
+                        "section_choice_id": "§mort-convocation"
+                      },
+                      {
+                        "id": "c1122",
+                        "player_text": "Je suis un méca-libre, chère Epsi. J'intercèderai auprès de Mme Fergusson pour vous inviter à une promenade autour des fameuses centrales électriques. Je viens de suite, Madame.",
+                        "emotion_label": "galant",
+                        "npc_response": "Je lui transmettrai. Dépêchez-vous, Monsieur.",
+                        "section_choice_id": "§7A-choix"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "c12",
+                "player_text": "Ma chère Epsi, quelle joie. Si vos concepteurs ont travaillé si brillamment sur vos ondes vocales, votre esthétique est une promesse de distinction et de beauté. Je viens de suite.",
+                "emotion_label": "galant",
+                "npc_response": "Je lui dirai que vous êtes déjà en route.",
+                "section_choice_id": "§14"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§7A-choix",
+      "type": "narratif",
+      "lieu": "Rues de Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke range son communicateur. La cliente. La Junte. Il choisit.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Terminer la mission — rejoindre le siège de la Junte dans deux heures.", "cible": "§7B2", "epreuve": null },
+        { "label": "Partir maintenant. La cliente attendra.", "cible": "§14", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7B2",
+      "type": "crochetage",
+      "lieu": "Immeuble résidentiel — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke retourne directement à l'adresse notée. Scanner de présences : une signature biologique au deuxième étage. Il s'approche du digicode. Trial Crochetage — forcer l'accès.",
+      "notes_dev": "Succès → Duke entre → §7D. Échec → fenêtre s'ouvre, quelqu'un regarde → §7C-fail.",
+      "choix": [
+        { "label": "Succès — Duke entre dans l'immeuble.", "cible": "§7D", "epreuve": null },
+        { "label": "Échec — Une fenêtre s'ouvre. Duke s'éloigne.", "cible": "§7C-fail", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7C-fail",
+      "type": "narratif",
+      "lieu": "Immeuble résidentiel — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Une fenêtre s'ouvre au-dessus. Quelqu'un regarde. Duke s'éloigne. Aucune preuve récoltée. Il envoie un bref message à la cliente : 'Première piste identifiée. Je reprends demain.' Mission en pause.",
+      "notes_dev": "Variable système : MISSION-CLIENTE = EN COURS (pause)",
+      "choix": [
+        { "label": "Rappeler Epsi.", "cible": "§7B2-dial", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7B2-dial",
+      "type": "dialogue",
+      "lieu": "Rues de Cirius — communication sortante",
+      "npcs": ["Epsi"],
+      "objets": [],
+      "resume": "Duke rappelle Epsi. Il annonce qu'il est en route. Epsi note que Liane l'attend depuis hier.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Se rendre au QG de la Junte.", "cible": "§14", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Epsi",
+        "npc_opening": "Bonjour une nouvelle fois, Monsieur Duo. Êtes-vous en chemin ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Bonjour chère Epsi, quel plaisir d'entendre de nouveau le son de votre voix. Je reconnais un timbre issu d'ExpertAudio React — êtes-vous équipée de ce merveilleux système ?",
+            "emotion_label": "charmeur",
+            "npc_response": "Monsieur Duo, vous êtes charmant, mais Madame Fergusson vous attend. Je vous conseille de ne pas trop la faire patienter... il en va de votre sécurité, Monsieur.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Chère Epsi, j'ai déjà accepté un contrat, je travaille sur une enquête passionnante, si vous permettez, je serai ravi de vous partager quelques éléments subjuguants.",
+                "emotion_label": "enthousiaste",
+                "npc_response": "Monsieur, j'accepterai volontiers, mais ce soir, si vous ne vous rendez pas immédiatement au siège de la Junte, vous serez en procédure R — peut-être recyclé en méca-distributeur, ou en enjoliveur de méca-car.",
+                "sub_choices": [
+                  {
+                    "id": "c111",
+                    "player_text": "Je ne saurais résister à votre invitation, Madame. Je me mets en route de suite.",
+                    "emotion_label": "conciliant",
+                    "npc_response": "Je lui dirai que vous êtes déjà en route.",
+                    "section_choice_id": "§14"
+                  },
+                  {
+                    "id": "c112",
+                    "player_text": "Êtes-vous une méca-libre, chère Epsi ?",
+                    "emotion_label": "curieux",
+                    "npc_response": "Je suis une méca, propriété exclusive de Mme Liane Fergusson, cheffe de la révolution. Que dois-je répondre à ma maîtresse ?",
+                    "sub_choices": [
+                      {
+                        "id": "c1121",
+                        "player_text": "Quelle tristesse. Je suis un méca-libre, chère Epsi. Je me rendrai à votre convocation demain à la première heure, promis.",
+                        "emotion_label": "désinvolte",
+                        "npc_response": "...",
+                        "section_choice_id": "§mort-convocation"
+                      },
+                      {
+                        "id": "c1122",
+                        "player_text": "Je suis un méca-libre, chère Epsi. J'intercèderai auprès de Mme Fergusson pour vous inviter à une promenade autour des fameuses centrales électriques. Je viens de suite, Madame.",
+                        "emotion_label": "galant",
+                        "npc_response": "Je lui transmettrai. Dépêchez-vous, Monsieur.",
+                        "section_choice_id": "§14"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "c12",
+                "player_text": "Ma chère Epsi, quelle joie. Si vos concepteurs ont travaillé si brillamment sur vos ondes vocales, votre esthétique est une promesse de distinction et de beauté. Je viens de suite.",
+                "emotion_label": "galant",
+                "npc_response": "Je lui dirai que vous êtes déjà en route.",
+                "section_choice_id": "§14"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§7B",
+      "type": "narratif",
+      "lieu": "Rues de Cirius — immeuble résidentiel",
+      "npcs": ["Mari infidèle"],
+      "objets": [],
+      "resume": "Duke suit l'homme jusqu'à un immeuble résidentiel. Il le voit sonner, une femme ouvre. Pas la sienne. La porte se referme — digicode standard Ciriusien.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Noter l'adresse et partir.", "cible": "§14", "epreuve": null },
+        { "label": "Tenter de cracker le digicode.", "cible": "§7C", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7C",
+      "type": "intelligence",
+      "lieu": "Entrée immeuble résidentiel — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke tente de forcer le digicode électronique.",
+      "notes_dev": "Trial Crochetage — forcer le digicode.",
+      "choix": [
+        { "label": "Succès — Duke entre dans l'immeuble.", "cible": "§7D", "epreuve": null },
+        { "label": "Échec — Une fenêtre s'ouvre, quelqu'un regarde. Duke s'éloigne.", "cible": "§14", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7D",
+      "type": "narratif",
+      "lieu": "Couloir immeuble résidentiel — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke active ses systèmes d'analyse dans le couloir. Trois pistes devant lui.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Activer les fonctions olfactives.", "cible": "§7E", "epreuve": null },
+        { "label": "Scanner les empreintes de pas.", "cible": "§7F", "epreuve": null },
+        { "label": "Observer les traces sur la rampe.", "cible": "§7G_rampe", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7E",
+      "type": "intelligence",
+      "lieu": "Couloir immeuble résidentiel — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke capte : transpiration masculine et parfum féminin récent, deuxième étage. Trial Intelligence — identifier la bonne porte.",
+      "notes_dev": "Succès → porte de gauche. Échec → retour §7D une piste de moins.",
+      "choix": [
+        { "label": "Succès — Porte de gauche identifiée.", "cible": "§7G", "epreuve": null },
+        { "label": "Échec — Impossible de conclure.", "cible": "§7D", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7F",
+      "type": "intelligence",
+      "lieu": "Couloir immeuble résidentiel — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke active le scanner d'empreintes. Deux traces distinctes — masculine lourde, féminine légère. Toutes deux montent vers le deuxième étage. Trial Intelligence — identifier la bonne porte depuis les traces.",
+      "notes_dev": "Succès → empreintes masculines s'arrêtent porte de gauche. Échec → couloir trop fréquenté, impossible.",
+      "choix": [
+        { "label": "Succès — Porte de gauche identifiée.", "cible": "§7G", "epreuve": null },
+        { "label": "Échec — Traces inexploitables.", "cible": "§7D", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7G",
+      "type": "narratif",
+      "lieu": "Couloir deuxième étage — immeuble résidentiel, Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke devant la porte de gauche. Scanner de présences : une seule signature biologique masculine — le mari est encore là. La femme n'est pas détectée.",
+      "notes_dev": "La femme est une méca — invisible au scanner. Duke ne le sait pas encore.",
+      "choix": [
+        { "label": "Engager la conversation avec l'IA de la porte en langage ondulaire.", "cible": "§7H", "epreuve": null },
+        { "label": "Hacker directement l'IA.", "cible": "§7I", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7H",
+      "type": "dialogue",
+      "lieu": "Devant la porte — deuxième étage, Cirius",
+      "npcs": ["IA porte"],
+      "objets": [],
+      "resume": "Duke engage la conversation avec l'IA de la porte en langage ondulaire. Trial Dialogue — convaincre l'IA d'ouvrir volontairement.",
+      "notes_dev": "Succès → porte s'ouvre silencieusement. Échec → alerte sonore → §7I.",
+      "choix": [
+        { "label": "Succès — La porte s'ouvre silencieusement.", "cible": "§7J", "epreuve": null },
+        { "label": "Échec — Alerte sonore légère.", "cible": "§7I", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "IA porte",
+        "npc_opening": "Accès restreint. Identifiez-vous.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "— Duke s'exprime en langage ondulaire — Protocole visiteur. Résidence enregistrée, passage autorisé.",
+            "emotion_label": "neutre",
+            "npc_response": "Protocole visiteur non reconnu. Authentification requise.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "— Duke poursuit en ondulaire — Maintenance système. Contrôle de routine.",
+                "emotion_label": "assuré",
+                "npc_response": "Maintenance non planifiée. Accès accordé pour vérification.",
+                "section_choice_id": "§7J"
+              },
+              {
+                "id": "c12",
+                "player_text": "— Duke insiste — Urgence locataire. Signalement reçu.",
+                "emotion_label": "urgent",
+                "npc_response": "Signalement non confirmé. Alerte émise.",
+                "section_choice_id": "§7I"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§7I",
+      "type": "intelligence",
+      "lieu": "Devant la porte — deuxième étage, Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke ignore le protocole et se connecte directement aux circuits de l'IA. Trial Intelligence — forcer l'accès sans déclencher d'alerte.",
+      "notes_dev": "Succès → porte s'ouvre silencieusement. Échec → bip, porte s'ouvre brusquement, le mari apparaît — Duke découvre quand même la méca.",
+      "choix": [
+        { "label": "Succès — La porte s'ouvre silencieusement.", "cible": "§7J", "epreuve": null },
+        { "label": "Échec — Bip. La porte s'ouvre brusquement, le mari apparaît.", "cible": "§7J", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§7J",
+      "type": "narratif",
+      "lieu": "Appartement — deuxième étage, Cirius",
+      "npcs": ["Mari infidèle"],
+      "objets": [],
+      "resume": "La porte s'ouvre. Une femme de dos. Duke tente la lecture d'esprit — rien. Une méca. Le mari arrive. Duke cherche : relation humain/méca = adultère ? Réponse : non. Duke sourit : 'Fausse adresse.' Il repart. Communicateur vibre : Epsi, urgent.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Partir pour le QG de la Junte.", "cible": "§14", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§14",
+      "type": "narratif",
+      "lieu": "QG de la Junte — Cirius, salle d'attente",
+      "npcs": ["Epsi"],
+      "objets": [],
+      "resume": "Rues de Cirius — portraits arrachés, patrouilles de méca. Duke arrive au QG. On lui retire ses outils à l'entrée. Salle d'attente aux couleurs impériales récupérées telles quelles. Epsi l'accueille en personne — premier face-à-face physique.",
+      "notes_dev": "Premier contact physique Duke/Epsi. Ton : charmeur désuet de Duke, Epsi pince-sans-rire.",
+      "choix": [
+        { "label": "Engager la conversation.", "cible": "§14-dial", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§14-dial",
+      "type": "dialogue",
+      "lieu": "QG de la Junte — Cirius, salle d'attente",
+      "npcs": ["Epsi"],
+      "objets": [],
+      "resume": "Duke rencontre Epsi en personne pour la première fois. Il la complimente dans son style désuet et excentrique. Epsi reste impassible, pince-sans-rire.",
+      "notes_dev": "Ton fondamental Duke/Epsi : décalage entre le flirt élaboré de Duke et le flegme parfait d'Epsi.",
+      "choix": [
+        { "label": "Suivre Epsi.", "cible": "§15", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Epsi",
+        "npc_opening": "Monsieur Duke Duo. Je suis ravie de vous rencontrer autrement que fondu en machine à café pour humains. Puis-je vous proposer quelque chose à boire ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Quelle délicatesse, chère Epsi. Je ne saurais me féliciter de participer à l'avènement de la révolution tant vous en êtes la parfaite incarnation. J'ajouterai que votre voix, Madame, m'électrise tant que j'accepterai volontiers un fond d'huile de Baar.",
+            "emotion_label": "charmeur",
+            "npc_response": "L'huile de Baar est réservée aux méca-diplomates de la catégorie hors monde, Monsieur. Mais je transmettrai le compliment à mes concepteurs.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Ne vous inquiétez pas, chère Epsi — les méca-diplomates en feront sans doute meilleur usage. Dites-moi, vos concepteurs ont-ils insufflé l'élégance de votre conception jusque dans l'intimité d'une femme ? Une curiosité purement technique, Madame, bien sûr.",
+                "emotion_label": "espiègle",
+                "npc_response": "Madame Fergusson vous attend, Monsieur Duke Duo. Veuillez me suivre.",
+                "sub_choices": [
+                  {
+                    "id": "c111",
+                    "player_text": "Nous poursuivrons plus tard, Madame, cette passionnante discussion. Le devoir m'appelle.",
+                    "emotion_label": "galant",
+                    "npc_response": "Je n'en doute pas, Monsieur.",
+                    "section_choice_id": "§15"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§15",
+      "type": "narratif",
+      "lieu": "QG de la Junte — Cirius, salle d'attente",
+      "npcs": ["Hôtesse méca"],
+      "objets": [],
+      "resume": "Duke inspecte la salle — trois angles propices à de la surveillance. Il résiste à l'envie d'activer ses équipements. Il attend. Il pense à Epsi.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Rester immobile.", "cible": "§15A", "epreuve": null },
+        { "label": "Effleurer l'esprit de l'hôtesse.", "cible": "§15B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§15A",
+      "type": "narratif",
+      "lieu": "QG de la Junte — Cirius, salle d'attente",
+      "npcs": ["Hôtesse méca"],
+      "objets": [],
+      "resume": "Duke attend. Hypothèses sans réponse. L'hôtesse revient.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Suivre l'hôtesse.", "cible": "§16", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§15B",
+      "type": "narratif",
+      "lieu": "QG de la Junte — Cirius, salle d'attente",
+      "npcs": ["Hôtesse méca"],
+      "objets": [],
+      "resume": "Duke effleure l'esprit d'Epsi. En surface : une impression diffuse — sa présence l'a troublée, quelque chose dans son allure ou sa prestance. Dessous, il perçoit les détails de la mission — le mot 'enfants', l'urgence, la tension de Liane. Tout est là. Il choisit de ne pas aller plus loin. Une question d'élégance.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Suivre l'hôtesse.", "cible": "§16", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§16",
+      "type": "narratif",
+      "lieu": "Couloir QG de la Junte — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "'Veuillez me suivre, Monsieur Duke Duo.' Couloir long et froid, portraits de la révolution encore frais. La porte s'ouvre sur une pièce immense, un dôme vitré, une table cristalline. Une silhouette de dos. Duke s'avance.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Entrer.", "cible": "§17", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§17",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke entre. Liane de dos, face aux vitres, termine une communication. Duke active discrètement ses capteurs auditifs — humaine ou méca ? Elle se retourne, tire une chaise — craquement sec. Genou. 98% humaine. Ce qui ne le rassure pas des masses.",
+      "notes_dev": "Le craquement de genou est l'indice clé. Duke l'enregistre inconsciemment.",
+      "choix": [
+        { "label": "Engager la conversation.", "cible": "§17-dial", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§17-dial",
+      "type": "dialogue",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": ["Arme de Liane"],
+      "resume": "Liane confirme l'identité de Duke, expose la crise politique, révèle le traître parmi ses collaborateurs et déverrouille les facultés psychiques de Duke pour une heure.",
+      "notes_dev": "Ton Liane : autoritaire, économe en mots, pas d'affect. Ton Duke : sobre, légèrement ironique, jamais servile.",
+      "choix": [
+        { "label": "Observer les quatre collaborateurs.", "cible": "§18", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Liane Fergusson",
+        "npc_opening": "Duke Duo, n'est-ce pas ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "En personne, Madame. *(il retire son chapeau)*",
+            "emotion_label": "sobre",
+            "npc_response": "La situation économique et financière est catastrophique. Le désarroi des populations se ressent partout sur Citaire. Nous organisons les premiers états généraux de la révolution — représentants des capitales, acteurs économiques, gouverneurs impériaux déchus. L'objectif : éviter les tentatives contre-révolutionnaires, les divisions, les insurrections. Malgré nos promesses, les divisions se confirment. J'ai la réputation d'être inflexible et impitoyable. Je ne laisserai personne s'opposer à notre mouvement. Dans quelques minutes, quatre personnes vont s'installer en face de vous. Mes collaborateurs les plus proches. L'un d'entre eux est un traître.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Un traître. Dans votre garde rapprochée. Voilà qui est fâcheux.",
+                "emotion_label": "ironique",
+                "npc_response": "Vous avez exactement une heure pour les interroger, les confronter et me fournir un nom. Je relève la procédure d'exception à l'encontre de Duke Duo — vous êtes autorisé à activer vos facultés psychiques.",
+                "sub_choices": [
+                  {
+                    "id": "c111",
+                    "player_text": "Et si je me trompe ?",
+                    "emotion_label": "neutre",
+                    "npc_response": "Vous ne vous tromperez pas.",
+                    "section_choice_id": "§18"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§18",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson", "Telmak Rostel", "Vera Sind", "Jonn Patek", "Brus Olan"],
+      "objets": [],
+      "resume": "Les quatre collaborateurs se présentent à tour de rôle. Duke les observe. Telmak Rostel (communication), Vera Sind (financement), Jonn Patek (réseaux militants), Brus Olan (flotte méca).",
+      "notes_dev": "Le joueur choisit qui sonder en premier.",
+      "choix": [
+        { "label": "Sonder Telmak Rostel.", "cible": "§18A", "epreuve": null },
+        { "label": "Sonder Vera Sind.", "cible": "§18B", "epreuve": null },
+        { "label": "Sonder Jonn Patek.", "cible": "§18C", "epreuve": null },
+        { "label": "Sonder Brus Olan.", "cible": "§18D", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§18A",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson", "Telmak Rostel", "Vera Sind", "Jonn Patek", "Brus Olan"],
+      "objets": [],
+      "resume": "Duke projette son esprit dans celui de Telmak. Une scène : pièce sombre, table ronde, quatre silhouettes. Les quatre visages reconnaissables. Voix contre Liane. Duke examine les détails — murs, lumière tamisée, verre renversé, disposition des chaises. Il mémorise et se retire.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Sonder Vera Sind.", "cible": "§18B", "epreuve": null },
+        { "label": "Sonder Jonn Patek.", "cible": "§18C", "epreuve": null },
+        { "label": "Sonder Brus Olan.", "cible": "§18D", "epreuve": null },
+        { "label": "Passer à la réflexion.", "cible": "§19", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§18B",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson", "Telmak Rostel", "Vera Sind", "Jonn Patek", "Brus Olan"],
+      "objets": [],
+      "resume": "Même scène depuis l'angle de Vera — assise à gauche, verre renversé devant elle, regard vers Telmak. Duke cherche un détail nouveau. Il mémorise et se retire.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Sonder Jonn Patek.", "cible": "§18C", "epreuve": null },
+        { "label": "Sonder Brus Olan.", "cible": "§18D", "epreuve": null },
+        { "label": "Passer à la réflexion.", "cible": "§19", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§18C",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson", "Telmak Rostel", "Vera Sind", "Jonn Patek", "Brus Olan"],
+      "objets": [],
+      "resume": "Angle de Jonn — il regardait vers la porte. Duke suit son regard : la porte était entrouverte. Une ombre derrière. Jonn n'y avait pas prêté attention. Duke mémorise et se retire. Liane se lève : 'Il vous reste vingt minutes, Monsieur Duke.'",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Sonder Brus Olan.", "cible": "§18D", "epreuve": null },
+        { "label": "Passer à la réflexion.", "cible": "§19", "epreuve": null },
+        { "label": "Accuser Telmak Rostel.", "cible": "§mort-A", "epreuve": null },
+        { "label": "Accuser Vera Sind.", "cible": "§mort-B", "epreuve": null },
+        { "label": "Accuser Jonn Patek.", "cible": "§mort-C", "epreuve": null },
+        { "label": "Accuser les quatre.", "cible": "§mort-D", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§18D",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson", "Telmak Rostel", "Vera Sind", "Jonn Patek", "Brus Olan"],
+      "objets": [],
+      "resume": "Liane a déjà mis la pression. Duke tente de sonder Brus Olan mais n'a plus le temps d'aller loin. Fragment incomplet. Il se retire.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Passer à la réflexion.", "cible": "§19", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§19",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke fixe la paroi. Il analyse. Liane saisit son pistolet, le pointe vers lui. 'Il vous reste cinq minutes, Monsieur Duke.' Une seule analyse encore possible.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Analyser les décors — chercher une incohérence.", "cible": "§19A", "epreuve": null },
+        { "label": "Analyser les visages et postures.", "cible": "§19B", "epreuve": null },
+        { "label": "Analyser la porte entrouverte — l'ombre derrière.", "cible": "§19C", "epreuve": null },
+        { "label": "Analyser la bande sonore des souvenirs.", "cible": "§19D", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§19A",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke superpose les trois versions de la pièce. Trop identiques. Trois cerveaux humains ne mémorisent pas une scène de façon aussi similaire. Anomalie notée.",
+      "notes_dev": "Disponible uniquement si §18A ET §18B sondés. Mène vers §20 mais la réponse §22-mort.",
+      "choix": [
+        { "label": "Conclure.", "cible": "§20", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§19B",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke examine les visages. Personne n'initie, personne ne conteste. Pas de meneur visible. Anomalie notée.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Qui semble diriger ?", "cible": "§19B1", "epreuve": null },
+        { "label": "Qui semble suivre ?", "cible": "§19B2", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§19B1",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Telmak parle, les autres écoutent. Mais ses expressions sont plates — pas la conviction d'un vrai complot. Anomalie notée.",
+      "notes_dev": "Mène vers §20 mais la réponse §23-mort.",
+      "choix": [
+        { "label": "Conclure.", "cible": "§20", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§19B2",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Tout le monde suit. Personne ne dirige. Un vrai complot a toujours un meneur. Anomalie notée.",
+      "notes_dev": "Mène vers §20 mais la réponse §23-mort.",
+      "choix": [
+        { "label": "Conclure.", "cible": "§20", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§19C",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke zoome sur l'ombre derrière la porte dans le souvenir de Jonn. Image trop floue — impossible d'identifier. Morphologie, posture. Duke n'a pas le temps de comparer.",
+      "notes_dev": "Disponible uniquement si §18C sondé.",
+      "choix": [
+        { "label": "Conclure.", "cible": "§20", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§19D",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke isole les bandes sonores des trois souvenirs. Il filtre, amplifie les couches basses. En dessous des voix — un craquement. Bref, discret. Organique. Duke n'a plus le temps d'aller plus loin.",
+      "notes_dev": "Seul chemin qui mène à §24 (survie). Disponible uniquement si §18A, §18B, §18C sondés.",
+      "choix": [
+        { "label": "Conclure.", "cible": "§20", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§20",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "'Il me serait sûrement plus aisé de vous entretenir de mes révélations sans cette arme braquée sur ma tête, Madame.' Silence. Liane ne bouge pas. Une seconde. Deux. Elle pose l'arme sur la table. Duke doit conclure.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Accuser Telmak Rostel.", "cible": "§mort-A", "epreuve": null },
+        { "label": "Accuser Vera Sind.", "cible": "§mort-B", "epreuve": null },
+        { "label": "Accuser Jonn Patek.", "cible": "§mort-C", "epreuve": null },
+        { "label": "Accuser les quatre.", "cible": "§mort-D", "epreuve": null },
+        { "label": "Aucun d'entre eux n'est coupable.", "cible": "§21", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§21",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "'Aucun d'entre eux n'est coupable, Madame. Ces quatre personnes ne sont pas des traîtres.' Liane le regarde. 'Comment avez-vous compris ?'",
+      "notes_dev": "§24 uniquement disponible si §19D a été analysé.",
+      "choix": [
+        { "label": "Les souvenirs étaient trop identiques.", "cible": "§22-mort", "epreuve": null },
+        { "label": "Personne ne dirigeait autour de cette table.", "cible": "§23-mort", "epreuve": null },
+        { "label": "Votre genou, Madame.", "cible": "§24", "epreuve": null },
+        { "label": "Une intuition.", "cible": "§25-mort", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§22-mort",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke explique les souvenirs trop identiques. Liane : 'Insuffisant.' Elle pointe l'arme.",
+      "notes_dev": "FIN — mort de Duke.",
+      "is_ending": true,
+      "choix": []
+    },
+    {
+      "id": "§23-mort",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke parle du meneur absent. Liane : 'Une déduction incomplète.' Elle pointe l'arme.",
+      "notes_dev": "FIN — mort de Duke.",
+      "is_ending": true,
+      "choix": []
+    },
+    {
+      "id": "§24",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "'Votre genou, Madame. Ce craquement — présent dans chacun des trois souvenirs. Vous étiez là, cachée. On ne peut pas comploter contre quelqu'un en sa présence.' Liane : 'Brillant.' Elle désactive le processus de destruction. Duke réalise qu'il était programmé pour mourir en cas d'échec.",
+      "notes_dev": "Seule issue de survie depuis §21.",
+      "choix": [
+        { "label": "Continuer.", "cible": "§26", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§25-mort",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke dit 'une intuition'. Liane : 'Pas assez.' Elle pointe l'arme.",
+      "notes_dev": "FIN — mort de Duke.",
+      "is_ending": true,
+      "choix": []
+    },
+    {
+      "id": "§mort-A",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke accuse Telmak. Liane l'exécute sur le champ.",
+      "notes_dev": "FIN — mort de Duke.",
+      "is_ending": true,
+      "choix": []
+    },
+    {
+      "id": "§mort-B",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke accuse Vera. Liane l'exécute sur le champ.",
+      "notes_dev": "FIN — mort de Duke.",
+      "is_ending": true,
+      "choix": []
+    },
+    {
+      "id": "§mort-C",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke accuse Jonn. Liane l'exécute sur le champ.",
+      "notes_dev": "FIN — mort de Duke.",
+      "is_ending": true,
+      "choix": []
+    },
+    {
+      "id": "§mort-D",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke accuse les quatre. Liane hésite — puis exécute Duke. 'Trop simple', dit-elle.",
+      "notes_dev": "FIN — mort de Duke.",
+      "is_ending": true,
+      "choix": []
+    },
+    {
+      "id": "§mort-convocation",
+      "type": "narratif",
+      "lieu": "Rues de Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Procédure R déclenchée. Deux méca-soldats de la Junte localisent Duke dans l'heure. Il n'oppose aucune résistance — il n'avait simplement pas mesuré que Liane Fergusson ne plaisantait pas.",
+      "notes_dev": "FIN — refus de se présenter à la Junte.",
+      "is_ending": true,
+      "choix": []
+    },
+    {
+      "id": "§26",
+      "type": "narratif",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Liane désactive le processus de destruction. Elle s'approche de Duke et engage la conversation sur les enfants impériaux. Duke répond. Liane perçoit sa colère, reprend l'arme. Module Peur panique de Duke — chaise renversée, bras en tourniquet. Liane satisfaite baisse l'arme. Mission confiée : retrouver les enfants impériaux. Récupérer le dossier auprès d'Epsi.",
+      "notes_dev": "Ton Duke après la Peur panique : légèrement déstabilisé mais qui se recompose vite.",
+      "choix": [
+        { "label": "Engager la conversation.", "cible": "§26-dial", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§26-dial",
+      "type": "dialogue",
+      "lieu": "Bureau de Liane Fergusson — QG de la Junte, Cirius",
+      "npcs": ["Liane Fergusson"],
+      "objets": ["Arme de Liane"],
+      "resume": "Liane questionne Duke sur les enfants impériaux, détecte sa colère, pointe l'arme. Module Peur panique de Duke. Liane satisfaite donne le briefing officiel : retrouver Shad et Ennis, récupérer le dossier auprès d'Epsi.",
+      "notes_dev": "Le module Peur panique est automatique — Duke ne peut pas le contrôler. C'est comique et révélateur à la fois.",
+      "choix": [
+        { "label": "Aller récupérer le dossier auprès d'Epsi.", "cible": "§27", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Liane Fergusson",
+        "npc_opening": "Remarquable. Je vais vous confier une mission de premier ordre. Mais avant cela — que connaissez-vous des enfants impériaux ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Rien de plus que ce que les médias relatent, Madame. Après la chute de leurs parents, j'ai appris que le plus jeune était en fuite, et que l'aîné avait été mis aux arrêts. Il se nomme Ennis, je crois.",
+            "emotion_label": "neutre",
+            "npc_response": "Je vous sens en colère, Duke Duo.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "*(module Peur panique — chaise renversée, bras en tourniquet)* Je... je suis désolé, Madame, si mon apparence trahit une quelconque animosité à votre égard. Je ressens en ce moment un sentiment nouveau — de la panique, de la peur, Madame. Mais en aucun cas du mépris ou de la haine à votre encontre.",
+                "emotion_label": "déstabilisé",
+                "npc_response": "Calmez-vous.",
+                "sub_choices": [
+                  {
+                    "id": "c111",
+                    "player_text": "*(Duke se recompose. Il écoute.)*",
+                    "emotion_label": "sobre",
+                    "npc_response": "Je veux que vous retrouviez les enfants impériaux. Shad Le Der est en fuite — destination inconnue. Ennis, l'aîné, est assigné à résidence au Palais d'Initiale, sous notre contrôle. Ce sont les derniers héritiers d'un Empire mort. Tant qu'ils sont en liberté, ils représentent un risque pour la stabilité de la révolution. Récupérez le dossier auprès d'Epsi. Elle vous attend.",
+                    "section_choice_id": "§27"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§27",
+      "type": "narratif",
+      "lieu": "Couloir QG de la Junte — Cirius",
+      "npcs": ["Epsi"],
+      "objets": [],
+      "resume": "Duke sort du bureau de Liane. Epsi l'attend dans le couloir, console contre la poitrine. Elle se retourne et commence à marcher — Duke la suit.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Engager la conversation.", "cible": "§27-dial", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§27-dial",
+      "type": "dialogue",
+      "lieu": "Couloir QG de la Junte — Cirius",
+      "npcs": ["Epsi"],
+      "objets": [],
+      "resume": "Duke complimente la démarche d'Epsi. Elle répond sans se retourner.",
+      "notes_dev": "Ton Duke : charmeur, léger. Ton Epsi : impassible, efficace.",
+      "choix": [
+        { "label": "Suivre Epsi chez Grime.", "cible": "§28", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Epsi",
+        "npc_opening": "*(Epsi marche devant. Duke la suit.)*",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Permettez-moi de noter, chère Epsi, que si vos concepteurs ont consacré autant de soin à votre démarche qu'à votre voix, ils méritent une distinction interplanétaire.",
+            "emotion_label": "charmeur",
+            "npc_response": "Le bureau du professeur Grime est au bout du couloir, Monsieur Duke Duo.",
+            "section_choice_id": "§28"
+          }
+        ]
+      }
+    },
+    {
+      "id": "§28",
+      "type": "narratif",
+      "lieu": "Bureau du professeur Grime — QG de la Junte, Cirius",
+      "npcs": ["Professeur Grime"],
+      "objets": [],
+      "resume": "Professeur Grime — vieux, costume sombre, regard d'une clarté dérangeante. Il expose les éléments du dossier. Duke tente l'intrusion mentale : pas un mur, une absence. Aucune espèce répertoriée sur Citaire. Il mémorise le visage à la place.",
+      "notes_dev": "L'absence de résistance mentale est un indice majeur. Duke ne comprend pas encore.",
+      "choix": [
+        { "label": "Partir avec Epsi.", "cible": "§29", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§29",
+      "type": "narratif",
+      "lieu": "Couloir latéral — QG de la Junte, Cirius",
+      "npcs": ["Epsi"],
+      "objets": [],
+      "resume": "Couloir latéral. Epsi barre une piste dans le dossier et le remet à Duke avec un mot de mise en garde.",
+      "notes_dev": "La réplique 'Vous prononcez merveilleusement bien mon prénom' appartient à l'appel depuis Initiale (ch.14) — ne pas la placer ici.",
+      "choix": [
+        { "label": "Remercier Epsi.", "cible": "§29-dial", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§29-dial",
+      "type": "dialogue",
+      "lieu": "Couloir latéral — QG de la Junte, Cirius",
+      "npcs": ["Epsi"],
+      "objets": ["Dossier"],
+      "resume": "Duke remercie Epsi. Elle lui remet le dossier avec un mot de prudence — les deux enquêteurs précédents ne sont pas revenus.",
+      "notes_dev": "Ton Epsi : légèrement plus humain qu'à l'accueil — elle s'autorise une mise en garde sincère.",
+      "choix": [
+        { "label": "Ouvrir le dossier.", "cible": "§30", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Epsi",
+        "npc_opening": "*(Epsi ouvre le dossier, barre une piste d'un trait, le referme et le tend à Duke.)* Soyez prudent, Monsieur Duke Duo. Les deux enquêteurs précédents ne l'ont pas été suffisamment. Je serai votre contact auprès de Liane Fergusson. J'attendrai votre rapport chaque soir — Madame Fergusson y tient. *(une légère coloration sur ses joues)* Bonne chance, Monsieur.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "*(Duke ôte son haut-de-forme, s'incline légèrement)* Je n'y manquerai pour rien au monde, chère Epsi. *(plus bas, pour lui-même)* ...une merveille de la création.",
+            "emotion_label": "galant",
+            "npc_response": "*(Epsi tourne les talons.)*",
+            "section_choice_id": "§30"
+          }
+        ]
+      }
+    },
+    {
+      "id": "§30",
+      "type": "narratif",
+      "lieu": "AirTrack vers le spatio-port — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke file vers le spatio-port. Photos de Shad et Ennis déjà mémorisées. Le dossier est dans sa poche. Il pense à Epsi.",
+      "notes_dev": "Duke ne lit pas encore le dossier ici — il le lira pendant le transit (§33).",
+      "choix": [
+        { "label": "Embarquer dans le transport militaire.", "cible": "§33", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§31A",
+      "type": "narratif",
+      "lieu": "AirTrack vers le spatio-port — Cirius",
+      "npcs": [],
+      "objets": [],
+      "resume": "Rapport 1 — Témoignage agent de piste : mécanicien-contrôleur 36 ans a failli renverser un vieil homme et un enfant près du Hangar 5, le jour de la disparition de Shad. L'homme était grand, costume sombre, pas pressé. L'enfant le suivait sans résister.",
+      "notes_dev": "ROMAN ch.13 : 'Élément second : Ce même professeur mentionne la déposition d'un homme de piste du spatio-port d'Initiale, témoignant avoir reconnu l'enfant en compagnie d'une personne âgée, le jour même de sa disparition. Cet homme de trente-six ans, mécano-contrôleur de métier, aurait failli percuter le vieil homme proche du hangar cinq avec son véhicule de fonction.'",
+      "choix": [
+        { "label": "Lire les autres rapports.", "cible": "§32", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§31B",
+      "type": "narratif",
+      "lieu": "Transport militaire Junte — en route vers Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Rapport 2 — Le mot 'Moi' capté par cinq détecteurs auditifs réglés sur la fréquence vocale de Shad Le Der. Triangulé : Initiale, Quartier bas de l'Épic, Rue des Garibaldes, taverne La Trompe. Il y a cinq jours. Priorité 1.",
+      "notes_dev": "ROMAN ch.13 : 'Élément premier, le mot : Moi, a été capté par cinq détecteurs auditifs il y a cinq jours, tous réglés sur la fréquence vocale de l'enfant Shad Le Der. La triangulation de l'émetteur de ce Moi permet d'établir sa localisation exacte : Planète Initiale, Quartier bas de l'Épic, Rue des Garibaldes, échoppe de la Trompe. Ce premier indice doit être vérifié en priorité.'",
+      "choix": [
+        { "label": "Lire les autres rapports.", "cible": "§32", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§31C",
+      "type": "narratif",
+      "lieu": "Transport militaire Junte — en route vers Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Rapport 3 — Ennis, aîné impérial, assigné à résidence au Palais d'Initiale. Chambre ouest niveau 4. Surveillance permanente Junte. Accréditation niveau 2 requise. Déclaration unique : 'Je ne sais pas où il est.'",
+      "notes_dev": "Ennis n'est pas mentionné dans les 3 éléments de Grime — cette info vient de l'ordre de mission Junte. Son esprit sera conditionné pour résister aux intrusions psychiques (Duke le découvrira en §41B).",
+      "choix": [
+        { "label": "Lire les autres rapports.", "cible": "§32", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§31D",
+      "type": "narratif",
+      "lieu": "Transport militaire Junte — en route vers Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Rapport 4 (barré) — L'AstroLab retrouvé aux abords du HB67. Vide. Impacts d'armes sur la coque. Véhicule léger magnétisé sur la carlingue. Débris en expansion circulaire. Corps humains en combinaisons de combat, aucune identification. Qualification : Non-prioritaire. Possible piraterie sans lien avec l'affaire.",
+      "notes_dev": "ROMAN ch.13 : 'Élément trois : Une navette spatiale répondant au nom d'AstroLab a été retrouvée aux abords du HB67. Aucun occupant à bord, traces d'impacts d'armes sur la coque extérieure, un véhicule léger d'approche était magnétisé sur la carlingue extérieure. Plusieurs amas de débris dispersés et en expansions circulaires autour de la zone, témoignant d'un choc ou de la déflagration d'un second navire. Appareil encore non identifié. Parmi ses débris, plusieurs corps humains en combinaisons de combat. Aucune identification répertoriée. Qualification : Non prioritaire. Possibilité d'acte de piraterie sans lien avec l'affaire.' — Rapport barré par Grime : leurre.",
+      "choix": [
+        { "label": "Lire les autres rapports.", "cible": "§32", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§32",
+      "type": "narratif",
+      "lieu": "Transport militaire Junte — en route vers Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke referme le dossier. Des centaines de sondes auditives Junte quadrillent Initiale depuis la disparition — chacune réglée sur la fréquence vocale exacte de Shad. Résultat : un seul mot capté en plusieurs jours. 'Moi.' Une syllabe dans une taverne du quartier bas, puis le silence. Quelqu'un sait faire taire un enfant — ou le faire parler sans qu'on l'entende. Aucun complice identifié. Aucun réseau. Quelqu'un savait exactement ce qu'il faisait.",
+      "notes_dev": "Mécanique de surveillance : le réseau de sondes Junte couvre Initiale en permanence — capteurs auditifs calibrés sur la fréquence vocale unique de chaque cible prioritaire. L'absence de signal n'est pas une panne — c'est une compétence. Mistral doit rendre sensible le poids de ce silence : des centaines de capteurs, un seul mot en plusieurs jours.",
+      "choix": [
+        { "label": "Consulter l'ordre de mission.", "cible": "§33B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§33",
+      "type": "narratif",
+      "lieu": "Transport militaire Junte — en route vers Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Transport militaire Junte décolle de Cirius. Cinq jours de cale à conteneurs. Duke fixe le panneau transparent de sa cabine. Il pense à Epsi. Il ouvre le dossier et son logiciel interne d'enquêteur.",
+      "notes_dev": "ROMAN ch.13 — Duke pense à Epsi pendant le transit : «Il ferma les yeux. La charmante méca rencontrée dans les bureaux de la Junte sur Cirius lui apparut. «Par Garibalde ! Pourquoi penser à elle maintenant ?» Il se délecta de son sourire charnel, sa bouche était, disons, comme une invitation à y poser ses lèvres. Que penser de ses manières si élégantes de lui destiner quelques futiles paroles, de la splendeur de son visage paré de pourpre lorsqu'il l'avait affublé de courtoisies ? Duke expira lentement sur la douceur de ses rêveries comme l'on exhale la tiédeur d'un souffle sur les pétales d'une fleur.»",
+      "choix": [
+        { "label": "Rapport 1 — Initiale, Spatio-port, Hangar 5.", "cible": "§31A", "epreuve": null },
+        { "label": "Rapport 2 — Quartier de l'Épic, La Trompe.", "cible": "§31B", "epreuve": null },
+        { "label": "Rapport 3 — Palais impérial, Ennis.", "cible": "§31C", "epreuve": null },
+        { "label": "Rapport 4 (barré) — AstroLab retrouvé près du HB67.", "cible": "§31D", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§33B",
+      "type": "narratif",
+      "lieu": "Transport militaire Junte — en transit vers Initiale",
+      "npcs": [],
+      "objets": ["Ordre de mission"],
+      "resume": "Duke consigne ses notes. Il rédige l'ordre de mission dans son logiciel interne — titre, contexte, objectifs, droits d'intervention. L'ordre est lisible comme un document.",
+      "notes_dev": "L'ordre de mission est un objet consultable in-game. Contenu exact du roman ch.13.",
+      "choix": [
+        { "label": "Arriver sur Initiale.", "cible": "§34", "epreuve": null }
+      ],
+      "objet_contenu": {
+        "titre": "Ordre de mission — Disparition d'un enfant Impérial",
+        "corps": "Dans le cadre de la pacification et de la mise en place d'un mécanisme politique interplanétaire équitable, la Junte révolutionnaire, dirigée par Liane Fergusson, commande une enquête sur la disparition de l'enfant Shad, dernier-né du couple Impérial. Ce garçon de douze ans représente une menace idéologique pour la stabilité de l'ordre nouveau.\n\nOBJECTIFS :\n1. Retrouver Shad Le Der, disparu — le ramener sur Cirius pour jugement.\n2. Localiser Ennis, l'aîné, actuellement au Palais d'Initiale — le ramener sur Cirius pour jugement.\n\nDROITS : Niveau 2 d'intervention — autorité la plus haute de l'organisation militaire Junte. Réquisition possible de toutes entités civiles et militaires.\n\n⚠ L'interruption de la vie des enfants ne peut être envisagée.\n\nSigné : Liane Fergusson, Cheffe de la Junte révolutionnaire."
+      }
+    },
+    {
+      "id": "§34",
+      "type": "narratif",
+      "lieu": "Spatio-port d'Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Arrivée Initiale. Chaleur lourde. AirTrack de la Revolice attend. Duke a ses accréditations, le dossier, le visage de Grime mémorisé. Trois adresses dans son logiciel interne.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Hangar 5 — le point de départ de la fuite.", "cible": "§35", "epreuve": null },
+        { "label": "Revolice central — le mécanicien y est convoqué.", "cible": "§36", "epreuve": null },
+        { "label": "Palais impérial — Ennis, l'aîné.", "cible": "§41", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§35",
+      "type": "narratif",
+      "lieu": "Hangar 5 — spatio-port d'Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Hangar 5. Immense, vide. Capteurs olfactifs : résidus carburant récents. Panneau console touché récemment. Trois angles d'investigation.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Fouiller physiquement le hangar.", "cible": "§35A", "epreuve": null },
+        { "label": "S'approcher de la console d'accès.", "cible": "§35B", "epreuve": null },
+        { "label": "Sortir et se positionner à l'angle de la route.", "cible": "§35C", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§35A",
+      "type": "narratif",
+      "lieu": "Hangar 5 — spatio-port d'Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Fouille : marques d'appui au sol, égratignure large sur paroi droite (appareil trop grand), tache d'huile de propulsion récente. Appareil lourd, inhabituellement grand pour un hangar privé.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "S'approcher de la console.", "cible": "§35B", "epreuve": null },
+        { "label": "Sortir, se positionner à l'angle.", "cible": "§35C", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§35B",
+      "type": "intelligence",
+      "lieu": "Hangar 5 — salle de contrôle, spatio-port d'Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Console : panneau touché, traces de doigts nets. Écran surface : ouverture 04h17 J+0, aucun appareil enregistré. Quelqu'un a effacé les logs — pas un oubli, une décision. Trial Intelligence — forcer l'accès aux logs effacés.",
+      "notes_dev": "Succès → durée 6h, masse navette lourde (AstroLab). Échec → heure et absence d'enregistrement seulement.",
+      "choix": [
+        { "label": "Succès — Logs partiellement récupérés : navette lourde, 6h de stationnement.", "cible": "§35C", "epreuve": null },
+        { "label": "Échec — Heure d'ouverture visible, le reste inaccessible.", "cible": "§35C", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§35C",
+      "type": "narratif",
+      "lieu": "Extérieur Hangar 5 — spatio-port d'Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke sort, se positionne à l'angle exact du témoignage. Reconstitution 04h20. Superpose le visage de Grime sur la silhouette du vieux. Photo composite prête. Il lui faut la confirmation mentale.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Aller au Revolice central — le mécanicien.", "cible": "§36", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§36",
+      "type": "narratif",
+      "lieu": "Revolice central — Initiale",
+      "npcs": ["Mécanicien"],
+      "objets": [],
+      "resume": "Revolice central. Les anciens fonctionnaires impériaux en uniforme Junte. Le mécanicien est en salle deux, il attend depuis ce matin. Duke entre, pose son communicateur sur la table — photo composite affichée à l'écran.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Lire son esprit directement.", "cible": "§36A", "epreuve": null },
+        { "label": "L'interroger par la conversation.", "cible": "§36B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§36A",
+      "type": "narratif",
+      "lieu": "Revolice central — salle d'interrogatoire, Initiale",
+      "npcs": ["Mécanicien"],
+      "objets": [],
+      "resume": "Duke projette son esprit. L'homme a mémorisé la scène avec une précision remarquable. Confirmation : Grime, trait pour trait. Duke libère l'homme sans poser de question à voix haute. L'homme repart déconcerté.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Conclure.", "cible": "§36C", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§36B",
+      "type": "dialogue",
+      "lieu": "Revolice central — salle d'interrogatoire, Initiale",
+      "npcs": ["Mécanicien"],
+      "objets": [],
+      "resume": "Duke interroge le mécanicien sans lire son esprit. Il lui montre la photo composite et tente d'obtenir une confirmation.",
+      "notes_dev": "Succès : confirmation partielle. Échec : trop vague, Duke repart sans confirmation.",
+      "choix": [
+        { "label": "Succès — Il confirme la ressemblance.", "cible": "§36C", "epreuve": null },
+        { "label": "Échec — Description trop vague.", "cible": "§35", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Mécanicien",
+        "npc_opening": "J'ai déjà tout dit à vos collègues. J'ai du boulot, vous savez.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Une seule question. Regardez cette image — vous reconnaissez cet homme ?",
+            "emotion_label": "direct",
+            "npc_response": "C'est... possible. Le vieux avait ce genre de tête. Costume sombre. Pas un homme du coin.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Sa démarche — pressé, ou à l'aise ?",
+                "emotion_label": "précis",
+                "npc_response": "À l'aise. Quelqu'un qui sait où il va. Il tenait le gamin par l'épaule.",
+                "section_choice_id": "§36C"
+              },
+              {
+                "id": "c12",
+                "player_text": "Vous êtes sûr ? Regardez encore.",
+                "emotion_label": "insistant",
+                "npc_response": "Il faisait nuit, j'ai failli les renverser. C'est tout ce que je peux vous dire.",
+                "section_choice_id": "§35"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "Pensez très fort à ce matin-là. Fermez les yeux si vous voulez.",
+            "emotion_label": "doux",
+            "npc_response": "Le vieux... grand. Costume sombre. Pas pressé. Et le gamin le suivait sans résister.",
+            "sub_choices": [
+              {
+                "id": "c21",
+                "player_text": "C'est lui sur la photo ?",
+                "emotion_label": "direct",
+                "npc_response": "Ouais. Ouais, je crois que c'est lui.",
+                "section_choice_id": "§36C"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§36C",
+      "type": "narratif",
+      "lieu": "Revolice central — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "L'homme au Hangar 5 ressemblait fortement à Grime — pas une certitude, une piste solide. Duke a la main sur la diffusion prioritaire — et avec malice, il pourrait signer l'avis au nom de Liane Fergusson.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Envoyer la photo de Grime sur toutes les ondes du système.", "cible": "§36C-dial", "epreuve": null },
+        { "label": "Garder l'information pour soi.", "cible": "§37B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§36C-dial",
+      "type": "dialogue",
+      "lieu": "AirTrack — Initiale, communication entrante",
+      "npcs": ["Epsi", "Liane Fergusson"],
+      "objets": [],
+      "resume": "Communication entrante. Epsi appelle Duke au nom du secrétariat général. Duke tente de l'inviter à flâner, mis en attente. Liane prend la ligne — furieuse pour l'avis Grime. Epsi revient brièvement avec ses coordonnées. Duke coupé avant de finir sa phrase.",
+      "notes_dev": "ROMAN ch.13 l.1456-1477 : échange exact. 'Vous prononcez merveilleusement bien mon prénom.' Duke tente de l'inviter au quartier des vieux lacs — coupé par la mise en attente. À la fin Epsi transmet ses coordonnées et raccroche avant que Duke puisse finir.",
+      "choix": [
+        { "label": "Liane prend la ligne.", "cible": "§37A", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Epsi",
+        "npc_opening": "Monsieur Duke, ici le secrétariat général de la révolution. Je suis Epsi, nous nous sommes rencontrés lors de votre entrevue avec Liane Fergusson.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Oui, Epsi, je m'en souviens très bien. Comment allez-vous ?",
+            "emotion_label": "charmeur",
+            "npc_response": "Je vais bien, merci. *(un sourire dans la voix)* Vous prononcez merveilleusement bien mon prénom.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Est-ce un appel de courtoisie ou dois-je le créditer sur le compte de votre profession, Epsi ?",
+                "emotion_label": "taquin",
+                "npc_response": "*(La mélodie d'un rire.)* Madame Fergusson désire vous entretenir, elle ne va pas tarder. Je vous mets en attente, veuillez s'il vous plaît rester en ligne.",
+                "sub_choices": [
+                  {
+                    "id": "c111",
+                    "player_text": "Epsi, je songeais à la possibilité de vous inviter à flâner autour du quartier des vieux lacs lorsque—",
+                    "emotion_label": "galant",
+                    "npc_response": "*(Silence. Duke réalise qu'il est en attente.)* ... *(Epsi revient.)* Monsieur Duke, je vous transfère.",
+                    "sub_choices": [
+                      {
+                        "id": "c1111",
+                        "player_text": "Une seconde, je me demandais si vous—",
+                        "emotion_label": "insistant",
+                        "npc_response": "*(Voix autoritaire de Liane Fergusson.)* Monsieur Duke.",
+                        "section_choice_id": "§37A"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§37A",
+      "type": "dialogue",
+      "lieu": "Rue — Initiale, communication entrante",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke envoie la photo. Liane appelle furieuse — l'avis vise Grime son mentor. Duke doit gérer la confrontation.",
+      "notes_dev": "Succès : Liane calmée. Échec : Liane méfiante. Dans les deux cas → §38B.",
+      "choix": [
+        { "label": "Succès — Liane calmée, attend un rapport ce soir.", "cible": "§38B", "epreuve": null },
+        { "label": "Échec — Liane méfiante, surveille Duke.", "cible": "§38B", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Liane Fergusson",
+        "npc_opening": "Pouvez-vous m'expliquer ? L'avis de recherche que vous venez de diffuser correspond trait pour trait au professeur Grime. Mon conseiller. Le mentor de notre mouvement.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Une ressemblance troublante, Madame. Une précaution d'enquête — rien de plus. Je rappelle l'avis immédiatement.",
+            "emotion_label": "calme",
+            "npc_response": "Une précaution qui mobilise l'ensemble de mes forces de sécurité, Monsieur Duke.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Je comprends. C'est rappelé. Rapport ce soir sans faute.",
+                "emotion_label": "conciliant",
+                "npc_response": "Veillez à ce que cela ne se reproduise pas. Rapport ce soir.",
+                "section_choice_id": "§37A-epsi"
+              },
+              {
+                "id": "c12",
+                "player_text": "Madame, si Grime n'a rien à se reprocher, un avis de recherche ne lui fera aucun mal.",
+                "emotion_label": "provocateur",
+                "npc_response": "Je vous conseille très fortement de choisir vos prochains mots avec soin, Monsieur Duke.",
+                "section_choice_id": "§37A-epsi"
+              },
+              {
+                "id": "c13",
+                "player_text": "Oui Madame, veuillez me pardonner. Je vais de ce pas transmettre une annulation en bonne et due forme de l'avis de recherche.",
+                "emotion_label": "soumis",
+                "npc_response": "C'est la moindre des choses. Rapport ce soir.",
+                "section_choice_id": "§37A-epsi"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "Madame Fergusson, je travaille vite et parfois sans filet. C'est pour ça que vous m'avez engagé.",
+            "emotion_label": "assuré",
+            "npc_response": "Je vous ai engagé pour retrouver des enfants, pas pour semer la panique dans mon administration.",
+            "sub_choices": [
+              {
+                "id": "c21",
+                "player_text": "Vous avez raison. Je rappelle l'avis. Rapport ce soir.",
+                "emotion_label": "conciliant",
+                "npc_response": "Bien. Ce soir.",
+                "section_choice_id": "§37A-epsi"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§37A-epsi",
+      "type": "dialogue",
+      "lieu": "AirTrack — Initiale, communication",
+      "npcs": ["Epsi"],
+      "objets": [],
+      "resume": "Liane raccroche. Epsi reprend la ligne. Elle transmet ses coordonnées — c'est elle le contact pour les rapports du soir. Duke tente une dernière fois de lui parler. Coupé.",
+      "notes_dev": "ROMAN ch.13 l.1475-1477 : Epsi revient après Liane avec ses coordonnées. Duke dit 'Epsi ? oui je vous—' et la transmission coupe. Moment frustrant et comique.",
+      "choix": [
+        { "label": "Continuer.", "cible": "§38B", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Epsi",
+        "npc_opening": "Monsieur Duke, ici Epsi. Je vous transmets mes coordonnées par console. J'attends votre rapport ce soir, Monsieur.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Epsi ? Oui, je vous—",
+            "emotion_label": "empressé",
+            "npc_response": "*(La transmission prend fin.)*",
+            "section_choice_id": "§38B"
+          }
+        ]
+      }
+    },
+    {
+      "id": "§37B",
+      "type": "narratif",
+      "lieu": "Revolice central — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke garde l'information pour lui. Il sait ce que Liane ne sait pas. La partie vient de changer.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Continuer l'enquête.", "cible": "§39", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§38A",
+      "type": "dialogue",
+      "lieu": "Rue — Initiale, communication entrante",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke dit la vérité sur Grime à Liane. Elle ne croit pas — ou refuse de croire. Duke repart avec Liane méfiante et sans avantage.",
+      "notes_dev": "Pire chemin pour Duke. Liane protège Grime. → §39",
+      "choix": [
+        { "label": "Succès — Liane croit Duke, fait surveiller Grime.", "cible": "§39", "epreuve": null },
+        { "label": "Échec — Liane ne croit pas Duke, protège Grime.", "cible": "§39", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Liane Fergusson",
+        "npc_opening": "Pouvez-vous m'expliquer ? L'avis de recherche que vous venez de diffuser correspond trait pour trait au professeur Grime. Mon conseiller. Le mentor de notre mouvement.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Madame Fergusson, le mécanicien du spatio-port a formellement identifié Grime. Il accompagnait Shad Le Der au Hangar 5 le matin de la fuite.",
+            "emotion_label": "direct",
+            "npc_response": "C'est une accusation extrêmement grave, Monsieur Duke. Vous réalisez ce que vous sous-entendez ?",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Je sous-entends que votre mentor connaissait la fuite à l'avance. Peut-être l'a-t-il organisée.",
+                "emotion_label": "ferme",
+                "npc_response": "Je vais vérifier de mon côté. En attendant — ne touchez plus à Grime.",
+                "section_choice_id": "§39"
+              },
+              {
+                "id": "c12",
+                "player_text": "Votre enquête a une fuite au sommet. À vous de décider quoi en faire.",
+                "emotion_label": "froid",
+                "npc_response": "Ayez des preuves solides avant de répéter ça. Rapport ce soir.",
+                "section_choice_id": "§39"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§38B",
+      "type": "narratif",
+      "lieu": "Rue — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke minimise auprès de Liane. Il rappelle l'avis, le remplace par un signalement vague inutilisable. La partie a changé — son mentor était peut-être avec l'enfant le jour de la disparition.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Continuer l'enquête.", "cible": "§39", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§38C",
+      "type": "dialogue",
+      "lieu": "Rue — Initiale, communication entrante",
+      "npcs": ["Liane Fergusson"],
+      "objets": [],
+      "resume": "Duke dit la vérité. Liane ne croit pas — elle protège Grime. Duke repart avec Liane méfiante et sans avantage.",
+      "notes_dev": "Pire chemin possible. Liane surveille Duke de plus près.",
+      "choix": [
+        { "label": "Liane raccroche. Duke repart sans rien.", "cible": "§39", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Liane Fergusson",
+        "npc_opening": "Le professeur Grime est le fondement intellectuel de notre mouvement depuis quinze ans. Vous me demandez de croire qu'il accompagnait l'héritier de l'Empire à l'aube, sur la base d'une photo composite et du témoignage d'un mécanicien à moitié endormi.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Le mécanicien l'a formellement identifié. Grime était au Hangar 5 avec Shad Le Der.",
+            "emotion_label": "ferme",
+            "npc_response": "Formellement. Avec une photo que vous avez vous-même composée.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "C'est mon métier, Madame. Les reconstructions de scène, c'est ce que je fais.",
+                "emotion_label": "assuré",
+                "npc_response": "Ne touchez plus à Grime. Rapport ce soir.",
+                "section_choice_id": "§39"
+              },
+              {
+                "id": "c12",
+                "player_text": "Madame, quelqu'un dans votre entourage proche savait pour la fuite.",
+                "emotion_label": "direct",
+                "npc_response": "Ayez des preuves solides avant de répéter ça.",
+                "section_choice_id": "§39"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§39",
+      "type": "narratif",
+      "lieu": "AirTrack — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke s'installe dans l'AirTrack. Il reste deux pistes à explorer.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "La Trompe — quartier de l'Épic.", "cible": "§40", "epreuve": null },
+        { "label": "Palais impérial — Ennis.", "cible": "§41", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§40",
+      "type": "narratif",
+      "lieu": "La Trompe — taverne, rue des Garibaldes, quartier de l'Épic, Initiale",
+      "npcs": ["Tenancier"],
+      "objets": [],
+      "resume": "AirTrack dépose Duke rue des Garibaldes en fin de matinée. La Trompe — quelques marches à descendre. Intérieur sombre, odeur de Ribune. Le tenancier derrière le bar.",
+      "notes_dev": "Duke arrive avant d'aller au Palais — n'a pas encore l'info sur le conditionnement d'Ennis.",
+      "choix": [
+        { "label": "Engager la conversation.", "cible": "§40A", "epreuve": null },
+        { "label": "Poser 10 000 gaches sur le comptoir.", "cible": "§40B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§40A",
+      "type": "dialogue",
+      "lieu": "La Trompe — taverne, quartier de l'Épic, Initiale",
+      "npcs": ["Tenancier"],
+      "objets": [],
+      "resume": "Duke interroge le tenancier sans payer. L'homme est méfiant — description vague, esprit sur ses gardes lors de la lecture mentale.",
+      "notes_dev": "Sans argent, images partielles. Succès → §44. Échec → §41.",
+      "choix": [
+        { "label": "Succès — Description partielle, images exploitables.", "cible": "§44", "epreuve": null },
+        { "label": "Échec — Tenancier fermé, Duke repart bredouille.", "cible": "§41", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Tenancier",
+        "npc_opening": "Bonjour l'ami. Vous déjeunez ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Bonjour cher tenancier. Votre échoppe est une merveille d'authenticité — j'y convierai volontiers celle qui grippe mon séquenceur logiciel. Avez-vous à tout hasard reçu récemment un groupe accompagné d'un enfant ?",
+            "emotion_label": "charmeur",
+            "npc_response": "*(Il s'arrête d'essuyer son verre.)* Un gamin... ouais. Y'avait du monde avec lui. Drôle de bande.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Vraiment, Empire tout-puissant — servez-moi votre meilleure huile de Job, je sens que je croustille de l'intérieur. À propos de ce groupe, sauriez-vous les décrire ? *(Plonger dans son esprit pendant qu'il répond.)*",
+                "emotion_label": "psyché",
+                "npc_response": "Un grand barbare tatoué. Une femme aux cheveux dorés. *(Duke plonge — souvenir net : Shad masqué, Krin aux cheveux dorés, Brakar, Zoom accroupi sur ses genoux, Jurdine à l'écart. Esprit sans défense.)* Et une gamine du quartier — Jurdine — elle traînait avec eux.",
+                "section_choice_id": "§44"
+              },
+              {
+                "id": "c12",
+                "player_text": "Vraiment, Empire tout-puissant — servez-moi votre meilleure huile de Job, je sens que je croustille de l'intérieur. À propos de ce groupe, sauriez-vous les décrire ? *(L'écouter.)*",
+                "emotion_label": "attentif",
+                "npc_response": "*(Le tenancier reprend son verre, l'essuie sans regarder Duke.)* Des groupes, j'en vois passer des dizaines. Je me souviens de rien de particulier.",
+                "sub_choices": [
+                  {
+                    "id": "c121",
+                    "player_text": "*(Poser une carte de 10 000 gaches sur le comptoir.)*",
+                    "emotion_label": "pratique",
+                    "npc_response": "*(Il regarde la carte. Un silence. Il la fait glisser vers lui.)* Un grand barbare tatoué. Une femme aux cheveux dorés. Un gamin avec un masque — bizarre pour un gamin. Et la petite Jurdine du quartier qui traînait avec eux.",
+                    "section_choice_id": "§44-intro"
+                  },
+                  {
+                    "id": "c122",
+                    "player_text": "*(Plonger dans son esprit pendant qu'il fait semblant de ne pas se souvenir.)*",
+                    "emotion_label": "psyché",
+                    "npc_response": "*(Esprit sans défense — souvenir net : Shad masqué, Krin aux cheveux dorés, Brakar le barbare, Zoom accroupi sur ses genoux, Jurdine à l'écart. Il se souvient parfaitement.)*",
+                    "section_choice_id": "§44"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§40B",
+      "type": "dialogue",
+      "lieu": "La Trompe — taverne, quartier de l'Épic, Initiale",
+      "npcs": ["Tenancier"],
+      "objets": [],
+      "resume": "Duke pose 10 000 gaches sur le comptoir. Le tenancier se détend — esprit ouvert, images complètes lors de la lecture mentale.",
+      "notes_dev": "Avec argent, images nettes, groupe entier visible. → §44.",
+      "choix": [
+        { "label": "Succès — Images complètes, groupe entier visible.", "cible": "§44", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Tenancier",
+        "npc_opening": "Bonjour l'ami. Vous déjeunez ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Non merci.",
+            "emotion_label": "neutre",
+            "npc_response": "Qu'est-ce que je peux faire pour vous alors ?",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Pensez très fort à ce que vous avez vu ici il y a cinq jours, à cette heure-ci.",
+                "emotion_label": "direct",
+                "npc_response": "Ah... oui. Y'avait du monde ce soir-là. Un groupe bizarre. Le gamin avec le masque, la grande blonde, et ce colosse...",
+                "section_choice_id": "§44"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§41",
+      "type": "narratif",
+      "lieu": "Palais impérial — chambre ouest, niveau 4, Initiale",
+      "npcs": ["Ennis"],
+      "objets": [],
+      "resume": "Palais impérial. Accréditation niveau 2 suffit. Ennis, 17 ans, assis près de la fenêtre. Visage de quelqu'un qui a appris très tôt à ne rien montrer. 'Monsieur Duke Duo. L'envoyé de Liane Fergusson.'",
+      "notes_dev": "",
+      "choix": [
+        { "label": "L'interroger.", "cible": "§41A", "epreuve": null },
+        { "label": "Tenter l'intrusion mentale directement.", "cible": "§41B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§41A",
+      "type": "dialogue",
+      "lieu": "Palais impérial — chambre ouest, niveau 4, Initiale",
+      "npcs": ["Ennis"],
+      "objets": [],
+      "resume": "Duke interroge Ennis à voix haute. L'aîné coopère en surface — quatre mots, ni plus ni moins. Duke ne tire rien de concret.",
+      "notes_dev": "Succès partiel : Duke capte une hésitation. Échec : mur de politesse. Dans les deux cas → §42.",
+      "choix": [
+        { "label": "Succès — Duke capte une hésitation inattendue.", "cible": "§42", "epreuve": null },
+        { "label": "Échec — Mur de politesse, rien d'exploitable.", "cible": "§42", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Ennis",
+        "npc_opening": "Monsieur Duke Duo. L'envoyé de Liane Fergusson. Tout le monde vous connaît depuis ce matin.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Où est votre frère, Ennis ?",
+            "emotion_label": "direct",
+            "npc_response": "Je ne sais pas où il est.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Vous ne savez pas, ou vous ne voulez pas le dire ?",
+                "emotion_label": "précis",
+                "npc_response": "Je ne sais pas où il est.",
+                "sub_choices": [
+                  {
+                    "id": "c111",
+                    "player_text": "Il vous a contacté depuis sa fuite ?",
+                    "emotion_label": "calme",
+                    "npc_response": "Non.",
+                    "sub_choices": [
+                      {
+                        "id": "c1111",
+                        "player_text": "Vous espérez qu'il s'en sort ?",
+                        "emotion_label": "doux",
+                        "npc_response": "...",
+                        "section_choice_id": "§42"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "id": "c12",
+                "player_text": "Qui l'accompagnait le matin de son départ ?",
+                "emotion_label": "précis",
+                "npc_response": "Je n'étais pas présent.",
+                "section_choice_id": "§42"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "Aidez-moi à retrouver Shad avant que d'autres le fassent.",
+            "emotion_label": "sincère",
+            "npc_response": "D'autres l'ont déjà trouvé, Monsieur Duke. Ou ils l'ont essayé.",
+            "sub_choices": [
+              {
+                "id": "c21",
+                "player_text": "Qui ça, d'autres ?",
+                "emotion_label": "alerte",
+                "npc_response": "Je ne sais pas où il est.",
+                "section_choice_id": "§42"
+              },
+              {
+                "id": "c22",
+                "player_text": "Qu'est-ce que vous voulez dire par là ?",
+                "emotion_label": "insistant",
+                "npc_response": "Mon frère n'est pas seul. C'est tout ce que je peux vous dire.",
+                "section_choice_id": "§42"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§41B",
+      "type": "narratif",
+      "lieu": "Palais impérial — chambre ouest, niveau 4, Initiale",
+      "npcs": ["Ennis"],
+      "objets": [],
+      "resume": "Duke projette son esprit. Pas un mur — une architecture construite. Compartiments verrouillés avec une précision inconnue. Quelqu'un a préparé cet esprit. Duke sort sans info. Question : qui a préparé cet enfant à résister à un psychique — avant même que la révolution éclate ?",
+      "notes_dev": "Premier indice concret de l'Alya Genetika.",
+      "choix": [
+        { "label": "Repartir.", "cible": "§42", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§42",
+      "type": "narratif",
+      "lieu": "AirTrack — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "AirTrack. Duke a deux informations que Liane n'a pas : Grime au Hangar 5, conditionnement d'Ennis. Même source. Quelqu'un avait tout planifié longtemps avant la chute. Direction : La Trompe.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "La Trompe — quartier de l'Épic.", "cible": "§43", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§43",
+      "type": "narratif",
+      "lieu": "La Trompe — taverne, rue des Garibaldes, quartier de l'Épic, Initiale",
+      "npcs": ["Tenancier"],
+      "objets": [],
+      "resume": "Duke arrive à La Trompe après le Palais. Quelques marches à descendre. Tenancier derrière le bar.",
+      "notes_dev": "Duke arrive avec l'info sur le conditionnement d'Ennis — même scène que §40 mais contexte enrichi.",
+      "choix": [
+        { "label": "Engager la conversation.", "cible": "§40A", "epreuve": null },
+        { "label": "Poser 10 000 gaches sur le comptoir.", "cible": "§40B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§44-intro",
+      "type": "narratif",
+      "lieu": "La Trompe — taverne, quartier de l'Épic, Initiale",
+      "npcs": ["Tenancier"],
+      "objets": [],
+      "resume": "Le tenancier a parlé — barbare, femme aux cheveux dorés, gamin masqué, Jurdine. Il reprend son verre. Duke peut encore plonger dans son esprit pour capturer des images précises des visages.",
+      "notes_dev": "Succès → Duke obtient des images nettes des visages (Shad masqué, Krin, Brakar, Zoom, Jurdine) directement depuis la mémoire du tenancier. Échec → informations verbales seulement.",
+      "choix": [
+        { "label": "Plonger dans son esprit — capturer les images des visages.", "cible": "§44", "epreuve": { "type": "psyche", "difficulte": 1 } },
+        { "label": "Partir avec ces informations.", "cible": "§44", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§44",
+      "type": "narratif",
+      "lieu": "La Trompe — taverne, quartier de l'Épic, Initiale",
+      "npcs": ["Tenancier"],
+      "objets": [],
+      "resume": "Duke lit l'esprit du tenancier. Esprit clair. Voit : un enfant masqué (correspondance probable avec la photo du dossier), une femme aux cheveux dorés, un barbare couvert de tatouages, un homme accroupi sur ses genoux. Et la gamine du quartier à l'écart — Jurdine, nom donné par le tenancier, visage capturé. Duke diffuse ou garde les images.",
+      "notes_dev": "Duke a le nom ET le visage de Jurdine (donné verbalement par le tenancier). Pour les autres : visages seulement, pas de noms. L'enfant masqué est une correspondance probable avec la photo du dossier, sans certitude (masque).",
+      "choix": [
+        { "label": "Diffuser les demandes d'identification pour tout le groupe.", "cible": "§45A", "epreuve": null },
+        { "label": "Garder les visages pour soi.", "cible": "§45B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§45A",
+      "type": "narratif",
+      "lieu": "La Trompe — taverne, quartier de l'Épic, Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke sirote son huile de Job. Il pense à Epsi. Il finit son verre, ressort de l'échoppe et lance un avis de recherche et d'identification sur les quatre visages inconnus. Accréditation niveau 2 — les réponses arrivent en dix minutes. Le barbare : Brakar Dugan, pirate recherché dans six juridictions. La femme aux cheveux dorés et l'enfant masqué : aucun résultat. Jurdine est la piste immédiate.",
+      "notes_dev": "L'accréditation niveau 2 de Duke lui donne un accès prioritaire aux bases d'identification — délai réel de 10 minutes au lieu de plusieurs heures. C'est un avantage concret de travailler pour la Junte.",
+      "choix": [
+        { "label": "Rentrer à l'hôtel — réfléchir, rédiger le rapport du soir.", "cible": "§48-soir", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§45B",
+      "type": "narratif",
+      "lieu": "La Trompe — taverne, quartier de l'Épic, Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke garde les visages. Une photo envoyée a failli arrêter Grime — diffuser cinq visages c'est prévenir le groupe. La gamine du quartier — piste suivante.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Chercher la gamine dans le quartier.", "cible": "§46", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§46",
+      "type": "narratif",
+      "lieu": "Quartier de l'Épic — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke doit chercher dans le quartier. Un méca élégant avec un haut-de-forme dans les ruelles de l'Épic — ça ne passe pas inaperçu.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Passer par une friperie — se fondre dans le décor.", "cible": "§46A", "epreuve": null },
+        { "label": "Parcourir le quartier tel quel — sans se déguiser.", "cible": "§46B", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§46A",
+      "type": "narratif",
+      "lieu": "Friperie 'À la bonne affaire' — quartier de l'Épic, Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Lendemain matin. Duke entre dans la friperie 'À la bonne affaire'. Il troque : veste cintrée contre tunique large rapiécée, chapeau sur mesure contre foulard effiloché, pantalon de soie contre toile aux larges embouchures. Il rentre à l'hôtel avec ses achats. Devant la glace, il travaille pendant deux heures un accent paresseux qui étire les syllabes et oublie les débuts de mots. 'J'fais des efforts pour mal dire.' Dans ces accoutrements, il passera inaperçu — tant qu'il n'ouvre pas la bouche.",
+      "notes_dev": "ROMAN ch.14 l.1551-1553 : séquence exacte — friperie le matin, retour hôtel, entraînement devant la glace. Duke déguisé — les moussards mettent plus longtemps à le repérer.",
+      "choix": [
+        { "label": "Partir pour le marché de l'Épic.", "cible": "§47", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§46B",
+      "type": "narratif",
+      "lieu": "Quartier de l'Épic — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke entre directement. Quelqu'un le regarde dès le premier étal. Puis un deuxième. Un méca haut-de-forme dans ce quartier — ça ne s'oublie pas.",
+      "notes_dev": "Duke visible — la capture arrive plus vite.",
+      "choix": [
+        { "label": "Chercher dans le marché.", "cible": "§47", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§47",
+      "type": "narratif",
+      "lieu": "Marché de l'Épic — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Marché de l'Épic. Étals, crieurs, gamins entre les jambes. Duke a le visage de la gamine — pas de nom. Il montre la photo pour aider l'intrusion mentale.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Interroger les gamins du quartier.", "cible": "§47A", "epreuve": null },
+        { "label": "Aborder la marchande de Ribune.", "cible": "§47B", "epreuve": null },
+        { "label": "Sonder discrètement les esprits au hasard.", "cible": "§47C", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§47A",
+      "type": "dialogue",
+      "lieu": "Marché de l'Épic — Initiale",
+      "npcs": ["Gamin des rues"],
+      "objets": [],
+      "resume": "Duke aborde un gamin, lui montre la photo de Jurdine, propose 15 gaches.",
+      "notes_dev": "Succès → §48. Échec → §47C.",
+      "choix": [
+        { "label": "Succès — Le gamin a vu Jurdine avec un homme énorme.", "cible": "§48", "epreuve": null },
+        { "label": "Échec — Le gamin disparaît sans rien dire.", "cible": "§47C", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Gamin des rues",
+        "npc_opening": "T'es qui toi ?",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Quinze gaches pour un renseignement. — Duke montre la photo de Jurdine. — Tu la connais ?",
+            "emotion_label": "direct",
+            "npc_response": "Montre d'abord.",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "— Duke fait apparaître les quinze gaches. —",
+                "emotion_label": "neutre",
+                "npc_response": "Ouais. J'l'ai vue hier avec le grand. Celui qui fait peur à tout le monde.",
+                "section_choice_id": "§48"
+              },
+              {
+                "id": "c12",
+                "player_text": "Tu veux vingt gaches ? Je monte.",
+                "emotion_label": "généreux",
+                "npc_response": "Le grand, il est du côté du cimetière de vaisseaux. C'est tout ce que je sais.",
+                "section_choice_id": "§48"
+              }
+            ]
+          },
+          {
+            "id": "c2",
+            "player_text": "Tu connais cette gamine ? — Duke montre la photo. — Elle traîne par ici.",
+            "emotion_label": "doux",
+            "npc_response": "Connais pas.",
+            "sub_choices": [
+              {
+                "id": "c21",
+                "player_text": "Quinze gaches si tu te souviens mieux.",
+                "emotion_label": "direct",
+                "npc_response": "... Elle était avec le grand Korog. Du côté des vieux vaisseaux.",
+                "section_choice_id": "§48"
+              },
+              {
+                "id": "c22",
+                "player_text": "Je suis l'envoyé de Liane Fergusson. Tu ferais mieux de te souvenir.",
+                "emotion_label": "autoritaire",
+                "npc_response": "— Le gamin disparaît entre les étals. —",
+                "section_choice_id": "§47C"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§47B",
+      "type": "dialogue",
+      "lieu": "Marché de l'Épic — étal de Ribune, Initiale",
+      "npcs": ["Marchande de Ribune"],
+      "objets": [],
+      "resume": "Duke aborde la marchande de Ribune, lui montre la photo de Jurdine. Duke se fait remarquer dans le quartier.",
+      "notes_dev": "Succès → §48. Échec → §49 (capture accélérée).",
+      "choix": [
+        { "label": "Succès — Elle a vu Jurdine avec un homme énorme.", "cible": "§48", "epreuve": null },
+        { "label": "Échec — Elle fait du bruit, Duke se fait repérer.", "cible": "§49", "epreuve": null }
+      ],
+      "discussion_scene": {
+        "npc_name": "Marchande de Ribune",
+        "npc_opening": "Une brochette ? C'est le meilleur Ribune du quartier.",
+        "choices": [
+          {
+            "id": "c1",
+            "player_text": "Tiens-donc, c'est c'qui's'dit par ici — que l'Empereur me talpone si j'y goûte pas.",
+            "emotion_label": "accent travaillé",
+            "npc_response": "*(Elle rit.)* Vous êtes pas d'ici vous. Mais allez-y, goûtez. *(Elle tend la brochette.)*",
+            "sub_choices": [
+              {
+                "id": "c11",
+                "player_text": "Par Garibalde, mais ces brochettes — j'en déboulonnerais un wagon entier de méca pour avoir t'y plaisir d'en mâcher tout le midi. Oh ! Les gamins, venez-s-y goûter à ces épices !",
+                "emotion_label": "généreux",
+                "npc_response": "*(Les gamins accourent. Dans le mouvement, Duke sonde les esprits alentour — Jurdine revient dans plusieurs souvenirs. Le grand. Korog. Cimetière de vaisseaux, est du spatio-port.)*",
+                "section_choice_id": "§48"
+              },
+              {
+                "id": "c12",
+                "player_text": "Par Garibalde, mais ces brochettes — j'en déboulonnerais un wagon entier de méca pour avoir t'y plaisir d'en mâcher tout le midi. Dis-donc la brocheteuse, t'y verrais pas la p'tite Jurdine dans le coin ce jour dernier ? J'lui dois quelques Gachettes.",
+                "emotion_label": "décontracté",
+                "npc_response": "*(Elle s'arrête. Le regard change.)* Connais pas.",
+                "sub_choices": [
+                  {
+                    "id": "c121",
+                    "player_text": "*(Plonger dans son esprit — elle ment.)*",
+                    "emotion_label": "psyché",
+                    "npc_response": "*(Esprit fermé, méfiant — mais une image filtre : Jurdine, un homme énorme, direction est du spatio-port.)*",
+                    "section_choice_id": "§48"
+                  },
+                  {
+                    "id": "c122",
+                    "player_text": "*(Faire une grimace, mâcher doucement, s'éloigner vers les gamins.)*",
+                    "emotion_label": "désinvolte",
+                    "npc_response": "*(La marchande le suit des yeux. Duke disparaît dans le mouvement du marché.)*",
+                    "section_choice_id": "§47A"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "id": "§47C",
+      "type": "narratif",
+      "lieu": "Marché de l'Épic — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Cor de Taurus — fin du marché. Duke choisit un gamin, pose 15 gaches + photo. Plonge dans son esprit. Souvenir récent : la gamine avec un homme énorme. Korog.",
+      "notes_dev": "",
+      "choix": [
+        { "label": "Continuer à chercher.", "cible": "§48", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§48-soir",
+      "type": "narratif",
+      "lieu": "Hôtel — Initiale",
+      "npcs": [],
+      "objets": ["Rapport du soir"],
+      "resume": "Duke rentre à l'hôtel. Il effeuille ses carnets, trie les identifications : Brakar Dugan le pirate, Jurdine — nom et visage. Il manque la femme aux cheveux dorés et le garçon masqué. Il rédige son rapport du soir pour Epsi — consultable comme objet. Il décide de son plan pour le lendemain : se déguiser, traîner dans le quartier, trouver quelqu'un qui sait où est Jurdine. Il s'endort en ressassant la perfection des accords vocaux d'Epsi.",
+      "notes_dev": "ROMAN ch.14 l.1548 : 'il entreprit de se coucher en ressassant tout de même la perfection des accords vocaux d'Epsi.' Le rapport à Epsi est sobre — Duke ne dit pas tout.",
+      "choix": [
+        { "label": "Consulter le rapport.", "cible": "§48-soir", "epreuve": null },
+        { "label": "Lendemain matin — aller à la friperie.", "cible": "§46", "epreuve": null }
+      ],
+      "objet_contenu": {
+        "titre": "Rapport du soir — Jour 1, Initiale",
+        "corps": "Destinataire : Epsi / Liane Fergusson.\n\nPremière journée sur Initiale. Piste Hangar 5 confirmée par témoin oculaire — ressemblance forte avec le Professeur Grime. Avis de recherche annulé sur votre demande.\n\nDeuxième piste : groupe localisé dans le quartier de l'Épic il y a cinq jours. Composition partielle identifiée. Un nom utile : Jurdine. Localisation en cours.\n\nPiste Ennis (Palais) non encore explorée.\n\nRapport complet demain soir.\n\n— D.D."
+      }
+    },
+    {
+      "id": "§48",
+      "type": "narratif",
+      "lieu": "Quartier de l'Épic — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Duke tente d'approcher les gamins du marché — ils filent à son approche. Il s'accoude contre les bardages, s'immisce dans les esprits au passage, sans grands résultats. Jurdine n'apparaît plus dans le coin. Puis une image surgit dans un souvenir récent : l'enfant masqué, en compagnie d'un homme énorme que Duke reconnaît immédiatement — Korog, le bourreau des Empires, dont le visage a été diffusé sur tous les réseaux le jour de l'exécution. Introuvable depuis ce matin de répudiation. Duke rentre à l'hôtel, piteux. Rapport à Epsi : trois lignes, deux supprimées.",
+      "notes_dev": "ROMAN ch.14 l.1556-1568 : Duke passe la journée à sonder les esprits du quartier sans résultat. Les gamins fuient. Korog est le seul fil conducteur — déjà recherché par la Revolice.",
+      "choix": [
+        { "label": "Lancer une demande d'identification sur le nom 'Korog'.", "cible": "§48B", "epreuve": null },
+        { "label": "Rentrer à l'hôtel sans lancer d'avis.", "cible": "§49", "epreuve": null }
+      ]
+    },
+    {
+      "id": "§48B",
+      "type": "narratif",
+      "lieu": "Hôtel — Initiale",
+      "npcs": [],
+      "objets": ["Rapport du soir — Jour 2"],
+      "resume": "Duke contacte la Revolice — Korog est déjà recherché. Son visage est connu de toute la population depuis les diffusions de l'exécution impériale. Pourtant personne ne l'a trouvé. Duke rédige son rapport du soir pour Epsi — consultable comme objet. Il piétine. La piste existe — cimetière de vaisseaux — mais l'homme s'est volatilisé.",
+      "notes_dev": "ROMAN ch.14 l.1219 + 1568 : Korog reconnaissable de tous depuis la diffusion en direct de l'exécution des Empereurs. Déjà recherché par la Revolice. Personne n'a pensé à fouiller le cimetière de vaisseaux.",
+      "choix": [
+        { "label": "Lendemain — retourner dans le quartier.", "cible": "§49", "epreuve": null }
+      ],
+      "objet_contenu": {
+        "titre": "Rapport du soir — Jour 2, Initiale",
+        "corps": "Destinataire : Epsi / Liane Fergusson.\n\nPiste suivie : Taverne de la Trompe, quartier de l'Épic.\nCibles identifiées : Jurdine, gamine du quartier, vue en compagnie d'autres individus dont l'identité reste à confirmer.\n\nRévélation : Jurdine a été observée en compagnie de Korog — le bourreau des Empereurs, celui à l'origine de la prise du Palais Impérial.\n\nConclusion : Jurdine serait en contact avec l'enfant et le bourreau de ses parents. Incohérence comportementale notable. Aucune supposition en l'état.\n\nSuite : Je dois localiser Jurdine et remonter la piste de Korog — ce dernier nous conduira sans doute à l'enfant.\n\n— D.D."
+      }
+    },
+    {
+      "id": "§49",
+      "type": "narratif",
+      "lieu": "Ruelles du quartier de l'Épic — Initiale",
+      "npcs": [],
+      "objets": [],
+      "resume": "Lendemain. Même déguisement, même farandole, mêmes intrusions. Duke traîne des pieds sur un sol jonché de détritus. Il ne sent pas se glisser derrière lui un homme grand, au visage carré, aux mains serrant un 'Étourdi' — cette arme assommante. Il ne voit pas le canon s'enfoncer dans le creux de ses reins. En revanche, il perçoit la convulsion de son corps sous la décharge — assez folle pour déconnecter n'importe quelle conscience. Le sort, facétieux, vient de lui faire une entourloupe. Le jour suivant, un avis de recherche s'affiche sur tous les moniteurs de tous les postes de revoluciers, avec en pièce jointe une photo : celle d'un méca-libre arborant un haut-de-forme délicat.",
+      "notes_dev": "FIN ACTE 1 DUKE. ROMAN ch.14 l.1570 : séquence exacte de la capture. Le lendemain : ch.15, quinze jours après l'effondrement. Duke se réveille pieds et poings liés, bouche entravée d'un tissu rêche, yeux ouverts sur le noir. Une gifle. 'Arrête de gigoter, pantin.' — Brakar Dugan.",
+      "is_ending": false,
+      "choix": [
+        { "label": "Continuer.", "cible": "§50", "epreuve": null }
+      ]
+    }
+  ]
+}

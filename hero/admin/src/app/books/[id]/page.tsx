@@ -1,7 +1,10 @@
 'use client'
+export const dynamic = 'force-dynamic'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import type { Book, Section, Choice, SectionStatus, Npc, NpcType, Location } from '@/types'
+import { CombatOverlayV4 } from './CombatOverlayV4'
+import { CombatOverlayV6 } from './CombatOverlayV6'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -122,6 +125,8 @@ export default function BookPage() {
   const [locations, setLocations] = useState<Location[]>([])
   const [loading, setLoading] = useState(true)
   const [bookSaving, setBookSaving] = useState(false)
+  const [psDraft, setPsDraft] = useState<import('@/types').PathSynopses | null>(null)
+  const [psSaving, setPsSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleInput, setTitleInput] = useState('')
@@ -131,7 +136,15 @@ export default function BookPage() {
   const [introGenerating, setIntroGenerating] = useState(false)
   const [prologueExpanded, setPrologueExpanded] = useState(false)
   const [storyPanel, setStoryPanel] = useState(false)
-  const [storyTab, setStoryTab] = useState<'narrative' | 'language'>('narrative')
+  const [storyTab, setStoryTab] = useState<'narrative' | 'language' | 'paths'>('narrative')
+  const [narrativePaths,    setNarrativePaths]    = useState<any[]>([])
+  const [narrativeStats,    setNarrativeStats]    = useState<any>(null)
+  const [narrativeAnalysis, setNarrativeAnalysis] = useState<string>('')
+  const [narrativeIssues,   setNarrativeIssues]   = useState<any[]>([])
+  const [narrativePathSums, setNarrativePathSums] = useState<any[]>([])
+  const [narrativeLoading,  setNarrativeLoading]  = useState(false)
+  const [narrativeApplying, setNarrativeApplying] = useState(false)
+  const [narrativeApplied,  setNarrativeApplied]  = useState<number[]>([])
   const [storySummary, setStorySummary] = useState('')
   const [storyGenerating, setStoryGenerating] = useState(false)
   const [storyError, setStoryError] = useState<string | null>(null)
@@ -158,16 +171,42 @@ export default function BookPage() {
   const [editContent, setEditContent] = useState('')
   const [editSummary, setEditSummary] = useState('')
   const [editHint, setEditHint] = useState('')
-  const [editImages, setEditImages] = useState<Array<{ url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; style: string; includeProtagonist: boolean }>>(Array.from({ length: 3 }, () => ({ description: '', style: 'realistic', includeProtagonist: false })))
+  const [editImages, setEditImages] = useState<Array<{ url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; style: string; includeProtagonist: boolean; kontext_ref_npc_id?: string; aspect_ratio?: string; chain_from_prev?: boolean; model?: string; gen4_ref_npc_ids?: string[]; prompt_used?: string; model_used?: string; aspect_ratio_used?: string; style_used?: string }>>(Array.from({ length: 3 }, () => ({ description: '', style: 'realistic', includeProtagonist: false })))
+  const [translatingPlanIdx, setTranslatingPlanIdx] = useState<{ idx: number; dir: 'en2fr' | 'fr2en' } | null>(null)
+  const [generatingThoughts, setGeneratingThoughts] = useState(false)
+  const [distributingPhrases, setDistributingPhrases] = useState(false)
+  const [editPhraseDistribution, setEditPhraseDistribution] = useState<string[][]>([])
   const [editMusicUrl, setEditMusicUrl] = useState('')
+  const [editMusicStartTime, setEditMusicStartTime] = useState(0)
+  const [uploadingSectionMusic, setUploadingSectionMusic] = useState(false)
+  const [sectionMusicUploaded, setSectionMusicUploaded] = useState(false)
+  const [sectionMusicBuster, setSectionMusicBuster] = useState(0)
+  async function uploadSectionMusic(file: File, sectionId: string) {
+    setUploadingSectionMusic(true)
+    setSectionMusicUploaded(false)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('path', `books/${id}/sections/${sectionId}/music`)
+      const res = await fetch('/api/upload-audio', { method: 'POST', body: formData })
+      const d = await res.json()
+      if (d.url) { setEditMusicUrl(d.url); setSectionMusicUploaded(true); setSectionMusicBuster(b => b + 1) }
+      else alert('Erreur upload : ' + (d.error ?? 'inconnue'))
+    } catch (e: any) {
+      alert('Erreur upload : ' + e.message)
+    } finally {
+      setUploadingSectionMusic(false)
+    }
+  }
   const [freesoundModal, setFreesoundModal] = useState<{ sectionType: string; onSelect?: (url: string) => void } | null>(null)
   const [narrationPanel, setNarrationPanel] = useState<{ sectionId: string; content: string } | null>(null)
   const [sectionSaving, setSectionSaving] = useState<string | null>(null)
-  const [tab, setTab] = useState<'sections' | 'plan' | 'npcs' | 'fiche' | 'carte' | 'coherence' | 'objets' | 'intro' | 'fbi' | 'intro_order' | 'player_settings' | 'section_layout' | 'dialogue' | 'game_sim'>('sections')
+  const [tab, setTab] = useState<'sections' | 'plan' | 'npcs' | 'fiche' | 'carte' | 'coherence' | 'objets' | 'combat' | 'intro' | 'fbi' | 'intro_order' | 'player_settings' | 'section_layout' | 'dialogue' | 'game_sim' | 'combat_scene'>('sections')
   const [introGroupOpen, setIntroGroupOpen] = useState(false)
   const [introFrames, setIntroFrames] = useState<import('@/types').IntroFrame[]>(book?.intro_sequence ?? [])
   const [introAudioUrl, setIntroAudioUrl] = useState<string>(book?.intro_audio_url ?? '')
   const [introMusicPrompt, setIntroMusicPrompt] = useState(`dark cinematic intro, urban tension, ${book?.theme ?? ''}`)
+  const [introSubTab, setIntroSubTab] = useState<'sequence' | 'combat_scene'>('sequence')
   const [introGeneratingMusic, setIntroGeneratingMusic] = useState(false)
   const [introAudioBuster, setIntroAudioBuster] = useState(0)
   const [seqGenerating, setSeqGenerating] = useState(false)
@@ -185,15 +224,37 @@ export default function BookPage() {
   const [items, setItems] = useState<import('@/types').Item[]>([])
   const [itemsLoaded, setItemsLoaded] = useState(false)
   const [editingItem, setEditingItem] = useState<string | null>(null) // item id or 'new'
-  const [positioningItemId, setPositioningItemId] = useState<string | null>(null)
+  const [planMapEditor, setPlanMapEditor] = useState<{ imageUrl: string } | null>(null)
+  const [combatTypes, setCombatTypes] = useState<import('@/types').CombatType[]>([])
+  const [combatTypesLoaded, setCombatTypesLoaded] = useState(false)
+  const [weaponTypes, setWeaponTypes] = useState<string[]>(book?.weapon_types ?? [])
+  const [newWeaponType, setNewWeaponType] = useState('')
+  const [editingCombatType, setEditingCombatType] = useState<string | null>(null)
+  const [combatTypeForm, setCombatTypeForm] = useState<Partial<import('@/types').CombatType>>({})
+  const [editingCombatMove, setEditingCombatMove] = useState<string | null>(null)
+  const [combatMoveForm, setCombatMoveForm] = useState<Partial<import('@/types').CombatMove>>({})
+  const [generatingIconFor, setGeneratingIconFor] = useState<string | null>(null)
+  const [itemPositionModal, setItemPositionModal] = useState<string | null>(null)
   const [itemForm, setItemForm] = useState<Partial<import('@/types').Item>>({})
   const [itemSaving, setItemSaving] = useState(false)
+  const [freesoundQuery, setFreesoundQuery] = useState('paper map folding')
+  const [freesoundResults, setFreesoundResults] = useState<{ id: number; name: string; username: string; previews: Record<string, string> }[]>([])
+  const [freesoundSearching, setFreesoundSearching] = useState(false)
+  const [freesoundOpen, setFreesoundOpen] = useState(false)
+  const freesoundPreviewRef = useRef<HTMLAudioElement | null>(null)
+  const discTextareaRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map())
   const [planHighlight, setPlanHighlight] = useState<number | null>(null)
   const [currentTrack, setCurrentTrack] = useState<{ url: string; label: string } | null>(null)
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
+  const [editingChoiceLabel, setEditingChoiceLabel] = useState<string | null>(null) // choiceId
+  const [choiceLabelDraft, setChoiceLabelDraft] = useState('')
+  const [editingChoiceTarget, setEditingChoiceTarget] = useState<string | null>(null) // choiceId
   const [editingTransition, setEditingTransition] = useState<string | null>(null) // choiceId
   const [transitionDraft, setTransitionDraft] = useState('')
   const [generatingTransition, setGeneratingTransition] = useState<string | null>(null) // choiceId
+  const [translatingTransitionImg, setTranslatingTransitionImg] = useState<{ choiceId: string; dir: 'en2fr' | 'fr2en' } | null>(null)
+  const [editingTrialTransition, setEditingTrialTransition] = useState<'success' | 'failure' | null>(null)
+  const [trialTransitionDraft, setTrialTransitionDraft] = useState('')
   const [editingReturn, setEditingReturn] = useState<string | null>(null) // choiceId
   const [returnDraft, setReturnDraft] = useState('')
   const [generatingReturn, setGeneratingReturn] = useState<string | null>(null) // choiceId
@@ -207,31 +268,11 @@ export default function BookPage() {
   const [sectionModal, setSectionModal] = useState<string | null>(null)
   const [previousSectionId, setPreviousSectionId] = useState<string | null>(null)
   const [sectionDetailId, setSectionDetailId] = useState<string | null>(null)
-  const [sectionDetailTab, setSectionDetailTab] = useState<'resume' | 'compagnons' | 'conversation' | 'dialogues' | 'illustrations' | 'musique' | 'choix'>('resume')
-  const [dialogueTestNpcId, setDialogueTestNpcId] = useState<string>('')
-  const [dialogueTestQuestion, setDialogueTestQuestion] = useState<string>('')
-  const [dialogueTestResult, setDialogueTestResult] = useState<{ npc_reply: string; test_result: string; suggested_choice_index: number | null } | null>(null)
-  const [dialogueTestLoading, setDialogueTestLoading] = useState(false)
-  // ── Conversation tab state ─────────────────────────────────────────────────
-  const [convEditMode, setConvEditMode] = useState(false)
-  const [convDraftQuestions, setConvDraftQuestions] = useState<string[]>([])
-  const [convSavingQuestions, setConvSavingQuestions] = useState(false)
-  const [convGeneratingFor, setConvGeneratingFor] = useState<string | null>(null)
-  const [convResponseDrafts, setConvResponseDrafts] = useState<Record<string, string>>({})
-  const [convSavedKey, setConvSavedKey] = useState<string | null>(null)
-  const [convNpcVoiceForm, setConvNpcVoiceForm] = useState({ voice_id: '', voice_settings: { stability: 0.5, style: 0, speed: 1, similarity_boost: 0.75 }, voice_prompt: '' })
-  const [convNpcVoiceSaving, setConvNpcVoiceSaving] = useState(false)
-  const [convNpcVoiceSaved, setConvNpcVoiceSaved] = useState(false)
-  const [convVoiceTestText, setConvVoiceTestText] = useState('')
-  const [convVoicePlaying, setConvVoicePlaying] = useState(false)
-  const [convGeneratingAll, setConvGeneratingAll] = useState(false)
-  const [convGenerateProgress, setConvGenerateProgress] = useState('')
-  const [convGenAudioFor, setConvGenAudioFor] = useState<string | null>(null)
-  const [convPlayerAudioGen, setConvPlayerAudioGen] = useState<string | null>(null)
-  const [convVoices, setConvVoices] = useState<{ voice_id: string; name: string; labels: Record<string, string>; preview_url: string | null }[]>([])
-  const [convVoicesLoaded, setConvVoicesLoaded] = useState(false)
-  const convVoiceAudioRef = useRef<HTMLAudioElement | null>(null)
-  const convCursorPosRef = useRef<Record<string, { start: number; end: number }>>({})
+  const [sectionDetailTab, setSectionDetailTab] = useState<'resume' | 'compagnons' | 'illustrations' | 'musique' | 'choix' | 'discussion'>('resume')
+  const [discussionGenerating, setDiscussionGenerating] = useState(false)
+  const [discussionSaving, setDiscussionSaving] = useState(false)
+  const [discussionAudioGenerating, setDiscussionAudioGenerating] = useState<string | null>(null)
+  const [discCollapsed, setDiscCollapsed] = useState<Set<string>>(new Set())
 
   // ── Mode Correction ────────────────────────────────────────────────────────
   const [correctionMode, setCorrectionMode] = useState(false)
@@ -244,6 +285,10 @@ export default function BookPage() {
   const [writeMessage, setWriteMessage] = useState<string | null>(null)
   const [imageProvider, setImageProvider] = useState<'replicate' | 'leonardo'>('replicate')
   const [generatingStructure, setGeneratingStructure] = useState(false)
+  const [generatingStep, setGeneratingStep] = useState(0)
+  const [twoPassMode, setTwoPassMode] = useState(false)
+  const [skeletonReport, setSkeletonReport] = useState<{ bfs: { ok: boolean; unreachable: string[] }; narrative: { paths: { id: string; verdict: string; issues: string[] }[]; global_verdict: string; report: string }; sections_count: number; paths_count: number } | null>(null)
+  const [generationLog, setGenerationLog] = useState<Array<{ type: string; label?: string; detail?: string; batch?: number; from?: number; to?: number; log?: string[] }>>([])
   const [structureError, setStructureError] = useState('')
   const [structureResult, setStructureResult] = useState<{ sections_count: number; npcs_count: number; choices_count: number; validation?: { fixed: number; remaining_critical: number; log: string[] } } | null>(null)
   const [coherenceIssues, setCoherenceIssues] = useState<StructureIssue[] | null>(null)
@@ -251,7 +296,11 @@ export default function BookPage() {
   const [combatFixLoading, setCombatFixLoading] = useState(false)
   const [combatFixResult, setCombatFixResult] = useState<{ assigned: number; total: number; errors: string[] } | null>(null)
   const [loopFixLoading, setLoopFixLoading] = useState(false)
-  const [loopFixResult, setLoopFixResult] = useState<{ fixed: number; total: number; errors: string[] } | null>(null)
+  const [loopFixResult, setLoopFixResult] = useState<{ ok?: boolean; fixed?: number; total?: number; message?: string; errors?: string[] } | null>(null)
+  const [bulkDiscussionRunning, setBulkDiscussionRunning] = useState(false)
+  const [bulkDiscussionProgress, setBulkDiscussionProgress] = useState<{ done: number; total: number; failed: number } | null>(null)
+  const [assigningCompanions, setAssigningCompanions] = useState(false)
+  const [companionsAssigned, setCompanionsAssigned] = useState<number | null>(null)
   const [coherenceFixing, setCoherenceFixing] = useState<Set<string>>(new Set())
   const [coherenceInputs, setCoherenceInputs] = useState<Record<string, Record<string, string>>>({})
   const [coherenceFixed, setCoherenceFixed] = useState<Set<string>>(new Set())
@@ -263,16 +312,21 @@ export default function BookPage() {
 
   useEffect(() => {
     async function load() {
-      const [bookRes, npcRes, locRes] = await Promise.all([
+      const [bookRes, npcRes, locRes, itemsRes] = await Promise.all([
         fetch(`/api/books/${id}`),
         fetch(`/api/books/${id}/npcs`),
         fetch(`/api/books/${id}/locations`),
+        fetch(`/api/books/${id}/items`),
       ])
       if (!bookRes.ok) { setLoading(false); return }
       const { book: b, sections: s, choices: c } = await bookRes.json()
       const npcData = await npcRes.json()
       const locData = await locRes.json()
+      const itemsData = await itemsRes.json()
       setBook(b); setSections(s ?? []); setChoices(c ?? [])
+      setPsDraft(b.path_synopses ?? null)
+      setItems(itemsData.items ?? []); setItemsLoaded(true)
+      setWeaponTypes(b.weapon_types ?? [])
       setIntroFrames(b.intro_sequence ?? [])
       setIntroAudioUrl(b.intro_audio_url ?? '')
       setIntroText(b.intro_text ?? '')
@@ -347,9 +401,11 @@ export default function BookPage() {
     setEditContent(sec.content)
     setEditSummary(sec.summary ?? '')
     setEditHint(sec.hint_text ?? '')
-    setEditMusicUrl(sec.music_url ?? '')
-    const imgs = sec.images ?? []
-    setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book?.illustration_style ?? 'realistic', includeProtagonist: false })))
+    setEditMusicUrl(sec.music_url ?? ''); setEditMusicStartTime(sec.music_start_time ?? 0)
+    const imgs = (sec.images ?? []).filter((img: any) => img.url || img.description || img.prompt_fr || img.thought)
+    const nSlots = Math.max(imgs.length, 1)
+    setEditImages(Array.from({ length: nSlots }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book?.illustration_style ?? 'realistic', includeProtagonist: (imgs[i] as any)?.includeProtagonist ?? false, aspect_ratio: (imgs[i] as any)?.aspect_ratio ?? (imgs[i] as any)?.aspect_ratio_used, model: (imgs[i] as any)?.model ?? (imgs[i] as any)?.model_used, chain_from_prev: (imgs[i] as any)?.chain_from_prev ?? false, gen4_ref_npc_ids: (imgs[i] as any)?.gen4_ref_npc_ids ?? [], kontext_ref_npc_id: (imgs[i] as any)?.kontext_ref_npc_id ?? undefined, prompt_used: (imgs[i] as any)?.prompt_used, model_used: (imgs[i] as any)?.model_used, aspect_ratio_used: (imgs[i] as any)?.aspect_ratio_used, style_used: (imgs[i] as any)?.style_used, bubble_positions: (imgs[i] as any)?.bubble_positions, text_position: (imgs[i] as any)?.text_position })))
+    setEditPhraseDistribution(sec.phrase_distribution ?? [])
     setEditingSection(sectionDetailId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionDetailId])
@@ -436,54 +492,6 @@ export default function BookPage() {
     return () => observer.disconnect()
   }, [tab, sections])
 
-  // ── Conversation tab side-effects ──────────────────────────────────────────
-  useEffect(() => {
-    setConvEditMode(false)
-    setConvDraftQuestions([])
-    setConvResponseDrafts({})
-    setConvSavedKey(null)
-    setConvVoiceTestText('')
-    setDialogueTestResult(null)
-    setDialogueTestNpcId('')
-    setConvGeneratingAll(false)
-    setConvGenerateProgress('')
-    setConvGenAudioFor(null)
-  }, [sectionDetailId])
-
-  useEffect(() => {
-    const npc = dialogueTestNpcId ? npcs.find(n => n.id === dialogueTestNpcId) : (npcs.find(n => n.id === npcs[0]?.id) ?? null)
-    if (npc) setConvNpcVoiceForm({ voice_id: npc.voice_id ?? '', voice_settings: npc.voice_settings ?? { stability: 0.5, style: 0, speed: 1, similarity_boost: 0.75 }, voice_prompt: npc.voice_prompt ?? '' })
-  }, [dialogueTestNpcId])
-
-  // Recharge les drafts depuis la BDD à chaque changement de PNJ sélectionné
-  useEffect(() => {
-    if (!dialogueTestNpcId || sectionDetailTab !== 'conversation') { setConvResponseDrafts({}); return }
-    const sec = sections.find(s => s.id === sectionDetailId)
-    const saved: Record<string, string> = (sec as any)?.player_responses?.[dialogueTestNpcId] ?? {}
-    const qs: string[] = sec?.player_questions ?? []
-    const drafts: Record<string, string> = {}
-    for (const q of qs) { if (saved[q]) drafts[q] = saved[q] }
-    setConvResponseDrafts(drafts)
-  }, [dialogueTestNpcId, sectionDetailId, sectionDetailTab])
-
-  useEffect(() => {
-    if (convVoicesLoaded) return
-    fetch('/api/elevenlabs/voices').then(r => r.json()).then(d => { if (d.voices) setConvVoices(d.voices) }).catch(() => {}).finally(() => setConvVoicesLoaded(true))
-  }, [convVoicesLoaded])
-
-  // ── Auto-sélection premier PNJ qui parle ───────────────────────────────────
-  useEffect(() => {
-    if (sectionDetailTab !== 'conversation' || !sectionDetailId) return
-    const sec = sections.find(s => s.id === sectionDetailId)
-    if (!sec || (sec as any).conv_first_npc_id) return
-    const alliedInSection = npcs.filter(n => (sec.companion_npc_ids ?? []).includes(n.id) && n.type === 'allié')
-    if (alliedInSection.length === 0) return
-    const picked = alliedInSection[Math.floor(Math.random() * alliedInSection.length)]
-    fetch(`/api/sections/${sec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conv_first_npc_id: picked.id }) }).catch(() => {})
-    setSections(prev => prev.map(s => s.id === sec.id ? { ...s, conv_first_npc_id: picked.id } as any : s))
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionDetailTab, sectionDetailId])
-
   // ── Actions livre ──────────────────────────────────────────────────────────
 
   async function deleteBook() {
@@ -511,34 +519,168 @@ export default function BookPage() {
 
   // ── Génération de la structure ─────────────────────────────────────────────
 
-  async function generateStructure() {
+  async function runGenerateStream(phase?: 'skeleton' | 'enrich') {
     setGeneratingStructure(true)
-    setStructureError('')
+    setGeneratingStep(0)
+    if (!phase) { setGenerationLog([]); setStructureError(''); setStructureResult(null); setSkeletonReport(null) }
+    if (phase === 'enrich') { setGenerationLog([]); setStructureError(''); setSkeletonReport(null) }
     try {
-      const res = await fetch(`/api/books/${id}/generate-sections`, { method: 'POST' })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setStructureResult(data)
-      // Recharger book + sections + PNJ + lieux
-      const [bookRes, npcRes, locRes] = await Promise.all([
-        fetch(`/api/books/${id}`),
-        fetch(`/api/books/${id}/npcs`),
-        fetch(`/api/books/${id}/locations`),
-      ])
-      if (bookRes.ok) {
-        const { book: b, sections: s, choices: c } = await bookRes.json()
-        setBook(b); setSections(s ?? []); setChoices(c ?? [])
-      }
-      if (npcRes.ok) { const d = await npcRes.json(); setNpcs(Array.isArray(d) ? d : []) }
-      if (locRes.ok) { const d = await locRes.json(); setLocations(Array.isArray(d) ? d : []) }
-      if (agentAfterGeneration) {
-        setTab('coherence')
-        runAgentRepair()
+      const res = await fetch(`/api/books/${id}/generate-sections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ two_pass: phase === 'enrich' ? true : twoPassMode, ...(phase ? { phase } : {}) }),
+      })
+      if (!res.body) throw new Error('Pas de stream')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.type === 'error') {
+              setStructureError(evt.error)
+              return
+            }
+            if (evt.type === 'step') {
+              setGeneratingStep(typeof evt.step === 'number' ? evt.step : 2)
+              setGenerationLog(prev => [...prev, { type: 'step', label: evt.label }])
+            }
+            if (evt.type === 'step_done') {
+              setGenerationLog(prev => {
+                const copy = [...prev]
+                const last = copy.findLastIndex(e => e.type === 'step')
+                if (last >= 0) copy[last] = { ...copy[last], type: 'step_done', detail: evt.detail, log: evt.log }
+                return copy
+              })
+            }
+            if (evt.type === 'batch') {
+              setGeneratingStep(2)
+              setGenerationLog(prev => [...prev, { type: 'batch', label: evt.label, batch: evt.batch, from: evt.from, to: evt.to }])
+            }
+            if (evt.type === 'batch_done') {
+              setGenerationLog(prev => {
+                const copy = [...prev]
+                const last = copy.findLastIndex(e => e.type === 'batch' && e.batch === evt.batch)
+                if (last >= 0) copy[last] = { ...copy[last], type: 'batch_done' }
+                return copy
+              })
+            }
+            if (evt.type === 'warn') {
+              setGenerationLog(prev => [...prev, { type: 'warn', label: evt.message }])
+            }
+            if (evt.type === 'skeleton_report') {
+              setSkeletonReport({ bfs: evt.bfs, narrative: evt.narrative, sections_count: evt.sections_count, paths_count: evt.paths_count })
+            }
+            if (evt.type === 'done') {
+              if (!evt.result?.skeleton_cached) setStructureResult(evt.result)
+              // Recharger book + sections + PNJ + lieux + items
+              const [bookRes, npcRes, locRes, itemsRes] = await Promise.all([
+                fetch(`/api/books/${id}`),
+                fetch(`/api/books/${id}/npcs`),
+                fetch(`/api/books/${id}/locations`),
+                fetch(`/api/books/${id}/items`),
+              ])
+              if (bookRes.ok) {
+                const { book: b, sections: s, choices: c } = await bookRes.json()
+                setBook(b); setSections(s ?? []); setChoices(c ?? [])
+              }
+              if (npcRes.ok) { const d = await npcRes.json(); setNpcs(Array.isArray(d) ? d : []) }
+              if (locRes.ok) { const d = await locRes.json(); setLocations(Array.isArray(d) ? d : []) }
+              if (itemsRes.ok) { const d = await itemsRes.json(); setItems(d.items ?? []); setItemsLoaded(true) }
+              // Agent correcteur : seulement après génération complète (pas après passe squelette seule)
+              if (agentAfterGeneration && !evt.result?.skeleton_cached) {
+                setTab('coherence')
+                runAgentRepair()
+              }
+            }
+          } catch { /* ignore parse errors */ }
+        }
       }
     } catch (err: any) {
       setStructureError(err.message)
     } finally {
       setGeneratingStructure(false)
+    }
+  }
+
+  async function generateStructure() { return runGenerateStream() }
+  async function enrichFromSkeleton() { return runGenerateStream('enrich') }
+
+  const GENERATION_STEPS = ['Structure', 'PNJ & Lieux', 'Objets', 'Sections', 'Compagnons', 'Réparation', 'Transitions']
+
+  // ── Assignation des compagnons ─────────────────────────────────────────────
+
+  async function assignCompanions() {
+    setAssigningCompanions(true)
+    setCompanionsAssigned(null)
+    try {
+      const res = await fetch(`/api/books/${id}/assign-companions`, { method: 'POST' })
+      if (!res.body) throw new Error('Pas de stream')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.type === 'done') setCompanionsAssigned(evt.assigned)
+          } catch {}
+        }
+      }
+      // Recharger les sections pour avoir les companion_npc_ids à jour
+      const r = await fetch(`/api/books/${id}`)
+      if (r.ok) { const { sections: s } = await r.json(); if (s) setSections(s) }
+    } catch (err: any) {
+      alert(`Erreur assignation compagnons : ${err.message}`)
+    } finally {
+      setAssigningCompanions(false)
+    }
+  }
+
+  // ── Génération des discussions en masse ───────────────────────────────────
+
+  async function generateDiscussions() {
+    setBulkDiscussionRunning(true)
+    setBulkDiscussionProgress(null)
+    try {
+      const res = await fetch(`/api/books/${id}/generate-discussions`, { method: 'POST' })
+      if (!res.body) throw new Error('Pas de stream')
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop() ?? ''
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const evt = JSON.parse(line.slice(6))
+            if (evt.type === 'progress' || evt.type === 'done') {
+              setBulkDiscussionProgress({ done: evt.done, total: evt.total, failed: evt.failed ?? 0 })
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch (err: any) {
+      console.error('generate-discussions error:', err.message)
+    } finally {
+      setBulkDiscussionRunning(false)
     }
   }
 
@@ -556,6 +698,35 @@ export default function BookPage() {
     } finally {
       setCoherenceLoading(false)
     }
+  }
+
+  // ── Analyse des chemins narratifs (réutilisable) ───────────────────────────
+
+  async function runNarrativePaths() {
+    setNarrativeLoading(true); setStoryError(null); setNarrativeApplied([])
+    try {
+      const res = await fetch(`/api/books/${id}/narrative-paths`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'analyze' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setNarrativePaths(data.paths ?? [])
+      setNarrativeStats(data.stats ?? null)
+      setNarrativeAnalysis(data.analysis ?? '')
+      setNarrativeIssues(data.issues ?? [])
+      setNarrativePathSums(data.path_summaries ?? [])
+    } catch (err: any) { setStoryError(err.message) }
+    finally { setNarrativeLoading(false) }
+  }
+
+  // ── Analyse complète : structure → chemins narratifs ──────────────────────
+
+  async function analyzeAll() {
+    await analyzeCoherence()
+    setStoryPanel(true)
+    setStoryTab('paths')
+    await runNarrativePaths()
   }
 
   async function fixSelfLoops() {
@@ -744,12 +915,18 @@ export default function BookPage() {
         alert(`Erreur : ${error}`)
         return
       }
-      // Reload the book
+      // Reload book + vider PNJ, lieux, items, résultats
       const res2 = await fetch(`/api/books/${id}`)
       if (res2.ok) {
         const { book: b, sections: s, choices: c } = await res2.json()
         setBook(b); setSections(s ?? []); setChoices(c ?? [])
       }
+      setNpcs([])
+      setLocations([])
+      setItems([])
+      setStructureResult(null)
+      setStructureError('')
+      setGenerationLog([])
       setWriteMessage(null)
     } catch (err: any) {
       alert(`Erreur : ${err.message}`)
@@ -827,12 +1004,25 @@ export default function BookPage() {
     setSectionSaving(sectionId)
     const cleanImages = editImages
       .filter(img => img.url || img.description.trim() || img.thought?.trim() || img.prompt_fr?.trim())
-      .map(img => ({ url: img.url, description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined }))
+      .map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, prompt_used: (img as any).prompt_used || undefined, model_used: (img as any).model_used || undefined, aspect_ratio_used: (img as any).aspect_ratio_used || undefined, style_used: (img as any).style_used || undefined, model: img.model || undefined, aspect_ratio: img.aspect_ratio || undefined, chain_from_prev: img.chain_from_prev || undefined, gen4_ref_npc_ids: img.gen4_ref_npc_ids?.length ? img.gen4_ref_npc_ids : undefined, kontext_ref_npc_id: img.kontext_ref_npc_id || undefined, includeProtagonist: img.includeProtagonist || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
     const cleanMusicUrl = editMusicUrl.trim() || undefined
-    const body: Record<string, any> = { content: editContent, summary: editSummary, hint_text: editHint.trim() || null, images: cleanImages, music_url: editMusicUrl.trim() || null }
+    const cleanPhraseDistribution = editPhraseDistribution.length > 0 && editPhraseDistribution.some(arr => arr.length > 0) ? editPhraseDistribution : null
+    const body: Record<string, any> = { content: editContent, summary: editSummary, hint_text: editHint.trim() || null, images: cleanImages, music_url: editMusicUrl.trim() || null, music_start_time: editMusicStartTime || null, phrase_distribution: cleanPhraseDistribution }
     await fetch(`/api/sections/${sectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-    setSections(ss => ss.map(s => s.id === sectionId ? { ...s, content: editContent, summary: editSummary, hint_text: editHint.trim() || undefined, music_url: cleanMusicUrl, images: cleanImages } : s))
+    setSections(ss => ss.map(s => s.id === sectionId ? { ...s, content: editContent, summary: editSummary, hint_text: editHint.trim() || undefined, music_url: cleanMusicUrl, music_start_time: editMusicStartTime || undefined, images: cleanImages, phrase_distribution: cleanPhraseDistribution ?? undefined } : s))
     setEditingSection(null); setSectionSaving(null)
+  }
+
+  async function saveItemPosition(itemId: string, sectionId: string, x: number, y: number, scale: number) {
+    const sec = sections.find(s => s.id === sectionId)
+    if (!sec) return
+    const existing: any[] = (sec as any).items_on_scene ?? []
+    const updated = existing.some((si: any) => si.item_id === itemId)
+      ? existing.map((si: any) => si.item_id === itemId ? { ...si, x, y, scale } : si)
+      : [...existing, { item_id: itemId, x, y, scale }]
+    const res = await fetch(`/api/sections/${sectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items_on_scene: updated }) })
+    if (!res.ok) { console.error('[saveItemPosition] PATCH failed', await res.text()); return }
+    setSections(prev => prev.map(s => s.id === sectionId ? { ...s, items_on_scene: updated } as any : s))
   }
 
   async function updateSectionStatus(sectionId: string, status: SectionStatus) {
@@ -874,9 +1064,10 @@ export default function BookPage() {
     const s = sections.find(sec => sec.id === sectionId)
     if (!s || !book) return
     setSectionModal(sectionId); setEditingSection(sectionId)
-    setEditContent(s.content); setEditSummary(s.summary ?? ''); setEditHint(s.hint_text ?? ''); setEditMusicUrl(s.music_url ?? '')
+    setEditContent(s.content); setEditSummary(s.summary ?? ''); setEditHint(s.hint_text ?? ''); setEditMusicUrl(s.music_url ?? ''); setEditMusicStartTime(s.music_start_time ?? 0)
     const imgs = s.images ?? []
-    setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false })))
+    setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false, aspect_ratio: (imgs[i] as any)?.aspect_ratio_used, model: (imgs[i] as any)?.model_used, prompt_used: (imgs[i] as any)?.prompt_used, model_used: (imgs[i] as any)?.model_used, aspect_ratio_used: (imgs[i] as any)?.aspect_ratio_used, style_used: (imgs[i] as any)?.style_used, bubble_positions: (imgs[i] as any)?.bubble_positions, text_position: (imgs[i] as any)?.text_position })))
+    setEditPhraseDistribution(s.phrase_distribution ?? [])
   }
 
   function startCorrectionPath(pathIdx: number) {
@@ -970,6 +1161,7 @@ export default function BookPage() {
             { key: 'fiche' as const,       icon: '🃏', title: 'Fiche personnage' },
             { key: 'npcs' as const,        icon: '👥', title: 'Personnages' },
             { key: 'objets' as const,      icon: '🎒', title: 'Objets' },
+            { key: 'combat' as const,      icon: '⚔️', title: 'Combat' },
           ]).map(item => (
             <button key={item.key} onClick={() => { setTab(item.key); setSectionDetailId(null) }} title={item.title}
               style={{ width: '36px', height: '36px', borderRadius: '8px', background: tab === item.key ? 'var(--surface-2)' : 'none', border: 'none', color: tab === item.key ? 'var(--foreground)' : 'var(--muted)', cursor: 'pointer', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1029,6 +1221,7 @@ export default function BookPage() {
             {([
               { key: 'npcs' as const,    icon: '👥', label: 'Personnages', sub: `${npcs.length} PNJ` },
               { key: 'objets' as const,  icon: '🎒', label: 'Objets', sub: items.length ? `${items.length} objets` : '' },
+              { key: 'combat' as const,  icon: '⚔️', label: 'Combat', sub: combatTypes.length ? `${combatTypes.length} types` : '' },
               ...(book.map_style ? [{ key: 'carte' as const, icon: '🗺', label: 'Carte', sub: `${locations.length} lieux` }] : []),
             ]).map(item => (
               <button key={item.key} onClick={() => setTab(item.key)} style={{
@@ -1061,6 +1254,7 @@ export default function BookPage() {
             {introGroupOpen && ([
               { key: 'intro_order' as const,      icon: '🗂', label: 'Ordre & timing', sub: '' },
               { key: 'intro' as const,            icon: '🎬', label: 'Animatic', sub: introFrames.length ? `${introFrames.length} frames` : '' },
+              { key: 'combat_scene' as const,     icon: '⚔', label: 'Écran combat', sub: '' },
               { key: 'fbi' as const,              icon: '🖥', label: 'Intro FBI', sub: '' },
               { key: 'fiche' as const,            icon: '🃏', label: 'Fiche personnage', sub: book.protagonist_npc_id ? '✓' : '' },
               { key: 'player_settings' as const,  icon: '⚙', label: 'Préférences joueur', sub: '' },
@@ -1110,18 +1304,24 @@ export default function BookPage() {
         const sChoices = choices.filter(c => c.section_id === sectionDetailId)
         const hasTrial = detailSec.trial && (detailSec.trial.success_section_id || detailSec.trial.failure_section_id)
         const secImages = (detailSec.images ?? []).filter(img => img.url)
+        const isCombatSection = detailSec.trial?.type === 'combat'
 
         const companionCount = (detailSec.companion_npc_ids ?? []).length
         const autoDetectedCount = npcs.filter(n => detailSec.content && detailSec.content.includes(n.name)).length
 
         const subTabs: { key: typeof sectionDetailTab; icon: string; label: string; sub?: string }[] = [
           { key: 'resume',        icon: '📝', label: 'Résumé & Contenu', sub: detailSec.content ? `${Math.round(detailSec.content.length / 5)} mots` : undefined },
-          { key: 'compagnons',    icon: '👥', label: 'Compagnons',       sub: companionCount ? `${companionCount} PNJ` : (autoDetectedCount ? `${autoDetectedCount} détecté${autoDetectedCount > 1 ? 's' : ''}` : undefined) },
-          { key: 'conversation',  icon: '💬', label: 'Conversation',     sub: companionCount ? `${companionCount} PNJ` : undefined },
-          { key: 'dialogues',     icon: '🗨', label: 'Dialogues',        sub: detailSec.dialogues?.length ? `${detailSec.dialogues.length} répliques` : undefined },
-          { key: 'illustrations', icon: '🖼', label: 'Illustrations',    sub: secImages.length ? `${secImages.length} image${secImages.length > 1 ? 's' : ''}` : undefined },
+          ...(!isCombatSection ? [
+            { key: 'compagnons' as const,    icon: '👥', label: 'Compagnons',       sub: companionCount ? `${companionCount} PNJ` : (autoDetectedCount ? `${autoDetectedCount} détecté${autoDetectedCount > 1 ? 's' : ''}` : undefined) },
+          ] : []),
+          ...(!isCombatSection ? [
+            { key: 'illustrations' as const, icon: '🖼', label: 'Illustrations', sub: secImages.length ? `${secImages.length} image${secImages.length > 1 ? 's' : ''}` : undefined },
+          ] : []),
           { key: 'musique',       icon: '🎵', label: 'Musique',          sub: detailSec.music_url ? '♪ piste' : undefined },
-          { key: 'choix',         icon: '🔀', label: 'Choix & Épreuve',  sub: [sChoices.length ? `${sChoices.length} choix` : '', hasTrial ? 'épreuve' : ''].filter(Boolean).join(' · ') || undefined },
+          { key: 'choix' as const, icon: '🔀', label: 'Choix & Épreuve', sub: [sChoices.length ? `${sChoices.length} choix` : '', hasTrial ? 'épreuve' : ''].filter(Boolean).join(' · ') || undefined },
+          ...(!isCombatSection && (sChoices.length > 0 || hasTrial) ? [
+            { key: 'discussion' as const, icon: '💬', label: 'Discussion', sub: detailSec.discussion_scene ? '✓ scène' : undefined },
+          ] : []),
         ]
 
         return (
@@ -1191,7 +1391,14 @@ export default function BookPage() {
           ) : (
             <button onClick={() => { setTitleInput(book.title); setEditingTitle(true) }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', padding: 0 }}>
-              <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--foreground)' }}>{book.title}</span>
+              <span style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--foreground)' }}>
+                {book.title.includes(':') ? (
+                  <>
+                    <span style={{ color: '#c94c4c' }}>{book.title.split(':')[0]}</span>
+                    <span>{':' + book.title.split(':').slice(1).join(':')}</span>
+                  </>
+                ) : book.title}
+              </span>
               <span style={{ fontSize: '0.65rem', color: 'var(--muted)', opacity: 0.5 }}>✏</span>
             </button>
           )}
@@ -1281,6 +1488,27 @@ export default function BookPage() {
 
             {/* ── Sub-tab: Résumé & Contenu (édition directe) ── */}
             {sectionDetailTab === 'resume' && (<>
+              {/* Localisation */}
+              {locations.length > 0 && (
+                <div style={{ background: 'var(--surface)', border: '1px solid #4a8fa833', borderLeft: '3px solid #4a8fa8', borderRadius: '8px', padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#4a8fa8', whiteSpace: 'nowrap' }}>📍 Localisation</span>
+                  <select
+                    value={detailSec.location_id ?? ''}
+                    onChange={async e => {
+                      const location_id = e.target.value || null
+                      await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location_id }) })
+                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, location_id: location_id ?? undefined } : s))
+                    }}
+                    style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.35rem 0.6rem', color: 'var(--foreground)', fontSize: '0.88rem', outline: 'none' }}
+                  >
+                    <option value="">— Aucune localisation —</option>
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>{loc.icon} {loc.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Résumé */}
               <div style={{ background: 'var(--surface)', border: `1px solid ${t.color}33`, borderLeft: `3px solid ${t.color}`, borderRadius: '8px', padding: '1rem 1.25rem' }}>
                 <div style={labelStyle}>Résumé</div>
@@ -1297,8 +1525,11 @@ export default function BookPage() {
               <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem 1.25rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                   <div style={labelStyle}>Texte narratif</div>
-                  <button onClick={() => setNarrationPanel({ sectionId: detailSec.id, content: editContent })}
-                    style={{ fontSize: '0.65rem', padding: '0.2rem 0.55rem', borderRadius: '5px', background: '#b48edd22', border: '1px solid #b48edd44', color: '#b48edd', cursor: 'pointer' }}>✨ Narration IA</button>
+                  <div style={{ display: 'flex', gap: '0.4rem' }}>
+                    <CorrectButton text={editContent} onCorrected={setEditContent} />
+                    <button onClick={() => setNarrationPanel({ sectionId: detailSec.id, content: editContent })}
+                      style={{ fontSize: '0.65rem', padding: '0.2rem 0.55rem', borderRadius: '5px', background: '#b48edd22', border: '1px solid #b48edd44', color: '#b48edd', cursor: 'pointer' }}>✨ Narration IA</button>
+                  </div>
                 </div>
                 <textarea
                   value={editContent}
@@ -1322,7 +1553,7 @@ export default function BookPage() {
                 />
               </div>
 
-              {/* Temps de lecture / décision */}
+              {/* Temps de lecture / décision / butin argent */}
               <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: 'var(--muted)', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.3rem 0.7rem' }}>
                   📖 Lecture
@@ -1352,6 +1583,20 @@ export default function BookPage() {
                     style={{ width: '45px', background: 'transparent', border: 'none', outline: 'none', color: '#c9a84c', fontSize: '0.8rem', textAlign: 'right' }}
                   /> s
                 </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', color: '#52c484', background: '#52c48411', border: '1px solid #52c48433', borderRadius: '6px', padding: '0.3rem 0.7rem' }}>
+                  💵 Butin
+                  <input type="number" min={0} max={9999} defaultValue={(detailSec as any).money_loot ?? ''}
+                    placeholder="—"
+                    onBlur={async e => {
+                      const v = e.target.value === '' ? null : parseInt(e.target.value)
+                      if (v === (detailSec as any).money_loot) return
+                      await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ money_loot: v }) })
+                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, money_loot: v } as any : s))
+                    }}
+                    onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                    style={{ width: '52px', background: 'transparent', border: 'none', outline: 'none', color: '#52c484', fontSize: '0.8rem', textAlign: 'right' }}
+                  /> $
+                </label>
               </div>
 
               {/* Bouton Sauvegarder */}
@@ -1366,654 +1611,11 @@ export default function BookPage() {
               </div>
             </>)}
 
-            {/* ── Sub-tab: Conversation (test dialogue) ── */}
-            {sectionDetailTab === 'conversation' && (() => {
-              const contextualQuestions: string[] = detailSec.player_questions ?? []
-              const QUESTIONS = contextualQuestions.length > 0 ? contextualQuestions : ["On fait quoi ?", "T'es avec moi ?", "C'est quoi le plan ?"]
-              const companionNpcs = npcs.filter(n => detailCompanionIds.includes(n.id))
-              const alliedNpcs = companionNpcs.filter(n => n.type === 'allié')
-              const testNpc = companionNpcs.find(n => n.id === dialogueTestNpcId) ?? companionNpcs[0]
-              const tension = (detailSec as any).tension_level ?? 5
-              const savedResponses: Record<string, Record<string, string>> = (detailSec as any).player_responses ?? {}
-              const firstNpcId: string | null = (detailSec as any).conv_first_npc_id ?? null
-
-              const saveFirstNpc = async (npcId: string) => {
-                await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conv_first_npc_id: npcId }) })
-                setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, conv_first_npc_id: npcId } as any : s))
-              }
-
-              const saveQuestions = async (qs: string[]) => {
-                setConvSavingQuestions(true)
-                await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_questions: qs }) })
-                setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, player_questions: qs } : s))
-                setConvEditMode(false)
-                setConvSavingQuestions(false)
-              }
-
-              const saveAllResponses = async (newResponses: Record<string, Record<string, string>>) => {
-                await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_responses: newResponses }) })
-                setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, player_responses: newResponses } as any : s))
-              }
-
-              const generateQuestions = async () => {
-                setDialogueTestLoading(true)
-                try {
-                  const res = await fetch('/api/dialogue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'generate_questions', section_context: detailSec.summary ?? detailSec.content?.slice(0, 400) ?? '', tension_level: tension, book_theme: book?.theme ?? '', age_range: book?.age_range ?? '13-17', address_form: book?.address_form ?? 'tu' }) })
-                  const data = await res.json()
-                  if (data.questions?.length) { await saveQuestions(data.questions); setConvDraftQuestions(data.questions) }
-                } finally { setDialogueTestLoading(false) }
-              }
-
-              const generateResponse = async (question: string) => {
-                if (!testNpc) return
-                setConvGeneratingFor(question)
-                try {
-                  const res = await fetch('/api/dialogue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'question', npc: { id: testNpc.id, name: testNpc.name, description: testNpc.description, speech_style: testNpc.speech_style, type: testNpc.type, intelligence: testNpc.intelligence }, section_context: detailSec.summary ?? detailSec.content?.slice(0, 300) ?? '', tension_level: tension, player_question: question, choices: sChoices.map(c => ({ label: c.label, section_number: 0 })), book_theme: book?.theme ?? '', age_range: book?.age_range ?? '13-17' }) })
-                  const data = await res.json()
-                  if (data.npc_reply) setConvResponseDrafts(prev => ({ ...prev, [question]: data.npc_reply }))
-                } finally { setConvGeneratingFor(null) }
-              }
-
-              const saveResponse = async (question: string, response: string) => {
-                if (!testNpc) return
-                const npcResponses = { ...(savedResponses[testNpc.id] ?? {}), [question]: response }
-                const newResponses = { ...savedResponses, [testNpc.id]: npcResponses }
-                await saveAllResponses(newResponses)
-                setConvSavedKey(question)
-                setTimeout(() => setConvSavedKey(null), 2000)
-              }
-
-              const generateAudio = async (npcObj: import('@/types').Npc, question: string, text: string) => {
-                if (!npcObj.voice_id) return
-                const key = `${npcObj.id}__${question}`
-                setConvGenAudioFor(key)
-                try {
-                  const qi = QUESTIONS.indexOf(question)
-                  const savePath = `books/${book?.id}/sections/${detailSec.id}/conv/${npcObj.id}/${qi >= 0 ? qi : question.slice(0, 20).replace(/[^a-z0-9]/gi, '_')}`
-                  const cleanText = text.replace(/\[[^\]]+\]/g, '').replace(/\s+/g, ' ').trim()
-                  const res = await fetch('/api/elevenlabs/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_id: npcObj.voice_id, text: cleanText, voice_settings: npcObj.voice_settings, save_path: savePath, with_timestamps: true }) })
-                  const data = await res.json()
-                  if (data.url) {
-                    // Sauvegarder le texte (avec tags) + l'URL audio + alignment ensemble
-                    const npcResponses: Record<string, any> = { ...(savedResponses[npcObj.id] ?? {}), [question]: text, [`${question}__audio`]: data.url }
-                    if (data.alignment) npcResponses[`${question}__alignment`] = data.alignment
-                    const newResponses = { ...savedResponses, [npcObj.id]: npcResponses }
-                    await saveAllResponses(newResponses)
-                  }
-                } finally { setConvGenAudioFor(null) }
-              }
-
-              const generateAll = async () => {
-                // Uniquement les PNJ alliés, ni ennemis/boss ni le protagoniste
-                const genNpcs = companionNpcs.filter(n => n.type === 'allié' && n.id !== book?.protagonist_npc_id)
-                if (genNpcs.length === 0) return
-                setConvGeneratingAll(true)
-                try {
-                  // 0. Initialiser le premier PNJ (ordre companion_npc_ids) + vider la BDD
-                  setConvGenerateProgress('Initialisation…')
-                  const sectionCompanionOrder = detailSec.companion_npc_ids ?? []
-                  const orderedNpcs = [
-                    ...sectionCompanionOrder.map(id => genNpcs.find(n => n.id === id)).filter(Boolean) as typeof genNpcs,
-                    ...genNpcs.filter(n => !sectionCompanionOrder.includes(n.id))
-                  ]
-                  // Enregistrer le premier PNJ qui parle
-                  if (orderedNpcs[0]) {
-                    await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conv_first_npc_id: orderedNpcs[0].id }) })
-                    setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, conv_first_npc_id: orderedNpcs[0].id } as any : s))
-                    setDialogueTestNpcId(orderedNpcs[0].id)
-                  }
-                  // Vider les réponses existantes en BDD pour repartir de zéro
-                  await saveAllResponses({})
-                  setConvResponseDrafts({})
-
-                  // 1. Générer questions (min 3 — pad avec défauts si Claude en retourne moins)
-                  setConvGenerateProgress('Questions…')
-                  let questions: string[] = QUESTIONS
-                  try {
-                    const qRes = await fetch('/api/dialogue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'generate_questions', section_context: detailSec.summary ?? detailSec.content?.slice(0, 400) ?? '', tension_level: tension, book_theme: book?.theme ?? '', age_range: book?.age_range ?? '13-17', address_form: book?.address_form ?? 'tu' }) })
-                    const qData = await qRes.json()
-                    const genQs: string[] = Array.isArray(qData.questions) ? qData.questions.filter(Boolean) : []
-                    questions = genQs.length >= 3 ? genQs.slice(0, 3) : [...new Set([...genQs, ...QUESTIONS])].slice(0, 3)
-                  } catch { /* garder les questions par défaut */ }
-                  await saveQuestions(questions)
-                  setConvDraftQuestions(questions)
-
-                  // Normalise le npc_id retourné par Claude (peut être "uuid", "[id:uuid]" ou "id:uuid")
-                  const normalizeNpcId = (raw: string): string =>
-                    raw.replace(/^\[id:([^\]]+)\]$/, '$1').replace(/^id:/, '').trim() || raw
-
-                  // Partir d'un slate propre (pas de merge avec les anciennes données)
-                  let accResponses: Record<string, Record<string, string>> = {}
-
-                  // 2. Pour chaque question : réponses groupe + voix
-                  for (let qi = 0; qi < questions.length; qi++) {
-                    const question = questions[qi]
-                    setConvGenerateProgress(`Q${qi + 1}/${questions.length} — réponses…`)
-                    try {
-                      const dRes = await fetch('/api/dialogue', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'manga_group', npcs: orderedNpcs.map(n => ({ id: n.id, name: n.name, description: n.description, speech_style: n.speech_style, type: n.type, intelligence: n.intelligence, available_emotions: Object.keys(n.portrait_emotions ?? {}) })), player_question: question, choices: sChoices.map(c => ({ id: c.id, label: c.label })), section_context: detailSec.summary ?? detailSec.content?.slice(0, 400) ?? '', tension_level: tension, book_theme: book?.theme ?? '', age_range: book?.age_range ?? '13-17' }) })
-                      const dData = await dRes.json()
-                      if (!dRes.ok || !Array.isArray(dData.npc_responses) || dData.npc_responses.length === 0) {
-                        setConvGenerateProgress(`Q${qi + 1}/${questions.length} — ⚠ réponse invalide (${dData.error ?? dRes.status}), on continue…`)
-                        await new Promise(r => setTimeout(r, 800))
-                      } else {
-                        // Résolution robuste : UUID exact → normalisé → fallback positionnel
-                        const resolveNpc = (rawId: string, idx: number) =>
-                          orderedNpcs.find(n => n.id === rawId) ??
-                          orderedNpcs.find(n => n.id === normalizeNpcId(rawId)) ??
-                          orderedNpcs[idx] ?? null
-                        for (let ri = 0; ri < dData.npc_responses.length; ri++) {
-                          const resp = dData.npc_responses[ri]
-                          const npcObj = resolveNpc(resp.npc_id ?? '', ri)
-                          if (!npcObj) continue
-                          if (!accResponses[npcObj.id]) accResponses[npcObj.id] = {}
-                          accResponses[npcObj.id][question] = resp.text
-                          if (resp.suggested_choice_id) accResponses[npcObj.id][`${question}__choice`] = resp.suggested_choice_id
-                        }
-                        // Voix séquentielles
-                        for (let ri = 0; ri < dData.npc_responses.length; ri++) {
-                          const resp = dData.npc_responses[ri]
-                          const npcObj = resolveNpc(resp.npc_id ?? '', ri)
-                          if (!npcObj?.voice_id) continue
-                          setConvGenerateProgress(`Q${qi + 1}/${questions.length} — voix ${npcObj.name}…`)
-                          try {
-                            const savePath = `books/${book?.id}/sections/${detailSec.id}/conv/${npcObj.id}/${qi}`
-                            const cleanText = resp.text.replace(/\[[^\]]+\]/g, '').replace(/\s+/g, ' ').trim()
-                            const tRes = await fetch('/api/elevenlabs/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_id: npcObj.voice_id, text: cleanText, voice_settings: npcObj.voice_settings ?? null, save_path: savePath, with_timestamps: true }) })
-                            const tData = await tRes.json()
-                            console.log(`[npc voice ${npcObj.name} Q${qi + 1}] status=${tRes.status}`, tData)
-                            if (tData.url) {
-                              if (!accResponses[npcObj.id]) accResponses[npcObj.id] = {}
-                              accResponses[npcObj.id][`${question}__audio`] = tData.url
-                              if (tData.alignment) accResponses[npcObj.id][`${question}__alignment`] = tData.alignment
-                            } else {
-                              console.error(`[npc voice ${npcObj.name} Q${qi + 1}] error:`, tData.error ?? 'pas d\'URL')
-                            }
-                          } catch (e: any) { console.error(`[npc voice ${npcObj.name} Q${qi + 1}] fetch error:`, e) }
-                        }
-                      }
-                    } catch (e: any) {
-                      setConvGenerateProgress(`Q${qi + 1}/${questions.length} — ⚠ erreur : ${e?.message ?? 'inconnue'}, on continue…`)
-                      await new Promise(r => setTimeout(r, 800))
-                    }
-                  }
-
-                  // 2.5. Voix joueur (protagoniste) pour chaque question
-                  const protagonistNpc = npcs.find(n => n.id === book?.protagonist_npc_id)
-                  if (!protagonistNpc) {
-                    setConvGenerateProgress('⚠ Protagoniste non défini — voix joueur ignorée')
-                    await new Promise(r => setTimeout(r, 1000))
-                  } else if (!protagonistNpc.voice_id) {
-                    setConvGenerateProgress('⚠ Pas de voix sur le protagoniste — voix joueur ignorée')
-                    await new Promise(r => setTimeout(r, 1000))
-                  } else {
-                    if (!accResponses['__player__']) accResponses['__player__'] = {}
-                    const playerErrors: string[] = []
-                    for (let qi = 0; qi < questions.length; qi++) {
-                      const question = questions[qi]
-                      setConvGenerateProgress(`Voix joueur Q${qi + 1}/${questions.length}…`)
-                      try {
-                        const bookId = book?.id
-                        if (!bookId) throw new Error('book.id undefined')
-                        const savePath = `books/${bookId}/sections/${detailSec.id}/conv/__player__/${qi}`
-                        const tRes = await fetch('/api/elevenlabs/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_id: protagonistNpc.voice_id, text: question, voice_settings: protagonistNpc.voice_settings ?? null, save_path: savePath, with_timestamps: true }) })
-                        const tData = await tRes.json()
-                        console.log(`[player voice Q${qi + 1}] status=${tRes.status}`, tData)
-                        if (tData.url) {
-                          accResponses['__player__'][`${question}__audio`] = tData.url
-                          if (tData.alignment) accResponses['__player__'][`${question}__alignment`] = tData.alignment
-                        } else {
-                          playerErrors.push(`Q${qi + 1} [${tRes.status}]: ${tData.error ?? 'pas d\'URL'}`)
-                        }
-                      } catch (e: any) {
-                        console.error(`[player voice Q${qi + 1}] fetch error`, e)
-                        playerErrors.push(`Q${qi + 1}: ${e?.message ?? 'erreur inconnue'}`)
-                      }
-                    }
-                    if (playerErrors.length > 0) {
-                      setConvGenerateProgress(`⚠ Voix joueur — ${playerErrors.join(' | ')}`)
-                      await new Promise(r => setTimeout(r, 4000))
-                    }
-                  }
-
-                  // 3. Sauvegarder tout
-                  setConvGenerateProgress('Sauvegarde…')
-                  await saveAllResponses(accResponses)
-                  setConvGenerateProgress('')
-
-                  // Sélectionner le premier allié + peupler les drafts pour affichage immédiat
-                  if (orderedNpcs[0]) {
-                    setDialogueTestNpcId(orderedNpcs[0].id)
-                    const npcResps = accResponses[orderedNpcs[0].id] ?? {}
-                    const drafts: Record<string, string> = {}
-                    for (const q of questions) { if (npcResps[q]) drafts[q] = npcResps[q] }
-                    if (Object.keys(drafts).length > 0) setConvResponseDrafts(drafts)
-                  }
-                } finally {
-                  setConvGeneratingAll(false)
-                  setConvGenerateProgress('')
-                }
-              }
-
-              const saveNpcVoice = async () => {
-                if (!testNpc) return
-                setConvNpcVoiceSaving(true)
-                await fetch(`/api/npcs/${testNpc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_id: convNpcVoiceForm.voice_id, voice_settings: convNpcVoiceForm.voice_settings, voice_prompt: convNpcVoiceForm.voice_prompt }) })
-                setNpcs(prev => prev.map(n => n.id === testNpc.id ? { ...n, voice_id: convNpcVoiceForm.voice_id, voice_settings: convNpcVoiceForm.voice_settings, voice_prompt: convNpcVoiceForm.voice_prompt } : n))
-                setConvNpcVoiceSaving(false)
-                setConvNpcVoiceSaved(true)
-                setTimeout(() => setConvNpcVoiceSaved(false), 2500)
-              }
-
-              const playVoiceTest = async (text: string, voiceId?: string, settings?: any) => {
-                const vid = voiceId ?? convNpcVoiceForm.voice_id
-                const vs = settings ?? convNpcVoiceForm.voice_settings
-                if (!vid || !text.trim()) return
-                setConvVoicePlaying(true)
-                try {
-                  const res = await fetch('/api/elevenlabs/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_id: vid, text, voice_settings: vs }) })
-                  if (!res.ok) return
-                  const blob = await res.blob()
-                  if (convVoiceAudioRef.current) { convVoiceAudioRef.current.pause(); convVoiceAudioRef.current = null }
-                  const audio = new Audio(URL.createObjectURL(blob))
-                  convVoiceAudioRef.current = audio
-                  audio.onended = () => setConvVoicePlaying(false)
-                  audio.onerror = () => setConvVoicePlaying(false)
-                  audio.play().catch(() => setConvVoicePlaying(false))
-                } catch { setConvVoicePlaying(false) }
-              }
-
-              const draftQs = convEditMode ? convDraftQuestions : QUESTIONS
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-
-                  {/* ── Bouton Générer tout ── */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px' }}>
-                    <button onClick={generateAll} disabled={convGeneratingAll || companionNpcs.filter(n => n.type !== 'ennemi' && n.type !== 'boss').length === 0}
-                      style={{ fontSize: '0.8rem', padding: '0.45rem 1.1rem', borderRadius: '6px', border: '1px solid var(--accent)', background: convGeneratingAll ? 'rgba(212,168,76,0.05)' : 'rgba(212,168,76,0.12)', color: 'var(--accent)', cursor: (convGeneratingAll || companionNpcs.filter(n => n.type !== 'ennemi' && n.type !== 'boss').length === 0) ? 'default' : 'pointer', fontWeight: 600, opacity: companionNpcs.filter(n => n.type !== 'ennemi' && n.type !== 'boss').length === 0 ? 0.4 : 1, whiteSpace: 'nowrap' }}>
-                      {convGeneratingAll ? '⏳' : '✨'} Générer tout
-                    </button>
-                    {convGeneratingAll && convGenerateProgress && (
-                      <span style={{ fontSize: '0.72rem', color: convGenerateProgress.includes('⚠') ? 'var(--danger)' : 'var(--accent)', fontStyle: 'italic' }}>{convGenerateProgress}</span>
-                    )}
-                    {!convGeneratingAll && (() => {
-                      const genNpcs = companionNpcs.filter(n => n.type === 'allié' && n.id !== book?.protagonist_npc_id)
-                      return (
-                        <span style={{ fontSize: '0.68rem', color: 'var(--muted)', fontStyle: 'italic' }}>
-                          {genNpcs.length === 0 ? 'Aucun PNJ compagnon dans cette section' : `Questions + réponses + voix pour ${genNpcs.length} PNJ`}
-                        </span>
-                      )
-                    })()}
-                  </div>
-
-                  {/* ── PNJ sélecteur + Premier PNJ ── */}
-                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={labelStyle}>Tension</div>
-                        <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: tension >= 7 ? 'var(--danger)' : tension >= 4 ? 'var(--accent)' : 'var(--success)' }}>{tension}/10</div>
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={labelStyle}>PNJ actif (réponses)</div>
-                        {companionNpcs.length === 0
-                          ? <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--muted)', fontStyle: 'italic' }}>Aucun compagnon — configurez l'onglet Compagnons.</p>
-                          : <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                              {companionNpcs.map(n => {
-                                const cfg = NPC_TYPE_CONFIG[n.type as keyof typeof NPC_TYPE_CONFIG] ?? NPC_TYPE_CONFIG['ennemi']
-                                const selected = (dialogueTestNpcId || companionNpcs[0]?.id) === n.id
-                                return (
-                                  <button key={n.id} onClick={() => { setDialogueTestNpcId(n.id); setDialogueTestResult(null); setConvNpcVoiceForm({ voice_id: n.voice_id ?? '', voice_settings: n.voice_settings ?? { stability: 0.5, style: 0, speed: 1, similarity_boost: 0.75 }, voice_prompt: n.voice_prompt ?? '' }) }}
-                                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', borderRadius: '6px', border: `1px solid ${cfg.color}${selected ? 'ff' : '44'}`, background: selected ? cfg.color + '22' : 'transparent', color: cfg.color, cursor: 'pointer', fontWeight: selected ? 'bold' : 'normal' }}>
-                                    {cfg.icon} {n.name} <span style={{ opacity: 0.6 }}>int.{n.intelligence}</span>
-                                  </button>
-                                )
-                              })}
-                            </div>
-                        }
-                      </div>
-                    </div>
-                    {/* Premier PNJ qui parle — désactivé (ordre défini par companion_npc_ids) */}
-                    {alliedNpcs.length > 0 && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', paddingTop: '0.25rem', borderTop: '1px solid var(--border)', opacity: 0.35, pointerEvents: 'none' }}>
-                        <span style={{ fontSize: '0.68rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>1er qui parle :</span>
-                        {alliedNpcs.map(n => (
-                          <button key={n.id}
-                            style={{ fontSize: '0.7rem', padding: '0.2rem 0.55rem', borderRadius: '5px', border: `1px solid ${firstNpcId === n.id ? '#4ec9b0' : 'var(--border)'}`, background: firstNpcId === n.id ? 'rgba(78,201,176,0.15)' : 'transparent', color: firstNpcId === n.id ? '#4ec9b0' : 'var(--muted)', cursor: 'default', fontWeight: firstNpcId === n.id ? 700 : 400 }}>
-                            {firstNpcId === n.id ? '★ ' : ''}{n.name}
-                          </button>
-                        ))}
-                        <span style={{ fontSize: '0.6rem', color: 'var(--muted)', fontStyle: 'italic' }}>(ordre défini dans Compagnons)</span>
-                      </div>
-                    )}
-                    {testNpc && <div style={{ fontSize: '0.7rem', color: 'var(--muted)', fontStyle: 'italic' }}>{testNpc.speech_style ?? testNpc.description ?? ''}</div>}
-                  </div>
-
-                  {/* ── Questions ── */}
-                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <span style={labelStyle}>Questions du joueur</span>
-                      {contextualQuestions.length > 0
-                        ? <span style={{ fontSize: '0.6rem', color: 'var(--success)' }}>✓ contextuelles</span>
-                        : <span style={{ fontSize: '0.6rem', color: 'var(--muted)', fontStyle: 'italic' }}>génériques</span>
-                      }
-                      <div style={{ marginLeft: 'auto', display: 'flex', gap: '0.4rem' }}>
-                        <button onClick={generateQuestions} disabled={dialogueTestLoading || convGeneratingAll} style={{ fontSize: '0.65rem', padding: '0.2rem 0.6rem', borderRadius: '5px', border: '1px solid var(--accent)', background: 'rgba(212,168,76,0.1)', color: 'var(--accent)', cursor: 'pointer', opacity: (dialogueTestLoading || convGeneratingAll) ? 0.5 : 1 }}>✨ Générer</button>
-                        {!convEditMode
-                          ? <button onClick={() => { setConvEditMode(true); setConvDraftQuestions([...QUESTIONS]) }} style={{ fontSize: '0.65rem', padding: '0.2rem 0.6rem', borderRadius: '5px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>✏ Modifier</button>
-                          : <>
-                              <button onClick={() => saveQuestions(convDraftQuestions)} disabled={convSavingQuestions} style={{ fontSize: '0.65rem', padding: '0.2rem 0.6rem', borderRadius: '5px', border: '1px solid #4caf7d', background: 'rgba(76,175,125,0.1)', color: '#4caf7d', cursor: 'pointer' }}>{convSavingQuestions ? '…' : '✓ Sauver'}</button>
-                              <button onClick={() => setConvEditMode(false)} style={{ fontSize: '0.65rem', padding: '0.2rem 0.6rem', borderRadius: '5px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>Annuler</button>
-                            </>
-                        }
-                      </div>
-                    </div>
-                    {convEditMode ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {convDraftQuestions.map((q, i) => (
-                          <div key={i} style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-                            <input value={q} onChange={e => setConvDraftQuestions(prev => prev.map((x, j) => j === i ? e.target.value : x))} style={{ ...inputStyle, flex: 1 }} />
-                            <button onClick={() => setConvDraftQuestions(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.3rem 0.5rem', fontSize: '0.75rem' }}>✕</button>
-                          </div>
-                        ))}
-                        <button onClick={() => setConvDraftQuestions(prev => [...prev, ''])} style={{ alignSelf: 'flex-start', fontSize: '0.72rem', padding: '0.25rem 0.75rem', borderRadius: '5px', border: '1px dashed var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>+ Ajouter</button>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        {(() => {
-                          const protagonistNpc = npcs.find(n => n.id === book?.protagonist_npc_id)
-                          const playerSaved = (savedResponses as any)['__player__'] as Record<string, string> | undefined
-                          const generatePlayerAudio = async (question: string, qi: number) => {
-                            if (!protagonistNpc?.voice_id) return
-                            console.log('[player audio] voice_id =', protagonistNpc.voice_id, '| question =', question)
-                            setConvPlayerAudioGen(question)
-                            try {
-                              const savePath = `books/${book?.id}/sections/${detailSec.id}/conv/__player__/${qi}`
-                              const tRes = await fetch('/api/elevenlabs/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_id: protagonistNpc.voice_id, text: question, voice_settings: protagonistNpc.voice_settings ?? null, save_path: savePath }) })
-                              const tData = await tRes.json()
-                              console.log('[player audio] response status =', tRes.status, tData)
-                              if (tData.url) {
-                                const playerResponses = { ...(playerSaved ?? {}), [`${question}__audio`]: tData.url }
-                                const newResponses = { ...(savedResponses as any), '__player__': playerResponses }
-                                await saveAllResponses(newResponses)
-                              } else {
-                                console.error('[player audio] TTS error:', tData.error ?? 'pas d\'URL')
-                              }
-                            } catch (e: any) {
-                              console.error('[player audio] fetch error:', e)
-                            } finally { setConvPlayerAudioGen(null) }
-                          }
-                          return QUESTIONS.map((q, qi) => {
-                            const hasSaved = testNpc ? !!(savedResponses[testNpc.id]?.[q]) : false
-                            const audioUrl = playerSaved?.[`${q}__audio`]
-                            const isGenning = convPlayerAudioGen === q
-                            return (
-                              <div key={q} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <span style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem', borderRadius: '20px', border: `1px solid ${hasSaved ? '#4caf7d44' : 'var(--border)'}`, background: hasSaved ? 'rgba(76,175,125,0.07)' : 'transparent', color: hasSaved ? '#4caf7d' : 'var(--muted)', flex: 1, minWidth: 0 }}>
-                                  {hasSaved ? '✓ ' : ''}{`"${q}"`}
-                                </span>
-                                <button onClick={() => { if (audioUrl) { const a = new Audio(audioUrl); a.play().catch(() => {}) } }}
-                                  disabled={!audioUrl}
-                                  style={{ fontSize: '0.62rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #4caf7d44', background: 'rgba(76,175,125,0.08)', color: '#4caf7d', cursor: audioUrl ? 'pointer' : 'default', opacity: audioUrl ? 1 : 0.35, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                  ▶ Écouter
-                                </button>
-                                {protagonistNpc?.voice_id && (
-                                  <button onClick={() => generatePlayerAudio(q, qi)} disabled={isGenning || !!convPlayerAudioGen}
-                                    style={{ fontSize: '0.62rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: `1px solid ${audioUrl ? '#4caf7d44' : '#e879f944'}`, background: audioUrl ? 'rgba(76,175,125,0.08)' : 'rgba(232,121,249,0.08)', color: audioUrl ? '#4caf7d' : '#e879f9', cursor: 'pointer', opacity: (isGenning || !!convPlayerAudioGen) ? 0.5 : 1, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                    {isGenning ? '⏳' : audioUrl ? '↺ Régénérer' : '🎙 Générer'}
-                                  </button>
-                                )}
-                              </div>
-                            )
-                          })
-                        })()}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* ── Réponses ── */}
-                  {QUESTIONS.length > 0 && testNpc && (
-                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={labelStyle}>Réponses de {testNpc.name}</span>
-                        {!testNpc.voice_id && (
-                          <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontStyle: 'italic' }}>⚠ Pas de voix configurée</span>
-                        )}
-                      </div>
-                      {QUESTIONS.map(q => {
-                        const draft = convResponseDrafts[q] ?? (testNpc ? savedResponses[testNpc.id]?.[q] : undefined) ?? ''
-                        const savedAudioUrl: string | undefined = testNpc ? (savedResponses[testNpc.id] as any)?.[`${q}__audio`] : undefined
-                        const savedChoiceId: string | undefined = testNpc ? (savedResponses[testNpc.id] as any)?.[`${q}__choice`] : undefined
-                        const isGenerating = convGeneratingFor === q
-                        const isSaved = convSavedKey === q
-                        const audioKey = `${testNpc.id}__${q}`
-                        const isGenAudio = convGenAudioFor === audioKey
-                        const paletteKey = `resp_${q}`
-                        const saveCursor = (e: React.SyntheticEvent<HTMLTextAreaElement>) => {
-                          const el = e.currentTarget
-                          convCursorPosRef.current[paletteKey] = { start: el.selectionStart, end: el.selectionEnd }
-                        }
-                        const insertTag = (tag: string) => {
-                          const pos = convCursorPosRef.current[paletteKey]
-                          const start = pos?.start ?? draft.length
-                          const end = pos?.end ?? draft.length
-                          const newText = draft.slice(0, start) + `[${tag}]` + draft.slice(end)
-                          setConvResponseDrafts(prev => ({ ...prev, [q]: newText }))
-                          convCursorPosRef.current[paletteKey] = { start: start + tag.length + 2, end: start + tag.length + 2 }
-                        }
-                        return (
-                          <div key={q} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderLeft: '2px solid var(--border)', paddingLeft: '0.75rem' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <span style={{ fontSize: '0.75rem', color: 'var(--muted)', fontStyle: 'italic', flex: 1 }}>"{q}"</span>
-                              <button onClick={() => generateResponse(q)} disabled={!!convGeneratingFor || convGeneratingAll}
-                                style={{ fontSize: '0.62rem', padding: '0.15rem 0.5rem', borderRadius: '4px', border: '1px solid var(--accent)', background: 'rgba(212,168,76,0.1)', color: 'var(--accent)', cursor: 'pointer', opacity: (convGeneratingFor || convGeneratingAll) ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-                                {isGenerating ? '⏳' : '✨ Générer'}
-                              </button>
-                            </div>
-                            {(draft || isGenerating) && (
-                              <>
-                                <textarea value={draft} onChange={e => setConvResponseDrafts(prev => ({ ...prev, [q]: e.target.value }))}
-                                  onSelect={saveCursor} onMouseUp={saveCursor} onKeyUp={saveCursor}
-                                  disabled={isGenerating} placeholder={isGenerating ? 'Génération…' : 'Réponse du PNJ…'}
-                                  style={{ ...inputStyle, minHeight: '56px', resize: 'vertical', fontFamily: 'Georgia, serif', fontStyle: 'italic', fontSize: '0.85rem' }} />
-                                <AudioTagPalette onInsert={insertTag} />
-                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                  {testNpc.voice_id && draft && (
-                                    <button onClick={() => playVoiceTest(draft, testNpc.voice_id!, testNpc.voice_settings)}
-                                      disabled={convVoicePlaying}
-                                      style={{ fontSize: '0.65rem', padding: '0.2rem 0.6rem', borderRadius: '4px', border: '1px solid #4ec9b044', background: '#4ec9b011', color: '#4ec9b0', cursor: 'pointer', opacity: convVoicePlaying ? 0.5 : 1 }}>
-                                      ▶ Écouter
-                                    </button>
-                                  )}
-                                  {testNpc.voice_id && draft && (
-                                    <button onClick={() => generateAudio(testNpc, q, draft)} disabled={isGenAudio || convGeneratingAll}
-                                      style={{ fontSize: '0.65rem', padding: '0.2rem 0.6rem', borderRadius: '4px', border: `1px solid ${savedAudioUrl ? '#4caf7d44' : '#e879f944'}`, background: savedAudioUrl ? 'rgba(76,175,125,0.08)' : 'rgba(232,121,249,0.08)', color: savedAudioUrl ? '#4caf7d' : '#e879f9', cursor: 'pointer', opacity: (isGenAudio || convGeneratingAll) ? 0.5 : 1, whiteSpace: 'nowrap' }}>
-                                      {isGenAudio ? '⏳' : savedAudioUrl ? '✓ Audio' : '🎙 Générer audio'}
-                                    </button>
-                                  )}
-                                  {savedAudioUrl && (
-                                    <button onClick={() => { const a = new Audio(savedAudioUrl); a.play().catch(() => {}) }}
-                                      style={{ fontSize: '0.65rem', padding: '0.2rem 0.4rem', borderRadius: '4px', border: '1px solid #4caf7d44', background: 'transparent', color: '#4caf7d', cursor: 'pointer' }}>
-                                      ▶
-                                    </button>
-                                  )}
-                                </div>
-                                {sChoices.length > 0 && (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem' }}>
-                                    <span style={{ fontSize: '0.62rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Choix suggéré :</span>
-                                    <select
-                                      value={savedChoiceId ?? ''}
-                                      onChange={async e => {
-                                        if (!testNpc) return
-                                        const npcResponses: Record<string, any> = { ...(savedResponses[testNpc.id] ?? {}) }
-                                        if (e.target.value) npcResponses[`${q}__choice`] = e.target.value
-                                        else delete npcResponses[`${q}__choice`]
-                                        await saveAllResponses({ ...savedResponses, [testNpc.id]: npcResponses })
-                                      }}
-                                      style={{ ...inputStyle, fontSize: '0.7rem', padding: '0.15rem 0.4rem', flex: 1 }}>
-                                      <option value="">— aucun —</option>
-                                      {sChoices.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                                    </select>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  {/* ── Voix du PNJ ── */}
-                  {testNpc && (
-                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={labelStyle}>🎙 Voix de {testNpc.name}</span>
-                        <button onClick={saveNpcVoice} disabled={convNpcVoiceSaving}
-                          style={{ fontSize: '0.7rem', padding: '0.25rem 0.75rem', borderRadius: '5px', border: `1px solid ${convNpcVoiceSaved ? '#4caf7d' : 'var(--accent)'}`, background: convNpcVoiceSaved ? 'rgba(76,175,125,0.1)' : 'rgba(212,168,76,0.1)', color: convNpcVoiceSaved ? '#4caf7d' : 'var(--accent)', cursor: 'pointer' }}>
-                          {convNpcVoiceSaving ? '…' : convNpcVoiceSaved ? '✓ Sauvegardé' : '✓ Sauvegarder la voix'}
-                        </button>
-                      </div>
-                      <VoicePanel form={convNpcVoiceForm} setForm={setConvNpcVoiceForm as any} voices={convVoices} voicesLoaded={convVoicesLoaded} playVoicePreview={(vid) => { const v = convVoices.find(x => x.voice_id === vid); if (v?.preview_url) { const a = new Audio(v.preview_url); a.play().catch(() => {}) } }} />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.25rem' }}>
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          <input value={convVoiceTestText} onChange={e => setConvVoiceTestText(e.target.value)}
-                            placeholder="Texte à tester… [tag] inclus → eleven_v3 auto"
-                            style={{ ...inputStyle, flex: 1 }}
-                            onSelect={e => { const el = e.currentTarget; convCursorPosRef.current['test'] = { start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 } }}
-                            onMouseUp={e => { const el = e.currentTarget; convCursorPosRef.current['test'] = { start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 } }}
-                            onKeyUp={e => { const el = e.currentTarget; convCursorPosRef.current['test'] = { start: el.selectionStart ?? 0, end: el.selectionEnd ?? 0 } }}
-                            onKeyDown={e => { if (e.key === 'Enter') playVoiceTest(convVoiceTestText) }} />
-                          <button onClick={() => playVoiceTest(convVoiceTestText)} disabled={convVoicePlaying || !convNpcVoiceForm.voice_id || !convVoiceTestText.trim()}
-                            style={{ fontSize: '0.78rem', padding: '0.4rem 0.9rem', borderRadius: '5px', border: '1px solid #4ec9b044', background: '#4ec9b011', color: '#4ec9b0', cursor: 'pointer', whiteSpace: 'nowrap', opacity: (convVoicePlaying || !convNpcVoiceForm.voice_id || !convVoiceTestText.trim()) ? 0.5 : 1 }}>
-                            {convVoicePlaying ? '⏳' : '▶ Tester'}
-                          </button>
-                        </div>
-                        <AudioTagPalette onInsert={tag => {
-                          const pos = convCursorPosRef.current['test']
-                          const start = pos?.start ?? convVoiceTestText.length
-                          const end = pos?.end ?? convVoiceTestText.length
-                          const newText = convVoiceTestText.slice(0, start) + `[${tag}]` + convVoiceTestText.slice(end)
-                          setConvVoiceTestText(newText)
-                          convCursorPosRef.current['test'] = { start: start + tag.length + 2, end: start + tag.length + 2 }
-                        }} />
-                        {/\[.+?\]/.test(convVoiceTestText) && (
-                          <div style={{ fontSize: '0.6rem', color: '#e879f9', fontStyle: 'italic' }}>✦ Tags détectés — modèle eleven_v3 utilisé automatiquement</div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                </div>
-              )
-            })()}
-
-            {/* ── Sub-tab: Dialogues ── */}
-            {sectionDetailTab === 'dialogues' && (() => {
-              const dialogues: import('@/types').SectionDialogue[] = detailSec.dialogues ?? []
-              const sectionNpcs = npcs.filter(n =>
-                detailSec.companion_npc_ids?.includes(n.id) ||
-                detailSec.content?.toLowerCase().includes(n.name.toLowerCase())
-              )
-
-              async function extractDialogues() {
-                const res = await fetch(`/api/books/${book!.id}/fix-language`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ section_id: detailSec!.id, action: 'extract_dialogues' }),
-                })
-              }
-
-              async function saveDialogues(updated: import('@/types').SectionDialogue[]) {
-                await fetch(`/api/sections/${detailSec!.id}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ dialogues: updated }),
-                })
-                setSections(prev => prev.map(s => s.id === detailSec!.id ? { ...s, dialogues: updated } : s))
-              }
-
-              function addLine() {
-                saveDialogues([...dialogues, { text: '', speaker: 'joueur', source: 'content' as const }])
-              }
-              function removeLine(i: number) {
-                saveDialogues(dialogues.filter((_, idx) => idx !== i))
-              }
-              function updateLine(i: number, patch: Partial<import('@/types').SectionDialogue>) {
-                saveDialogues(dialogues.map((d, idx) => idx === i ? { ...d, ...patch } : d))
-              }
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                  {/* Toolbar */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                    <span style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{dialogues.length} réplique{dialogues.length !== 1 ? 's' : ''}</span>
-                    <div style={{ display: 'flex', gap: '0.4rem' }}>
-                      <button onClick={addLine} style={{ padding: '4px 12px', borderRadius: '6px', fontSize: '0.72rem', cursor: 'pointer', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--foreground)' }}>+ Ajouter</button>
-                    </div>
-                  </div>
-
-                  {dialogues.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted)', fontSize: '0.72rem', fontStyle: 'italic', border: '1px dashed var(--border)', borderRadius: '8px' }}>
-                      Aucun dialogue — cliquez sur "+ Ajouter"
-                    </div>
-                  )}
-
-                  {dialogues.map((d, i) => {
-                    const isPlayer = d.speaker === 'joueur' || !d.speaker
-                    const matchedNpc = sectionNpcs.find(n => n.id === d.npc_id || n.name === d.speaker)
-                    return (
-                      <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start', padding: '0.6rem 0.75rem', borderRadius: '8px', background: isPlayer ? 'rgba(212,168,76,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isPlayer ? 'rgba(212,168,76,0.2)' : 'var(--border)'}` }}>
-                        {/* Avatar / speaker badge */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', flexShrink: 0, width: '44px' }}>
-                          <div style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', background: 'var(--surface-2)', border: `1px solid ${isPlayer ? '#d4a84c44' : 'var(--border)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {matchedNpc?.image_url
-                              ? <img src={matchedNpc.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : <span style={{ fontSize: '0.9rem', opacity: 0.4 }}>{isPlayer ? '🧑' : '👤'}</span>
-                            }
-                          </div>
-                          <span style={{ fontSize: '0.55rem', color: isPlayer ? '#d4a84c' : 'var(--muted)', textAlign: 'center', lineHeight: 1.2 }}>{d.speaker || 'joueur'}</span>
-                        </div>
-
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                          {/* Speaker selector */}
-                          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                            <button onClick={() => updateLine(i, { speaker: 'joueur', npc_id: undefined })} style={{ padding: '1px 8px', borderRadius: '4px', fontSize: '0.6rem', cursor: 'pointer', border: `1px solid ${d.speaker === 'joueur' || !d.speaker ? '#d4a84c' : 'var(--border)'}`, background: d.speaker === 'joueur' || !d.speaker ? 'rgba(212,168,76,0.12)' : 'var(--surface-2)', color: d.speaker === 'joueur' || !d.speaker ? '#d4a84c' : 'var(--muted)' }}>Joueur</button>
-                            {sectionNpcs.map(n => (
-                              <button key={n.id} onClick={() => updateLine(i, { speaker: n.name, npc_id: n.id })} style={{ padding: '1px 8px', borderRadius: '4px', fontSize: '0.6rem', cursor: 'pointer', border: `1px solid ${d.npc_id === n.id ? '#9898b4' : 'var(--border)'}`, background: d.npc_id === n.id ? 'rgba(152,152,180,0.12)' : 'var(--surface-2)', color: d.npc_id === n.id ? '#9898b4' : 'var(--muted)' }}>{n.name}</button>
-                            ))}
-                          </div>
-                          {/* Texte */}
-                          <textarea value={d.text} onChange={e => updateLine(i, { text: e.target.value })}
-                            rows={2}
-                            style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.75rem', fontFamily: 'Georgia, serif', resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.5 }}
-                          />
-                          {/* Voice prompt */}
-                          <input placeholder="Jeu d'acteur… (ex: tense, breathless)" value={d.voice_prompt ?? ''}
-                            onChange={e => updateLine(i, { voice_prompt: e.target.value })}
-                            style={{ width: '100%', background: 'transparent', border: 'none', borderBottom: '1px solid var(--border)', padding: '2px 0', color: 'var(--muted)', fontSize: '0.65rem', fontStyle: 'italic', outline: 'none', boxSizing: 'border-box' }}
-                          />
-                        </div>
-
-                        {/* Source badge + delete */}
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                          <button onClick={() => removeLine(i)} style={{ background: 'none', border: 'none', color: 'var(--danger)', cursor: 'pointer', fontSize: '0.8rem', padding: '2px 4px' }}>✕</button>
-                          <span style={{ fontSize: '0.55rem', padding: '1px 5px', borderRadius: '3px', background: d.source === 'transition' ? 'rgba(76,155,240,0.12)' : 'rgba(255,255,255,0.05)', color: d.source === 'transition' ? '#4c9bf0' : 'var(--muted)', border: `1px solid ${d.source === 'transition' ? 'rgba(76,155,240,0.3)' : 'var(--border)'}`, cursor: 'pointer' }}
-                            onClick={() => updateLine(i, { source: d.source === 'transition' ? 'content' : 'transition' })}>
-                            {d.source === 'transition' ? 'transit.' : 'contenu'}
-                          </span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )
-            })()}
-
             {/* ── Sub-tab: Illustrations (édition complète) ── */}
             {sectionDetailTab === 'illustrations' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={labelStyle}>Illustrations (4 plans)</div>
+                  <div style={labelStyle}>Illustrations (3 plans)</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <div style={{ display: 'flex', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
                       {(['replicate', 'leonardo'] as const).map(p => (
@@ -2024,45 +1626,248 @@ export default function BookPage() {
                     </div>
                     <SectionImagePromptsButton
                       sectionId={detailSec.id}
-                      onPrompts={(prompts, promptsFr) => setEditImages(imgs => imgs.map((img, i) => ({ ...img, description: prompts[i] ?? img.description, description_fr: promptsFr[i] || img.description_fr })))}
+                      onPrompts={(prompts, promptsFr, shotSizes, perspectives) => setEditImages(imgs => imgs.map((img, i) => ({ ...img, description: prompts[i] ?? img.description, description_fr: promptsFr[i] || img.description_fr, shot_size: shotSizes[i] || (img as any).shot_size, perspective: perspectives[i] || (img as any).perspective } as any)))}
                     />
+                    <button
+                      disabled={generatingThoughts}
+                      title="Générer les pensées du protagoniste via Mistral"
+                      onClick={async () => {
+                        setGeneratingThoughts(true)
+                        try {
+                          const descriptions = editImages.map(img => img.description_fr || img.description || '')
+                          const res = await fetch(`/api/sections/${detailSec.id}/generate-thoughts`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ descriptions }),
+                          })
+                          const data = await res.json()
+                          if (data.thoughts) {
+                            const updated = editImages.map((img, i) => data.thoughts[i] ? { ...img, thought: data.thoughts[i] } : img)
+                            setEditImages(updated)
+                            // Sauvegarder immédiatement en DB
+                            const cleanImgs = updated.map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                            fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                            setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
+                          }
+                        } finally {
+                          setGeneratingThoughts(false)
+                        }
+                      }}
+                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.65rem', borderRadius: '5px', border: '1px solid #a084c844', background: generatingThoughts ? 'rgba(160,132,200,0.05)' : 'rgba(160,132,200,0.1)', color: generatingThoughts ? 'var(--muted)' : '#c8a0e8', cursor: generatingThoughts ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}
+                    >
+                      {generatingThoughts ? '…' : '💭 Pensées'}
+                    </button>
+                    <button
+                      disabled={distributingPhrases}
+                      title="Distribuer intelligemment le texte entre les images via Claude"
+                      onClick={async () => {
+                        setDistributingPhrases(true)
+                        try {
+                          // Calculer les phrases côté client (même logique que simPhrases) — blocs taggés atomiques
+                          const text = detailSec.content?.trim() ?? ''
+                          const phrases: string[] = []
+                          if (text.length > 0) {
+                            const tRe = /\[([a-zA-ZÀ-ÿ0-9_:]+)\]([\s\S]*?)\[\/\1\]/g
+                            let tLast = 0; let tM: RegExpExecArray | null; tRe.lastIndex = 0
+                            while ((tM = tRe.exec(text)) !== null) {
+                              if (tM.index > tLast) {
+                                const plain = text.slice(tLast, tM.index).trim()
+                                if (plain) phrases.push(...plain.split(/(?<=[.!?…»])\s+/).map((s: string) => s.trim()).filter(Boolean))
+                              }
+                              phrases.push(tM[0].trim())
+                              tLast = tM.index + tM[0].length
+                            }
+                            if (tLast < text.length) {
+                              const plain = text.slice(tLast).trim()
+                              if (plain) phrases.push(...plain.split(/(?<=[.!?…»])\s+/).map((s: string) => s.trim()).filter(Boolean))
+                            }
+                          }
+                          if (phrases.length === 0) return
+                          const imageDescriptions = editImages.map(img => img.description_fr || img.description || '')
+                          const res = await fetch(`/api/sections/${detailSec.id}/distribute-phrases`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ phrases, imageDescriptions }),
+                          })
+                          const data = await res.json()
+                          if (data.distribution) {
+                            // Plafonner à 2 phrases par image avant stockage
+                            const capAt2 = (arr: string[]) => {
+                              if (arr.length <= 2) return arr
+                              const mid = Math.ceil(arr.length / 2)
+                              return [arr.slice(0, mid).join(' '), arr.slice(mid).join(' ')]
+                            }
+                            const capped: string[][] = (data.distribution as string[][]).map(capAt2)
+                            setEditPhraseDistribution(capped)
+                            fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phrase_distribution: capped }) })
+                            setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, phrase_distribution: capped } : s))
+                          }
+                        } finally {
+                          setDistributingPhrases(false)
+                        }
+                      }}
+                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.65rem', borderRadius: '5px', border: '1px solid #4c84a844', background: distributingPhrases ? 'rgba(76,132,168,0.05)' : 'rgba(76,132,168,0.1)', color: distributingPhrases ? 'var(--muted)' : '#7ab8d8', cursor: distributingPhrases ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}
+                    >
+                      {distributingPhrases ? '…' : '📜 Distribuer'}
+                    </button>
                   </div>
                 </div>
-                {[0, 1, 2].map(i => (
+                {editImages.map((_, i) => (
                   <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                    <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold' }}>Plan {i + 1}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                      <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold' }}>Plan {i + 1}</div>
+                      {(editImages[i] as any)?.shot_size && <span style={{ fontSize: '0.6rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.35rem', color: 'var(--accent)' }}>{(editImages[i] as any).shot_size}</span>}
+                      {(editImages[i] as any)?.perspective && <span style={{ fontSize: '0.6rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.35rem', color: 'var(--muted)' }}>{(editImages[i] as any).perspective}</span>}
+                      <button onClick={() => setEditImages(imgs => imgs.filter((_, idx) => idx !== i))} title="Supprimer ce plan" style={{ marginLeft: 'auto', fontSize: '0.6rem', padding: '0.12rem 0.4rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕ Plan</button>
+                    </div>
                     {editImages[i]?.url && (
                       <div style={{ position: 'relative' }}>
                         <img src={editImages[i].url} onClick={() => editImages[i].url && setZoomedImage(editImages[i].url!)} style={{ width: '100%', maxHeight: '280px', objectFit: 'contain', borderRadius: '6px', border: '1px solid var(--border)', background: '#000', cursor: 'zoom-in', display: 'block' }} />
                         <button onClick={() => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, url: undefined } : img))} style={{ position: 'absolute', top: '6px', right: '6px', background: '#c94c4ccc', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer', padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}>✕</button>
                       </div>
                     )}
-                    <textarea
-                      value={editImages[i]?.description ?? ''}
-                      onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, description: e.target.value } : img))}
-                      placeholder={`Prompt / description du plan ${i + 1}…`}
-                      rows={2}
-                      style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.8rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                    />
-                    {editImages[i]?.prompt_fr !== undefined || editImages[i]?.description_fr ? (
-                      <textarea
-                        value={editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''}
-                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: e.target.value } : img))}
-                        placeholder="Description du plan en français…"
-                        rows={2}
-                        style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    {editImages[i]?.url && (
+                      <BubblePositioner
+                        imgUrl={editImages[i].url!}
+                        phrases={editPhraseDistribution[i] ?? []}
+                        positions={(editImages[i] as any).bubble_positions ?? {}}
+                        textPosition={(editImages[i] as any).text_position ?? null}
+                        onChange={pos => {
+                          setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, bubble_positions: pos } as any : img))
+                          const clean = editImages.map((img, idx) => idx === i ? { ...img, bubble_positions: pos } : img)
+                            .filter(img => img.url || img.description?.trim())
+                            .map(img => ({ ...(img as any), url: img.url?.split('?')[0] }))
+                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                        }}
+                        onTextPositionChange={pos => {
+                          setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, text_position: pos } as any : img))
+                          const clean = editImages.map((img, idx) => idx === i ? { ...img, text_position: pos } : img)
+                            .filter(img => img.url || img.description?.trim())
+                            .map(img => ({ ...(img as any), url: img.url?.split('?')[0] }))
+                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                        }}
                       />
-                    ) : null}
+                    )}
+                    {/* Phrases assignées à ce plan — EN PREMIER */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          📜 Texte assigné à ce plan
+                          {editPhraseDistribution[i]?.length > 0 && (
+                            <span style={{ marginLeft: '0.4rem', color: '#7ab8d8' }}>({editPhraseDistribution[i].length} phrase{editPhraseDistribution[i].length > 1 ? 's' : ''})</span>
+                          )}
+                        </div>
+                        <CorrectButton
+                          size="sm"
+                          text={(editPhraseDistribution[i] ?? []).join('\n')}
+                          onCorrected={corrected => {
+                            const lines = corrected.split('\n').filter(Boolean)
+                            setEditPhraseDistribution(prev => { const next = [...prev]; next[i] = lines; return next })
+                          }}
+                        />
+                      </div>
+                      <TaggablePhraseEditor
+                        planIdx={i}
+                        phrases={editPhraseDistribution[i] ?? []}
+                        npcs={npcs}
+                        onChange={lines => {
+                          setEditPhraseDistribution(prev => {
+                            const next = [...prev]
+                            while (next.length <= i) next.push([])
+                            next[i] = lines
+                            return next
+                          })
+                        }}
+                        onBlur={() => {
+                          const clean = editPhraseDistribution.length > 0 && editPhraseDistribution.some(arr => arr.length > 0) ? editPhraseDistribution : null
+                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phrase_distribution: clean }) })
+                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, phrase_distribution: clean ?? undefined } : s))
+                        }}
+                      />
+                    </div>
+                    {/* Description EN */}
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
+                      <textarea
+                        value={editImages[i]?.description ?? ''}
+                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, description: e.target.value } : img))}
+                        placeholder={`Shot description (EN ou FR) — plan ${i + 1}…`}
+                        rows={2}
+                        style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.8rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                      />
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.1rem' }}>
+                        <button
+                          title="Traduire EN → FR"
+                          disabled={!!translatingPlanIdx}
+                          onClick={async () => {
+                            const enText = editImages[i]?.description ?? ''
+                            if (!enText.trim()) return
+                            setTranslatingPlanIdx({ idx: i, dir: 'en2fr' })
+                            try {
+                              const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: enText }) })
+                              const data = await res.json()
+                              if (data.translated) setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: data.translated } : img))
+                            } finally { setTranslatingPlanIdx(null) }
+                          }}
+                          style={{ flexShrink: 0, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: translatingPlanIdx?.idx === i && translatingPlanIdx.dir === 'en2fr' ? 'var(--muted)' : '#d4a84c', cursor: translatingPlanIdx ? 'default' : 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.65rem', opacity: translatingPlanIdx ? 0.5 : 1, whiteSpace: 'nowrap' }}
+                        >{translatingPlanIdx?.idx === i && translatingPlanIdx.dir === 'en2fr' ? '…' : '→ FR'}</button>
+                        <button
+                          title="Traduire FR → EN (depuis la description FR)"
+                          disabled={!!translatingPlanIdx}
+                          onClick={async () => {
+                            const frText = editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''
+                            if (!frText.trim()) return
+                            setTranslatingPlanIdx({ idx: i, dir: 'fr2en' })
+                            try {
+                              const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: frText, target: 'en' }) })
+                              const data = await res.json()
+                              if (data.translated) setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, description: data.translated } : img))
+                            } finally { setTranslatingPlanIdx(null) }
+                          }}
+                          style={{ flexShrink: 0, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: translatingPlanIdx?.idx === i && translatingPlanIdx.dir === 'fr2en' ? 'var(--muted)' : '#7ab8d8', cursor: translatingPlanIdx ? 'default' : 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.65rem', opacity: translatingPlanIdx ? 0.5 : 1, whiteSpace: 'nowrap' }}
+                        >{translatingPlanIdx?.idx === i && translatingPlanIdx.dir === 'fr2en' ? '…' : '← EN'}</button>
+                      </div>
+                    </div>
+                    {/* Description FR */}
+                    <textarea
+                      value={editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''}
+                      onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: e.target.value } : img))}
+                      placeholder="Description FR (pour le designer)…"
+                      rows={2}
+                      style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                    />
                     <textarea
                       value={editImages[i]?.thought ?? ''}
                       onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, thought: e.target.value } : img))}
+                      onBlur={() => {
+                        const cleanImgs = editImages.filter(img => img.url || img.description.trim() || img.thought?.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                        fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                        setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
+                      }}
                       placeholder="💭 Pensée du protagoniste pour ce plan…"
                       rows={2}
                       style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #a084c822', borderRadius: '5px', padding: '0.4rem 0.6rem', color: '#c8a0e8', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', fontStyle: 'italic' }}
                     />
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <select value={(editImages[i] as any)?.appearance_effect ?? 'none'} onChange={e => {
+                        const val = e.target.value === 'none' ? undefined : e.target.value
+                        const updated = editImages.map((img, idx) => idx === i ? { ...img, appearance_effect: val } as any : img)
+                        setEditImages(updated)
+                        const cleanImgs = updated.filter(img => img.url || img.description.trim() || img.thought?.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, thought: img.thought || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                        fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                        setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
+                      }} style={{ background: 'var(--surface-2)', border: '1px solid #e0383844', borderRadius: '4px', padding: '0.28rem 0.5rem', color: (editImages[i] as any)?.appearance_effect && (editImages[i] as any)?.appearance_effect !== 'none' ? '#e07070' : 'var(--muted)', fontSize: '0.72rem', outline: 'none', cursor: 'pointer' }}>
+                        <option value="none">— Aucun effet</option>
+                        <option value="shake">📳 Tremblement</option>
+                        <option value="flash_rouge">🔴 Flash rouge</option>
+                        <option value="flash_blanc">⚡ Flash blanc</option>
+                        <option value="impact">💥 Impact (tremblement + rouge)</option>
+                      </select>
                       <select value={editImages[i]?.style ?? 'realistic'} onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, style: e.target.value } : img))} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.28rem 0.5rem', color: 'var(--foreground)', fontSize: '0.72rem', outline: 'none', cursor: 'pointer' }}>
                         <option value="realistic">🖼️ Réaliste</option>
+                        <option value="photo">📷 Photo</option>
+                        <option value="sketch">✏️ Esquisse</option>
                         <option value="manga">⛩️ Manga</option>
                         <option value="bnw">⬛ Noir & Blanc</option>
                         <option value="watercolor">🎨 Aquarelle</option>
@@ -2070,30 +1875,206 @@ export default function BookPage() {
                         <option value="dark_fantasy">🩸 Dark Fantasy</option>
                         <option value="pixel">👾 Pixel Art</option>
                       </select>
+                      <select
+                        value={editImages[i]?.model ?? 'auto'}
+                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, model: e.target.value === 'auto' ? undefined : e.target.value } : img))}
+                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.28rem 0.4rem', color: 'var(--foreground)', fontSize: '0.72rem', outline: 'none', cursor: 'pointer' }}
+                        title="Modèle de génération"
+                      >
+                        <option value="auto">🤖 Auto</option>
+                        <option value="flux-schnell">⚡ Schnell</option>
+                        <option value="flux-dev">🌟 Flux Dev</option>
+                        <option value="flux-kontext-dev">🔄 Kontext Dev</option>
+                        <option value="flux-kontext-pro">✨ Kontext Pro</option>
+                        <option value="ideogram-character">👤 Ideogram</option>
+                        <option value="gen4-image">🎬 Gen-4</option>
+                        <option value="gen4-image-turbo">🎬 Gen-4 Turbo</option>
+                      </select>
+                      <select
+                        value={editImages[i]?.aspect_ratio ?? '16:9'}
+                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, aspect_ratio: e.target.value } : img))}
+                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.28rem 0.4rem', color: 'var(--foreground)', fontSize: '0.72rem', outline: 'none', cursor: 'pointer' }}
+                        title="Format de l'image"
+                      >
+                        <option value="16:9">⬛ 16:9</option>
+                        <option value="9:16">📱 9:16</option>
+                        <option value="1:1">⬜ 1:1</option>
+                        <option value="4:3">🖥 4:3</option>
+                        <option value="3:4">📄 3:4</option>
+                        <option value="2:3">📖 2:3</option>
+                      </select>
                       {book.protagonist_description && (
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.72rem', color: 'var(--muted)' }} title={book.protagonist_description}>
                           <input type="checkbox" checked={editImages[i]?.includeProtagonist ?? false} onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, includeProtagonist: e.target.checked } : img))} style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
                           🧑 Perso.
                         </label>
                       )}
+                      {/* ── Références portrait (Kontext ou Gen-4) ── */}
+                      {(() => {
+                        const protagonistNpc = book.protagonist_npc_id ? npcs.find(n => n.id === book.protagonist_npc_id) : null
+                        const companionNpcs = (detailSec.companion_npc_ids ?? []).map(nid => npcs.find(n => n.id === nid)).filter((n): n is Npc => !!n && !!(n.portrait_url || n.image_url))
+                        const refCandidates = [
+                          ...(protagonistNpc && (protagonistNpc.portrait_url || protagonistNpc.image_url) ? [{ id: protagonistNpc.id, name: protagonistNpc.name, url: protagonistNpc.portrait_url || protagonistNpc.image_url! }] : []),
+                          ...companionNpcs.filter(n => n.id !== protagonistNpc?.id).map(n => ({ id: n.id, name: n.name, url: n.portrait_url || n.image_url! })),
+                        ]
+                        const prevImgUrl = i > 0 ? editImages[i - 1]?.url?.split('?')[0] : null
+                        const chainActive = editImages[i]?.chain_from_prev ?? false
+                        const isGen4 = editImages[i]?.model === 'gen4-image' || editImages[i]?.model === 'gen4-image-turbo'
+
+                        if (refCandidates.length === 0 && !prevImgUrl) return null
+
+                        // ── Gen-4 : chaînage + jusqu'à 3 refs NPC (2 si chaînage actif) ──
+                        if (isGen4) {
+                          const selectedIds = editImages[i]?.gen4_ref_npc_ids ?? []
+                          // Si chaînage actif → Ref 1 = plan précédent, NPC en slots 0 et 1 (2 max)
+                          const npcSlots = chainActive ? [0, 1] : [0, 1, 2]
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '0.65rem', color: '#4c9bf0', whiteSpace: 'nowrap' }}>🎬</span>
+                              {/* Chaînage plan précédent */}
+                              {prevImgUrl && (
+                                <button
+                                  onClick={() => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, chain_from_prev: !chainActive } : img))}
+                                  title={chainActive ? 'Désactiver le chaînage' : `Utiliser l'image du plan ${i} comme Ref 1 (décor/ambiance)`}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.4rem', borderRadius: '4px', border: `1px solid ${chainActive ? '#4caf7d' : 'var(--border)'}`, background: chainActive ? 'rgba(76,175,77,0.15)' : 'var(--surface-2)', color: chainActive ? '#4caf7d' : 'var(--muted)', fontSize: '0.65rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                >
+                                  🔗 Plan {i}
+                                  {chainActive && <img src={prevImgUrl} alt="" style={{ width: '18px', height: '18px', objectFit: 'cover', borderRadius: '2px', flexShrink: 0 }} />}
+                                </button>
+                              )}
+                              {/* Sélecteurs NPC */}
+                              {npcSlots.map(slot => {
+                                const selId = selectedIds[slot] ?? ''
+                                const selRef = selId ? refCandidates.find(r => r.id === selId) : null
+                                const refNum = chainActive ? slot + 2 : slot + 1
+                                return (
+                                  <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                                    <select
+                                      value={selId}
+                                      onChange={e => {
+                                        const newIds = [...selectedIds]
+                                        newIds[slot] = e.target.value
+                                        setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, gen4_ref_npc_ids: newIds.filter(Boolean) } : img))
+                                      }}
+                                      style={{ background: selId ? 'rgba(76,155,240,0.12)' : 'var(--surface-2)', border: `1px solid ${selId ? '#4c9bf066' : 'var(--border)'}`, borderRadius: '4px', padding: '0.25rem 0.35rem', color: selId ? '#4c9bf0' : 'var(--muted)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer', maxWidth: '80px' }}
+                                    >
+                                      <option value="">Ref {refNum}</option>
+                                      {refCandidates.filter(r => !selectedIds.includes(r.id) || r.id === selId).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                    </select>
+                                    {selRef && <img src={selRef.url} alt={selRef.name} style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #4c9bf066', flexShrink: 0 }} />}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )
+                        }
+
+                        // ── Kontext : 1 ref + chaînage ──
+                        const currentRef = chainActive ? null : (editImages[i]?.kontext_ref_npc_id ?? null)
+                        const selectedRef = currentRef ? refCandidates.find(r => r.id === currentRef) : null
+                        return (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <span style={{ fontSize: '0.65rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>🎭</span>
+                            {prevImgUrl && (
+                              <button
+                                onClick={() => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, chain_from_prev: !chainActive, kontext_ref_npc_id: undefined } : img))}
+                                title={chainActive ? 'Désactiver le chaînage' : `Utiliser l'image du plan ${i} comme référence Kontext`}
+                                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.4rem', borderRadius: '4px', border: `1px solid ${chainActive ? '#4caf7d' : 'var(--border)'}`, background: chainActive ? 'rgba(76,175,77,0.15)' : 'var(--surface-2)', color: chainActive ? '#4caf7d' : 'var(--muted)', fontSize: '0.65rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                              >
+                                🔗 Plan {i}
+                                {chainActive && <img src={prevImgUrl} alt="" style={{ width: '18px', height: '18px', objectFit: 'cover', borderRadius: '2px', flexShrink: 0 }} />}
+                              </button>
+                            )}
+                            {refCandidates.length > 0 && !chainActive && (
+                              <>
+                                <select
+                                  value={currentRef ?? ''}
+                                  onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, kontext_ref_npc_id: e.target.value || undefined } : img))}
+                                  style={{ background: currentRef ? 'rgba(212,168,76,0.12)' : 'var(--surface-2)', border: `1px solid ${currentRef ? 'rgba(212,168,76,0.5)' : 'var(--border)'}`, borderRadius: '4px', padding: '0.28rem 0.4rem', color: currentRef ? 'var(--accent)' : 'var(--muted)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer', maxWidth: '90px' }}
+                                >
+                                  <option value="">Portrait off</option>
+                                  {refCandidates.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                                </select>
+                                {selectedRef && <img src={selectedRef.url} alt={selectedRef.name} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(212,168,76,0.5)', flexShrink: 0 }} />}
+                              </>
+                            )}
+                          </div>
+                        )
+                      })()}
                       <ImageGenButton
                         type="section" provider={imageProvider}
+                        model={editImages[i]?.model}
                         storagePath={`books/${id}/sections/${detailSec.id}_${i}`}
+                        gen4_refs={(() => {
+                          const isGen4 = editImages[i]?.model === 'gen4-image' || editImages[i]?.model === 'gen4-image-turbo'
+                          if (!isGen4) return undefined
+                          const refs: Array<{ url: string; name: string }> = []
+                          // Ref 1 : image du plan précédent si chaînage actif
+                          if (editImages[i]?.chain_from_prev && i > 0) {
+                            const prevUrl = editImages[i - 1]?.url?.split('?')[0]
+                            if (prevUrl) refs.push({ url: prevUrl, name: 'scene' })
+                          }
+                          // Refs NPC suivantes
+                          for (const nid of (editImages[i]?.gen4_ref_npc_ids ?? [])) {
+                            const npc = npcs.find(n => n.id === nid)
+                            if (!npc) continue
+                            const url = npc.portrait_url || npc.image_url
+                            if (url) refs.push({ url, name: npc.name })
+                          }
+                          return refs.slice(0, 3)
+                        })()}
+                        input_image_url={(() => {
+                          const isGen4 = editImages[i]?.model === 'gen4-image' || editImages[i]?.model === 'gen4-image-turbo'
+                          if (isGen4) return undefined // Gen-4 uses gen4_refs instead
+                          if (editImages[i]?.chain_from_prev && i > 0) {
+                            return editImages[i - 1]?.url?.split('?')[0] || undefined
+                          }
+                          const refNpcId = editImages[i]?.kontext_ref_npc_id
+                          if (!refNpcId) return undefined
+                          const npc = npcs.find(n => n.id === refNpcId)
+                          return npc ? (npc.portrait_url || npc.image_url || undefined) : undefined
+                        })()}
                         data={(() => {
                           const descText = editImages[i]?.description || editSummary || editContent
-                          const npcApps = npcs.filter(n => n.name && descText.toLowerCase().includes(n.name.toLowerCase()) && (n.appearance || n.description)).map(n => [n.appearance || n.description, n.origin].filter(Boolean).join(' ')).join(' | ')
-                          return { summary: editImages[i]?.description || editSummary, content: editContent, theme: book.theme, style: editImages[i]?.style ?? book.illustration_style ?? 'realistic', protagonist: editImages[i]?.includeProtagonist ? (book.protagonist_description ?? '') : '', illustration_bible: book.illustration_bible ?? '', npc_appearances: npcApps }
+                          const refNpcId = editImages[i]?.kontext_ref_npc_id
+                          const refNpc = (!editImages[i]?.chain_from_prev && refNpcId) ? npcs.find(n => n.id === refNpcId) : null
+                          // Exclure le perso Kontext des NPC appearances (déjà dans l'image de référence)
+                          const npcApps = npcs
+                            .filter(n => n.name && descText.toLowerCase().includes(n.name.toLowerCase()) && (n.appearance || n.description))
+                            .filter(n => !refNpc || n.id !== refNpc.id)
+                            .map(n => (n.appearance || n.description || '').slice(0, 80))
+                            .join(' | ')
+                          return { summary: editImages[i]?.description || editSummary, content: editContent, theme: book.theme, style: editImages[i]?.style ?? book.illustration_style ?? 'realistic', protagonist: editImages[i]?.includeProtagonist ? (book.protagonist_description ?? '') : '', illustration_bible: book.illustration_bible ?? '', npc_appearances: npcApps, aspect_ratio: editImages[i]?.aspect_ratio ?? '16:9', kontext_ref_name: refNpc?.name ?? '' }
                         })()}
                         currentUrl={editImages[i]?.url}
-                        onSaved={url => {
+                        onSaved={async (url, meta) => {
                           const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
-                          const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl } : img)
+                          const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl, ...(meta ?? {}) } : img)
                           setEditImages(() => newImgs)
-                          const cleanImgs = newImgs.filter(img => img.url || img.description.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined }))
-                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                          const cleanImgs = newImgs.filter(img => img.url || img.description.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, prompt_used: (img as any).prompt_used || undefined, model_used: (img as any).model_used || undefined, aspect_ratio_used: (img as any).aspect_ratio_used || undefined, style_used: (img as any).style_used || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                          const res = await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                          if (!res.ok) { const e = await res.json().catch(() => ({})); console.error('[onSaved] PATCH failed:', e) }
                           setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
                         }}
                       />
+                      <label style={{ cursor: 'pointer' }} title="Charger depuis le PC">
+                        <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={async e => {
+                          const file = e.target.files?.[0]; if (!file) return
+                          const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_${i}`)
+                          const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                          const d = await res.json()
+                          if (d.url) {
+                            const displayUrl = d.url + '?t=' + Date.now()
+                            const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl } : img)
+                            setEditImages(() => newImgs)
+                            const cleanImgs = newImgs.filter(img => img.url || img.description.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                            fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                            setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
+                          }
+                          e.target.value = ''
+                        }} />
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.28rem 0.55rem', fontSize: '0.72rem', color: 'var(--muted)' }}>📁 PC</span>
+                      </label>
                     </div>
                     {editImages[i]?.description.trim() && !editImages[i]?.url && (
                       <button onClick={() => {
@@ -2106,6 +2087,12 @@ export default function BookPage() {
                     )}
                   </div>
                 ))}
+                {editImages.length < 3 && (
+                  <button onClick={() => setEditImages(imgs => [...imgs, { description: '', style: book?.illustration_style ?? 'realistic', includeProtagonist: false }])}
+                    style={{ alignSelf: 'flex-start', fontSize: '0.72rem', padding: '0.3rem 0.75rem', borderRadius: '6px', border: '1px dashed var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>
+                    + Plan {editImages.length + 1}
+                  </button>
+                )}
               </div>
             )}
 
@@ -2177,13 +2164,23 @@ export default function BookPage() {
                     style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.45rem 0.75rem', color: 'var(--foreground)', fontSize: '0.85rem', outline: 'none', boxSizing: 'border-box' }}
                   />
                   <button onClick={() => setFreesoundModal({ sectionType: t.label })} style={{ background: 'none', border: '1px solid #4c9bf044', borderRadius: '5px', color: '#4c9bf0', cursor: 'pointer', padding: '0.35rem 0.6rem', fontSize: '0.78rem', whiteSpace: 'nowrap' }}>🔍 Freesound</button>
+                  <label style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '5px', color: 'var(--muted)', cursor: uploadingSectionMusic ? 'default' : 'pointer', padding: '0.35rem 0.6rem', fontSize: '0.78rem', whiteSpace: 'nowrap', opacity: uploadingSectionMusic ? 0.5 : 1 }}>
+                    {uploadingSectionMusic ? '⟳' : '📁'}
+                    <input type="file" accept="audio/*" style={{ display: 'none' }} disabled={uploadingSectionMusic} onChange={e => { const f = e.target.files?.[0]; if (f) uploadSectionMusic(f, detailSec.id) }} />
+                  </label>
                   {editMusicUrl && (
                     <button onClick={() => setEditMusicUrl('')} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '5px', color: 'var(--muted)', cursor: 'pointer', padding: '0.35rem 0.5rem', fontSize: '0.78rem' }}>✕</button>
                   )}
                 </div>
                 {(editMusicUrl || DEFAULT_MUSIC[t.label]) && (
-                  <audio key={editMusicUrl || DEFAULT_MUSIC[t.label]} controls src={editMusicUrl || DEFAULT_MUSIC[t.label]} style={{ width: '100%', height: '36px', accentColor: 'var(--accent)' }} />
+                  <MusicStartPlayer
+                    key={`${editMusicUrl || DEFAULT_MUSIC[t.label]}-${sectionMusicBuster}`}
+                    src={`${(editMusicUrl || DEFAULT_MUSIC[t.label]).split('?')[0]}?v=${sectionMusicBuster}`}
+                    startTime={editMusicStartTime}
+                    onSetStartTime={setEditMusicStartTime}
+                  />
                 )}
+                {sectionMusicUploaded && <p style={{ fontSize: '0.72rem', color: '#52c484', margin: 0, fontStyle: 'italic' }}>✓ Fichier chargé — pensez à sauvegarder</p>}
                 {!editMusicUrl && detailSec.music_url && (
                   <p style={{ fontSize: '0.72rem', color: '#f0a742', margin: 0, fontStyle: 'italic' }}>⚠ Musique personnalisée en base — le champ est vide, sauvegarder supprimera cette musique.</p>
                 )}
@@ -2214,11 +2211,91 @@ export default function BookPage() {
                       {/* Header row */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.85rem', background: choice.is_back ? '#6b8cde0a' : 'var(--surface-2)' }}>
                         <span style={{ color: arrowColor, fontWeight: 'bold', fontSize: '1rem' }}>{arrow}</span>
-                        <span style={{ flex: 1, fontSize: '0.85rem', color: 'var(--foreground)' }}>{choice.label}</span>
-                        {tt && targetNum && (
-                          <button onClick={() => { setSectionDetailId(targetSection!.id); setSectionDetailTab('resume') }}
-                            style={{ fontSize: '0.65rem', padding: '0.2rem 0.55rem', borderRadius: '5px', background: tt.color + '22', border: `1px solid ${tt.color}44`, color: tt.color, cursor: 'pointer', fontWeight: 'bold' }}>
-                            {tt.icon} §{targetNum}
+                        <input
+                          defaultValue={choice.label}
+                          onBlur={async e => {
+                            const trimmed = e.target.value.trim()
+                            if (trimmed && trimmed !== choice.label) {
+                              await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: trimmed }) })
+                              setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, label: trimmed } : c))
+                            }
+                          }}
+                          onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                          style={{ flex: 1, fontSize: '0.85rem', color: 'var(--foreground)', background: 'transparent', border: '1px solid transparent', borderRadius: '4px', padding: '0.15rem 0.4rem', outline: 'none', transition: 'border-color 0.15s' }}
+                          onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                          onBlurCapture={e => (e.target.style.borderColor = 'transparent')}
+                        />
+                        <input
+                          value={(choice as any).archetype ?? ''}
+                          onChange={e => setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, archetype: e.target.value } as any : c))}
+                          onBlur={async e => {
+                            const val = e.target.value.trim() || null
+                            await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ archetype: val }) })
+                            setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, archetype: val ?? undefined } as any : c))
+                          }}
+                          placeholder="Archétype…"
+                          style={{ width: 110, fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', background: 'rgba(212,168,76,0.08)', border: '1px solid rgba(212,168,76,0.2)', color: '#d4a84c', outline: 'none', fontStyle: 'italic' }}
+                        />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.65rem', color: '#52c484', background: '#52c48411', border: '1px solid #52c48433', borderRadius: '4px', padding: '0.15rem 0.5rem', whiteSpace: 'nowrap' }}>
+                          💵
+                          <input type="number" min={0} max={9999} defaultValue={(choice as any).money_cost ?? ''}
+                            placeholder="—"
+                            onBlur={async e => {
+                              const val = e.target.value === '' ? null : parseInt(e.target.value)
+                              if (val === ((choice as any).money_cost ?? null)) return
+                              await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ money_cost: val }) })
+                              setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, money_cost: val } as any : c))
+                            }}
+                            onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                            style={{ width: '42px', background: 'transparent', border: 'none', outline: 'none', color: '#52c484', fontSize: '0.7rem', textAlign: 'right' }}
+                          /> $
+                        </label>
+                        <label title="Sélectionné automatiquement si le countdown atteint 0" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.65rem', color: choice.is_default ? '#e05555' : 'rgba(255,255,255,0.4)', background: choice.is_default ? '#e0555511' : 'transparent', border: `1px solid ${choice.is_default ? '#e0555544' : 'var(--border)'}`, borderRadius: '4px', padding: '0.15rem 0.5rem', whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s' }}>
+                          <input type="checkbox" checked={!!choice.is_default}
+                            onChange={async e => {
+                              const val = e.target.checked
+                              // Uncheck all others in this section first
+                              if (val) {
+                                await Promise.all([
+                                  fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_default: true }) }),
+                                  ...sChoices.filter(c => c.id !== choice.id && c.is_default).map(c =>
+                                    fetch(`/api/choices/${c.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_default: false }) })
+                                  )
+                                ])
+                                setChoices(cs => cs.map(c => c.section_id === choice.section_id ? { ...c, is_default: c.id === choice.id } : c))
+                              } else {
+                                await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ is_default: false }) })
+                                setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, is_default: false } : c))
+                              }
+                            }}
+                            style={{ accentColor: '#e05555', width: 11, height: 11 }}
+                          />
+                          ⏱ Défaut
+                        </label>
+                        {editingChoiceTarget === choice.id ? (
+                          <select
+                            autoFocus
+                            value={choice.target_section_id ?? ''}
+                            onChange={async e => {
+                              const val = e.target.value || null
+                              await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ target_section_id: val }) })
+                              setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, target_section_id: val ?? undefined } : c))
+                              setEditingChoiceTarget(null)
+                            }}
+                            onBlur={() => setEditingChoiceTarget(null)}
+                            style={{ fontSize: '0.7rem', padding: '0.15rem 0.4rem', borderRadius: '5px', background: 'var(--surface-2)', border: '1px solid var(--accent)', color: 'var(--foreground)', outline: 'none', maxWidth: 120 }}
+                          >
+                            <option value="">— aucune —</option>
+                            {sections.slice().sort((a, b) => a.number - b.number).map(s => (
+                              <option key={s.id} value={s.id}>§{s.number}{s.number === detailSec.number ? ' (cette section)' : ''}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <button
+                            onClick={() => setEditingChoiceTarget(choice.id)}
+                            title="Cliquer pour changer la section cible"
+                            style={{ fontSize: '0.65rem', padding: '0.2rem 0.55rem', borderRadius: '5px', background: (tt?.color ?? '#888') + '22', border: `1px solid ${(tt?.color ?? '#888')}44`, color: tt?.color ?? 'var(--muted)', cursor: 'pointer', fontWeight: 'bold' }}>
+                            {tt?.icon ?? '?'} §{targetNum ?? '?'}
                           </button>
                         )}
                         <button onClick={() => { isEditingTransition_ ? setEditingTransition(null) : (setEditingTransition(choice.id), setTransitionDraft(choice.transition_text ?? '')) }}
@@ -2247,6 +2324,7 @@ export default function BookPage() {
                               style={{ fontSize: '0.72rem', padding: '0.28rem 0.65rem', borderRadius: '5px', border: 'none', background: '#b48edd', color: '#0f0f14', cursor: isGenerating ? 'default' : 'pointer', fontWeight: 'bold', opacity: isGenerating ? 0.6 : 1 }}>
                               {isGenerating ? '…' : '✨ Générer'}
                             </button>
+                            <CorrectButton text={transitionDraft} onCorrected={setTransitionDraft} />
                             <button onClick={async () => {
                               await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_text: transitionDraft || null }) })
                               setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_text: transitionDraft || undefined } : c))
@@ -2284,28 +2362,159 @@ export default function BookPage() {
                             </div>
                           )}
                           {/* Image dédiée transition */}
-                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                            {choice.transition_image_url && (
-                              <img src={choice.transition_image_url} alt="" onClick={() => setZoomedImage(choice.transition_image_url!)} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #b48edd55', cursor: 'zoom-in', flexShrink: 0 }} />
-                            )}
-                            <ImageGenButton type="section" provider={imageProvider}
-                              storagePath={`books/${id}/transitions/${choice.id}`}
-                              data={{ summary: transitionDraft || choice.transition_text || choice.label, content: transitionDraft || '', theme: book.theme, style: book.illustration_style ?? 'realistic', protagonist: book.protagonist_description ?? '', illustration_bible: book.illustration_bible ?? '' }}
-                              currentUrl={choice.transition_image_url} label="🖼 Illustrer"
-                              onSaved={async (url) => {
-                                const cleanUrl = url.split('?')[0]
-                                await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_url: cleanUrl }) })
-                                setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_image_url: cleanUrl } : c))
-                              }} />
-                          </div>
+                          {(() => {
+                            const tSett = choice.transition_img_settings ?? { model: 'auto', style: book.illustration_style ?? 'realistic', aspect_ratio: '16:9', section_ref_idx: null }
+                            const updateTS = (patch: Partial<typeof tSett>) =>
+                              setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_img_settings: { ...tSett, ...patch } } : c))
+                            const saveTS = (patch: Partial<typeof tSett>) => {
+                              const newSett = { ...tSett, ...patch }
+                              setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_img_settings: newSett } : c))
+                              fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_img_settings: newSett }) }).catch(() => {})
+                            }
+                            const isGen4 = tSett.model === 'gen4-image' || tSett.model === 'gen4-image-turbo'
+                            const sectionImgs = detailSec.images ?? []
+                            const refUrl = tSett.section_ref_idx !== null ? sectionImgs[tSett.section_ref_idx]?.url?.split('?')[0] ?? null : null
+                            const selSt = { background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer' } as const
+                            const isTrEN = translatingTransitionImg?.choiceId === choice.id && translatingTransitionImg.dir === 'en2fr'
+                            const isTrFR = translatingTransitionImg?.choiceId === choice.id && translatingTransitionImg.dir === 'fr2en'
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                {/* Description EN */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
+                                  <textarea
+                                    value={tSett.description ?? ''}
+                                    onChange={e => updateTS({ description: e.target.value })}
+                                    onBlur={e => saveTS({ description: e.target.value })}
+                                    placeholder="Description image (EN) — laissez vide pour utiliser le texte de transition…"
+                                    rows={2}
+                                    style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.78rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                  />
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.1rem' }}>
+                                    <button title="Traduire EN → FR" disabled={!!translatingTransitionImg} onClick={async () => {
+                                      const enText = tSett.description ?? ''; if (!enText.trim()) return
+                                      setTranslatingTransitionImg({ choiceId: choice.id, dir: 'en2fr' })
+                                      try {
+                                        const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: enText }) })
+                                        const d = await res.json(); if (d.translated) saveTS({ prompt_fr: d.translated })
+                                      } finally { setTranslatingTransitionImg(null) }
+                                    }} style={{ flexShrink: 0, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: isTrEN ? 'var(--muted)' : '#d4a84c', cursor: translatingTransitionImg ? 'default' : 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.65rem', opacity: translatingTransitionImg ? 0.5 : 1 }}>
+                                      {isTrEN ? '…' : '→ FR'}
+                                    </button>
+                                    <button title="Traduire FR → EN" disabled={!!translatingTransitionImg} onClick={async () => {
+                                      const frText = tSett.prompt_fr ?? ''; if (!frText.trim()) return
+                                      setTranslatingTransitionImg({ choiceId: choice.id, dir: 'fr2en' })
+                                      try {
+                                        const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: frText, target: 'en' }) })
+                                        const d = await res.json(); if (d.translated) saveTS({ description: d.translated })
+                                      } finally { setTranslatingTransitionImg(null) }
+                                    }} style={{ flexShrink: 0, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: isTrFR ? 'var(--muted)' : '#7ab8d8', cursor: translatingTransitionImg ? 'default' : 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.65rem', opacity: translatingTransitionImg ? 0.5 : 1 }}>
+                                      {isTrFR ? '…' : '← EN'}
+                                    </button>
+                                  </div>
+                                </div>
+                                {/* Description FR */}
+                                <textarea
+                                  value={tSett.prompt_fr ?? ''}
+                                  onChange={e => updateTS({ prompt_fr: e.target.value })}
+                                  onBlur={e => saveTS({ prompt_fr: e.target.value })}
+                                  placeholder="Description FR…"
+                                  rows={2}
+                                  style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                />
+                                {/* Settings */}
+                                <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                  <select value={tSett.style} onChange={e => saveTS({ style: e.target.value })} style={selSt}>
+                                    <option value="realistic">🖼️ Réaliste</option>
+                                    <option value="photo">📷 Photo</option>
+                                    <option value="sketch">✏️ Esquisse</option>
+                                    <option value="manga">⛩️ Manga</option>
+                                    <option value="bnw">⬛ N&B</option>
+                                    <option value="watercolor">🎨 Aquarelle</option>
+                                    <option value="comic">💬 BD</option>
+                                    <option value="dark_fantasy">🩸 Dark Fantasy</option>
+                                  </select>
+                                  <select value={tSett.model} onChange={e => saveTS({ model: e.target.value })} style={selSt} title="Modèle">
+                                    <option value="auto">🤖 Auto</option>
+                                    <option value="flux-schnell">⚡ Schnell</option>
+                                    <option value="flux-dev">🌟 Flux Dev</option>
+                                    <option value="flux-kontext-dev">🔄 Kontext Dev</option>
+                                    <option value="flux-kontext-pro">✨ Kontext Pro</option>
+                                    <option value="ideogram-character">👤 Ideogram</option>
+                                    <option value="gen4-image">🎬 Gen-4</option>
+                                    <option value="gen4-image-turbo">🎬 Gen-4 Turbo</option>
+                                  </select>
+                                  <select value={tSett.aspect_ratio} onChange={e => saveTS({ aspect_ratio: e.target.value })} style={selSt} title="Format">
+                                    <option value="16:9">16:9</option>
+                                    <option value="9:16">📱 9:16</option>
+                                    <option value="1:1">1:1</option>
+                                    <option value="4:3">4:3</option>
+                                    <option value="2:3">2:3</option>
+                                  </select>
+                                  {/* Réf. images section */}
+                                  {sectionImgs.some(img => img?.url) && (
+                                    <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center' }}>
+                                      <span style={{ fontSize: '0.6rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Réf:</span>
+                                      {[0, 1, 2].map(idx => {
+                                        const imgUrl = sectionImgs[idx]?.url
+                                        if (!imgUrl) return null
+                                        const sel = tSett.section_ref_idx === idx
+                                        return (
+                                          <button key={idx} onClick={() => saveTS({ section_ref_idx: sel ? null : idx })} title={`Image ${idx + 1} comme référence`}
+                                            style={{ padding: 0, border: sel ? '2px solid #4c9bf0' : '2px solid transparent', borderRadius: '3px', background: 'none', cursor: 'pointer' }}>
+                                            <img src={imgUrl} alt="" style={{ width: '26px', height: '26px', objectFit: 'cover', borderRadius: '2px', display: 'block', opacity: sel ? 1 : 0.55 }} />
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                                {/* Image + bouton */}
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                  {choice.transition_image_url && (
+                                    <img src={choice.transition_image_url} alt="" onClick={() => setZoomedImage(choice.transition_image_url!)} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #b48edd55', cursor: 'zoom-in', flexShrink: 0 }} />
+                                  )}
+                                  <ImageGenButton type="section" provider={imageProvider}
+                                    storagePath={`books/${id}/transitions/${choice.id}`}
+                                    data={(() => {
+                                      const descText = tSett.description || transitionDraft || choice.transition_text || choice.label
+                                      const npcApps = npcs
+                                        .filter(n => n.name && descText.toLowerCase().includes(n.name.toLowerCase()) && (n.appearance || n.description))
+                                        .map(n => (n.appearance || n.description || '').slice(0, 80))
+                                        .join(' | ')
+                                      return { summary: descText, content: tSett.description || transitionDraft || '', theme: book.theme, style: tSett.style, aspect_ratio: tSett.aspect_ratio, protagonist: book.protagonist_description ?? '', illustration_bible: book.illustration_bible ?? '', npc_appearances: npcApps }
+                                    })()}
+                                    model={tSett.model !== 'auto' ? tSett.model : undefined}
+                                    input_image_url={!isGen4 && refUrl ? refUrl : undefined}
+                                    gen4_refs={isGen4 && refUrl ? [{ url: refUrl, name: 'scene' }] : undefined}
+                                    currentUrl={choice.transition_image_url} label="🖼 Illustrer"
+                                    onSaved={async (url) => {
+                                      const cleanUrl = url.split('?')[0]
+                                      const res = await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_url: cleanUrl }) })
+                                      if (!res.ok) { const e = await res.json().catch(() => ({})); console.error('[transition onSaved] PATCH failed:', e) }
+                                      else { setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_image_url: `${cleanUrl}?v=${Date.now()}` } : c)) }
+                                    }} />
+                                </div>
+                              </div>
+                            )
+                          })()}
                         </div>
                       )}
-                      {/* Affichage transition (non édition) */}
-                      {!isEditingTransition_ && choice.transition_text && (
-                        <div style={{ padding: '0.5rem 0.85rem', background: '#b48edd08', borderTop: '1px solid #b48edd22', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
-                          {(() => { const imgUrl = choice.transition_image_url || detailSec.images?.[(choice.transition_image_index ?? 2)]?.url; return imgUrl ? <img src={imgUrl} alt="" style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} /> : null })()}
-                          <p style={{ fontSize: '0.78rem', color: '#b48edd', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>{choice.transition_text}</p>
-                        </div>
+                      {/* Texte de transition — toujours éditable inline */}
+                      {!isEditingTransition_ && (
+                        <TransitionInlineBlock
+                          choiceId={choice.id}
+                          initialText={choice.transition_text ?? ''}
+                          imgUrl={choice.transition_image_url || detailSec.images?.[(choice.transition_image_index ?? 2)]?.url || null}
+                          initialTextPosition={(choice as any).transition_text_position ?? null}
+                          onSavePosition={async pos => {
+                            await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_text_position: pos }) })
+                            setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_text_position: pos } as any : c))
+                          }}
+                          onSave={async text => {
+                            await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_text: text || null }) })
+                            setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_text: text || undefined } : c))
+                          }}
+                        />
                       )}
 
                       {/* ── Texte de retour ── */}
@@ -2380,27 +2589,345 @@ export default function BookPage() {
                   const sucSec = sections.find(s => s.id === detailSec.trial!.success_section_id)
                   const failSec = sections.find(s => s.id === detailSec.trial!.failure_section_id)
                   const trialNpc = detailSec.trial?.npc_id ? npcs.find(n => n.id === detailSec.trial!.npc_id) : null
+                  const isCombat = detailSec.trial?.type === 'combat'
+                  if (isCombat && !combatTypesLoaded) {
+                    fetch(`/api/books/${id}/combat-types`).then(r => r.json()).then(d => {
+                      setCombatTypes(d.combat_types ?? [])
+                      setCombatTypesLoaded(true)
+                    })
+                  }
+                  const COMBAT_PROPS_LIST = ['voiture', 'porte', 'mur', 'table', 'escalier', 'fenêtre', 'poteau']
+                  const secCombatProps: string[] = (detailSec as any).combat_props ?? []
+                  const secCombatTypeId: string | null = (detailSec as any).combat_type_id ?? null
+                  const secCombatImageUrl: string | null = (detailSec as any).combat_image_url ?? null
                   return (
-                    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem 1.1rem' }}>
-                      <div style={labelStyle}>Épreuve{trialNpc ? ` — ${trialNpc.name}` : ''}</div>
-                      <div style={{ display: 'flex', gap: '0.75rem' }}>
-                        {sucSec && (
-                          <button onClick={() => { setSectionDetailId(sucSec.id); setSectionDetailTab('resume') }}
-                            style={{ flex: 1, padding: '0.75rem', background: '#4caf7d12', border: '1px solid #4caf7d44', borderRadius: '8px', cursor: 'pointer', textAlign: 'left' }}>
-                            <div style={{ fontSize: '0.6rem', color: 'var(--success)', fontWeight: 'bold', marginBottom: '0.25rem' }}>✓ SUCCÈS</div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--foreground)', fontWeight: 'bold' }}>{getSectionType(sucSec).icon} §{sucSec.number}</div>
-                            {sucSec.summary && <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: '0.25rem' }}>{sucSec.summary.slice(0, 70)}</div>}
-                          </button>
-                        )}
-                        {failSec && (
-                          <button onClick={() => { setSectionDetailId(failSec.id); setSectionDetailTab('resume') }}
-                            style={{ flex: 1, padding: '0.75rem', background: '#c94c4c12', border: '1px solid #c94c4c44', borderRadius: '8px', cursor: 'pointer', textAlign: 'left' }}>
-                            <div style={{ fontSize: '0.6rem', color: 'var(--danger)', fontWeight: 'bold', marginBottom: '0.25rem' }}>✗ ÉCHEC</div>
-                            <div style={{ fontSize: '0.85rem', color: 'var(--foreground)', fontWeight: 'bold' }}>{getSectionType(failSec).icon} §{failSec.number}</div>
-                            {failSec.summary && <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: '0.25rem' }}>{failSec.summary.slice(0, 70)}</div>}
-                          </button>
-                        )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem 1.1rem' }}>
+                        <div style={labelStyle}>Épreuve{trialNpc ? ` — ${trialNpc.name}` : ''}</div>
+                        <div style={{ display: 'flex', gap: '0.75rem' }}>
+                          {sucSec && (
+                            <button onClick={() => { setSectionDetailId(sucSec.id); setSectionDetailTab('resume') }}
+                              style={{ flex: 1, padding: '0.75rem', background: '#4caf7d12', border: '1px solid #4caf7d44', borderRadius: '8px', cursor: 'pointer', textAlign: 'left' }}>
+                              <div style={{ fontSize: '0.6rem', color: 'var(--success)', fontWeight: 'bold', marginBottom: '0.25rem' }}>✓ SUCCÈS</div>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--foreground)', fontWeight: 'bold' }}>{getSectionType(sucSec).icon} §{sucSec.number}</div>
+                              {sucSec.summary && <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: '0.25rem' }}>{sucSec.summary.slice(0, 70)}</div>}
+                            </button>
+                          )}
+                          {failSec && (
+                            <button onClick={() => { setSectionDetailId(failSec.id); setSectionDetailTab('resume') }}
+                              style={{ flex: 1, padding: '0.75rem', background: '#c94c4c12', border: '1px solid #c94c4c44', borderRadius: '8px', cursor: 'pointer', textAlign: 'left' }}>
+                              <div style={{ fontSize: '0.6rem', color: 'var(--danger)', fontWeight: 'bold', marginBottom: '0.25rem' }}>✗ ÉCHEC</div>
+                              <div style={{ fontSize: '0.85rem', color: 'var(--foreground)', fontWeight: 'bold' }}>{getSectionType(failSec).icon} §{failSec.number}</div>
+                              {failSec.summary && <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginTop: '0.25rem' }}>{failSec.summary.slice(0, 70)}</div>}
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {/* ── Config combat (uniquement si trial.type === 'combat') ── */}
+                      {isCombat && (
+                        <div style={{ background: 'var(--surface)', border: '1px solid #e0555533', borderRadius: '8px', padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          <div style={{ ...labelStyle, color: '#e05555' }}>⚔️ Configuration du combat</div>
+
+                          {/* Type de combat */}
+                          <div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Type de combat</div>
+                            <select
+                              value={secCombatTypeId ?? ''}
+                              onChange={async e => {
+                                const val = e.target.value || null
+                                await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ combat_type_id: val }) })
+                                setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, combat_type_id: val } as any : s))
+                              }}
+                              style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--foreground)', padding: '0.4rem 0.6rem', fontSize: '0.82rem' }}
+                            >
+                              <option value="">— Choisir un type de combat —</option>
+                              {combatTypes.map(ct => (
+                                <option key={ct.id} value={ct.id}>{ct.type === 'rue' ? '🥊' : ct.type === 'coup_de_feu' ? '🔫' : '⚡'} {ct.name}</option>
+                              ))}
+                            </select>
+                            {isCombat && !combatTypesLoaded && <span style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>Chargement des types…</span>}
+                          </div>
+
+                          {/* Ennemi */}
+                          <div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Ennemi</div>
+                            {(() => {
+                              const enemyNpcId: string | null = detailSec.trial?.npc_id ?? null
+                              const enemyNpc = enemyNpcId ? npcs.find(n => n.id === enemyNpcId) : null
+                              const enemyWeaponType: string = (detailSec.trial as any)?.enemy_weapon_type ?? ''
+                              return (
+                                <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                  {/* NPC selector */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    {enemyNpc?.image_url && (
+                                      <img src={enemyNpc.image_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', border: '1px solid #e0555544', flexShrink: 0 }} />
+                                    )}
+                                    <select
+                                      value={enemyNpcId ?? ''}
+                                      onChange={async e => {
+                                        const val = e.target.value || null
+                                        const currentTrial = detailSec.trial ?? {}
+                                        const updatedTrial = { ...currentTrial, npc_id: val }
+                                        await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trial: updatedTrial }) })
+                                        setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, trial: updatedTrial as any } : s))
+                                      }}
+                                      style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '5px', color: 'var(--foreground)', padding: '0.3rem 0.5rem', fontSize: '0.8rem', outline: 'none' }}
+                                    >
+                                      <option value="">— Aucun ennemi —</option>
+                                      {npcs.filter(n => n.type === 'ennemi' || n.type === 'boss').map(n => (
+                                        <option key={n.id} value={n.id}>{n.type === 'boss' ? '👑' : '💀'} {n.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  {/* Enemy stats if NPC selected */}
+                                  {enemyNpc && (
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                      {[
+                                        { label: '💪 Force', val: (enemyNpc as any).force, color: '#d4814c' },
+                                        { label: '❤️ End.', val: (enemyNpc as any).endurance, color: '#e05555' },
+                                        { label: '⚡ Agi.', val: (enemyNpc as any).agilite, color: '#4cb8d4' },
+                                      ].map(stat => (
+                                        <div key={stat.label} style={{ fontSize: '0.68rem', color: stat.color, background: stat.color + '18', borderRadius: '4px', padding: '0.15rem 0.4rem' }}>
+                                          {stat.label} {stat.val}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {/* Enemy weapon type */}
+                                  <div>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.2rem' }}>Arme de l'ennemi</div>
+                                    <select
+                                      value={enemyWeaponType}
+                                      onChange={async e => {
+                                        const val = e.target.value || null
+                                        const currentTrial = detailSec.trial ?? {}
+                                        const updatedTrial = { ...currentTrial, enemy_weapon_type: val }
+                                        await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trial: updatedTrial }) })
+                                        setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, trial: updatedTrial as any } : s))
+                                      }}
+                                      style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '5px', color: 'var(--foreground)', padding: '0.3rem 0.5rem', fontSize: '0.8rem', outline: 'none' }}
+                                    >
+                                      <option value="">— main nue —</option>
+                                      {weaponTypes.map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                                    </select>
+                                  </div>
+                                  {/* Pensée intro combat */}
+                                  <div>
+                                    <label style={{ fontSize: '0.68rem', color: 'var(--muted)', display: 'block', marginBottom: '0.2rem' }}>💭 Pensée du protagoniste (intro combat)</label>
+                                    <input
+                                      defaultValue={(detailSec.trial as any)?.combat_intro_thought ?? ''}
+                                      onBlur={async e => {
+                                        const val = e.target.value.trim() || null
+                                        const updatedTrial = { ...(detailSec.trial ?? {}), combat_intro_thought: val }
+                                        await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trial: updatedTrial }) })
+                                        setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, trial: updatedTrial as any } : s))
+                                      }}
+                                      placeholder="On va se fritter mec ! Vient un peu !"
+                                      style={{ width: '100%', background: 'var(--surface)', border: '1px solid #a084c844', borderRadius: '5px', color: '#c8a0e8', padding: '0.3rem 0.5rem', fontSize: '0.78rem', fontStyle: 'italic', outline: 'none', boxSizing: 'border-box' }}
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            })()}
+                          </div>
+
+                          {/* ── Combattants supplémentaires ── */}
+                          {(() => {
+                            const sec = detailSec!
+                            const mainEnemyId = sec.trial?.npc_id ?? null
+                            const currentIds: string[] = (sec as any).companion_npc_ids ?? []
+
+                            async function saveCompanions(ids: string[]) {
+                              await fetch(`/api/sections/${sec.id}`, {
+                                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ companion_npc_ids: ids }),
+                              })
+                              setSections(prev => prev.map(s => s.id === sec.id ? { ...s, companion_npc_ids: ids } as any : s))
+                            }
+
+                            const allies    = currentIds.map(id => npcs.find(n => n.id === id)).filter((n): n is typeof npcs[0] => !!n && n.type === 'allié')
+                            const extraEnem = currentIds.map(id => npcs.find(n => n.id === id)).filter((n): n is typeof npcs[0] => !!n && (n.type === 'ennemi' || n.type === 'boss') && n.id !== mainEnemyId)
+
+                            // NPCs disponibles à ajouter (pas déjà présents, pas l'ennemi principal)
+                            const available = npcs.filter(n => !currentIds.includes(n.id) && n.id !== mainEnemyId)
+
+                            const tagStyle = (color: string): React.CSSProperties => ({
+                              display: 'flex', alignItems: 'center', gap: '0.35rem',
+                              background: color + '18', border: `1px solid ${color}44`,
+                              borderRadius: '5px', padding: '0.25rem 0.5rem', fontSize: '0.72rem',
+                            })
+
+                            return (
+                              <div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>Combattants supplémentaires</div>
+                                <div style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+
+                                  {/* Alliés */}
+                                  {allies.length > 0 && (
+                                    <div>
+                                      <div style={{ fontSize: '0.62rem', color: '#4caf7d', fontWeight: 700, marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>⚔ Alliés</div>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                                        {allies.map(n => (
+                                          <div key={n.id} style={tagStyle('#4caf7d')}>
+                                            {n.image_url && <img src={n.image_url} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />}
+                                            <span style={{ color: '#4caf7d' }}>{n.name}</span>
+                                            <button onClick={() => saveCompanions(currentIds.filter(id => id !== n.id))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#4caf7d88', fontSize: '0.75rem', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Ennemis supplémentaires */}
+                                  {extraEnem.length > 0 && (
+                                    <div>
+                                      <div style={{ fontSize: '0.62rem', color: '#e05555', fontWeight: 700, marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>💀 Ennemis supp.</div>
+                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                                        {extraEnem.map(n => (
+                                          <div key={n.id} style={tagStyle('#e05555')}>
+                                            {n.image_url && <img src={n.image_url} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} />}
+                                            <span style={{ color: '#e05555' }}>{n.name}</span>
+                                            <button onClick={() => saveCompanions(currentIds.filter(id => id !== n.id))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#e0555588', fontSize: '0.75rem', lineHeight: 1, padding: '0 2px' }}>✕</button>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {allies.length === 0 && extraEnem.length === 0 && (
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontStyle: 'italic' }}>Combat solo (joueur vs ennemi principal uniquement)</div>
+                                  )}
+
+                                  {/* Sélecteur d'ajout */}
+                                  {available.length > 0 && (
+                                    <select
+                                      value=""
+                                      onChange={e => {
+                                        if (!e.target.value) return
+                                        saveCompanions([...currentIds, e.target.value])
+                                        e.target.value = ''
+                                      }}
+                                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '5px', color: 'var(--muted)', padding: '0.25rem 0.5rem', fontSize: '0.75rem', outline: 'none', width: '100%' }}
+                                    >
+                                      <option value="">+ Ajouter un combattant…</option>
+                                      {available.filter(n => n.type === 'allié').length > 0 && (
+                                        <optgroup label="Alliés">
+                                          {available.filter(n => n.type === 'allié').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                                        </optgroup>
+                                      )}
+                                      {available.filter(n => n.type === 'ennemi' || n.type === 'boss').length > 0 && (
+                                        <optgroup label="Ennemis / Boss">
+                                          {available.filter(n => n.type === 'ennemi' || n.type === 'boss').map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                                        </optgroup>
+                                      )}
+                                    </select>
+                                  )}
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          {/* Moves du type de combat */}
+                          {secCombatTypeId && (() => {
+                            const ct = combatTypes.find(c => c.id === secCombatTypeId)
+                            if (!ct?.moves?.length) return null
+                            const attacks = ct.moves.filter(m => !m.is_parry)
+                            const parries = ct.moves.filter(m => m.is_parry)
+                            return (
+                              <div>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Mouvements — type d'arme</div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                  {[...attacks, ...parries].map(mv => (
+                                    <div key={mv.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--surface-2)', borderRadius: '5px', padding: '0.3rem 0.6rem' }}>
+                                      <span style={{ fontSize: '0.7rem', color: mv.is_parry ? '#4cb8d4' : '#e05555', width: 14 }}>{mv.is_parry ? '🛡' : '🗡'}</span>
+                                      <span style={{ flex: 1, fontSize: '0.75rem', color: 'var(--foreground)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mv.name}</span>
+                                      <select
+                                        value={mv.weapon_type ?? ''}
+                                        onChange={async e => {
+                                          const val = e.target.value || null
+                                          await fetch(`/api/combat-moves/${mv.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weapon_type: val }) })
+                                          setCombatTypes(prev => prev.map(c => c.id === ct.id ? { ...c, moves: (c.moves ?? []).map(m => m.id === mv.id ? { ...m, weapon_type: val } : m) } : c))
+                                        }}
+                                        style={{ fontSize: '0.7rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: mv.weapon_type ? '#d4a84c' : 'var(--muted)', padding: '0.15rem 0.3rem', outline: 'none' }}
+                                      >
+                                        <option value="">universel</option>
+                                        {weaponTypes.map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                                      </select>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )
+                          })()}
+
+                          {/* Props de scène */}
+                          <div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Éléments de décor disponibles</div>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                              {COMBAT_PROPS_LIST.map(prop => {
+                                const active = secCombatProps.includes(prop)
+                                return (
+                                  <button key={prop} onClick={async () => {
+                                    const next = active ? secCombatProps.filter(p => p !== prop) : [...secCombatProps, prop]
+                                    await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ combat_props: next }) })
+                                    setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, combat_props: next } as any : s))
+                                  }} style={{ fontSize: '0.72rem', padding: '0.2rem 0.55rem', borderRadius: '4px', border: `1px solid ${active ? '#e0555588' : 'var(--border)'}`, background: active ? '#e0555518' : 'transparent', color: active ? '#e05555' : 'var(--muted)', cursor: 'pointer' }}>
+                                    {prop}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Image de combat */}
+                          <div>
+                            <div style={{ fontSize: '0.7rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Image de combat <span style={{ opacity: 0.6 }}>(distincte de l'image de section)</span></div>
+                            {secCombatImageUrl && (
+                              <div style={{ position: 'relative', width: 120, height: 68, marginBottom: '0.4rem' }}>
+                                <img src={secCombatImageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)' }} />
+                                <button onClick={async () => {
+                                  await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ combat_image_url: null }) })
+                                  setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, combat_image_url: null } as any : s))
+                                }} style={{ position: 'absolute', top: 2, right: 2, background: 'rgba(0,0,0,0.7)', border: 'none', color: '#fff', borderRadius: '3px', fontSize: '0.6rem', cursor: 'pointer', padding: '1px 4px' }}>✕</button>
+                              </div>
+                            )}
+                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                              <ImageGenButton
+                                type="section"
+                                provider={imageProvider}
+                                storagePath={`books/${id}/sections/${detailSec.id}/combat`}
+                                data={{ summary: detailSec.summary ?? detailSec.content?.slice(0, 200) ?? '', style: book.illustration_style ?? 'realistic', illustration_bible: book.illustration_bible ?? '', protagonist: book.protagonist_description ?? '' }}
+                                currentUrl={secCombatImageUrl ?? undefined}
+                                label="✨ Générer"
+                                onSaved={async url => {
+                                  await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ combat_image_url: url }) })
+                                  setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, combat_image_url: url } as any : s))
+                                }}
+                              />
+                              <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                📁 Fichier
+                                <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={async e => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  const formData = new FormData()
+                                  formData.append('file', file)
+                                  formData.append('path', `books/${id}/sections/${detailSec.id}/combat`)
+                                  const res = await fetch('/api/upload-file', { method: 'POST', body: formData })
+                                  const d = await res.json()
+                                  if (d.url) {
+                                    await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ combat_image_url: d.url }) })
+                                    setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, combat_image_url: d.url } as any : s))
+                                  }
+                                }} />
+                              </label>
+                              {secCombatImageUrl && (
+                                <input value={secCombatImageUrl} readOnly style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--muted)', fontSize: '0.65rem', outline: 'none' }} />
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )
                 })()}
@@ -2409,6 +2936,476 @@ export default function BookPage() {
                 )}
               </div>
             )}
+
+            {/* ── Sub-tab: Discussion ── */}
+            {sectionDetailTab === 'discussion' && (() => {
+              const disc = detailSec.discussion_scene
+              const discNpc = disc ? npcs.find(n => n.id === disc.npc_id) : null
+              const npcName = discNpc?.name ?? disc?.npc_id ?? '?'
+              const DEPTH_COLORS = ['#d4a84c', '#6b8cde', '#52c484', '#e08055', '#b48edd']
+
+              const handleGenerate = async () => {
+                setDiscussionGenerating(true)
+                try {
+                  const res = await fetch(`/api/sections/${detailSec.id}/generate-discussion`, { method: 'POST' })
+                  const json = await res.json()
+                  if (!res.ok) { alert(json.error || 'Erreur génération'); return }
+                  // Sauvegarder via la nouvelle route relationnelle
+                  await fetch(`/api/sections/${detailSec.id}/discussion`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(json.discussion_scene),
+                  })
+                  setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, discussion_scene: json.discussion_scene } : s))
+                } finally {
+                  setDiscussionGenerating(false)
+                }
+              }
+
+              const handleSave = async (updated: typeof disc) => {
+                setDiscussionSaving(true)
+                try {
+                  if (updated) {
+                    await fetch(`/api/sections/${detailSec.id}/discussion`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updated),
+                    })
+                  } else {
+                    await fetch(`/api/sections/${detailSec.id}/discussion`, { method: 'DELETE' })
+                  }
+                  setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, discussion_scene: updated ?? null } : s))
+                } finally {
+                  setDiscussionSaving(false)
+                }
+              }
+
+              const updateDisc = (updated: typeof disc) =>
+                setSections(prev => prev.map(s => s.id === detailSec.id ? { ...s, discussion_scene: updated } : s))
+
+              const DISC_TAGS = ['pause','short pause','long pause','sighs','exhales','whispers','laughs','excited','nervous','sarcastic','frustrated sigh','crying']
+
+              const insertDiscTag = (refKey: string, tag: string) => {
+                const el = discTextareaRefs.current.get(refKey)
+                if (!el) return
+                const start = el.selectionStart ?? el.value.length
+                const end = el.selectionEnd ?? el.value.length
+                const insertion = `[${tag}]`
+                const newVal = el.value.slice(0, start) + insertion + el.value.slice(end)
+                const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set
+                setter?.call(el, newVal)
+                el.dispatchEvent(new Event('input', { bubbles: true }))
+                el.focus()
+                el.setSelectionRange(start + insertion.length, start + insertion.length)
+              }
+
+              const TagPicker = ({ refKey }: { refKey: string }) => (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '3px' }}>
+                  {DISC_TAGS.map(tag => (
+                    <button key={tag} onMouseDown={e => { e.preventDefault(); insertDiscTag(refKey, tag) }}
+                      style={{ padding: '1px 5px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.58rem', fontFamily: 'monospace' }}>
+                      [{tag}]
+                    </button>
+                  ))}
+                </div>
+              )
+
+              const generateDiscAudio = async (
+                key: string,
+                text: string,
+                applyUrl: ((url: string, current: typeof disc) => typeof disc) | null,
+                onLocalUrl?: (url: string) => void
+              ) => {
+                if (!disc || !discNpc?.voice_id) return
+                setDiscussionAudioGenerating(key)
+                try {
+                  const hasInlineTag = /\[.+?\]/.test(text)
+                  const finalText = (!hasInlineTag && discNpc.voice_prompt) ? `[${discNpc.voice_prompt}] ${text}` : text
+                  const res = await fetch('/api/elevenlabs/tts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ voice_id: discNpc.voice_id, text: finalText, voice_settings: discNpc.voice_settings ?? undefined, save_path: `discussion/${detailSec.id}/${key}` }),
+                  })
+                  const json = await res.json()
+                  if (!res.ok || !json.url) { alert(json.error || 'Erreur TTS'); return }
+                  if (onLocalUrl) {
+                    onLocalUrl(json.url)
+                  } else if (applyUrl) {
+                    const latest = sections.find(s => s.id === detailSec.id)?.discussion_scene ?? disc
+                    await handleSave(applyUrl(json.url, latest))
+                  }
+                } finally {
+                  setDiscussionAudioGenerating(null)
+                }
+              }
+
+              // AudioBtn avec save global (L1, opening)
+              const AudioBtn = ({ audioKey, text, audioUrl, onApply }: { audioKey: string; text: string; audioUrl?: string; onApply: (url: string, d: typeof disc) => typeof disc }) => {
+                const isGen = discussionAudioGenerating === audioKey
+                const hasVoice = !!discNpc?.voice_id
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                    {audioUrl && <audio controls src={audioUrl} style={{ height: '20px', flex: 1 }} />}
+                    <button onClick={() => generateDiscAudio(audioKey, text, onApply)} disabled={isGen || !hasVoice || !text.trim()}
+                      title={!hasVoice ? 'Assignez une voix ElevenLabs à ce PNJ' : 'Générer audio'}
+                      style={{ padding: '0.18rem 0.45rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: hasVoice ? 'var(--accent)' : 'var(--muted)', cursor: hasVoice && !isGen ? 'pointer' : 'not-allowed', fontSize: '0.62rem', opacity: isGen ? 0.6 : 1 }}>
+                      {isGen ? '⏳' : audioUrl ? '↻' : '▶'}
+                    </button>
+                  </div>
+                )
+              }
+
+              // AudioBtnLocal : met à jour l'état local seulement (sous-nœuds récursifs)
+              const AudioBtnLocal = ({ audioKey, text, audioUrl, onUrl }: { audioKey: string; text: string; audioUrl?: string; onUrl: (url: string) => void }) => {
+                const isGen = discussionAudioGenerating === audioKey
+                const hasVoice = !!discNpc?.voice_id
+                return (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
+                    {audioUrl && <audio controls src={audioUrl} style={{ height: '20px', flex: 1 }} />}
+                    <button onClick={() => generateDiscAudio(audioKey, text, null, onUrl)} disabled={isGen || !hasVoice || !text.trim()}
+                      title={!hasVoice ? 'Assignez une voix ElevenLabs à ce PNJ' : 'Générer audio'}
+                      style={{ padding: '0.18rem 0.45rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: hasVoice ? 'var(--accent)' : 'var(--muted)', cursor: hasVoice && !isGen ? 'pointer' : 'not-allowed', fontSize: '0.62rem', opacity: isGen ? 0.6 : 1 }}>
+                      {isGen ? '⏳' : audioUrl ? '↻' : '▶'}
+                    </button>
+                  </div>
+                )
+              }
+
+              // Miniature NPC
+              const NpcAvatar = ({ size = 24 }: { size?: number }) => (
+                <div style={{ width: size, height: size, borderRadius: '50%', background: '#d4a84c22', border: '1px solid #d4a84c44', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {discNpc?.portrait_url
+                    ? <img src={discNpc.portrait_url} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontSize: size * 0.45 + 'px' }}>👤</span>}
+                </div>
+              )
+
+              // Sélecteur de nav — target_section_id (UUID section directement)
+              const NavSelect = ({ value, onChange, color }: { value: string; onChange: (v: string) => void; color: string }) => (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ fontSize: '0.58rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>→ nav</span>
+                  <select value={value} onChange={e => onChange(e.target.value)}
+                    style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: value ? color : 'var(--muted)', fontSize: '0.63rem', padding: '0.13rem 0.28rem', outline: 'none' }}>
+                    <option value="">— suite —</option>
+                    {sections.filter(s => s.book_id === detailSec.book_id).sort((a, b) => a.number - b.number).map(s => (
+                      <option key={s.id} value={s.id}>§{s.number} — {(s.summary ?? '').slice(0, 35)}</option>
+                    ))}
+                  </select>
+                </div>
+              )
+
+              // Échange d'objet
+              const ItemExchangeEditor = ({
+                exchange,
+                onChange,
+                keyPrefix,
+                color,
+                renderChildren,
+              }: {
+                exchange: import('@/types').DiscussionItemExchange | undefined
+                onChange: (ex: import('@/types').DiscussionItemExchange | undefined) => void
+                keyPrefix: string
+                color: string
+                renderChildren: (
+                  choices: import('@/types').DiscussionSubChoice[],
+                  update: (next: import('@/types').DiscussionSubChoice[]) => void,
+                  label: string,
+                  depth: number
+                ) => React.ReactNode
+              }) => {
+                if (!exchange) {
+                  return (
+                    <button onClick={() => onChange({ direction: 'npc_gives', item_id: '', accept_text: 'Accepter', refuse_text: 'Refuser' })}
+                      style={{ alignSelf: 'flex-start', padding: '0.16rem 0.5rem', background: 'transparent', border: `1px dashed ${color}44`, borderRadius: '4px', color: color, cursor: 'pointer', fontSize: '0.6rem', marginTop: '0.2rem' }}>
+                      + échange d'objet
+                    </button>
+                  )
+                }
+                const ex = exchange
+                const item = items.find(it => it.id === ex.item_id)
+                return (
+                  <div style={{ border: `1px solid ${color}33`, borderRadius: '6px', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: `${color}06`, marginTop: '0.3rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <span style={{ fontSize: '0.58rem', color: color, fontWeight: 'bold', textTransform: 'uppercase' }}>Échange d'objet</span>
+                      <button onClick={() => onChange(undefined)} style={{ marginLeft: 'auto', padding: '0.08rem 0.28rem', background: 'transparent', border: '1px solid #e0555533', borderRadius: '3px', color: '#e05555', cursor: 'pointer', fontSize: '0.56rem' }}>✕</button>
+                    </div>
+                    {/* Direction */}
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      {(['npc_gives', 'player_gives'] as const).map(d => (
+                        <label key={d} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', cursor: 'pointer', fontSize: '0.62rem', color: ex.direction === d ? color : 'var(--muted)' }}>
+                          <input type="radio" checked={ex.direction === d} onChange={() => onChange({ ...ex, direction: d })} style={{ accentColor: color }} />
+                          {d === 'npc_gives' ? 'PNJ donne' : 'Joueur donne'}
+                        </label>
+                      ))}
+                    </div>
+                    {/* Item */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {item?.illustration_url && <img src={item.illustration_url} style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: '3px' }} />}
+                      <select value={ex.item_id} onChange={e => onChange({ ...ex, item_id: e.target.value })}
+                        style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: ex.item_id ? 'var(--foreground)' : 'var(--muted)', fontSize: '0.63rem', padding: '0.13rem 0.28rem', outline: 'none' }}>
+                        <option value="">— choisir un objet —</option>
+                        {items.map(it => <option key={it.id} value={it.id}>{it.name}</option>)}
+                      </select>
+                    </div>
+                    {/* Textes accepter / refuser */}
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <input value={ex.accept_text} placeholder="Texte Accepter" onChange={e => onChange({ ...ex, accept_text: e.target.value })}
+                        style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid #4caf7d44', borderRadius: '4px', color: 'var(--foreground)', fontSize: '0.63rem', padding: '0.2rem 0.4rem', outline: 'none' }} />
+                      <input value={ex.refuse_text} placeholder="Texte Refuser" onChange={e => onChange({ ...ex, refuse_text: e.target.value })}
+                        style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid #e0555544', borderRadius: '4px', color: 'var(--foreground)', fontSize: '0.63rem', padding: '0.2rem 0.4rem', outline: 'none' }} />
+                    </div>
+                    {/* Branches accepter / refuser */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <div>
+                        <span style={{ fontSize: '0.58rem', color: '#4caf7d', fontWeight: 'bold' }}>✓ Si accepte</span>
+                        {renderChildren(ex.accept_sub_choices ?? [], next => onChange({ ...ex, accept_sub_choices: next }), 'accepter', 99)}
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '0.58rem', color: '#e05555', fontWeight: 'bold' }}>✗ Si refuse</span>
+                        {renderChildren(ex.refuse_sub_choices ?? [], next => onChange({ ...ex, refuse_sub_choices: next }), 'refuser', 99)}
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
+
+              // Nœud récursif (depth >= 1 = DiscussionSubChoice)
+              type SubChoice = import('@/types').DiscussionSubChoice
+              const renderSubTree = (
+                choices: SubChoice[],
+                updateChoices: (next: SubChoice[]) => void,
+                depth: number,
+                keyPrefix: string
+              ): React.ReactNode => {
+                const lc = DEPTH_COLORS[Math.min(depth, DEPTH_COLORS.length - 1)]
+                const newBlank = (): SubChoice => ({ id: crypto.randomUUID(), player_text: '', emotion_label: 'neutre', npc_response: '', sub_choices: [] })
+
+                return (
+                  <div style={{ marginTop: '0.4rem', paddingLeft: '0.7rem', borderLeft: `2px solid ${lc}40`, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--muted)', fontSize: '0.56rem' }}>
+                      <div style={{ flex: 1, height: '1px', background: `${lc}30` }} />
+                      tour {depth + 1}
+                      <div style={{ flex: 1, height: '1px', background: `${lc}30` }} />
+                    </div>
+
+                    {choices.map((sc, sci) => {
+                      const subKey = `${keyPrefix}_s${sci}`
+                      const nodeKey = `sub_${subKey}_${sc.id}`
+                      const collapsed = discCollapsed.has(nodeKey)
+                      const toggleCollapse = () => setDiscCollapsed(prev => { const next = new Set(prev); next.has(nodeKey) ? next.delete(nodeKey) : next.add(nodeKey); return next })
+                      const updateSub = (updated: SubChoice) => updateChoices(choices.map((s, i) => i === sci ? updated : s))
+                      const deleteSub = () => { if (confirm('Supprimer ?')) updateChoices(choices.filter((_, i) => i !== sci)) }
+
+                      return (
+                        <div key={sc.id} style={{ background: `${lc}08`, border: `1px solid ${lc}1e`, borderRadius: '7px', overflow: 'hidden' }}>
+                          {/* Header du nœud */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.5rem', background: `${lc}12`, cursor: 'pointer' }} onClick={toggleCollapse}>
+                            <span style={{ fontSize: '0.6rem', color: lc, fontWeight: 'bold' }}>{collapsed ? '▶' : '▼'}</span>
+                            <span style={{ fontSize: '0.6rem', color: lc, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{sc.emotion_label || 'choix'}</span>
+                            <span style={{ fontSize: '0.58rem', color: 'var(--muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sc.player_text || '…'}</span>
+                            <button onClick={e => { e.stopPropagation(); deleteSub() }} style={{ padding: '0.06rem 0.28rem', background: 'transparent', border: '1px solid #e0555533', borderRadius: '3px', color: '#e05555', cursor: 'pointer', fontSize: '0.56rem' }}>✕</button>
+                          </div>
+
+                          {!collapsed && (
+                            <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                              {/* Émotion + texte joueur */}
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                                <input value={sc.emotion_label} placeholder="émotion" onChange={e => updateSub({ ...sc, emotion_label: e.target.value })}
+                                  style={{ width: '90px', background: `${lc}18`, border: `1px solid ${lc}44`, borderRadius: '3px', color: lc, fontSize: '0.58rem', padding: '0.1rem 0.3rem', outline: 'none', textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                                <textarea value={sc.player_text} rows={2} onChange={e => updateSub({ ...sc, player_text: e.target.value })}
+                                  style={{ width: '90%', background: 'rgba(11,92,255,0.09)', border: '1px solid #0b5cff30', borderRadius: '12px 4px 12px 12px', color: 'var(--foreground)', fontSize: '0.72rem', padding: '0.3rem 0.5rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                              </div>
+                              {/* Réponse NPC */}
+                              <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'flex-start' }}>
+                                <NpcAvatar size={18} />
+                                <div style={{ flex: 1 }}>
+                                  <span style={{ fontSize: '0.56rem', color: lc, display: 'block', marginBottom: '0.15rem' }}>{npcName}</span>
+                                  <textarea
+                                    ref={el => { el ? discTextareaRefs.current.set(`${subKey}_resp`, el) : discTextareaRefs.current.delete(`${subKey}_resp`) }}
+                                    value={sc.npc_response} rows={2} onChange={e => updateSub({ ...sc, npc_response: e.target.value })}
+                                    style={{ width: '90%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${lc}28`, borderRadius: '4px 12px 12px 12px', color: 'var(--foreground)', fontSize: '0.72rem', padding: '0.3rem 0.5rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontStyle: 'italic' }} />
+                                  <TagPicker refKey={`${subKey}_resp`} />
+                                  <AudioBtnLocal audioKey={`${subKey}_resp`} text={sc.npc_response} audioUrl={sc.npc_response_audio_url} onUrl={url => updateSub({ ...sc, npc_response_audio_url: url })} />
+                                </div>
+                              </div>
+                              {/* Nav */}
+                              <NavSelect value={sc.target_section_id ?? ''} onChange={v => updateSub({ ...sc, target_section_id: v || undefined })} color={lc} />
+                              {/* Échange objet */}
+                              <ItemExchangeEditor
+                                exchange={sc.item_exchange}
+                                onChange={ex => updateSub({ ...sc, item_exchange: ex })}
+                                keyPrefix={subKey}
+                                color={lc}
+                                renderChildren={(ch, upd, _lbl, _d) => renderSubTree(ch, upd, depth + 1, `${subKey}_ex`)}
+                              />
+                              {/* Sous-arbre (si pas de nav directe) */}
+                              {!sc.target_section_id && renderSubTree(sc.sub_choices ?? [], next => updateSub({ ...sc, sub_choices: next }), depth + 1, subKey)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    <button onClick={() => updateChoices([...choices, newBlank()])}
+                      style={{ alignSelf: 'flex-start', padding: '0.16rem 0.5rem', background: 'transparent', border: `1px dashed ${lc}50`, borderRadius: '4px', color: lc, cursor: 'pointer', fontSize: '0.6rem' }}>
+                      + sous-choix
+                    </button>
+                  </div>
+                )
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+
+                  {/* Toolbar */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--muted)', fontStyle: 'italic' }}>Scène sur la dernière image</span>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      {disc && (
+                        <button onClick={() => { if (confirm('Supprimer ?')) handleSave(null) }} style={{ padding: '0.25rem 0.5rem', background: 'transparent', border: '1px solid #e05555', borderRadius: '5px', color: '#e05555', cursor: 'pointer', fontSize: '0.65rem' }}>✕</button>
+                      )}
+                      <button onClick={handleGenerate} disabled={discussionGenerating} style={{ padding: '0.25rem 0.65rem', background: 'var(--accent)', border: 'none', borderRadius: '5px', color: '#000', fontWeight: 'bold', cursor: discussionGenerating ? 'not-allowed' : 'pointer', fontSize: '0.7rem', opacity: discussionGenerating ? 0.6 : 1 }}>
+                        {discussionGenerating ? '⏳…' : disc ? '↻ Regénérer' : '✦ Générer'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Création manuelle si pas de scène */}
+                  {!disc && !discussionGenerating && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', padding: '1.2rem 0' }}>
+                      <p style={{ color: 'var(--muted)', fontSize: '0.8rem', fontStyle: 'italic', textAlign: 'center', margin: 0 }}>
+                        Aucune scène de discussion.
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.8rem' }}>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Créer manuellement — choisir le PNJ :</span>
+                        <select
+                          defaultValue=""
+                          onChange={e => {
+                            if (!e.target.value) return
+                            updateDisc({ npc_id: e.target.value, npc_opening: '', choices: [], outcome_thought: undefined })
+                          }}
+                          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '5px', color: 'var(--foreground)', fontSize: '0.72rem', padding: '0.3rem 0.5rem', outline: 'none' }}>
+                          <option value="">— sélectionner un PNJ —</option>
+                          {npcs.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {disc && (<>
+
+                    {/* NPC Opening */}
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                      <NpcAvatar size={28} />
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ fontSize: '0.62rem', color: '#d4a84c', fontWeight: 'bold' }}>{npcName} · ouvre</span>
+                        <textarea
+                          ref={el => { el ? discTextareaRefs.current.set('opening', el) : discTextareaRefs.current.delete('opening') }}
+                          value={disc.npc_opening} rows={2} onChange={e => updateDisc({ ...disc, npc_opening: e.target.value })}
+                          style={{ width: '90%', background: 'rgba(255,255,255,0.05)', border: '1px solid #d4a84c33', borderRadius: '4px 14px 14px 14px', color: 'var(--foreground)', fontSize: '0.75rem', padding: '0.4rem 0.6rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontStyle: 'italic' }} />
+                        <TagPicker refKey="opening" />
+                        <AudioBtn audioKey="opening" text={disc.npc_opening} audioUrl={disc.npc_opening_audio_url} onApply={(url, d) => d ? { ...d, npc_opening_audio_url: url } : d} />
+                      </div>
+                    </div>
+
+                    {/* Séparateur */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--muted)', fontSize: '0.6rem' }}>
+                      <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                      choix du joueur (tour 1)
+                      <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                    </div>
+
+                    {/* L1 choices */}
+                    {disc.choices.map((choice, ci) => {
+                      const lc = DEPTH_COLORS[0]
+                      const nodeKey = `l1_${choice.id}`
+                      const collapsed = discCollapsed.has(nodeKey)
+                      const toggleCollapse = () => setDiscCollapsed(prev => { const next = new Set(prev); next.has(nodeKey) ? next.delete(nodeKey) : next.add(nodeKey); return next })
+                      const targetSec = choice.target_section_id ? sections.find(s => s.id === choice.target_section_id) : null
+                      const updateL1 = (updated: typeof choice) =>
+                        updateDisc({ ...disc, choices: disc.choices.map((c, i) => i === ci ? updated : c) })
+                      const deleteL1 = () => { if (confirm('Supprimer ce choix ?')) updateDisc({ ...disc, choices: disc.choices.filter((_, i) => i !== ci) }) }
+
+                      return (
+                        <div key={choice.id} style={{ border: `1px solid ${lc}28`, borderRadius: '8px', overflow: 'hidden' }}>
+                          {/* Header repliable */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.6rem', background: `${lc}14`, cursor: 'pointer' }} onClick={toggleCollapse}>
+                            <span style={{ fontSize: '0.62rem', color: lc }}>{collapsed ? '▶' : '▼'}</span>
+                            <span style={{ fontSize: '0.62rem', color: lc, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{choice.emotion_label || 'choix'}</span>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--muted)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{choice.player_text || '…'}</span>
+                            {targetSec && <span style={{ fontSize: '0.58rem', color: lc }}>→ §{targetSec.number}</span>}
+                            <button onClick={e => { e.stopPropagation(); deleteL1() }} style={{ padding: '0.08rem 0.3rem', background: 'transparent', border: '1px solid #e0555533', borderRadius: '3px', color: '#e05555', cursor: 'pointer', fontSize: '0.58rem' }}>✕</button>
+                          </div>
+
+                          {!collapsed && (
+                            <div style={{ padding: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                              {/* Émotion + texte joueur */}
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                                <input value={choice.emotion_label} placeholder="émotion" onChange={e => updateL1({ ...choice, emotion_label: e.target.value })}
+                                  style={{ width: '100px', background: `${lc}18`, border: `1px solid ${lc}55`, borderRadius: '3px', color: lc, fontSize: '0.6rem', padding: '0.14rem 0.35rem', outline: 'none', textAlign: 'center', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                                <textarea value={choice.player_text} rows={2} onChange={e => updateL1({ ...choice, player_text: e.target.value })}
+                                  style={{ width: '90%', background: 'rgba(11,92,255,0.09)', border: '1px solid #0b5cff33', borderRadius: '12px 4px 12px 12px', color: 'var(--foreground)', fontSize: '0.75rem', padding: '0.4rem 0.6rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                              </div>
+
+                              {/* Réponse NPC */}
+                              <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'flex-start' }}>
+                                <NpcAvatar size={22} />
+                                <div style={{ flex: 1 }}>
+                                  <span style={{ fontSize: '0.6rem', color: lc, display: 'block', marginBottom: '0.15rem' }}>{npcName}</span>
+                                  <textarea
+                                    ref={el => { el ? discTextareaRefs.current.set(`c${ci}_resp`, el) : discTextareaRefs.current.delete(`c${ci}_resp`) }}
+                                    value={choice.npc_response} rows={2} onChange={e => updateL1({ ...choice, npc_response: e.target.value })}
+                                    style={{ width: '90%', background: 'rgba(255,255,255,0.04)', border: `1px solid ${lc}28`, borderRadius: '4px 12px 12px 12px', color: 'var(--foreground)', fontSize: '0.75rem', padding: '0.4rem 0.6rem', resize: 'vertical', outline: 'none', boxSizing: 'border-box', fontStyle: 'italic' }} />
+                                  <TagPicker refKey={`c${ci}_resp`} />
+                                  <AudioBtn audioKey={`c${ci}_response`} text={choice.npc_response} audioUrl={choice.npc_response_audio_url}
+                                    onApply={(url, d) => d ? { ...d, choices: d.choices.map((c, i) => i === ci ? { ...c, npc_response_audio_url: url } : c) } : d} />
+                                </div>
+                              </div>
+
+                              {/* Nav */}
+                              <NavSelect value={choice.target_section_id ?? ''} onChange={v => updateL1({ ...choice, target_section_id: v || undefined })} color={lc} />
+
+                              {/* Échange objet */}
+                              <ItemExchangeEditor
+                                exchange={choice.item_exchange}
+                                onChange={ex => updateL1({ ...choice, item_exchange: ex })}
+                                keyPrefix={`c${ci}`}
+                                color={lc}
+                                renderChildren={(ch, upd, _lbl, _d) => renderSubTree(ch, upd, 1, `c${ci}_ex`)}
+                              />
+
+                              {/* Sous-arbre */}
+                              {!choice.target_section_id && renderSubTree(choice.sub_choices ?? [], next => updateL1({ ...choice, sub_choices: next }), 1, `c${ci}`)}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {/* + Ajouter choix L1 */}
+                    <button
+                      onClick={() => updateDisc({ ...disc, choices: [...disc.choices, { id: crypto.randomUUID(), player_text: '', emotion_label: 'neutre', npc_response: '', sub_choices: [] }] })}
+                      style={{ alignSelf: 'flex-start', padding: '0.22rem 0.7rem', background: 'transparent', border: '1px dashed #d4a84c66', borderRadius: '5px', color: '#d4a84c', cursor: 'pointer', fontSize: '0.68rem' }}>
+                      + Ajouter un choix
+                    </button>
+
+                    {/* Pensée finale */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', borderTop: '1px solid var(--border)', paddingTop: '0.7rem' }}>
+                      <span style={{ fontSize: '0.6rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Pensée finale <span style={{ fontStyle: 'italic', textTransform: 'none', letterSpacing: 'normal' }}>— affichée après la discussion</span></span>
+                      <input value={disc.outcome_thought ?? ''} placeholder="Ex : Jesse veut qu'on traverse le parc, pas le choix."
+                        onChange={e => updateDisc({ ...disc, outcome_thought: e.target.value || undefined })}
+                        style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderLeft: '3px solid rgba(255,255,255,0.12)', borderRadius: '0 5px 5px 0', color: 'var(--foreground)', fontSize: '0.78rem', padding: '0.35rem 0.55rem', outline: 'none', boxSizing: 'border-box', fontStyle: 'italic' }} />
+                    </div>
+
+                    {/* Save */}
+                    <button onClick={() => handleSave(disc)} disabled={discussionSaving} style={{ alignSelf: 'flex-end', padding: '0.3rem 0.8rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--foreground)', cursor: 'pointer', fontSize: '0.72rem' }}>
+                      {discussionSaving ? 'Enregistrement…' : '↳ Sauvegarder'}
+                    </button>
+
+                  </>)}
+                </div>
+              )
+            })()}
 
           </div>
         )
@@ -2479,7 +3476,7 @@ export default function BookPage() {
                     Nb. sections
                   </div>
                   <input
-                    type="number" min={20} max={100}
+                    type="number" min={20} max={500}
                     defaultValue={book.num_sections ?? 30}
                     onBlur={async e => {
                       const v = parseInt(e.target.value)
@@ -2544,6 +3541,127 @@ export default function BookPage() {
                   ))}
                 </div>
               </div>
+
+              {/* Chemins parallèles */}
+              <div style={{ marginBottom: '1.25rem' }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const newVal = !book.has_branches
+                    await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ has_branches: newVal }) })
+                    setBook(b => b ? { ...b, has_branches: newVal } : b)
+                  }}
+                  style={{
+                    width: '100%', padding: '0.55rem 0.75rem', borderRadius: '6px', cursor: 'pointer', textAlign: 'left',
+                    border: `2px solid ${book.has_branches ? 'var(--accent)' : 'var(--border)'}`,
+                    background: book.has_branches ? 'var(--accent)18' : 'var(--surface-2)',
+                    color: book.has_branches ? 'var(--accent)' : 'var(--muted)',
+                    fontSize: '0.82rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  }}>
+                  <span style={{ fontSize: '1rem' }}>{book.has_branches ? '🌿' : '📏'}</span>
+                  <span>{book.has_branches ? 'Chemins parallèles activés' : 'Structure linéaire'}</span>
+                </button>
+                {book.has_branches && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--muted)', marginTop: '0.4rem', lineHeight: 1.4 }}>
+                    La génération créera 2-4 chemins narratifs distincts avec jonctions communes. Idéal pour les livres avec voies d&apos;exfiltration multiples.
+                  </div>
+                )}
+              </div>
+
+              {/* Synopsis par chemin narratif */}
+              {book.has_branches && (() => {
+                const ps = psDraft ?? (book.path_synopses ?? { trunk_start: '', paths: { A: '', B: '', C: '' }, trunk_end: '' }) as import('@/types').PathSynopses
+                const pathKeys = Object.keys(ps.paths ?? { A: '', B: '', C: '' })
+                const updatePs = (updated: import('@/types').PathSynopses) => setPsDraft(updated)
+                const savePs = async () => {
+                  if (!ps) return
+                  setPsSaving(true)
+                  await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path_synopses: ps }) })
+                  setBook(b => b ? { ...b, path_synopses: ps } : b)
+                  setPsSaving(false)
+                }
+                const taStyle: React.CSSProperties = {
+                  width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)',
+                  borderRadius: '5px', color: 'var(--text)', fontSize: '0.78rem', padding: '0.5rem 0.6rem',
+                  resize: 'vertical', minHeight: '120px', lineHeight: 1.5, fontFamily: 'inherit', boxSizing: 'border-box',
+                }
+                const labelStyle: React.CSSProperties = { fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.3rem', display: 'block' }
+                return (
+                  <div style={{ marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 'bold' }}>
+                      Chemins narratifs
+                    </div>
+
+                    {/* Tronc de départ */}
+                    <div>
+                      <label style={labelStyle}>Tronc commun — départ</label>
+                      <textarea
+                        style={taStyle}
+                        value={ps.trunk_start ?? ''}
+                        placeholder="Introduction commune : contexte, premiers personnages, enjeux initiaux…"
+                        onChange={e => updatePs({ ...ps, trunk_start: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Chemins */}
+                    {pathKeys.map(key => (
+                      <div key={key}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                          <label style={{ ...labelStyle, marginBottom: 0 }}>Chemin {key}</label>
+                          {pathKeys.length > 2 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newPaths = { ...ps.paths }
+                                delete newPaths[key]
+                                updatePs({ ...ps, paths: newPaths })
+                              }}
+                              style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0.25rem' }}
+                            >✕</button>
+                          )}
+                        </div>
+                        <textarea
+                          style={taStyle}
+                          value={ps.paths[key] ?? ''}
+                          placeholder={`Arc narratif du chemin ${key} : personnages propres, lieux, résolution…`}
+                          onChange={e => updatePs({ ...ps, paths: { ...ps.paths, [key]: e.target.value } })}
+                        />
+                      </div>
+                    ))}
+
+                    {/* Ajouter un chemin */}
+                    {pathKeys.length < 4 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextKey = ['A','B','C','D'].find(k => !pathKeys.includes(k)) ?? 'D'
+                          updatePs({ ...ps, paths: { ...ps.paths, [nextKey]: '' } })
+                        }}
+                        style={{ alignSelf: 'flex-start', fontSize: '0.75rem', color: 'var(--accent)', background: 'var(--accent)11', border: '1px solid var(--accent)44', borderRadius: '5px', padding: '0.3rem 0.75rem', cursor: 'pointer' }}
+                      >+ Ajouter un chemin</button>
+                    )}
+
+                    {/* Tronc de victoire */}
+                    <div>
+                      <label style={labelStyle}>Tronc commun — victoire (optionnel)</label>
+                      <textarea
+                        style={taStyle}
+                        value={ps.trunk_end ?? ''}
+                        placeholder="Convergence finale, résolution commune à tous les chemins…"
+                        onChange={e => updatePs({ ...ps, trunk_end: e.target.value })}
+                      />
+                    </div>
+
+                    {/* Bouton Enregistrer */}
+                    <button
+                      type="button"
+                      onClick={savePs}
+                      disabled={psSaving}
+                      style={{ alignSelf: 'flex-start', fontSize: '0.8rem', fontWeight: 600, color: '#000', background: psSaving ? 'var(--muted)' : 'var(--accent)', border: 'none', borderRadius: '6px', padding: '0.45rem 1.1rem', cursor: psSaving ? 'default' : 'pointer' }}
+                    >{psSaving ? 'Enregistrement…' : 'Enregistrer les synopsis'}</button>
+                  </div>
+                )
+              })()}
 
               {/* Mix de contenu */}
               <div style={{ marginBottom: '1.5rem' }}>
@@ -2611,6 +3729,31 @@ export default function BookPage() {
                 />
                 Lancer l'agent correcteur après la génération
               </label>
+              {/* ── Toggle mode 2 passes ── */}
+              <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.25rem' }}>
+                <button
+                  onClick={() => setTwoPassMode(false)}
+                  disabled={generatingStructure}
+                  style={{
+                    flex: 1, padding: '0.45rem 0.5rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600,
+                    border: `1px solid ${!twoPassMode ? 'var(--accent)' : 'var(--border)'}`,
+                    background: !twoPassMode ? 'rgba(212,168,76,0.15)' : 'transparent',
+                    color: !twoPassMode ? 'var(--accent)' : 'var(--muted)',
+                    cursor: generatingStructure ? 'not-allowed' : 'pointer',
+                  }}
+                >Standard</button>
+                <button
+                  onClick={() => setTwoPassMode(true)}
+                  disabled={generatingStructure}
+                  style={{
+                    flex: 1, padding: '0.45rem 0.5rem', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600,
+                    border: `1px solid ${twoPassMode ? 'var(--accent)' : 'var(--border)'}`,
+                    background: twoPassMode ? 'rgba(212,168,76,0.15)' : 'transparent',
+                    color: twoPassMode ? 'var(--accent)' : 'var(--muted)',
+                    cursor: generatingStructure ? 'not-allowed' : 'pointer',
+                  }}
+                >2 passes (squelette + contenu)</button>
+              </div>
               <button
                 onClick={generateStructure}
                 disabled={generatingStructure}
@@ -2623,9 +3766,79 @@ export default function BookPage() {
                 }}
               >
                 {generatingStructure
-                  ? <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⚙</span> Génération de la structure…</>
+                  ? <><span style={{ animation: 'spin 1s linear infinite', display: 'inline-block', marginRight: '0.4rem' }}>⚙</span>{GENERATION_STEPS[generatingStep] ?? 'Génération…'}</>
                   : '🏗 Générer la structure'}
               </button>
+
+              {/* ── Log de génération en temps réel ── */}
+              {generationLog.length > 0 && (
+                <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.15rem', fontFamily: 'monospace', fontSize: '0.73rem', maxHeight: '220px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem 0.75rem' }}>
+                  {generationLog.map((entry, i) => {
+                    const done = entry.type === 'step_done' || entry.type === 'batch_done'
+                    const isBatch = entry.type === 'batch' || entry.type === 'batch_done'
+                    const isWarn = entry.type === 'warn'
+                    return (
+                      <div key={i} style={{ display: 'flex', gap: '0.4rem', alignItems: 'baseline', opacity: (done || isWarn) ? 1 : 0.6 }}>
+                        <span style={{ color: isWarn ? '#e09030' : done ? '#4caf7d' : '#c9a84c', minWidth: '12px' }}>{isWarn ? '⚠' : done ? '✓' : '…'}</span>
+                        <span style={{ color: isWarn ? '#e09030' : isBatch ? 'var(--muted)' : 'var(--foreground)' }}>{entry.label}</span>
+                        {entry.detail && <span style={{ color: 'var(--muted)' }}>— {entry.detail}</span>}
+                      </div>
+                    )
+                  })}
+                  {generatingStructure && <div style={{ color: '#c9a84c' }}>⏳ En cours…</div>}
+                </div>
+              )}
+
+              {/* ── Rapport squelette (passe 1 terminée) ── */}
+              {skeletonReport && !generatingStructure && (
+                <div style={{ marginTop: '0.75rem', border: '1px solid var(--accent)', borderRadius: '8px', padding: '0.75rem', background: 'rgba(212,168,76,0.05)' }}>
+                  <div style={{ fontWeight: 'bold', color: 'var(--accent)', marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+                    Rapport squelette — {skeletonReport.sections_count} sections · {skeletonReport.paths_count} chemin(s)
+                  </div>
+
+                  {/* BFS */}
+                  <div style={{ fontSize: '0.78rem', marginBottom: '0.4rem' }}>
+                    <span style={{ color: skeletonReport.bfs.ok ? '#81c784' : '#e57373', fontWeight: 'bold' }}>
+                      {skeletonReport.bfs.ok ? '✓ Navigation OK' : `⚠ Navigation : ${skeletonReport.bfs.unreachable.join(', ')} inaccessible(s)`}
+                    </span>
+                  </div>
+
+                  {/* Narrative */}
+                  <div style={{ fontSize: '0.78rem', marginBottom: '0.5rem' }}>
+                    <span style={{ fontWeight: 'bold', color: skeletonReport.narrative.global_verdict === 'OK' ? '#81c784' : skeletonReport.narrative.global_verdict === 'ATTENTION' ? '#ffb74d' : '#e57373' }}>
+                      {skeletonReport.narrative.global_verdict === 'OK' ? '✓' : skeletonReport.narrative.global_verdict === 'ATTENTION' ? '⚠' : '✗'} {skeletonReport.narrative.global_verdict}
+                    </span>
+                    {' — '}{skeletonReport.narrative.report}
+                  </div>
+
+                  {/* Chemins */}
+                  {skeletonReport.narrative.paths?.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '0.5rem' }}>
+                      {skeletonReport.narrative.paths.map((p) => (
+                        <div key={p.id} style={{ fontSize: '0.75rem', color: p.verdict === 'OK' ? '#81c784' : p.verdict === 'ATTENTION' ? '#ffb74d' : '#e57373' }}>
+                          {p.verdict === 'OK' ? '✓' : p.verdict === 'ATTENTION' ? '⚠' : '✗'} {p.id}
+                          {p.issues?.length > 0 && ` — ${p.issues.join(' ; ')}`}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                    <button
+                      onClick={enrichFromSkeleton}
+                      style={{ flex: 1, padding: '0.6rem', borderRadius: '6px', border: 'none', background: 'var(--accent)', color: '#0f0f14', fontWeight: 'bold', fontSize: '0.85rem', cursor: 'pointer' }}
+                    >
+                      Continuer — Enrichir les sections
+                    </button>
+                    <button
+                      onClick={() => setSkeletonReport(null)}
+                      style={{ padding: '0.6rem 0.9rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: '0.85rem', cursor: 'pointer' }}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -2658,6 +3871,28 @@ export default function BookPage() {
                   color: generatingReadTimes ? 'var(--muted)' : '#b89edd', display: 'flex', alignItems: 'center', gap: '0.4rem',
                 }}>
                   {generatingReadTimes ? '⏳ Calcul…' : '⏱ Temps de lecture'}
+                </button>
+              )}
+              <button onClick={assignCompanions} disabled={assigningCompanions} style={{
+                background: 'transparent', border: '1px solid #81c78444', borderRadius: '7px',
+                padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: assigningCompanions ? 'default' : 'pointer',
+                color: assigningCompanions ? 'var(--muted)' : '#81c784', display: 'flex', alignItems: 'center', gap: '0.4rem',
+              }}>
+                {assigningCompanions ? '⏳ Assignation…' : companionsAssigned !== null ? `✅ ${companionsAssigned} assignation(s)` : '👥 Assigner les compagnons'}
+              </button>
+              {sections.some(s => s.content) && (
+                <button onClick={generateDiscussions} disabled={bulkDiscussionRunning || writingAll} style={{
+                  background: 'transparent', border: '1px solid #64b5f644', borderRadius: '7px',
+                  padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (bulkDiscussionRunning || writingAll) ? 'default' : 'pointer',
+                  color: bulkDiscussionRunning ? 'var(--muted)' : '#64b5f6', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                }}>
+                  {bulkDiscussionRunning
+                    ? bulkDiscussionProgress
+                      ? `💬 ${bulkDiscussionProgress.done}/${bulkDiscussionProgress.total} discussions…`
+                      : '💬 Démarrage…'
+                    : bulkDiscussionProgress
+                      ? `✅ ${bulkDiscussionProgress.done} discussion(s)${bulkDiscussionProgress.failed > 0 ? ` — ${bulkDiscussionProgress.failed} erreur(s)` : ''}`
+                      : '💬 Générer les discussions'}
                 </button>
               )}
             </div>
@@ -3037,6 +4272,7 @@ export default function BookPage() {
             editHint={editHint}
             editImages={editImages}
             editMusicUrl={editMusicUrl}
+            editMusicStartTime={editMusicStartTime}
             imageProvider={imageProvider}
             isSaving={sectionSaving === sectionModal}
             editingTransition={editingTransition}
@@ -3050,6 +4286,7 @@ export default function BookPage() {
             setEditHint={setEditHint}
             setEditImages={setEditImages}
             setEditMusicUrl={setEditMusicUrl}
+            setEditMusicStartTime={setEditMusicStartTime}
             setImageProvider={setImageProvider}
             setEditingTransition={setEditingTransition}
             setTransitionDraft={setTransitionDraft}
@@ -3143,6 +4380,10 @@ export default function BookPage() {
               if (!nextId) return undefined
               return choices.find(c => c.section_id === sectionModal && c.target_section_id === nextId)?.id
             })()}
+            uploadingSectionMusic={uploadingSectionMusic}
+            uploadSectionMusic={uploadSectionMusic}
+            sectionMusicUploaded={sectionMusicUploaded}
+            sectionMusicBuster={sectionMusicBuster}
           />
         )
       })()}
@@ -3262,6 +4503,7 @@ export default function BookPage() {
           content={narrationPanel.content}
           onApply={(sectionId, newContent) => {
             setSections(ss => ss.map(s => s.id === sectionId ? { ...s, content: newContent } : s))
+            setEditContent(newContent)
             fetch(`/api/sections/${sectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: newContent }) })
             setNarrationPanel(null)
           }}
@@ -3380,6 +4622,15 @@ export default function BookPage() {
         />
       )}
 
+      {tab === 'game_sim' && (() => {
+        if (!combatTypesLoaded) {
+          fetch(`/api/books/${id}/combat-types`).then(r => r.json()).then(d => {
+            setCombatTypes(d.combat_types ?? [])
+            setCombatTypesLoaded(true)
+          })
+        }
+        return null
+      })()}
       {tab === 'game_sim' && (
         <GameSimTab
           bookId={id}
@@ -3387,17 +4638,19 @@ export default function BookPage() {
           choices={choices}
           npcs={npcs}
           items={items}
+          locations={locations}
           protagonist={npcs.find(n => n.id === book.protagonist_npc_id) ?? null}
           sectionLayout={book.section_layout ?? null}
           introOrder={book.intro_order ?? null}
           onNavigate={setTab}
           book={book}
+          combatTypes={combatTypes}
         />
       )}
 
       {/* ── Onglet PNJ ──────────────────────────────────────────────────────── */}
       {tab === 'npcs' && (
-        <NpcTab bookId={id} bookTheme={book.theme} bookIllustrationStyle={book.illustration_style ?? 'realistic'} illustrationBible={book.illustration_bible ?? ''} imageProvider={imageProvider} npcs={npcs} setNpcs={setNpcs} sections={sections} onNavigate={(n) => { setTab('sections'); scrollToSection(n) }} protagonistNpcId={book.protagonist_npc_id ?? null} onSetProtagonist={async (npcId) => { await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ protagonist_npc_id: npcId }) }); setBook(b => b ? { ...b, protagonist_npc_id: npcId } : b) }} voices={convVoices} voicesLoaded={convVoicesLoaded} />
+        <NpcTab bookId={id} bookTheme={book.theme} bookIllustrationStyle={book.illustration_style ?? 'realistic'} illustrationBible={book.illustration_bible ?? ''} imageProvider={imageProvider} npcs={npcs} setNpcs={setNpcs} sections={sections} combatTypes={combatTypes} onNavigate={(n) => { setTab('sections'); scrollToSection(n) }} protagonistNpcId={book.protagonist_npc_id ?? null} onSetProtagonist={async (npcId) => { await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ protagonist_npc_id: npcId }) }); setBook(b => b ? { ...b, protagonist_npc_id: npcId } : b) }} weaponTypes={weaponTypes} />
       )}
 
       {/* ── Onglet Carte ─────────────────────────────────────────────────────── */}
@@ -3424,19 +4677,10 @@ export default function BookPage() {
           fetch(`/api/books/${id}/items`).then(r => r.json()).then(d => { setItems(d.items ?? []); setItemsLoaded(true) })
           return <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Chargement…</p>
         }
-        const ITEM_TYPE_LABELS: Record<string, string> = { soin: '❤️ Soin', mana: '💧 Mana', arme: '⚔️ Arme', armure: '🛡 Armure', outil: '🔧 Outil', quete: '📜 Quête', grimoire: '📖 Grimoire' }
+        const ITEM_TYPE_LABELS: Record<string, string> = { soin: '❤️ Soin', mana: '💧 Mana', arme: '⚔️ Arme', armure: '🛡 Armure', outil: '🔧 Outil', quete: '📜 Quête', grimoire: '📖 Grimoire', plan: '🗺 Plan' }
         const ITEM_CAT_LABELS: Record<string, string> = { persistant: '♾ Persistant', consommable: '🔑 Consommable', arme: '⚔️ Arme' }
         const ITEM_CAT_COLORS: Record<string, string> = { persistant: '#52c484', consommable: '#d4a84c', arme: '#e05555' }
-        async function setItemPosition(itemId: string, sectionId: string, x: number, y: number) {
-          const sec = sections.find(s => s.id === sectionId)
-          if (!sec) return
-          const existing: any[] = (sec as any).items_on_scene ?? []
-          const updated = existing.some((si: any) => si.item_id === itemId)
-            ? existing.map((si: any) => si.item_id === itemId ? { ...si, x, y } : si)
-            : [...existing, { item_id: itemId, x, y }]
-          await fetch(`/api/sections/${sectionId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items_on_scene: updated }) })
-          setSections(prev => prev.map(s => s.id === sectionId ? { ...s, items_on_scene: updated } as any : s))
-        }
+
 
         async function uploadItemImage(file: File) {
           const formData = new FormData()
@@ -3446,6 +4690,26 @@ export default function BookPage() {
           const res = await fetch('/api/upload-file', { method: 'POST', body: formData })
           const d = await res.json()
           if (d.url) setItemForm(f => ({ ...f, illustration_url: d.url }))
+        }
+
+        async function uploadItemDetailImage(file: File) {
+          const formData = new FormData()
+          formData.append('file', file)
+          const path = editingItem && editingItem !== 'new' ? `books/${id}/items/${editingItem}_detail` : `books/${id}/items/new_${Date.now()}_detail`
+          formData.append('path', path)
+          const res = await fetch('/api/upload-file', { method: 'POST', body: formData })
+          const d = await res.json()
+          if (d.url) setItemForm(f => ({ ...f, detail_url: d.url } as any))
+        }
+
+        async function uploadItemFoldSound(file: File) {
+          const formData = new FormData()
+          formData.append('file', file)
+          const path = editingItem && editingItem !== 'new' ? `books/${id}/items/${editingItem}_fold_sound` : `books/${id}/items/new_${Date.now()}_fold_sound`
+          formData.append('path', path)
+          const res = await fetch('/api/upload-file', { method: 'POST', body: formData })
+          const d = await res.json()
+          if (d.url) setItemForm(f => ({ ...f, fold_sound_url: d.url } as any))
         }
 
         async function saveItem() {
@@ -3501,14 +4765,68 @@ export default function BookPage() {
                   </select>
                 </div>
 
+                {/* Weapon type — uniquement pour les armes */}
+                {itemForm.item_type === 'arme' && (
+                  <select
+                    value={(itemForm as any).weapon_type ?? ''}
+                    onChange={e => setItemForm(f => ({ ...f, weapon_type: e.target.value || null } as any))}
+                    style={{ width: '100%', background: 'var(--surface)', border: '1px solid #d4a84c66', borderRadius: '4px', padding: '0.35rem 0.5rem', color: '#d4a84c', fontSize: '0.82rem', outline: 'none', boxSizing: 'border-box' }}
+                  >
+                    <option value="">— Choisir un type d'arme —</option>
+                    {weaponTypes.filter(wt => wt !== 'main_nue').map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                    <option value="main_nue">main_nue</option>
+                  </select>
+                )}
+
+                {/* Plan — bloc génération de prompt */}
+                {itemForm.item_type === 'plan' && locations.length > 0 && (() => {
+                  const locLines = locations
+                    .sort((a, b) => a.y - b.y || a.x - b.x)
+                    .map(l => `- ${l.icon} ${l.name} (position relative : ${l.x < 33 ? 'ouest' : l.x > 66 ? 'est' : 'centre'}, ${l.y < 33 ? 'nord' : l.y > 66 ? 'sud' : 'milieu'})`)
+                    .join('\n')
+                  const prompt = `Illustration d'une carte / plan détaillé(e) de l'univers "${book.title}" (thème : ${book.theme}).
+
+Style : carte illustrée façon guide de voyage ou carte de jeu de rôle, vue de dessus légèrement inclinée, trait clair, couleurs riches et contrastées, rendu artistique détaillé (comparable à une carte de jeu de plateau ou de livre d'aventure).
+
+Les lieux suivants doivent être clairement indiqués et positionnés de façon cohérente sur la carte :
+${locLines}
+
+Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit avoir une légende, un titre décoratif, et une bordure ornementée. Pas de texte superflu, uniquement les noms des lieux. Format paysage (16:9).`
+                  return (
+                    <div style={{ background: '#4a8fa811', border: '1px solid #4a8fa844', borderRadius: '6px', padding: '0.75rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#4a8fa8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🗺 Prompt génération de carte</span>
+                        <button
+                          onClick={() => { navigator.clipboard.writeText(prompt) }}
+                          style={{ fontSize: '0.68rem', padding: '0.2rem 0.55rem', borderRadius: '4px', border: '1px solid #4a8fa866', background: '#4a8fa822', color: '#4a8fa8', cursor: 'pointer' }}
+                        >📋 Copier</button>
+                      </div>
+                      <textarea
+                        readOnly
+                        value={prompt}
+                        rows={8}
+                        style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.5rem 0.65rem', color: 'var(--foreground)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'monospace', boxSizing: 'border-box', lineHeight: 1.5 }}
+                      />
+                      <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginTop: '0.35rem' }}>{locations.length} lieu(x) · À coller dans Gemini, Midjourney ou autre générateur d'images</div>
+                    </div>
+                  )
+                })()}
+                {itemForm.item_type === 'plan' && (itemForm as any).detail_url && locations.length > 0 && (
+                  <button
+                    onClick={() => setPlanMapEditor({ imageUrl: (itemForm as any).detail_url })}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid #4a8fa8', background: '#4a8fa811', color: '#4a8fa8', fontSize: '0.82rem', cursor: 'pointer', fontWeight: 600 }}
+                  >📍 Placer les localisations sur le plan</button>
+                )}
+
                 {/* Description */}
                 <textarea value={itemForm.description ?? ''} onChange={e => setItemForm(f => ({ ...f, description: e.target.value }))} placeholder="Description narrative de l'objet…" rows={2} style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.82rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
 
-                {/* Image + Cinématique */}
+                {/* Images + Cinématique */}
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <div style={{ flex: 1, minWidth: '200px' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🖼 Image de l'objet</div>
-                    {itemForm.illustration_url && <img src={itemForm.illustration_url} alt="" style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.35rem', display: 'block' }} />}
+                  {/* Miniature */}
+                  <div style={{ flex: 1, minWidth: '180px' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🖼 Miniature <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(icône sur la scène)</span></div>
+                    {itemForm.illustration_url && <img src={itemForm.illustration_url} alt="" style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.35rem', display: 'block' }} />}
                     <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.3rem' }}>
                       <ImageGenButton
                         type="item"
@@ -3524,9 +4842,78 @@ export default function BookPage() {
                         <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemImage(f) }} />
                       </label>
                     </div>
-                    <input value={itemForm.illustration_url ?? ''} onChange={e => setItemForm(f => ({ ...f, illustration_url: e.target.value || undefined }))} placeholder="URL image…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box' }} />
+                    <input value={itemForm.illustration_url ?? ''} onChange={e => setItemForm(f => ({ ...f, illustration_url: e.target.value || undefined }))} placeholder="URL miniature…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box' }} />
                   </div>
-                  <div style={{ flex: 1, minWidth: '200px' }}>
+                  {/* Image détaillée */}
+                  <div style={{ flex: 1, minWidth: '180px' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🔍 Image détaillée <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(au clic du joueur)</span></div>
+                    {(itemForm as any).detail_url && <img src={(itemForm as any).detail_url} alt="" style={{ width: '100%', maxHeight: '80px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.35rem', display: 'block' }} />}
+                    <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.3rem' }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        📁 Fichier
+                        <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemDetailImage(f) }} />
+                      </label>
+                      {(itemForm as any).detail_url && <button onClick={() => setItemForm(f => ({ ...f, detail_url: undefined } as any))} style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', borderRadius: '5px', border: '1px solid #e0555544', background: '#e0555511', color: '#e05555', cursor: 'pointer' }}>✕</button>}
+                    </div>
+                    <input value={(itemForm as any).detail_url ?? ''} onChange={e => setItemForm(f => ({ ...f, detail_url: e.target.value || undefined } as any))} placeholder="URL image détaillée…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box' }} />
+                  </div>
+                  {/* Son de dépliage (plan uniquement) */}
+                  {itemForm.item_type === 'plan' && (
+                  <div style={{ flex: 1, minWidth: '180px' }}>
+                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🔊 Son dépliage / pliage</div>
+                    {(itemForm as any).fold_sound_url && (
+                      <audio src={(itemForm as any).fold_sound_url} controls style={{ width: '100%', height: '28px', marginBottom: '0.35rem', display: 'block' }} />
+                    )}
+                    <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.3rem', flexWrap: 'wrap' }}>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: '5px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        📁 Fichier
+                        <input type="file" accept="audio/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadItemFoldSound(f) }} />
+                      </label>
+                      <button onClick={() => setFreesoundOpen(o => !o)} style={{ fontSize: '0.7rem', padding: '0.25rem 0.6rem', borderRadius: '5px', border: `1px solid ${freesoundOpen ? '#d4a84c' : 'var(--border)'}`, background: freesoundOpen ? 'rgba(212,168,76,0.12)' : 'var(--surface)', color: freesoundOpen ? '#d4a84c' : 'var(--muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                        🔍 Freesound
+                      </button>
+                      {(itemForm as any).fold_sound_url && <button onClick={() => { setItemForm(f => ({ ...f, fold_sound_url: undefined } as any)); if (freesoundPreviewRef.current) { freesoundPreviewRef.current.pause(); freesoundPreviewRef.current = null } }} style={{ fontSize: '0.7rem', padding: '0.25rem 0.5rem', borderRadius: '5px', border: '1px solid #e0555544', background: '#e0555511', color: '#e05555', cursor: 'pointer' }}>✕</button>}
+                    </div>
+                    <input value={(itemForm as any).fold_sound_url ?? ''} onChange={e => setItemForm(f => ({ ...f, fold_sound_url: e.target.value || undefined } as any))} placeholder="URL son…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box', marginBottom: freesoundOpen ? '0.4rem' : 0 }} />
+                    {/* Panneau de recherche Freesound */}
+                    {freesoundOpen && (
+                      <div style={{ background: '#0a0a10', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.5rem', marginTop: '0.1rem' }}>
+                        <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.4rem' }}>
+                          <input value={freesoundQuery} onChange={e => setFreesoundQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { setFreesoundSearching(true); fetch(`/api/freesound/search?q=${encodeURIComponent(freesoundQuery)}`).then(r => r.json()).then(d => { setFreesoundResults(d.results ?? []); setFreesoundSearching(false) }).catch(() => setFreesoundSearching(false)) } }} placeholder="ex: paper fold, map rustling…" style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.7rem', outline: 'none' }} />
+                          <button onClick={() => { setFreesoundSearching(true); fetch(`/api/freesound/search?q=${encodeURIComponent(freesoundQuery)}`).then(r => r.json()).then(d => { setFreesoundResults(d.results ?? []); setFreesoundSearching(false) }).catch(() => setFreesoundSearching(false)) }} disabled={freesoundSearching} style={{ padding: '0.25rem 0.5rem', borderRadius: '4px', border: 'none', background: '#d4a84c', color: '#0f0f14', fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer' }}>
+                            {freesoundSearching ? '…' : '→'}
+                          </button>
+                        </div>
+                        <div style={{ maxHeight: '160px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                          {freesoundResults.map(r => (
+                            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.2rem 0.35rem', borderRadius: '4px', background: 'rgba(255,255,255,0.03)', fontSize: '0.65rem' }}>
+                              <button title="Écouter" onClick={() => {
+                                const previewUrl = r.previews['preview-hq-mp3'] ?? r.previews['preview-lq-mp3']
+                                if (!previewUrl) return
+                                if (freesoundPreviewRef.current) { freesoundPreviewRef.current.pause(); freesoundPreviewRef.current = null }
+                                const audio = new Audio(previewUrl)
+                                freesoundPreviewRef.current = audio
+                                audio.play().catch(() => {})
+                              }} style={{ flexShrink: 0, padding: '0.15rem 0.35rem', borderRadius: '3px', border: 'none', background: '#1e1e28', color: '#d4a84c', cursor: 'pointer', fontSize: '0.65rem' }}>▶</button>
+                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--foreground)' }} title={r.name}>{r.name}</span>
+                              <span style={{ color: 'var(--muted)', flexShrink: 0 }}>{r.username}</span>
+                              <button title="Utiliser" onClick={() => {
+                                const previewUrl = r.previews['preview-hq-mp3'] ?? r.previews['preview-lq-mp3']
+                                if (!previewUrl) return
+                                if (freesoundPreviewRef.current) { freesoundPreviewRef.current.pause(); freesoundPreviewRef.current = null }
+                                setItemForm(f => ({ ...f, fold_sound_url: previewUrl } as any))
+                                setFreesoundOpen(false)
+                              }} style={{ flexShrink: 0, padding: '0.15rem 0.4rem', borderRadius: '3px', border: 'none', background: '#d4a84c22', color: '#d4a84c', cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700 }}>✓</button>
+                            </div>
+                          ))}
+                          {freesoundResults.length === 0 && !freesoundSearching && <div style={{ color: 'var(--muted)', fontSize: '0.65rem', textAlign: 'center', padding: '0.5rem' }}>Lancez une recherche</div>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  )}
+                  {/* Cinématique */}
+                  <div style={{ flex: 1, minWidth: '180px' }}>
                     <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🎬 Cinématique de ramassage</div>
                     {itemForm.cinematique_url && <video src={itemForm.cinematique_url} style={{ width: '100%', maxHeight: '80px', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.35rem', display: 'block' }} muted playsInline />}
                     <input value={(itemForm as any).cinematique_url ?? ''} onChange={e => setItemForm(f => ({ ...f, cinematique_url: e.target.value || undefined } as any))} placeholder="URL vidéo…" style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', boxSizing: 'border-box' }} />
@@ -3614,53 +5001,9 @@ export default function BookPage() {
                         </div>
                       </div>
                     </div>
-                    {/* Panneau de positionnement */}
-                    {positioningItemId === item.id && (item.sections_used ?? []).length > 0 && (
-                      <div style={{ padding: '0.65rem 0.85rem', borderTop: `1px solid ${catColor}33`, background: `${catColor}08` }}>
-                        <div style={{ fontSize: '0.68rem', color: catColor, marginBottom: '0.5rem', fontWeight: 600 }}>📍 Clic sur l'image pour placer l'objet</div>
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                          {(item.sections_used ?? []).map(sid => {
-                            const sec = sections.find(s => s.id === sid)
-                            if (!sec) return null
-                            const lastImg = [...(sec.images ?? [])].reverse().find((img: any) => img.url)
-                            const currentPos = ((sec as any).items_on_scene ?? []).find((si: any) => si.item_id === item.id)
-                            const cx = currentPos?.x ?? 0.5
-                            const cy = currentPos?.y ?? 0.8
-                            return (
-                              <div key={sid} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'center' }}>
-                                <div style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>§{sec.number}</div>
-                                <div
-                                  style={{ position: 'relative', width: 120, height: 80, borderRadius: '5px', overflow: 'hidden', border: `1px solid ${catColor}55`, cursor: 'crosshair', background: '#111' }}
-                                  onClick={e => {
-                                    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
-                                    const x = (e.clientX - rect.left) / rect.width
-                                    const y = (e.clientY - rect.top) / rect.height
-                                    setItemPosition(item.id, sid, Math.round(x * 100) / 100, Math.round(y * 100) / 100)
-                                  }}>
-                                  {lastImg
-                                    ? <img src={lastImg.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none' }} />
-                                    : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', opacity: 0.2 }}>🖼</div>
-                                  }
-                                  {/* Icône positionnée */}
-                                  <div style={{ position: 'absolute', left: `${cx * 100}%`, top: `${cy * 100}%`, transform: 'translate(-50%,-50%)', width: 20, height: 20, borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: `2px solid ${catColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, pointerEvents: 'none' }}>
-                                    {item.illustration_url
-                                      ? <img src={item.illustration_url} alt="" style={{ width: 14, height: 14, objectFit: 'cover', borderRadius: '50%' }} />
-                                      : <span>{ITEM_CATEGORY_ICONS[cat] ?? '📦'}</span>
-                                    }
-                                  </div>
-                                </div>
-                                {currentPos?.x !== undefined && (
-                                  <div style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>{Math.round(cx * 100)}% × {Math.round(cy * 100)}%</div>
-                                )}
-                              </div>
-                            )
-                          })}
-                        </div>
-                      </div>
-                    )}
                     <div style={{ display: 'flex', gap: '0.4rem', padding: '0.4rem 0.85rem', borderTop: '1px solid var(--border)', background: 'var(--surface)', justifyContent: 'flex-end' }}>
                       {(item.sections_used ?? []).length > 0 && (
-                        <button onClick={() => setPositioningItemId(positioningItemId === item.id ? null : item.id)} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: `1px solid ${positioningItemId === item.id ? catColor + '88' : 'var(--border)'}`, background: positioningItemId === item.id ? catColor + '18' : 'transparent', color: positioningItemId === item.id ? catColor : 'var(--muted)', cursor: 'pointer' }}>📍 Positionner</button>
+                        <button onClick={() => setItemPositionModal(item.id)} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: `1px solid ${catColor}55`, background: `${catColor}0f`, color: catColor, cursor: 'pointer' }}>📍 Positionner</button>
                       )}
                       <button onClick={() => { setEditingItem(item.id); setItemForm({ ...item } as any) }} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>✎ Modifier</button>
                       <button onClick={async () => { if (!confirm(`Supprimer "${item.name}" ?`)) return; await fetch(`/api/items/${item.id}`, { method: 'DELETE' }); setItems(prev => prev.filter(it => it.id !== item.id)) }} style={{ fontSize: '0.68rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c', cursor: 'pointer' }}>✕ Supprimer</button>
@@ -3673,15 +5016,616 @@ export default function BookPage() {
         )
       })()}
 
+      {/* ── Onglet Combat ───────────────────────────────────────────────────── */}
+      {tab === 'combat' && (() => {
+        if (!combatTypesLoaded) {
+          fetch(`/api/books/${id}/combat-types`).then(r => r.json()).then(d => {
+            setCombatTypes(d.combat_types ?? [])
+            setCombatTypesLoaded(true)
+          })
+          return <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Chargement…</p>
+        }
+
+        const TYPE_LABELS: Record<string, string> = { rue: '🥊 Bagarre de rue', coup_de_feu: '🔫 Armes à feu', surprise: '⚡ Attaque surprise' }
+        const TYPE_COLORS: Record<string, string> = { rue: '#e05555', coup_de_feu: '#d4a84c', surprise: '#8b6fc0' }
+
+        async function createCombatType() {
+          if (!combatTypeForm.name || !combatTypeForm.type) return
+          const r = await fetch(`/api/books/${id}/combat-types`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: combatTypeForm.name, type: combatTypeForm.type, description: combatTypeForm.description ?? null }),
+          })
+          const d = await r.json()
+          if (d.combat_type) {
+            setCombatTypes(prev => [...prev, { ...d.combat_type, moves: [] }])
+            setCombatTypeForm({})
+            setEditingCombatType(null)
+          }
+        }
+
+        async function deleteCombatType(ctId: string) {
+          if (!confirm('Supprimer ce type de combat et tous ses mouvements ?')) return
+          await fetch(`/api/combat-types/${ctId}`, { method: 'DELETE' })
+          setCombatTypes(prev => prev.filter(ct => ct.id !== ctId))
+        }
+
+        async function updateCombatType(ctId: string) {
+          if (!combatTypeForm.name || !combatTypeForm.type) return
+          await fetch(`/api/combat-types/${ctId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: combatTypeForm.name, type: combatTypeForm.type, description: combatTypeForm.description ?? null }),
+          })
+          setCombatTypes(prev => prev.map(ct => ct.id === ctId ? { ...ct, name: combatTypeForm.name!, type: combatTypeForm.type as any, description: combatTypeForm.description } : ct))
+          setEditingCombatType(null)
+          setCombatTypeForm({})
+        }
+
+        async function createCombatMove(ctId: string) {
+          if (!combatMoveForm.name || !combatMoveForm.narrative_text) return
+          const r = await fetch('/api/combat-moves', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              combat_type_id: ctId,
+              name: combatMoveForm.name,
+              narrative_text: combatMoveForm.narrative_text,
+              narrative_text_npc: combatMoveForm.narrative_text_npc ?? undefined,
+              hint_text: combatMoveForm.hint_text ?? null,
+              bonus_malus: combatMoveForm.bonus_malus ?? 0,
+              damage: combatMoveForm.damage ?? 1,
+              is_parry: combatMoveForm.is_parry ?? false,
+              is_contextual: combatMoveForm.is_contextual ?? false,
+              prop_required: combatMoveForm.prop_required ?? null,
+              weapon_type: combatMoveForm.weapon_type ?? null,
+              sort_order: combatMoveForm.sort_order ?? 0,
+            }),
+          })
+          const d = await r.json()
+          if (d.combat_move) {
+            setCombatTypes(prev => prev.map(ct => ct.id === ctId
+              ? { ...ct, moves: [...(ct.moves ?? []), d.combat_move] }
+              : ct
+            ))
+            setCombatMoveForm({})
+            setEditingCombatMove(null)
+          }
+        }
+
+        async function updateCombatMove(moveId: string, ctId: string, patch: Partial<import('@/types').CombatMove>) {
+          await fetch(`/api/combat-moves/${moveId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch),
+          })
+          setCombatTypes(prev => prev.map(ct => ct.id === ctId
+            ? { ...ct, moves: (ct.moves ?? []).map(m => m.id === moveId ? { ...m, ...patch } : m) }
+            : ct
+          ))
+        }
+
+        async function generateMoveIcon(moveId: string, moveName: string) {
+          setGeneratingIconFor(moveId)
+          try {
+            const r = await fetch('/api/generate-image', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                type: 'item',
+                provider: 'replicate',
+                data: { name: moveName, description: `Combat action move: ${moveName}`, style: book?.illustration_style ?? 'realistic' },
+              }),
+            })
+            const d = await r.json()
+            if (d.error) throw new Error(d.error)
+            let imageUrl: string | null = d.image_url ?? null
+            if (!imageUrl && d.prediction_id) {
+              for (let i = 0; i < 30; i++) {
+                await new Promise(res => setTimeout(res, 2500))
+                const pr = await fetch(`/api/generate-image?id=${d.prediction_id}&provider=${d.provider ?? 'replicate'}`)
+                const pd = await pr.json()
+                if (pd.image_url) { imageUrl = pd.image_url; break }
+                if (pd.status === 'failed') throw new Error(pd.error ?? 'Génération échouée')
+              }
+            }
+            if (imageUrl) setCombatMoveForm(f => ({ ...f, icon_url: imageUrl }))
+          } catch (err: any) { alert(`Erreur icône : ${err.message}`) }
+          finally { setGeneratingIconFor(null) }
+        }
+
+        async function uploadMoveIcon(moveId: string, file: File | null) {
+          if (!file) return
+          setGeneratingIconFor(moveId)
+          try {
+            const fd = new FormData()
+            fd.append('file', file)
+            fd.append('path', `combat-icons/${moveId}-${Date.now()}`)
+            const r = await fetch('/api/upload-image', { method: 'POST', body: fd })
+            const d = await r.json()
+            if (d.error) throw new Error(d.error)
+            if (d.url) setCombatMoveForm(f => ({ ...f, icon_url: d.url }))
+          } catch (err: any) { alert(`Erreur upload : ${err.message}`) }
+          finally { setGeneratingIconFor(null) }
+        }
+
+        async function deleteCombatMove(moveId: string, ctId: string) {
+          if (!confirm('Supprimer ce mouvement ?')) return
+          await fetch(`/api/combat-moves/${moveId}`, { method: 'DELETE' })
+          setCombatTypes(prev => prev.map(ct => ct.id === ctId
+            ? { ...ct, moves: (ct.moves ?? []).filter(m => m.id !== moveId) }
+            : ct
+          ))
+        }
+
+        const inputStyle = { background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--foreground)', padding: '0.4rem 0.6rem', fontSize: '0.82rem', width: '100%' }
+        const labelStyle = { fontSize: '0.72rem', color: 'var(--muted)', display: 'block', marginBottom: '0.2rem' }
+        const btnAccent = { background: 'var(--accent)', color: '#000', border: 'none', borderRadius: '6px', padding: '0.4rem 0.9rem', fontSize: '0.8rem', cursor: 'pointer', fontWeight: 600 }
+        const btnGhost = { background: 'transparent', color: 'var(--muted)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.35rem 0.7rem', fontSize: '0.78rem', cursor: 'pointer' }
+        const btnDanger = { background: 'transparent', color: '#c94c4c', border: '1px solid #c94c4c44', borderRadius: '6px', padding: '0.35rem 0.7rem', fontSize: '0.78rem', cursor: 'pointer' }
+        const cardStyle = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '1rem', marginBottom: '1rem' }
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ fontSize: '1.1rem', fontWeight: 700, margin: 0 }}>⚔️ Types de combat</h2>
+              <button style={btnAccent} onClick={() => { setEditingCombatType('new'); setCombatTypeForm({}) }}>+ Nouveau type</button>
+            </div>
+
+            {/* Formulaire création type de combat */}
+            {editingCombatType === 'new' && (
+              <div style={{ ...cardStyle, borderColor: 'var(--accent)', background: 'var(--surface-2)' }}>
+                <div style={{ fontWeight: 600, fontSize: '0.85rem', marginBottom: '0.75rem' }}>Nouveau type de combat</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                  <div>
+                    <label style={labelStyle}>Nom</label>
+                    <input style={inputStyle} placeholder="ex: Combat de rue parisien" value={combatTypeForm.name ?? ''} onChange={e => setCombatTypeForm(f => ({ ...f, name: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Type</label>
+                    <select style={inputStyle} value={combatTypeForm.type ?? ''} onChange={e => setCombatTypeForm(f => ({ ...f, type: e.target.value as any }))}>
+                      <option value="">— Choisir —</option>
+                      <option value="rue">🥊 Bagarre de rue</option>
+                      <option value="coup_de_feu">🔫 Armes à feu</option>
+                      <option value="surprise">⚡ Attaque surprise</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <label style={labelStyle}>Description (optionnel)</label>
+                  <textarea style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} placeholder="Contexte narratif de ce type de combat…" value={combatTypeForm.description ?? ''} onChange={e => setCombatTypeForm(f => ({ ...f, description: e.target.value }))} />
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button style={btnAccent} onClick={createCombatType}>Créer</button>
+                  <button style={btnGhost} onClick={() => { setEditingCombatType(null); setCombatTypeForm({}) }}>Annuler</button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Types d'armes ── */}
+            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '1rem 1.1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>🗡 Types d'armes</div>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                {weaponTypes.map(wt => (
+                  <div key={wt} style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#d4a84c22', border: '1px solid #d4a84c44', borderRadius: '5px', padding: '0.2rem 0.5rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#d4a84c' }}>{wt}</span>
+                    {wt !== 'main_nue' && (
+                      <button onClick={async () => {
+                        const next = weaponTypes.filter(w => w !== wt)
+                        setWeaponTypes(next)
+                        await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weapon_types: next }) })
+                      }} style={{ background: 'none', border: 'none', color: '#d4a84c88', cursor: 'pointer', fontSize: '0.7rem', padding: '0 2px', lineHeight: 1 }}>✕</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '0.4rem' }}>
+                <input
+                  value={newWeaponType}
+                  onChange={e => setNewWeaponType(e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+                  placeholder="Nouveau type (ex: katana)"
+                  onKeyDown={async e => {
+                    if (e.key === 'Enter' && newWeaponType.trim() && !weaponTypes.includes(newWeaponType.trim())) {
+                      const next = [...weaponTypes, newWeaponType.trim()]
+                      setWeaponTypes(next)
+                      setNewWeaponType('')
+                      await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weapon_types: next }) })
+                    }
+                  }}
+                  style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.3rem 0.5rem', color: 'var(--foreground)', fontSize: '0.8rem', outline: 'none' }}
+                />
+                <button onClick={async () => {
+                  if (!newWeaponType.trim() || weaponTypes.includes(newWeaponType.trim())) return
+                  const next = [...weaponTypes, newWeaponType.trim()]
+                  setWeaponTypes(next)
+                  setNewWeaponType('')
+                  await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ weapon_types: next }) })
+                }} style={{ padding: '0.3rem 0.75rem', background: 'var(--accent)', border: 'none', borderRadius: '5px', color: '#fff', fontSize: '0.8rem', cursor: 'pointer' }}>+</button>
+              </div>
+            </div>
+
+            {/* Liste des types de combat */}
+            {combatTypes.length === 0 && editingCombatType !== 'new' && (
+              <p style={{ color: 'var(--muted)', fontSize: '0.85rem' }}>Aucun type de combat. Créez-en un pour commencer.</p>
+            )}
+
+            {combatTypes.map(ct => {
+              const typeColor = TYPE_COLORS[ct.type] ?? '#888'
+              const attacks = (ct.moves ?? []).filter(m => !m.is_parry)
+              const parries = (ct.moves ?? []).filter(m => m.is_parry)
+              const isAddingMove = editingCombatMove === `move-${ct.id}`
+
+              return (
+                <div key={ct.id} style={cardStyle}>
+                  {/* En-tête type */}
+                  {editingCombatType === ct.id ? (
+                    <div style={{ marginBottom: '0.75rem', background: 'var(--surface-2)', borderRadius: '8px', padding: '0.75rem', border: `1px solid ${typeColor}44` }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.82rem', marginBottom: '0.6rem', color: typeColor }}>✎ Modifier le type</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div>
+                          <label style={labelStyle}>Nom</label>
+                          <input style={inputStyle} value={combatTypeForm.name ?? ''} onChange={e => setCombatTypeForm(f => ({ ...f, name: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Type</label>
+                          <select style={inputStyle} value={combatTypeForm.type ?? ''} onChange={e => setCombatTypeForm(f => ({ ...f, type: e.target.value as any }))}>
+                            <option value="rue">🥊 Bagarre de rue</option>
+                            <option value="coup_de_feu">🔫 Armes à feu</option>
+                            <option value="surprise">⚡ Attaque surprise</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <label style={labelStyle}>Description</label>
+                        <textarea style={{ ...inputStyle, minHeight: '50px', resize: 'vertical' }} value={combatTypeForm.description ?? ''} onChange={e => setCombatTypeForm(f => ({ ...f, description: e.target.value }))} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button style={btnAccent} onClick={() => updateCombatType(ct.id)}>Sauvegarder</button>
+                        <button style={btnGhost} onClick={() => { setEditingCombatType(null); setCombatTypeForm({}) }}>Annuler</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <span style={{ background: `${typeColor}22`, color: typeColor, borderRadius: '4px', padding: '0.15rem 0.5rem', fontSize: '0.72rem', fontWeight: 700 }}>{TYPE_LABELS[ct.type] ?? ct.type}</span>
+                          <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{ct.name}</span>
+                        </div>
+                        {ct.description && <p style={{ margin: '0.35rem 0 0', fontSize: '0.78rem', color: 'var(--muted)' }}>{ct.description}</p>}
+                        {ct.type === 'surprise' && <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', color: '#8b6fc0' }}>⚡ Initiative toujours donnée à l'ennemi</p>}
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+                        <button
+                          style={{ background: '#ff9f4322', color: '#ff9f43', border: '1px solid #ff9f4344', borderRadius: '6px', padding: '0.3rem 0.7rem', fontSize: '0.75rem', cursor: 'pointer', fontWeight: 700 }}
+                          onClick={async () => {
+                            if (!confirm(`Générer les combos V4 pour "${ct.name}" ?\nCela va enrichir vos attaques existantes et créer les moves contextuels.`)) return
+                            const r = await fetch(`/api/combat-types/${ct.id}/generate-v4-moves`, { method: 'POST' })
+                            const d = await r.json()
+                            if (d.error) { alert(`Erreur : ${d.error}`); return }
+                            setCombatTypes(prev => prev.map(c => c.id === ct.id ? { ...c, moves: d.moves } : c))
+                            alert(`✅ ${d.updated} attaques enrichies, ${d.created} moves créés${d.errors?.length ? `\n⚠ ${d.errors.length} erreurs` : ''}`)
+                          }}
+                        >⚡ Générer V4</button>
+                        <button style={btnGhost} onClick={() => { setEditingCombatType(ct.id); setCombatTypeForm({ name: ct.name, type: ct.type, description: ct.description ?? '' }) }}>✎</button>
+                        <button style={btnDanger} onClick={() => deleteCombatType(ct.id)}>✕</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Attaques */}
+                  <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e05555', marginBottom: '0.4rem' }}>🗡 Attaques ({attacks.length})</div>
+                    {attacks.length === 0 && <p style={{ fontSize: '0.75rem', color: 'var(--muted)', margin: 0 }}>Aucune attaque.</p>}
+                    {attacks.map(mv => {
+                      const pairedMove = (ct.moves ?? []).find(m => m.id === mv.paired_move_id)
+                      const isEditingThis = editingCombatMove === `edit-${mv.id}`
+                      return (
+                        <div key={mv.id} style={{ background: 'var(--surface-2)', border: `1px solid ${isEditingThis ? '#e0555588' : 'var(--border)'}`, borderRadius: '7px', padding: '0.6rem 0.75rem', marginBottom: '0.4rem' }}>
+                          {isEditingThis ? (
+                            <div>
+                              {/* Nom — affiché en haut de la carte de dé (joueur et ennemi) */}
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                <div>
+                                  <label style={labelStyle}>Nom <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— carte de dé (haut)</span></label>
+                                  <input style={inputStyle} value={combatMoveForm.name ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, name: e.target.value }))} />
+                                </div>
+                                {/* Dégâts — PV retirés à l'ennemi si le jet réussit */}
+                                <div>
+                                  <label style={labelStyle}>Dégâts ({combatMoveForm.damage ?? 1}) <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— PV retirés si succès</span></label>
+                                  <input type="range" min={1} max={10} step={1} value={combatMoveForm.damage ?? 1} onChange={e => setCombatMoveForm(f => ({ ...f, damage: parseInt(e.target.value) }))} style={{ width: '100%' }} />
+                                </div>
+                              </div>
+                              {/* Icône — affichée en bas de la carte de dé (emoji de fallback si absente) */}
+                              <div style={{ marginBottom: '0.5rem' }}>
+                                <label style={labelStyle}>🖼 Icône <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— carte de dé (bas)</span></label>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                                  <div style={{ width: 52, height: 52, flexShrink: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {generatingIconFor === mv.id ? <span style={{ fontSize: '1.4rem', animation: 'spin 1s linear infinite' }}>⏳</span>
+                                      : combatMoveForm.icon_url ? <img src={combatMoveForm.icon_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                      : <span style={{ fontSize: '1.4rem', opacity: 0.3 }}>🖼</span>}
+                                  </div>
+                                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                      <button style={{ ...btnGhost, fontSize: '0.75rem', padding: '0.25rem 0.6rem' }} disabled={!!generatingIconFor} onClick={() => generateMoveIcon(mv.id, combatMoveForm.name ?? mv.name)}>🎨 Générer</button>
+                                      <label style={{ ...btnGhost, fontSize: '0.75rem', padding: '0.25rem 0.6rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                                        📁 Charger
+                                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadMoveIcon(mv.id, e.target.files?.[0] ?? null)} />
+                                      </label>
+                                      {combatMoveForm.icon_url && <button style={{ ...btnDanger, fontSize: '0.75rem', padding: '0.25rem 0.5rem' }} onClick={() => setCombatMoveForm(f => ({ ...f, icon_url: null }))}>✕</button>}
+                                    </div>
+                                    <input style={inputStyle} placeholder="URL directe (optionnel)" value={combatMoveForm.icon_url ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, icon_url: e.target.value || null }))} />
+                                  </div>
+                                </div>
+                              </div>
+                              {/* Bonus/Malus — ajouté au d20 lors du jet, affiché sur la carte de dé */}
+                              <div style={{ marginBottom: '0.5rem' }}>
+                                <label style={labelStyle}>Bonus/Malus ({combatMoveForm.bonus_malus ?? 0}) <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— affiché sur la carte de dé</span></label>
+                                <input type="range" min={-5} max={5} step={1} value={combatMoveForm.bonus_malus ?? 0} onChange={e => setCombatMoveForm(f => ({ ...f, bonus_malus: parseInt(e.target.value) }))} style={{ width: '100%' }} />
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--muted)' }}><span>-5 (risqué)</span><span>+5 (facile)</span></div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                {/* Type — détermine dans quel tour ce move apparaît */}
+                                <div>
+                                  <label style={labelStyle}>Type <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— attack=normal · contextual=enchaînement · recovery=se relever</span></label>
+                                  <select style={inputStyle} value={combatMoveForm.move_type ?? 'attack'} onChange={e => setCombatMoveForm(f => ({ ...f, move_type: e.target.value as any }))}>
+                                    {['attack','contextual','recovery','tactical'].map(t => <option key={t} value={t}>{t}</option>)}
+                                  </select>
+                                </div>
+                                {/* Arme requise — filtre : ce move n'apparaît que si l'arme du personnage correspond */}
+                                <div>
+                                  <label style={labelStyle}>Arme requise <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— filtre d'apparition</span></label>
+                                  <select style={inputStyle} value={combatMoveForm.weapon_type ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, weapon_type: e.target.value || null }))}>
+                                    <option value="">— Universel —</option>
+                                    {weaponTypes.map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                {/* État requis — ce move n'est proposé que si la cible est déjà dans cet état (tour d'enchaînement) */}
+                                <div>
+                                  <label style={labelStyle}>État requis cible <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— visible seulement si ennemi dans cet état</span></label>
+                                  <select style={inputStyle} value={combatMoveForm.required_state ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, required_state: (e.target.value || null) as any }))}>
+                                    <option value="">— aucun —</option>
+                                    {['stunned','bent_low','off_balance','backed_up','grounded','fleeing'].map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                </div>
+                                {/* État créé — si le coup passe, l'ennemi passe dans cet état → active un tour d'enchaînement pour le joueur */}
+                                <div>
+                                  <label style={labelStyle}>État créé si succès <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— déclenche un tour d'enchaînement</span></label>
+                                  <select style={inputStyle} value={combatMoveForm.creates_state ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, creates_state: (e.target.value || null) as any }))}>
+                                    <option value="">— aucun —</option>
+                                    {['stunned','bent_low','off_balance','backed_up','grounded','fleeing'].map(s => <option key={s} value={s}>{s}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              {/* Narratif on hit — texte affiché pendant 1.8s dans le message d'intro avant le tour d'enchaînement */}
+                              <div style={{ marginBottom: '0.5rem' }}>
+                                <label style={labelStyle}>Narratif si touché <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— intro du tour d'enchaînement (1.8s)</span></label>
+                                <textarea style={{ ...inputStyle, minHeight: '40px', resize: 'vertical' }} placeholder="Ex: Il trébuche en arrière, profites-en !" value={combatMoveForm.narrative_on_hit ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, narrative_on_hit: e.target.value || null }))} />
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button style={btnAccent} onClick={async () => { await updateCombatMove(mv.id, ct.id, { name: combatMoveForm.name, icon_url: combatMoveForm.icon_url ?? null, bonus_malus: combatMoveForm.bonus_malus, damage: combatMoveForm.damage, weapon_type: combatMoveForm.weapon_type ?? null, move_type: combatMoveForm.move_type ?? undefined, required_state: combatMoveForm.required_state ?? null, creates_state: combatMoveForm.creates_state ?? null, narrative_on_hit: combatMoveForm.narrative_on_hit ?? null }); setEditingCombatMove(null); setCombatMoveForm({}) }}>Sauvegarder</button>
+                                <button style={btnGhost} onClick={() => { setEditingCombatMove(null); setCombatMoveForm({}) }}>Annuler</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  {mv.icon_url && <img src={mv.icon_url} alt="" style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: 3 }} />}
+                                  <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{mv.name}</span>
+                                  {mv.move_type && mv.move_type !== 'attack' && <span style={{ fontSize: '0.65rem', background: '#6b8cde22', color: '#6b8cde', borderRadius: '3px', padding: '0.1rem 0.3rem' }}>{mv.move_type}</span>}
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
+                                  <span style={{ fontSize: '0.7rem', background: mv.bonus_malus >= 0 ? '#4caf7d22' : '#e0555522', color: mv.bonus_malus >= 0 ? '#4caf7d' : '#e05555', borderRadius: '3px', padding: '0.1rem 0.35rem' }}>
+                                    {mv.bonus_malus >= 0 ? `+${mv.bonus_malus}` : mv.bonus_malus} jet
+                                  </span>
+                                  <span style={{ fontSize: '0.7rem', background: '#e0555522', color: '#e05555', borderRadius: '3px', padding: '0.1rem 0.35rem' }}>💥 {mv.damage} dégâts</span>
+                                  {mv.required_state && <span style={{ fontSize: '0.7rem', background: '#ff9f4322', color: '#ff9f43', borderRadius: '3px', padding: '0.1rem 0.35rem' }}>⚡ req:{mv.required_state}</span>}
+                                  {mv.creates_state && <span style={{ fontSize: '0.7rem', background: '#c8a0e822', color: '#c8a0e8', borderRadius: '3px', padding: '0.1rem 0.35rem' }}>→{mv.creates_state}</span>}
+                                  {pairedMove && <span style={{ fontSize: '0.7rem', background: '#4caf7d22', color: '#4caf7d', borderRadius: '3px', padding: '0.1rem 0.35rem' }}>🛡 {pairedMove.name}</span>}
+                                </div>
+                                <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>Parade :</span>
+                                  <select style={{ ...inputStyle, width: 'auto', fontSize: '0.72rem', padding: '0.15rem 0.35rem' }} value={mv.paired_move_id ?? ''} onChange={e => updateCombatMove(mv.id, ct.id, { paired_move_id: e.target.value || null })}>
+                                    <option value="">— aucune —</option>
+                                    {parries.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.3rem', marginLeft: '0.5rem' }}>
+                                <button style={{ ...btnGhost, padding: '0.2rem 0.5rem' }} onClick={() => { setEditingCombatMove(`edit-${mv.id}`); setCombatMoveForm({ name: mv.name, icon_url: mv.icon_url ?? null, bonus_malus: mv.bonus_malus, damage: mv.damage, weapon_type: mv.weapon_type, move_type: mv.move_type, required_state: mv.required_state, creates_state: mv.creates_state, narrative_on_hit: mv.narrative_on_hit }) }}>✎</button>
+                                <button style={{ ...btnDanger, padding: '0.2rem 0.5rem' }} onClick={() => deleteCombatMove(mv.id, ct.id)}>✕</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Parades */}
+                  <div style={{ marginBottom: '1rem' }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#4caf7d', marginBottom: '0.4rem' }}>🛡 Parades ({parries.length})</div>
+                    {parries.length === 0 && <p style={{ fontSize: '0.75rem', color: 'var(--muted)', margin: 0 }}>Aucune parade.</p>}
+                    {parries.map(mv => {
+                      const isEditingThis = editingCombatMove === `edit-${mv.id}`
+                      return (
+                        <div key={mv.id} style={{ background: 'var(--surface-2)', border: `1px solid ${isEditingThis ? '#4caf7d88' : 'var(--border)'}`, borderRadius: '7px', padding: '0.6rem 0.75rem', marginBottom: '0.4rem' }}>
+                          {isEditingThis ? (
+                            <div>
+                              {/* Nom — affiché dans la zone de parade si hint_text est vide */}
+                              <div style={{ marginBottom: '0.5rem' }}>
+                                <label style={labelStyle}>Nom <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— zone de parade (fallback si pas de hint_text)</span></label>
+                                <input style={inputStyle} value={combatMoveForm.name ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, name: e.target.value }))} />
+                              </div>
+                              {/* hint_text — texte prioritaire affiché dans la zone de parade (remplace le nom si défini) */}
+                              <div style={{ marginBottom: '0.5rem' }}>
+                                <label style={labelStyle}>Label parade <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— affiché dans la zone de parade (prioritaire sur le nom)</span></label>
+                                <input style={inputStyle} placeholder="Ex: Bloquer · Esquiver · Reculer…" value={combatMoveForm.hint_text ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, hint_text: e.target.value || null }))} />
+                              </div>
+                              {/* Icône — affichée à gauche dans la zone de parade */}
+                              <div style={{ marginBottom: '0.5rem' }}>
+                                <label style={labelStyle}>🖼 Icône <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— zone de parade (haut)</span></label>
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                                  <div style={{ width: 52, height: 52, flexShrink: 0, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: 'var(--surface-2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    {generatingIconFor === mv.id ? <span style={{ fontSize: '1.4rem', animation: 'spin 1s linear infinite' }}>⏳</span>
+                                      : combatMoveForm.icon_url ? <img src={combatMoveForm.icon_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                      : <span style={{ fontSize: '1.4rem', opacity: 0.3 }}>🖼</span>}
+                                  </div>
+                                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                      <button style={{ ...btnGhost, fontSize: '0.75rem', padding: '0.25rem 0.6rem' }} disabled={!!generatingIconFor} onClick={() => generateMoveIcon(mv.id, combatMoveForm.name ?? mv.name)}>🎨 Générer</button>
+                                      <label style={{ ...btnGhost, fontSize: '0.75rem', padding: '0.25rem 0.6rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}>
+                                        📁 Charger
+                                        <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadMoveIcon(mv.id, e.target.files?.[0] ?? null)} />
+                                      </label>
+                                      {combatMoveForm.icon_url && <button style={{ ...btnDanger, fontSize: '0.75rem', padding: '0.25rem 0.5rem' }} onClick={() => setCombatMoveForm(f => ({ ...f, icon_url: null }))}>✕</button>}
+                                    </div>
+                                    <input style={inputStyle} placeholder="URL directe (optionnel)" value={combatMoveForm.icon_url ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, icon_url: e.target.value || null }))} />
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                {/* Bonus/Malus — ajouté au d20 lors du jet de parade */}
+                                <div>
+                                  <label style={labelStyle}>Bonus/Malus ({combatMoveForm.bonus_malus ?? 0}) <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— jet de parade</span></label>
+                                  <input type="range" min={-5} max={5} step={1} value={combatMoveForm.bonus_malus ?? 0} onChange={e => setCombatMoveForm(f => ({ ...f, bonus_malus: parseInt(e.target.value) }))} style={{ width: '100%' }} />
+                                </div>
+                                {/* Arme requise — cette parade n'apparaît que si l'arme du perso correspond */}
+                                <div>
+                                  <label style={labelStyle}>Arme requise <span style={{ color: 'var(--muted)', fontWeight: 400 }}>— filtre d'apparition dans la zone de parade</span></label>
+                                  <select style={inputStyle} value={combatMoveForm.weapon_type ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, weapon_type: e.target.value || null }))}>
+                                    <option value="">— Universel —</option>
+                                    {weaponTypes.map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button style={btnAccent} onClick={async () => { await updateCombatMove(mv.id, ct.id, { name: combatMoveForm.name, hint_text: combatMoveForm.hint_text ?? null, icon_url: combatMoveForm.icon_url ?? null, bonus_malus: combatMoveForm.bonus_malus, weapon_type: combatMoveForm.weapon_type ?? null }); setEditingCombatMove(null); setCombatMoveForm({}) }}>Sauvegarder</button>
+                                <button style={btnGhost} onClick={() => { setEditingCombatMove(null); setCombatMoveForm({}) }}>Annuler</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                  {mv.icon_url && <img src={mv.icon_url} alt="" style={{ width: 20, height: 20, objectFit: 'contain', borderRadius: 3 }} />}
+                                  <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{mv.name}</span>
+                                </div>
+                                {mv.hint_text && <div style={{ fontSize: '0.72rem', color: '#54a0ff', fontStyle: 'italic', margin: '0.1rem 0' }}>🛡 {mv.hint_text}</div>}
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.3rem' }}>
+                                  <span style={{ fontSize: '0.7rem', background: mv.bonus_malus >= 0 ? '#4caf7d22' : '#e0555522', color: mv.bonus_malus >= 0 ? '#4caf7d' : '#e05555', borderRadius: '3px', padding: '0.1rem 0.35rem' }}>
+                                    {mv.bonus_malus >= 0 ? `+${mv.bonus_malus}` : mv.bonus_malus} parade
+                                  </span>
+                                  {mv.weapon_type && <span style={{ fontSize: '0.7rem', background: '#d4a84c22', color: '#d4a84c', borderRadius: '3px', padding: '0.1rem 0.35rem' }}>🗡 {mv.weapon_type}</span>}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '0.3rem', marginLeft: '0.5rem' }}>
+                                <button style={{ ...btnGhost, padding: '0.2rem 0.5rem' }} onClick={() => { setEditingCombatMove(`edit-${mv.id}`); setCombatMoveForm({ name: mv.name, hint_text: mv.hint_text, icon_url: mv.icon_url ?? null, bonus_malus: mv.bonus_malus, weapon_type: mv.weapon_type }) }}>✎</button>
+                                <button style={{ ...btnDanger, padding: '0.2rem 0.5rem' }} onClick={() => deleteCombatMove(mv.id, ct.id)}>✕</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  {/* Formulaire ajout mouvement */}
+                  {isAddingMove ? (
+                    <div style={{ background: 'var(--surface-2)', border: '1px solid var(--accent)44', borderRadius: '8px', padding: '0.75rem', marginTop: '0.5rem' }}>
+                      <div style={{ fontWeight: 600, fontSize: '0.8rem', marginBottom: '0.6rem' }}>Nouveau mouvement</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div>
+                          <label style={labelStyle}>Nom</label>
+                          <input style={inputStyle} placeholder="ex: Patate de forain" value={combatMoveForm.name ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, name: e.target.value }))} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Type</label>
+                          <select style={inputStyle} value={combatMoveForm.is_parry ? 'parade' : 'attaque'} onChange={e => setCombatMoveForm(f => ({ ...f, is_parry: e.target.value === 'parade' }))}>
+                            <option value="attaque">🗡 Attaque</option>
+                            <option value="parade">🛡 Parade</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <label style={labelStyle}>Texte narratif — joueur ("Tu balances…")</label>
+                        <textarea style={{ ...inputStyle, minHeight: '50px', resize: 'vertical' }} placeholder="Texte affiché quand c'est le tour du joueur…" value={combatMoveForm.narrative_text ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, narrative_text: e.target.value }))} />
+                      </div>
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <label style={labelStyle}>Texte narratif — ennemi ("Il fonce sur toi…")</label>
+                        <textarea style={{ ...inputStyle, minHeight: '50px', resize: 'vertical' }} placeholder="Optionnel — si vide, texte joueur utilisé" value={combatMoveForm.narrative_text_npc ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, narrative_text_npc: e.target.value }))} />
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div>
+                          <label style={labelStyle}>Bonus/Malus au jet ({combatMoveForm.bonus_malus ?? 0})</label>
+                          <input type="range" min={-5} max={5} step={1} value={combatMoveForm.bonus_malus ?? 0} onChange={e => setCombatMoveForm(f => ({ ...f, bonus_malus: parseInt(e.target.value) }))} style={{ width: '100%' }} />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--muted)' }}><span>-5 (risqué)</span><span>+5 (facile)</span></div>
+                        </div>
+                        {!combatMoveForm.is_parry && (
+                          <div>
+                            <label style={labelStyle}>Dégâts de base ({combatMoveForm.damage ?? 1})</label>
+                            <input type="range" min={1} max={10} step={1} value={combatMoveForm.damage ?? 1} onChange={e => setCombatMoveForm(f => ({ ...f, damage: parseInt(e.target.value) }))} style={{ width: '100%' }} />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--muted)' }}><span>1</span><span>10</span></div>
+                          </div>
+                        )}
+                      </div>
+                      {combatMoveForm.is_parry && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
+                          <label style={{ ...labelStyle, marginBottom: 0, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={combatMoveForm.is_contextual ?? false} onChange={e => setCombatMoveForm(f => ({ ...f, is_contextual: e.target.checked, prop_required: e.target.checked ? f.prop_required : null }))} />
+                            Parade contextuelle
+                          </label>
+                          {combatMoveForm.is_contextual && (
+                            <input style={{ ...inputStyle, width: 'auto', flex: 1 }} placeholder="Prop requis (ex: voiture, porte…)" value={combatMoveForm.prop_required ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, prop_required: e.target.value || null }))} />
+                          )}
+                        </div>
+                      )}
+                      <div style={{ marginBottom: '0.5rem' }}>
+                        <label style={labelStyle}>Type d'arme requis</label>
+                        <select style={inputStyle} value={combatMoveForm.weapon_type ?? ''} onChange={e => setCombatMoveForm(f => ({ ...f, weapon_type: e.target.value || null }))}>
+                          <option value="">— Universel (toutes armes) —</option>
+                          {weaponTypes.map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button style={btnAccent} onClick={() => createCombatMove(ct.id)}>Créer</button>
+                        <button style={btnGhost} onClick={() => { setEditingCombatMove(null); setCombatMoveForm({}) }}>Annuler</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button style={{ ...btnGhost, width: '100%', textAlign: 'center', marginTop: '0.25rem' }} onClick={() => { setEditingCombatMove(`move-${ct.id}`); setCombatMoveForm({ is_parry: false, bonus_malus: 0, damage: 1, is_contextual: false }) }}>
+                      + Ajouter un mouvement
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )
+      })()}
+
       {tab === 'coherence' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
             <button
               onClick={analyzeCoherence}
-              disabled={coherenceLoading}
+              disabled={coherenceLoading || narrativeLoading}
               style={{ padding: '0.5rem 1.2rem', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px', cursor: coherenceLoading ? 'wait' : 'pointer', fontWeight: 'bold', fontSize: '0.875rem', opacity: coherenceLoading ? 0.7 : 1 }}
             >
               {coherenceLoading ? '⏳ Analyse…' : '🔍 Analyser la cohérence'}
+            </button>
+            <button
+              onClick={analyzeAll}
+              disabled={coherenceLoading || narrativeLoading}
+              title="Lance l'analyse de structure puis l'analyse narrative Opus des chemins depuis §1"
+              style={{ padding: '0.5rem 1.2rem', background: (coherenceLoading || narrativeLoading) ? 'var(--surface-2)' : '#6b8cde22', border: '1px solid #6b8cde66', borderRadius: '6px', cursor: (coherenceLoading || narrativeLoading) ? 'wait' : 'pointer', fontWeight: 'bold', fontSize: '0.875rem', color: '#6b8cde', opacity: (coherenceLoading || narrativeLoading) ? 0.7 : 1 }}
+            >
+              {narrativeLoading ? '⏳ Chemins en cours…' : coherenceLoading ? '⏳ Structure…' : '🔎 Analyse complète (structure + chemins)'}
             </button>
             {coherenceIssues && coherenceIssues.some(i => i.type === 'combat_no_enemy' && !coherenceFixed.has(i.id)) && (
               <button
@@ -3710,9 +5654,11 @@ export default function BookPage() {
               </button>
             )}
             {loopFixResult && (
-              <span style={{ fontSize: '0.8rem', color: loopFixResult.fixed > 0 ? '#4caf7d' : 'var(--muted)' }}>
-                {loopFixResult.fixed}/{loopFixResult.total} boucles corrigées
-                {loopFixResult.errors?.length > 0 && <span style={{ color: '#f0a742' }}> — {loopFixResult.errors.length} erreur(s)</span>}
+              <span style={{ fontSize: '0.8rem', color: (loopFixResult.fixed ?? 0) > 0 ? '#4caf7d' : 'var(--muted)' }}>
+                {loopFixResult.message
+                  ? loopFixResult.message
+                  : `${loopFixResult.fixed ?? 0}/${loopFixResult.total ?? 0} boucle(s) corrigée(s)`}
+                {(loopFixResult.errors?.length ?? 0) > 0 && <span style={{ color: '#f0a742' }}> — {loopFixResult.errors!.length} erreur(s)</span>}
               </span>
             )}
 
@@ -3880,6 +5826,7 @@ export default function BookPage() {
       {tab === 'intro' && (() => {
         const DURATION_LABELS: Record<string, string> = { flash: '⚡ Flash (0.5s)', court: '▸ Court (1s)', normal: '▶ Normal (2.5s)', long: '⏸ Long (4s)', pause: '⏹ Pause (6s)' }
         const FRAMING_LABELS: Record<string, string> = { plan_large: '🌅 Plan large', plan_moyen: '🧍 Plan moyen', gros_plan: '🔍 Gros plan', detail: '🔎 Détail' }
+        const PERSPECTIVE_LABELS: Record<string, string> = { eye_level: '👁 Eye Level', low_angle: '⬆ Low Angle', high_angle: '⬇ High Angle', bird_eye: '🦅 Bird\'s Eye', dutch: '↗ Dutch Angle', over_shoulder: '🔭 Over-the-Shoulder' }
         const TRANSITION_LABELS: Record<string, string> = { cut: '✂ Cut', fondu: '〰 Fondu', fondu_noir: '⬛ Fondu noir' }
 
         async function generateSequence() {
@@ -4218,6 +6165,10 @@ export default function BookPage() {
                   <select value={frame.framing} onChange={e => updateFrame(frame.id, { framing: e.target.value as any })} style={selectSt}>
                     {Object.entries(FRAMING_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
+                  <select value={frame.perspective ?? ''} onChange={e => updateFrame(frame.id, { perspective: e.target.value || undefined })} style={selectSt}>
+                    <option value="">— Perspective —</option>
+                    {Object.entries(PERSPECTIVE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
                   <select value={frame.duration} onChange={e => updateFrame(frame.id, { duration: e.target.value as any })} style={selectSt}>
                     {Object.entries(DURATION_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                   </select>
@@ -4250,12 +6201,12 @@ export default function BookPage() {
                     </div>
                     {/* Prompt EN */}
                     <div>
-                      <div style={labelSt}>Prompt anglais (envoyé à l'IA image)</div>
+                      <div style={labelSt}>Shot Description (EN) — Storyboarder.ai</div>
                       <textarea
                         value={frame.prompt_en}
                         onChange={e => updateFrame(frame.id, { prompt_en: e.target.value })}
                         rows={3}
-                        placeholder="English prompt for image generation…"
+                        placeholder="Natural English description for Storyboarder.ai…"
                         style={{ ...inputSt, color: frame.prompt_en ? 'var(--foreground)' : 'var(--muted)' }}
                       />
                     </div>
@@ -4337,6 +6288,23 @@ export default function BookPage() {
                         Pas encore d'image
                       </div>
                     )}
+                    {/* Upload depuis PC */}
+                    <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.3rem', marginTop: '0.5rem', cursor: 'pointer', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.3rem 0.6rem', fontSize: '0.72rem', color: 'var(--muted)' }}>
+                      <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={async e => {
+                        const file = e.target.files?.[0]; if (!file) return
+                        const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/intro/${frame.id}`)
+                        const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                        const d = await res.json()
+                        if (d.url) {
+                          const updated = introFrames.map(f => f.id === frame.id ? { ...f, image_url: d.url } : f)
+                          setIntroFrames(updated)
+                          setFrameImageVersions(v => ({ ...v, [frame.id]: Date.now() }))
+                          await saveSequence(updated)
+                        }
+                        e.target.value = ''
+                      }} />
+                      📁 Charger depuis le PC
+                    </label>
                   </div>
                 </div>
               </div>
@@ -4344,10 +6312,56 @@ export default function BookPage() {
           </div>
         )
       })()}
+
+      {/* ── Tab Écran combat ─────────────────────────────────────────────────── */}
+      {tab === 'combat_scene' && (() => {
+        if (!combatTypesLoaded) {
+          fetch(`/api/books/${id}/combat-types`).then(r => r.json()).then(d => {
+            setCombatTypes(d.combat_types ?? [])
+            setCombatTypesLoaded(true)
+          })
+        }
+        return (
+          <CombatSceneEditor
+            bookId={id}
+            savedLayout={(book.combat_layout as import('@/types').CombatLayoutSettings | null)?.v3 ?? null}
+            onSaved={layout => setBook(b => b ? { ...b, combat_layout: { v3: layout } as any } : b)}
+            sections={sections}
+            npcs={npcs}
+            combatTypes={combatTypes}
+            protagonistName={npcs.find(n => n.id === book.protagonist_npc_id)?.name ?? 'Joueur'}
+          />
+        )
+      })()}
           </div>{/* end padding div */}
         </div>{/* end content area */}
       </div>{/* end main area */}
     </div>{/* end flex wrapper */}
+
+    {/* ── Modal positionnement objet ──────────────────────────────────────── */}
+    {itemPositionModal && (() => {
+      const modalItem = items.find(it => it.id === itemPositionModal)
+      if (!modalItem) return null
+      return (
+        <ItemPositionModal
+          item={modalItem as any}
+          sections={sections}
+          onSave={(sectionId, x, y, scale) => saveItemPosition(itemPositionModal, sectionId, x, y, scale)}
+          onClose={() => setItemPositionModal(null)}
+        />
+      )
+    })()}
+
+    {/* ── Éditeur de plan — placement des localisations ───────────────────── */}
+    {planMapEditor && (
+      <PlanMapEditorModal
+        imageUrl={planMapEditor.imageUrl}
+        bookId={id}
+        locations={locations}
+        onUpdateLocations={setLocations}
+        onClose={() => setPlanMapEditor(null)}
+      />
+    )}
 
     {/* ── Lightbox image ──────────────────────────────────────────────────── */}
     {zoomedImage && (
@@ -4377,6 +6391,7 @@ export default function BookPage() {
             <div style={{ display: 'flex', gap: '0' }}>
               {([
                 { key: 'narrative', label: '📋 Cohérence narrative', hasData: !!storySummary },
+                { key: 'paths',     label: '🗺 Chemins narratifs',   hasData: !!narrativeAnalysis },
                 { key: 'language',  label: '🔤 Orthographe & Grammaire', hasData: !!langReport },
               ] as const).map(t => (
                 <button key={t.key} onClick={() => setStoryTab(t.key)} style={{
@@ -4640,6 +6655,112 @@ export default function BookPage() {
               )}
             </div>
           )}
+
+          {/* ── Onglet Chemins narratifs ── */}
+          {storyTab === 'paths' && (
+            <div style={{ flex: 1, overflowY: 'auto', padding: '1.2rem 1.4rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  onClick={runNarrativePaths}
+                  disabled={narrativeLoading || narrativeApplying}
+                  style={{ fontSize: '0.78rem', padding: '0.3rem 0.8rem', borderRadius: '6px', background: narrativeLoading ? 'var(--surface-2)' : 'var(--accent)', border: 'none', color: narrativeLoading ? 'var(--muted)' : '#0f0f14', cursor: narrativeLoading ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}
+                >{narrativeLoading ? '⏳ Traversée & analyse…' : narrativeAnalysis ? '🔄 Relancer' : '▶ Analyser les chemins'}</button>
+
+              </div>
+
+
+              {/* Chargement */}
+              {narrativeLoading && (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>🗺</div>
+                  <p style={{ fontSize: '0.85rem' }}>Traversée des chemins depuis §1…</p>
+                  <p style={{ fontSize: '0.72rem', opacity: 0.6, marginTop: '0.3rem' }}>30 à 60 secondes (Opus)</p>
+                </div>
+              )}
+
+              {/* État vide */}
+              {!narrativeAnalysis && !narrativeLoading && (
+                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted)' }}>
+                  <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>🗺</div>
+                  <p style={{ fontSize: '0.85rem' }}>Suit tous les chemins depuis §1 jusqu'aux fins et analyse la cohérence logique et narrative de chaque branche.</p>
+                </div>
+              )}
+
+              {/* Stats */}
+              {narrativeStats && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {[
+                    { label: 'Sections atteintes', value: `${narrativeStats.reachable}/${narrativeStats.total_sections}` },
+                    { label: 'Chemins distincts', value: narrativeStats.paths_found },
+                    { label: 'Fins victoire', value: narrativeStats.victory_endings },
+                    { label: 'Fins mort', value: narrativeStats.death_endings },
+                    ...(narrativeStats.only_via_failure?.length ? [{ label: 'Seulement via échec', value: narrativeStats.only_via_failure.length, warn: false, info: true }] : []),
+                    ...(narrativeStats.unreachable?.length ? [{ label: 'Orphelines', value: narrativeStats.unreachable.length, warn: true }] : []),
+                  ].map((s: any, i) => (
+                    <div key={i} style={{ padding: '0.4rem 0.8rem', background: s.warn ? '#c94c4c22' : s.info ? '#6b8cde22' : 'var(--surface-2)', border: `1px solid ${s.warn ? '#c94c4c44' : s.info ? '#6b8cde44' : 'var(--border)'}`, borderRadius: '6px', fontSize: '0.78rem', color: s.warn ? 'var(--danger)' : s.info ? '#6b8cde' : 'var(--foreground)' }}>
+                      <span style={{ color: 'var(--muted)', marginRight: '0.3rem' }}>{s.label}</span>
+                      <strong>{s.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Analyse globale */}
+              {narrativeAnalysis && (
+                <div style={{ padding: '0.9rem 1.1rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '0.82rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'var(--foreground)' }}>
+                  {narrativeAnalysis}
+                </div>
+              )}
+
+              {/* Qualité des chemins */}
+              {narrativePathSums.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Qualité par chemin</div>
+                  {narrativePathSums.map((ps: any) => {
+                    const path = narrativePaths.find((p: any) => p.id === ps.path_id)
+                    const ending = path?.ending
+                    const color = (ps.quality ?? 5) >= 7 ? '#4caf7d' : (ps.quality ?? 5) >= 5 ? '#c9a84c' : '#c94c4c'
+                    return (
+                      <div key={ps.path_id} style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-start', padding: '0.5rem 0.75rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 'bold', color: 'var(--muted)', minWidth: '56px' }}>{ps.path_id}</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 'bold', color, minWidth: '28px' }}>{ps.quality}/10</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--muted)', flex: 1 }}>{ps.note}</span>
+                        {ending && <span style={{ fontSize: '0.72rem', color: ending.type === 'victory' ? '#4caf7d' : '#c94c4c', fontWeight: 'bold', whiteSpace: 'nowrap' }}>§{ending.number} {ending.type === 'victory' ? '🏆' : '💀'}</span>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Problèmes détectés */}
+              {narrativeIssues.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ fontSize: '0.78rem', fontWeight: 'bold', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {narrativeIssues.length} problème(s) détecté(s)
+                  </div>
+                  {narrativeIssues.map((issue: any, i: number) => {
+                    const severityColor = issue.severity === 'critique' ? '#c94c4c' : issue.severity === 'important' ? '#c9a84c' : 'var(--muted)'
+                    const typeLabel: Record<string, string> = { logic_gap: 'Logique', character_inconsistency: 'Personnage', pacing: 'Rythme', setup_no_payoff: 'Setup orphelin', contradiction: 'Contradiction', missing_setup: 'Setup manquant' }
+                    return (
+                      <div key={i} style={{ padding: '0.7rem 0.9rem', background: 'var(--surface-2)', border: `1px solid ${severityColor}44`, borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: severityColor, textTransform: 'uppercase' }}>{issue.severity}</span>
+                          <span style={{ fontSize: '0.7rem', color: 'var(--muted)' }}>{typeLabel[issue.type] ?? issue.type}</span>
+                          {issue.sections?.length > 0 && <span style={{ fontSize: '0.7rem', color: 'var(--accent)' }}>{issue.sections.map((n: number) => `§${n}`).join(', ')}</span>}
+                        </div>
+                        <p style={{ fontSize: '0.82rem', margin: 0, color: 'var(--foreground)' }}>{issue.description}</p>
+                        {issue.fix && (
+                          <div style={{ marginTop: '0.2rem', padding: '0.4rem 0.6rem', background: '#4caf7d11', border: '1px solid #4caf7d33', borderRadius: '5px', fontSize: '0.78rem', color: '#4caf7d' }}>
+                            <span style={{ fontWeight: 'bold' }}>✎ Correction §{issue.fix.number} : </span>{issue.fix.summary}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     )}
@@ -4675,6 +6796,133 @@ export default function BookPage() {
       </div>
     )}
     </>
+  )
+}
+
+// ── Éditeur de placement des localisations sur le plan ────────────────────────
+
+function PlanMapEditorModal({ imageUrl, bookId, locations, onUpdateLocations, onClose }: {
+  imageUrl: string
+  bookId: string
+  locations: import('@/types').Location[]
+  onUpdateLocations: React.Dispatch<React.SetStateAction<import('@/types').Location[]>>
+  onClose: () => void
+}) {
+  const [activeLoc, setActiveLoc] = React.useState<string | null>(locations[0]?.id ?? null)
+  const [coords, setCoords] = React.useState<Record<string, { x: number; y: number }>>(
+    Object.fromEntries(locations.map(l => [l.id, { x: l.x, y: l.y }]))
+  )
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set())
+  const imgRef = React.useRef<HTMLImageElement>(null)
+
+  function handleImageClick(e: React.MouseEvent<HTMLImageElement>) {
+    if (!activeLoc || !imgRef.current) return
+    const rect = imgRef.current.getBoundingClientRect()
+    const x = Math.round(((e.clientX - rect.left) / rect.width) * 100)
+    const y = Math.round(((e.clientY - rect.top) / rect.height) * 100)
+    setCoords(prev => ({ ...prev, [activeLoc]: { x, y } }))
+    fetch(`/api/books/${bookId}/locations`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ location_id: activeLoc, x, y })
+    })
+    onUpdateLocations(prev => prev.map(l => l.id === activeLoc ? { ...l, x, y } : l))
+    // Passe automatiquement au lieu suivant
+    const currentIdx = locations.findIndex(l => l.id === activeLoc)
+    const next = locations[currentIdx + 1]
+    if (next) setActiveLoc(next.id)
+  }
+
+  const placedCount = locations.filter(l => { const c = coords[l.id]; return c && !(c.x === 0 && c.y === 0) }).length
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 4000, background: 'rgba(0,0,0,0.95)', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 1rem', borderBottom: '1px solid #ffffff18', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span style={{ color: '#fff', fontWeight: 700, fontSize: '0.95rem' }}>📍 Placer les localisations sur le plan</span>
+          <span style={{ fontSize: '0.72rem', color: placedCount === locations.length ? '#52c484' : '#ffffff66' }}>{placedCount}/{locations.length} placé(s)</span>
+        </div>
+        <button onClick={onClose} style={{ background: 'transparent', border: '1px solid #ffffff44', color: '#fff', borderRadius: '5px', padding: '0.25rem 0.7rem', cursor: 'pointer', fontSize: '0.8rem' }}>✕ Fermer</button>
+      </div>
+      {/* Body */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {/* Image zone */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', overflow: 'hidden' }}>
+          <div style={{ position: 'relative', display: 'inline-block' }}>
+            <img
+              ref={imgRef}
+              src={imageUrl}
+              alt="Plan"
+              onClick={handleImageClick}
+              style={{ maxWidth: '100%', maxHeight: 'calc(100vh - 110px)', display: 'block', cursor: activeLoc ? 'crosshair' : 'default', borderRadius: '6px', userSelect: 'none' }}
+              draggable={false}
+            />
+            {/* Marqueurs */}
+            {locations.map(loc => {
+              const c = coords[loc.id]
+              if (!c || (c.x === 0 && c.y === 0)) return null
+              if (hidden.has(loc.id)) return null
+              const isActive = loc.id === activeLoc
+              return (
+                <div key={loc.id} onClick={e => { e.stopPropagation(); setActiveLoc(loc.id) }}
+                  style={{ position: 'absolute', left: `${c.x}%`, top: `${c.y}%`, transform: 'translate(-50%, -50%)', cursor: 'pointer', zIndex: isActive ? 10 : 5 }}>
+                  <div style={{
+                    background: isActive ? '#d4a84c' : '#ffffffee',
+                    border: `2px solid ${isActive ? '#d4a84c' : '#ffffff88'}`,
+                    borderRadius: '50%', width: isActive ? 34 : 26, height: isActive ? 34 : 26,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: isActive ? '1rem' : '0.8rem', boxShadow: '0 2px 10px #000a', transition: 'all 0.15s',
+                  }}>{loc.icon}</div>
+                  <div style={{
+                    position: 'absolute', top: '115%', left: '50%', transform: 'translateX(-50%)',
+                    background: '#000000dd', color: '#fff', fontSize: '0.58rem',
+                    padding: '0.1rem 0.35rem', borderRadius: '3px', whiteSpace: 'nowrap', pointerEvents: 'none',
+                  }}>{loc.name}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+        {/* Sidebar */}
+        <div style={{ width: '220px', flexShrink: 0, borderLeft: '1px solid #ffffff18', overflowY: 'auto', padding: '0.75rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+          <div style={{ fontSize: '0.62rem', color: '#ffffff55', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.25rem', paddingLeft: '0.5rem' }}>Lieux — clic pour sélectionner</div>
+          {locations.map(loc => {
+            const c = coords[loc.id]
+            const placed = c && !(c.x === 0 && c.y === 0)
+            const isActive = loc.id === activeLoc
+            const isHidden = hidden.has(loc.id)
+            return (
+              <div key={loc.id} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                <button onClick={() => setActiveLoc(loc.id)} style={{
+                  flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  padding: '0.4rem 0.6rem', borderRadius: '6px',
+                  border: `1px solid ${isActive ? '#d4a84c' : placed ? '#52c48466' : '#ffffff22'}`,
+                  background: isActive ? '#d4a84c22' : placed ? '#52c48411' : 'transparent',
+                  color: isActive ? '#d4a84c' : placed ? (isHidden ? '#52c48466' : '#52c484') : '#ffffff88',
+                  cursor: 'pointer', fontSize: '0.8rem', textAlign: 'left',
+                  opacity: isHidden ? 0.5 : 1,
+                }}>
+                  <span style={{ fontSize: '1rem' }}>{loc.icon}</span>
+                  <span style={{ flex: 1 }}>{loc.name}</span>
+                  <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>{placed ? '✓' : '○'}</span>
+                </button>
+                {placed && (
+                  <button
+                    title={isHidden ? 'Afficher' : 'Masquer'}
+                    onClick={() => setHidden(prev => { const s = new Set(prev); isHidden ? s.delete(loc.id) : s.add(loc.id); return s })}
+                    style={{ flexShrink: 0, background: 'transparent', border: '1px solid #ffffff22', borderRadius: '4px', color: isHidden ? '#ffffff44' : '#ffffff88', cursor: 'pointer', fontSize: '0.7rem', padding: '0.3rem 0.4rem', lineHeight: 1 }}
+                  >{isHidden ? '👁' : '🙈'}</button>
+                )}
+              </div>
+            )
+          })}
+          <div style={{ marginTop: '0.75rem', fontSize: '0.63rem', color: '#ffffff33', padding: '0 0.5rem', lineHeight: 1.5 }}>
+            1. Sélectionne un lieu<br/>2. Clique sur l'image pour le placer<br/>Sauvegarde automatique. Clic sur un marqueur pour le repositionner.
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -5032,9 +7280,9 @@ function CombatCard({ trial, npcs, sections, onNavigate }: {
       )}
 
       {/* Récompenses victoire */}
-      {(trial.item_rewards?.length || npc?.loot) && (
+      {((trial as any).item_rewards?.length || npc?.loot) && (
         <div style={{ marginBottom: '0.65rem', fontSize: '0.72rem', color: '#f0a742' }}>
-          🎁 <strong>Butin :</strong> {[...(trial.item_rewards ?? []), ...(npc?.loot ? [npc.loot] : [])].join(' · ')}
+          🎁 <strong>Butin :</strong> {[...((trial as any).item_rewards ?? []), ...(npc?.loot ? [npc.loot] : [])].join(' · ')}
         </div>
       )}
 
@@ -5072,373 +7320,87 @@ function CombatCard({ trial, npcs, sections, onNavigate }: {
   )
 }
 
-// ── Carte de dialogue ─────────────────────────────────────────────────────────
 
-interface NpcEncounter {
-  section_number: number
-  outcome: 'success' | 'failure' | 'abandoned'
-  memory_summary: string
-  timestamp: string
+// ── Lecteur audio flottant ────────────────────────────────────────────────────
+
+function fmtTime(s: number) {
+  const m = Math.floor(s / 60); const sec = Math.floor(s % 60)
+  return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-function memoryKey(bookId: string, npcId: string) {
-  return `hero_npc_memory_${bookId}_${npcId}`
-}
+function MusicStartPlayer({ src, startTime, onSetStartTime }: { src: string; startTime: number; onSetStartTime: (t: number) => void }) {
+  const audioRef = React.useRef<HTMLAudioElement | null>(null)
+  const [playing, setPlaying] = React.useState(false)
+  const [currentTime, setCurrentTime] = React.useState(0)
+  const [duration, setDuration] = React.useState(0)
 
-function loadMemory(bookId: string, npcId: string): NpcEncounter[] {
-  try {
-    return JSON.parse(localStorage.getItem(memoryKey(bookId, npcId)) ?? '[]')
-  } catch { return [] }
-}
+  React.useEffect(() => {
+    const audio = new Audio(src)
+    audio.preload = 'metadata'
+    audio.addEventListener('loadedmetadata', () => setDuration(audio.duration || 0))
+    audio.addEventListener('timeupdate', () => setCurrentTime(audio.currentTime))
+    audio.addEventListener('ended', () => { setPlaying(false); setCurrentTime(0) })
+    audioRef.current = audio
+    return () => { audio.pause(); audioRef.current = null }
+  }, [src])
 
-function saveMemory(bookId: string, npcId: string, encounters: NpcEncounter[]) {
-  localStorage.setItem(memoryKey(bookId, npcId), JSON.stringify(encounters))
-}
-
-function DialogueCard({ trial, npcs, sections, book, sectionNumber, onNavigate }: {
-  trial: NonNullable<Section['trial']>
-  npcs: Npc[]
-  sections: Section[]
-  book: Book
-  sectionNumber: number
-  onNavigate: (n: number) => void
-}) {
-  const npc = trial.npc_id ? npcs.find(n => n.id === trial.npc_id) : null
-  const [history, setHistory] = useState<{ role: 'player' | 'npc'; text: string }[]>([])
-  const [input, setInput] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [resolved, setResolved] = useState<'success' | 'failure' | null>(null)
-  const [suggestedChoice, setSuggestedChoice] = useState<number | null>(null)
-  const [pastEncounters, setPastEncounters] = useState<NpcEncounter[]>([])
-  const [showMemory, setShowMemory] = useState(false)
-  const [dialogueMode, setDialogueMode] = useState<'free' | 'choices'>('choices')
-  const [playerChoices, setPlayerChoices] = useState<string[]>([])
-
-  // Charger la mémoire au montage
-  useEffect(() => {
-    if (npc) setPastEncounters(loadMemory(book.id, npc.id))
-  }, [book.id, npc?.id])
-
-  const successNum = trial.success_section_id ? sections.find(s => s.id === trial.success_section_id)?.number : null
-  const failureNum = trial.failure_section_id ? sections.find(s => s.id === trial.failure_section_id)?.number : null
-  const sectionChoices = [
-    ...(successNum != null ? [{ label: 'Accord obtenu', section_number: successNum }] : []),
-    ...(failureNum != null ? [{ label: 'Refus ou échec', section_number: failureNum }] : []),
-  ]
-
-  const opening = trial.dialogue_opening ?? npc?.dialogue_intro
-  const opened = history.length > 0
-
-  function startDialogue() {
-    const initial = opening ? [{ role: 'npc' as const, text: opening }] : []
-    setHistory(initial)
-    if (dialogueMode === 'choices') generatePlayerChoices(initial)
+  function toggle() {
+    const a = audioRef.current; if (!a) return
+    if (playing) { a.pause(); setPlaying(false) }
+    else { a.play().catch(() => {}); setPlaying(true) }
   }
 
-  async function generatePlayerChoices(currentHistory: { role: 'player' | 'npc'; text: string }[]) {
-    setPlayerChoices([])
-    try {
-      const sectionContent = sections.find(s => s.number === sectionNumber)?.content ?? ''
-      const res = await fetch('/api/dialogue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          npc: { name: npc?.name ?? 'Personnage', description: npc?.description, speech_style: npc?.speech_style, type: npc?.type ?? 'neutre' },
-          section_context: sectionContent,
-          dialogue_goal: trial.dialogue_goal ?? '',
-          history: currentHistory,
-          player_message: '',
-          choices: sectionChoices,
-          book_theme: book.theme,
-          age_range: book.age_range,
-          past_encounters: pastEncounters,
-          generate_choices_only: true,
-        }),
-      })
-      const data = await res.json()
-      setPlayerChoices(data.player_choices ?? [])
-    } catch { /* silencieux */ }
+  function seek(e: React.MouseEvent<HTMLDivElement>) {
+    const a = audioRef.current; if (!a || !duration) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const t = ((e.clientX - rect.left) / rect.width) * duration
+    a.currentTime = t; setCurrentTime(t)
   }
 
-  // Génère et sauvegarde le résumé mémoriel à la fin du dialogue
-  async function finalizeMemory(finalHistory: { role: 'player' | 'npc'; text: string }[], outcome: 'success' | 'failure') {
-    if (!npc || finalHistory.length < 2) return
-    try {
-      const res = await fetch('/api/dialogue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          npc: { name: npc.name, description: npc.description, speech_style: npc.speech_style, type: npc.type },
-          section_context: '',
-          dialogue_goal: trial.dialogue_goal ?? '',
-          history: finalHistory,
-          player_message: '',
-          choices: [],
-          book_theme: book.theme,
-          age_range: book.age_range,
-          generate_memory_summary: true,
-        }),
-      })
-      const data = await res.json()
-      const newEncounter: NpcEncounter = {
-        section_number: sectionNumber,
-        outcome,
-        memory_summary: data.memory_summary ?? `Rencontre en §${sectionNumber}.`,
-        timestamp: new Date().toISOString(),
-      }
-      const updated = [...pastEncounters, newEncounter]
-      setPastEncounters(updated)
-      saveMemory(book.id, npc.id, updated)
-    } catch { /* silencieux */ }
-  }
-
-  async function sendMessage(overrideText?: string) {
-    const playerMsg = (overrideText ?? input).trim()
-    if (!playerMsg || loading || resolved) return
-    if (!overrideText) setInput('')
-    setPlayerChoices([])
-    const newHistory = [...history, { role: 'player' as const, text: playerMsg }]
-    setHistory(newHistory)
-    setLoading(true)
-
-    try {
-      const sectionContent = sections.find(s => s.number === sectionNumber)?.content ?? ''
-      const res = await fetch('/api/dialogue', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          npc: { name: npc?.name ?? 'Personnage', description: npc?.description, speech_style: npc?.speech_style, type: npc?.type ?? 'neutre' },
-          section_context: sectionContent,
-          dialogue_goal: trial.dialogue_goal ?? 'Obtenir des informations utiles du personnage.',
-          history: newHistory.slice(0, -1),
-          player_message: playerMsg,
-          choices: sectionChoices,
-          book_theme: book.theme,
-          age_range: book.age_range,
-          past_encounters: pastEncounters,
-          dialogue_mode: dialogueMode,
-        }),
-      })
-      const data = await res.json()
-      const npcReply = data.npc_reply ?? '…'
-      const finalHistory = [...newHistory, { role: 'npc' as const, text: npcReply }]
-      setHistory(finalHistory)
-      if (data.suggested_choice_index != null) setSuggestedChoice(data.suggested_choice_index)
-      if (data.is_resolved) {
-        const outcome = data.resolution_hint ?? 'success'
-        setResolved(outcome)
-        finalizeMemory(finalHistory, outcome)
-      } else if (dialogueMode === 'choices') {
-        if (data.player_choices?.length) {
-          setPlayerChoices(data.player_choices)
-        } else {
-          generatePlayerChoices(finalHistory)
-        }
-      }
-    } catch {
-      setHistory(h => [...h, { role: 'npc', text: '…' }])
-    }
-    setLoading(false)
-  }
-
-  function resetMemory() {
-    if (!npc) return
-    saveMemory(book.id, npc.id, [])
-    setPastEncounters([])
-  }
-
-  const tc = npc ? NPC_TYPE_CONFIG[npc.type] : NPC_TYPE_CONFIG['neutre']
+  const pct = duration ? (currentTime / duration) * 100 : 0
+  const startPct = duration ? (startTime / duration) * 100 : 0
 
   return (
-    <div style={{ marginTop: '0.85rem', border: '1px solid #64b5f655', borderRadius: '10px', padding: '0.9rem 1rem', background: '#64b5f606' }}>
-      {/* En-tête PNJ */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <span style={{ fontSize: '1.3rem' }}>💬</span>
-          <div>
-            <span style={{ fontWeight: 'bold', color: '#64b5f6', fontSize: '0.95rem' }}>{npc?.name ?? 'Personnage inconnu'}</span>
-            {npc && (
-              <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', padding: '0.1rem 0.4rem', borderRadius: '3px', background: tc.color + '22', color: tc.color, fontWeight: 'bold' }}>
-                {tc.label}
-              </span>
-            )}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      {/* Barre de progression cliquable */}
+      <div onClick={seek} style={{ position: 'relative', height: '28px', background: 'var(--surface-2)', borderRadius: '6px', overflow: 'hidden', cursor: 'pointer', border: '1px solid var(--border)' }}>
+        {/* Progression */}
+        <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${pct}%`, background: 'var(--accent)', opacity: 0.35 }} />
+        {/* Marqueur point de départ */}
+        {startTime > 0 && (
+          <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${startPct}%`, width: '2px', background: '#52c484', zIndex: 2 }}>
+            <div style={{ position: 'absolute', top: '2px', left: '4px', fontSize: '9px', color: '#52c484', whiteSpace: 'nowrap', fontWeight: 700 }}>▶ {fmtTime(startTime)}</div>
           </div>
-        </div>
-        <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-          {/* Toggle mode libre / choix */}
-          <div style={{ display: 'flex', borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border)', fontSize: '0.65rem' }}>
-            <button onClick={() => { setDialogueMode('choices'); setPlayerChoices([]) }} style={{
-              padding: '0.15rem 0.5rem', border: 'none', cursor: 'pointer',
-              background: dialogueMode === 'choices' ? '#64b5f6' : 'transparent',
-              color: dialogueMode === 'choices' ? '#0f0f14' : 'var(--muted)', fontWeight: dialogueMode === 'choices' ? 'bold' : 'normal',
-            }}>🎯 Choix</button>
-            <button onClick={() => { setDialogueMode('free'); setPlayerChoices([]) }} style={{
-              padding: '0.15rem 0.5rem', border: 'none', cursor: 'pointer',
-              background: dialogueMode === 'free' ? '#64b5f6' : 'transparent',
-              color: dialogueMode === 'free' ? '#0f0f14' : 'var(--muted)', fontWeight: dialogueMode === 'free' ? 'bold' : 'normal',
-            }}>✏ Libre</button>
-          </div>
-          {/* Indicateur mémoire */}
-          {pastEncounters.length > 0 && (
-            <button onClick={() => setShowMemory(m => !m)} style={{
-              fontSize: '0.68rem', padding: '0.2rem 0.55rem', borderRadius: '20px',
-              background: '#c9a84c22', color: '#c9a84c', border: '1px solid #c9a84c55', cursor: 'pointer',
-            }}>
-              🧠 {pastEncounters.length} souvenir{pastEncounters.length > 1 ? 's' : ''}
-            </button>
-          )}
+        )}
+        {/* Curseur actuel */}
+        <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${pct}%`, width: '2px', background: 'var(--accent)', zIndex: 3 }} />
+        {/* Temps affiché */}
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: 'rgba(255,255,255,0.7)', fontVariantNumeric: 'tabular-nums', pointerEvents: 'none' }}>
+          {fmtTime(currentTime)} / {fmtTime(duration)}
         </div>
       </div>
-
-      {/* Panneau mémoire */}
-      {showMemory && pastEncounters.length > 0 && (
-        <div style={{ marginBottom: '0.75rem', padding: '0.6rem 0.75rem', background: '#c9a84c0a', border: '1px solid #c9a84c33', borderRadius: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-            <span style={{ fontSize: '0.72rem', color: '#c9a84c', fontWeight: 'bold' }}>🧠 Mémoire du PNJ</span>
-            <button onClick={resetMemory} style={{ fontSize: '0.62rem', color: '#c94c4c', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
-              Effacer
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-            {pastEncounters.map((enc, i) => (
-              <div key={i} style={{ fontSize: '0.72rem', color: 'var(--muted)', display: 'flex', gap: '0.4rem', alignItems: 'flex-start' }}>
-                <span style={{ color: enc.outcome === 'success' ? '#4caf7d' : '#c94c4c', flexShrink: 0 }}>
-                  {enc.outcome === 'success' ? '✓' : '✗'} §{enc.section_number}
-                </span>
-                <span style={{ fontStyle: 'italic' }}>{enc.memory_summary}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Style de parole */}
-      {npc?.speech_style && (
-        <p style={{ margin: '0 0 0.6rem', fontSize: '0.72rem', color: '#64b5f6', fontStyle: 'italic', borderLeft: '2px solid #64b5f644', paddingLeft: '0.5rem' }}>
-          🎭 {npc.speech_style}
-        </p>
-      )}
-
-      {/* Objectif */}
-      {trial.dialogue_goal && (
-        <p style={{ margin: '0 0 0.75rem', fontSize: '0.75rem', color: 'var(--muted)' }}>
-          🎯 <strong>Objectif :</strong> {trial.dialogue_goal}
-        </p>
-      )}
-
-      {/* Zone de chat */}
-      {!opened ? (
-        <button onClick={startDialogue} style={{
-          width: '100%', padding: '0.55rem', borderRadius: '6px',
-          background: '#64b5f622', color: '#64b5f6', border: '1px solid #64b5f655',
-          cursor: 'pointer', fontSize: '0.82rem', fontWeight: 'bold',
-        }}>
-          {pastEncounters.length > 0 ? '💬 Reprendre la conversation' : '💬 Engager la conversation'}
+      {/* Contrôles */}
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <button onClick={toggle} style={{ padding: '5px 12px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', color: 'var(--foreground)', cursor: 'pointer', fontSize: '13px' }}>
+          {playing ? '⏸' : '▶'}
         </button>
-      ) : (
-        <>
-          <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.6rem', padding: '0.5rem', background: 'var(--surface)', borderRadius: '6px' }}>
-            {history.map((msg, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'player' ? 'flex-end' : 'flex-start' }}>
-                <div style={{
-                  maxWidth: '80%', padding: '0.4rem 0.7rem',
-                  borderRadius: msg.role === 'player' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                  background: msg.role === 'player' ? '#64b5f633' : 'var(--surface-2)',
-                  color: msg.role === 'player' ? '#64b5f6' : 'var(--foreground)',
-                  fontSize: '0.8rem', lineHeight: 1.45,
-                  border: msg.role === 'npc' ? '1px solid var(--border)' : 'none',
-                }}>
-                  {msg.role === 'npc' && <span style={{ fontWeight: 'bold', fontSize: '0.68rem', color: '#64b5f6', display: 'block', marginBottom: '0.15rem' }}>{npc?.name ?? '???'}</span>}
-                  {msg.text}
-                </div>
-              </div>
-            ))}
-            {loading && (
-              <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                <div style={{ padding: '0.4rem 0.7rem', borderRadius: '12px 12px 12px 4px', background: 'var(--surface-2)', border: '1px solid var(--border)', fontSize: '0.8rem', color: 'var(--muted)' }}>…</div>
-              </div>
-            )}
-          </div>
-
-          {resolved ? (
-            <div style={{ padding: '0.5rem', background: resolved === 'success' ? '#4caf7d11' : '#c94c4c11', borderRadius: '6px', fontSize: '0.8rem', color: resolved === 'success' ? '#4caf7d' : '#c94c4c', textAlign: 'center', marginBottom: '0.6rem' }}>
-              {resolved === 'success' ? '✓ Conversation réussie — souvenir enregistré' : '✗ Conversation échouée — souvenir enregistré'}
-            </div>
-          ) : dialogueMode === 'choices' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {loading && playerChoices.length === 0 ? (
-                <div style={{ fontSize: '0.78rem', color: 'var(--muted)', fontStyle: 'italic', textAlign: 'center', padding: '0.4rem' }}>…</div>
-              ) : playerChoices.length > 0 ? (
-                playerChoices.map((choice, i) => (
-                  <button key={i} onClick={() => sendMessage(choice)} disabled={loading} style={{
-                    textAlign: 'left', padding: '0.5rem 0.75rem', borderRadius: '8px',
-                    background: 'var(--surface-2)', border: '1px solid #64b5f633',
-                    color: 'var(--foreground)', fontSize: '0.82rem', cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.5 : 1, lineHeight: 1.35,
-                    transition: 'background 0.15s',
-                  }}
-                  onMouseEnter={e => { if (!loading) (e.target as HTMLButtonElement).style.background = '#64b5f611' }}
-                  onMouseLeave={e => { (e.target as HTMLButtonElement).style.background = 'var(--surface-2)' }}
-                  >
-                    <span style={{ color: '#64b5f6', fontWeight: 'bold', marginRight: '0.4rem' }}>{i + 1}.</span>{choice}
-                  </button>
-                ))
-              ) : (
-                <button onClick={() => generatePlayerChoices(history)} style={{
-                  padding: '0.4rem', borderRadius: '6px', border: '1px dashed #64b5f644',
-                  background: 'transparent', color: '#64b5f6', fontSize: '0.78rem', cursor: 'pointer',
-                }}>
-                  ↻ Générer des options de réponse
-                </button>
-              )}
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <input
-                value={input}
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                placeholder="Votre réponse..."
-                disabled={loading}
-                style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.45rem 0.7rem', color: 'var(--foreground)', fontSize: '0.82rem', outline: 'none' }}
-              />
-              <button onClick={() => sendMessage()} disabled={loading || !input.trim()} style={{
-                padding: '0.45rem 0.9rem', borderRadius: '6px', border: 'none',
-                background: input.trim() && !loading ? '#64b5f6' : 'var(--surface-2)',
-                color: input.trim() && !loading ? '#0f0f14' : 'var(--muted)',
-                cursor: input.trim() && !loading ? 'pointer' : 'not-allowed', fontWeight: 'bold', fontSize: '0.82rem',
-              }}>
-                Envoyer
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* Redirections */}
-      <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.6rem', flexWrap: 'wrap' }}>
-        {successNum != null && (
-          <button onClick={() => onNavigate(successNum)} style={{
-            fontSize: '0.75rem', padding: '0.3rem 0.7rem', borderRadius: '5px',
-            background: suggestedChoice === 0 || resolved === 'success' ? '#4caf7d33' : '#4caf7d22',
-            color: '#4caf7d', border: `1px solid ${suggestedChoice === 0 || resolved === 'success' ? '#4caf7d' : '#4caf7d55'}`,
-            cursor: 'pointer', fontWeight: suggestedChoice === 0 || resolved === 'success' ? 'bold' : 'normal',
-          }}>✓ Accord → §{successNum}{suggestedChoice === 0 ? ' ✦' : ''}</button>
+        <button
+          onClick={() => onSetStartTime(currentTime)}
+          style={{ padding: '5px 10px', background: 'rgba(82,196,132,0.12)', border: '1px solid #52c48444', borderRadius: '5px', color: '#52c484', cursor: 'pointer', fontSize: '11px', fontWeight: 600 }}
+          title="Définir ce point comme départ de la piste"
+        >
+          📍 Définir ici ({fmtTime(currentTime)})
+        </button>
+        {startTime > 0 && (
+          <button onClick={() => onSetStartTime(0)} style={{ padding: '5px 8px', background: 'none', border: '1px solid var(--border)', borderRadius: '5px', color: 'var(--muted)', cursor: 'pointer', fontSize: '11px' }} title="Supprimer le point de départ">✕ Départ</button>
         )}
-        {failureNum != null && (
-          <button onClick={() => onNavigate(failureNum)} style={{
-            fontSize: '0.75rem', padding: '0.3rem 0.7rem', borderRadius: '5px',
-            background: suggestedChoice === 1 || resolved === 'failure' ? '#c94c4c33' : '#c94c4c22',
-            color: '#c94c4c', border: `1px solid ${suggestedChoice === 1 || resolved === 'failure' ? '#c94c4c' : '#c94c4c55'}`,
-            cursor: 'pointer', fontWeight: suggestedChoice === 1 || resolved === 'failure' ? 'bold' : 'normal',
-          }}>✗ Refus → §{failureNum}{suggestedChoice === 1 ? ' ✦' : ''}</button>
+        {startTime > 0 && (
+          <span style={{ fontSize: '11px', color: '#52c484', marginLeft: '2px' }}>Départ : {fmtTime(startTime)}</span>
         )}
       </div>
     </div>
   )
 }
-
-// ── Lecteur audio flottant ────────────────────────────────────────────────────
 
 function AudioPlayer({ trackUrl, trackLabel }: { trackUrl: string | null; trackLabel: string }) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -5619,6 +7581,26 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
   const containerRef = useRef<HTMLDivElement>(null)
   const isPanning  = useRef(false)
   const lastPointer = useRef({ x: 0, y: 0 })
+
+  // Wheel zoom — doit être non-passif pour pouvoir appeler preventDefault()
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = el.getBoundingClientRect()
+      const mx = e.clientX - rect.left, my = e.clientY - rect.top
+      const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
+      setZoom(z => {
+        const nz = Math.min(3, Math.max(0.15, z * factor))
+        const sf = nz / z
+        setPan(p => ({ x: mx - sf * (mx - p.x), y: my - sf * (my - p.y) }))
+        return nz
+      })
+    }
+    el.addEventListener('wheel', handler, { passive: false })
+    return () => el.removeEventListener('wheel', handler)
+  }, [])
 
   // ── Calcul du layout ──────────────────────────────────────────────────────
   const TREE_GAP_X = 22
@@ -5824,19 +7806,6 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
         }}
         onPointerUp={() => { isPanning.current = false }}
         onPointerLeave={() => { isPanning.current = false }}
-        onWheel={e => {
-          e.preventDefault()
-          const c = containerRef.current!
-          const rect = c.getBoundingClientRect()
-          const mx = e.clientX - rect.left, my = e.clientY - rect.top
-          const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12
-          setZoom(z => {
-            const nz = Math.min(3, Math.max(0.15, z * factor))
-            const sf = nz / z
-            setPan(p => ({ x: mx - sf * (mx - p.x), y: my - sf * (my - p.y) }))
-            return nz
-          })
-        }}
         style={{
           border: '1px solid var(--border)', borderRadius: '10px',
           background: 'var(--surface)', overflow: 'hidden',
@@ -5910,6 +7879,60 @@ function GraphView({ sections, choices, activeFilters, highlightNumber, onHighli
               }
             }
             return <path key={choice.id} d={d} fill="none" stroke={color} strokeWidth="1.5" markerEnd={`url(#${markerId})`} />
+          })}
+          {sections.flatMap(section => {
+            if (!section.trial) return []
+            const results: React.ReactNode[] = []
+            for (const [targetId, isSuccess] of [
+              [section.trial.success_section_id, true],
+              [section.trial.failure_section_id, false],
+            ] as [string | undefined, boolean][]) {
+              if (!targetId) continue
+              const from = positions.get(section.id)
+              const to = positions.get(targetId)
+              if (!from || !to) continue
+              const target = sectionById.get(targetId)
+              const reachable = pathFilter === 'victory' ? reachableVictory : reachableDeath
+              const arrowDimmed = pathFilter !== null && (!reachable.has(section.id) || !reachable.has(targetId))
+              const srcTypeDimmed = activeFilters.size > 0 && !activeFilters.has(getSectionType(section).label)
+              const tgtTypeDimmed = activeFilters.size > 0 && target && !activeFilters.has(getSectionType(target).label)
+              const arrowFaded = arrowDimmed || srcTypeDimmed || tgtTypeDimmed
+              const isVictory = target?.ending_type === 'victory'
+              const isDeath = target?.ending_type === 'death'
+              const color = arrowFaded ? '#ffffff11' : isSuccess ? '#4caf7d88' : '#c94c4c88'
+              const markerId = isSuccess ? 'arr-v' : 'arr-d'
+              let d: string
+              if (layoutMode === 'tree') {
+                const goesDown = to.y > from.y + NODE_H / 2
+                if (goesDown) {
+                  const x1 = from.cx, y1 = from.y + NODE_H, x2 = to.cx, y2 = to.y
+                  const cp = Math.max(20, (y2 - y1) * 0.5)
+                  d = `M ${x1} ${y1} C ${x1} ${y1 + cp}, ${x2} ${y2 - cp}, ${x2} ${y2}`
+                } else {
+                  const x1 = from.x, y1 = from.cy, x2 = to.x + NODE_W, y2 = to.cy
+                  const sag = 40 + Math.abs(y2 - y1) * 0.3
+                  d = `M ${x1} ${y1} C ${x1 - sag} ${y1}, ${x2 + sag} ${y2}, ${x2} ${y2}`
+                }
+              } else {
+                const goRight = to.cx > from.cx + COL_GAP * 0.3
+                const goLeft  = to.cx < from.cx - COL_GAP * 0.3
+                if (goRight) {
+                  const x1 = from.x + NODE_W, y1 = from.cy, x2 = to.x, y2 = to.cy
+                  const mx = (x1 + x2) / 2
+                  d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`
+                } else if (goLeft) {
+                  const x1 = from.cx, y1 = from.y + NODE_H, x2 = to.cx, y2 = to.y + NODE_H
+                  const sag = Math.min(60 + Math.abs(to.cx - from.cx) * 0.25, 120)
+                  d = `M ${x1} ${y1} C ${x1} ${y1 + sag}, ${x2} ${y2 + sag}, ${x2} ${y2}`
+                } else {
+                  const x1 = from.x + NODE_W, y1 = from.cy, x2 = to.x + NODE_W + 18, y2 = to.cy
+                  const mx = Math.max(x1, x2) + 30
+                  d = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`
+                }
+              }
+              results.push(<path key={`trial-${section.id}-${isSuccess ? 'suc' : 'fail'}`} d={d} fill="none" stroke={color} strokeWidth="1.5" strokeDasharray="5 3" markerEnd={`url(#${markerId})`} />)
+            }
+            return results
           })}
         </svg>
         {sections.map(section => {
@@ -6071,6 +8094,7 @@ function VoicePanel({ form, setForm, voices, voicesLoaded, playVoicePreview }: {
 
 const FICHE_DEFAULT_SETTINGS = {
   width: 180, bottom: 28, left: 0, rotation: -8,
+  ill_show: true,
   ill_height: 110, ill_gap: 4, bg_opacity: 0.4,
   tagline: '', tagline_font: 'Permanent Marker', tagline_size: 13, tagline_color: '#ede9df',
   tagline_offset_x: 0, tagline_offset_y: 0,
@@ -6241,16 +8265,18 @@ function FicheCardView({ protagonist, settings, device = 'phone' }: { protagonis
                 </span>
               </div>
             </div>
-            <div style={{ display: 'flex', gap: `${s.ill_gap}px`, height: `${s.ill_height}px`, flexShrink: 0 }}>
-              {[0, 1, 2].map(i => (
-                <div key={i} style={{ flex: 1, background: illustrations[i] ? 'transparent' : '#1a1a1f', borderRadius: '4px', overflow: 'hidden', border: illustrations[i] ? '1px solid rgba(255,255,255,0.08)' : '1px dashed #2a2a30', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: ficheContainerShadow(s.ill_box_shadow) }}>
-                  {illustrations[i]
-                    ? <img src={illustrations[i]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: ficheEffectToFilter(s.ill_effect) }} />
-                    : <span style={{ fontSize: '1rem', opacity: 0.15 }}>🧍</span>
-                  }
-                </div>
-              ))}
-            </div>
+            {(s.ill_show ?? true) && (
+              <div style={{ display: 'flex', gap: `${s.ill_gap}px`, height: `${s.ill_height}px`, flexShrink: 0 }}>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{ flex: 1, background: illustrations[i] ? 'transparent' : '#1a1a1f', borderRadius: '4px', overflow: 'hidden', border: illustrations[i] ? '1px solid rgba(255,255,255,0.08)' : '1px dashed #2a2a30', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: ficheContainerShadow(s.ill_box_shadow) }}>
+                    {illustrations[i]
+                      ? <img src={illustrations[i]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', filter: ficheEffectToFilter(s.ill_effect) }} />
+                      : <span style={{ fontSize: '1rem', opacity: 0.15 }}>🧍</span>
+                    }
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ padding: '6px 0', marginTop: `${s.cta_offset_y ?? 0}px`, flexShrink: 0 }}>
               <div onClick={() => diceRolled && setDiceRolled(false)} style={{ background: diceRolled ? (s.cta_color ?? '#d4a84c') : 'rgba(255,255,255,0.08)', borderRadius: '3px', padding: '6px', textAlign: 'center', cursor: diceRolled ? 'pointer' : 'default', transition: 'background 0.3s', border: diceRolled ? 'none' : `1px solid ${s.cta_color ?? '#d4a84c'}44` }}>
                 <span style={{ fontFamily: 'Georgia, serif', fontWeight: '900', fontStyle: 'italic', color: diceRolled ? (s.cta_text_color ?? '#0d0d0d') : (s.cta_color ?? '#d4a84c'), fontSize: `${s.cta_font_size ?? 9}px`, letterSpacing: '1.5px', textTransform: 'uppercase', opacity: diceRolled ? 1 : 0.5 }}>{s.cta_text || "COMMENCER L'AVENTURE"}</span>
@@ -6313,6 +8339,12 @@ const SECTION_LAYOUT_DEFAULTS: import('@/types').SectionLayoutSettings = {
   vignette_style:   'circle',
   vignette_border_color: '#d4a84c',
   vignette_positions: [{ x: 12, y: 350 }, { x: 12, y: 420 }, { x: 12, y: 490 }],
+  vignette_tile_name_size:   8,
+  vignette_tile_text_color:  '#e8e8f0',
+  vignette_tile_bg_opacity:  75,
+  vignette_tile_show_hp:     true,
+  vignette_tile_name_x:      8,
+  vignette_tile_name_y:      0,
   // HUD
   el_health:        { x: 12, y: 14, w: 366 },
   el_stats:         { x: 8, y: 762 },
@@ -6367,7 +8399,404 @@ const SECTION_LAYOUT_DEFAULTS: import('@/types').SectionLayoutSettings = {
   manga_dialog_border_radius: 0,
 }
 
-function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, npcs, mangaSelectedNpcs = [], mangaEmotions = {}, settingsStep, section, sectionChoices, onChoiceClick, simMode, book, captionStyle = 1, textMode = 'descriptif', thoughtStyle = 1, choiceStyle = 3, choiceTitleStyle = 1, onSavePlayerPrefs, openSettingsRef, simPlayRef, onPlayingChange, simItems, simInventory, onCollectItem }: {
+function CorrectButton({ text, onCorrected, size = 'md' }: { text: string; onCorrected: (corrected: string) => void; size?: 'sm' | 'md' }) {
+  const [busy, setBusy] = React.useState(false)
+  const [result, setResult] = React.useState<{ corrected: string; alternative: string | null; notes: string[] } | null>(null)
+  if (!text.trim()) return null
+  const pad = size === 'sm' ? '0.15rem 0.45rem' : '0.2rem 0.55rem'
+  const fs = size === 'sm' ? '0.58rem' : '0.65rem'
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', alignItems: 'flex-start' }}>
+      <button disabled={busy} onClick={async () => {
+        setBusy(true); setResult(null)
+        try {
+          const r = await fetch('/api/correct-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }) })
+          const d = await r.json()
+          setResult({ corrected: d.corrected ?? text, alternative: d.alternative ?? null, notes: d.notes ?? [] })
+        } finally { setBusy(false) }
+      }} style={{ fontSize: fs, padding: pad, borderRadius: '4px', background: '#2a8a4a22', border: '1px solid #2a8a4a44', color: '#6abf88', cursor: busy ? 'wait' : 'pointer', opacity: busy ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+        {busy ? '…' : '✓ Corriger'}
+      </button>
+      {result && (
+        <div style={{ width: '100%', background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(42,138,74,0.3)', borderRadius: '6px', padding: '0.55rem 0.7rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          {result.notes.length > 0 && (
+            <ul style={{ margin: 0, padding: '0 0 0 1rem', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+              {result.notes.map((note, ni) => (
+                <li key={ni} style={{ fontSize: '0.72rem', color: note.startsWith('⚠️') ? '#f0a742' : '#a0c8f0', lineHeight: 1.5, listStyle: 'none', marginLeft: '-1rem' }}>
+                  {note}
+                </li>
+              ))}
+            </ul>
+          )}
+          {result.notes.length === 0 && (
+            <span style={{ fontSize: '0.7rem', color: '#6abf88' }}>✓ Aucune remarque de style ou imprécision.</span>
+          )}
+          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.1rem' }}>
+            <button onClick={() => { onCorrected(result.corrected); setResult(null) }} style={{ fontSize: '0.65rem', padding: '0.18rem 0.55rem', borderRadius: '4px', background: 'rgba(42,138,74,0.25)', border: '1px solid rgba(42,138,74,0.5)', color: '#6abf88', cursor: 'pointer', fontWeight: 600 }}>
+              Appliquer correction
+            </button>
+            <button onClick={() => setResult(null)} style={{ fontSize: '0.65rem', padding: '0.18rem 0.45rem', borderRadius: '4px', background: 'transparent', border: '1px solid rgba(255,255,255,0.12)', color: 'var(--muted)', cursor: 'pointer' }}>
+              Ignorer
+            </button>
+          </div>
+          {result.alternative && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', borderTop: '1px solid rgba(160,130,220,0.2)', paddingTop: '0.4rem' }}>
+              <span style={{ fontSize: '0.65rem', color: '#b48edd', fontWeight: 600 }}>✨ Proposition alternative</span>
+              <textarea
+                readOnly
+                value={result.alternative}
+                rows={4}
+                style={{ width: '100%', background: 'rgba(180,142,221,0.06)', border: '1px solid rgba(180,142,221,0.25)', borderRadius: '4px', padding: '0.4rem 0.5rem', color: '#d8c4f0', fontSize: '0.78rem', resize: 'vertical', outline: 'none', fontFamily: 'Georgia, serif', lineHeight: 1.55, boxSizing: 'border-box', cursor: 'text' }}
+                onClick={e => (e.target as HTMLTextAreaElement).select()}
+              />
+              <button onClick={() => { onCorrected(result.alternative!); setResult(null) }} style={{ alignSelf: 'flex-start', fontSize: '0.65rem', padding: '0.18rem 0.55rem', borderRadius: '4px', background: 'rgba(180,142,221,0.2)', border: '1px solid rgba(180,142,221,0.4)', color: '#b48edd', cursor: 'pointer', fontWeight: 600 }}>
+                Appliquer l'alternative
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Extrait les speakers depuis un texte taggé : [name] ou [name:type]
+// Retourne { key: 'cypress:discours', speaker: 'cypress', type: 'discours' }
+function extractSpeakers(phrases: string[]): Array<{ key: string; speaker: string; type: string }> {
+  const seen = new Map<string, { key: string; speaker: string; type: string }>()
+  const re = /\[(?!\/)([a-zA-ZÀ-ÿ0-9_:]+)\]/g
+  for (const p of phrases) {
+    re.lastIndex = 0
+    let m: RegExpExecArray | null
+    while ((m = re.exec(p)) !== null) {
+      const full = m[1].toLowerCase()
+      if (seen.has(full)) continue
+      const colonIdx = full.indexOf(':')
+      const speaker = colonIdx >= 0 ? full.slice(0, colonIdx) : full
+      const type = colonIdx >= 0 ? full.slice(colonIdx + 1) : (speaker === 'foule' ? 'foule' : 'discours')
+      seen.set(full, { key: full, speaker, type })
+    }
+  }
+  return Array.from(seen.values())
+}
+
+function BubblePositioner({ imgUrl, phrases, positions, textPosition, onChange, onTextPositionChange }: {
+  imgUrl: string
+  phrases: string[]
+  positions: Record<string, { x: number; y: number }>
+  textPosition: { x: number; y: number } | null
+  onChange: (positions: Record<string, { x: number; y: number }>) => void
+  onTextPositionChange: (pos: { x: number; y: number }) => void
+}) {
+  const containerRef = React.useRef<HTMLDivElement>(null)
+  const speakers = extractSpeakers(phrases)
+  // Local drag state — visual only, save only on mouseup to avoid race conditions
+  const [dragTextPos, setDragTextPos] = React.useState<{ x: number; y: number } | null>(null)
+  const [dragBubbleKey, setDragBubbleKey] = React.useState<string | null>(null)
+  const [dragBubblePos, setDragBubblePos] = React.useState<{ x: number; y: number } | null>(null)
+
+  const TYPE_COLORS: Record<string, string> = { discours: '#ffffff', foule: '#f0a742', pensee: '#a0d4ff', discussion: '#88d8b0', radio: '#00ff88' }
+  const TYPE_ICONS: Record<string, string> = { discours: '💬', foule: '📣', pensee: '💭', discussion: '🗨️', radio: '📻' }
+  function colorFor(type: string) { return TYPE_COLORS[type] ?? '#b48edd' }
+
+  function startDragText(e: React.MouseEvent) {
+    e.preventDefault()
+    const container = containerRef.current
+    if (!container) return
+    let last = dragTextPos ?? textPosition ?? { x: 50, y: 50 }
+    function handleMove(ev: MouseEvent) {
+      const rect = container!.getBoundingClientRect()
+      const x = Math.round(Math.min(100, Math.max(0, (ev.clientX - rect.left) / rect.width * 100)))
+      const y = Math.round(Math.min(100, Math.max(0, (ev.clientY - rect.top) / rect.height * 100)))
+      last = { x, y }
+      setDragTextPos({ x, y })
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', onUp)
+      onTextPositionChange(last)
+      setDragTextPos(null)
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  function startDragBubble(e: React.MouseEvent, key: string) {
+    e.preventDefault()
+    const container = containerRef.current
+    if (!container) return
+    let last = positions[key] ?? { x: 50, y: 50 }
+    setDragBubbleKey(key)
+    function handleMove(ev: MouseEvent) {
+      const rect = container!.getBoundingClientRect()
+      const x = Math.round(Math.min(100, Math.max(0, (ev.clientX - rect.left) / rect.width * 100)))
+      const y = Math.round(Math.min(100, Math.max(0, (ev.clientY - rect.top) / rect.height * 100)))
+      last = { x, y }
+      setDragBubblePos({ x, y })
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', onUp)
+      onChange({ ...positions, [key]: last })
+      setDragBubbleKey(null)
+      setDragBubblePos(null)
+    }
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  const textPos = dragTextPos ?? textPosition ?? { x: 50, y: 50 }
+
+  return (
+    <div style={{ marginTop: '0.4rem' }}>
+      <div style={{ fontSize: '0.6rem', color: 'var(--muted)', marginBottom: '0.3rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+        📍 Position texte & bulles — glisser sur l'image
+      </div>
+      <div ref={containerRef} style={{ position: 'relative', userSelect: 'none', cursor: 'crosshair' }}>
+        <img src={imgUrl} alt="" style={{ width: '100%', maxHeight: '220px', objectFit: 'contain', borderRadius: '6px', border: '1px solid var(--border)', display: 'block', background: '#000' }} />
+
+        {/* Ancre texte normal — toujours visible */}
+        <div
+          onMouseDown={startDragText}
+          style={{
+            position: 'absolute', left: `${textPos.x}%`, top: `${textPos.y}%`,
+            transform: 'translate(-50%, -50%)', cursor: 'grab', zIndex: 9,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+          }}
+        >
+          <div style={{ width: 18, height: 18, borderRadius: '3px', background: 'rgba(255,255,255,0.9)', border: '2px solid rgba(255,255,255,0.5)', boxShadow: '0 1px 4px rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: '10px', color: '#111', fontWeight: 900, fontFamily: 'Georgia, serif', lineHeight: 1 }}>T</span>
+          </div>
+          <span style={{ fontSize: '0.48rem', color: 'rgba(255,255,255,0.85)', background: 'rgba(0,0,0,0.75)', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', fontWeight: 700 }}>
+            texte — {textPos.x}%,{textPos.y}%
+          </span>
+        </div>
+
+        {/* Ancres bulles speakers */}
+        {speakers.map(({ key, speaker, type }, idx) => {
+          const defaultX = speakers.length === 1 ? 50 : Math.round(20 + (idx / (speakers.length - 1)) * 60)
+          const pos = (dragBubbleKey === key && dragBubblePos) ? dragBubblePos : (positions[key] ?? { x: defaultX, y: 50 })
+          const col = colorFor(type)
+          return (
+            <div
+              key={key}
+              onMouseDown={e => startDragBubble(e, key)}
+              style={{
+                position: 'absolute', left: `${pos.x}%`, top: `${pos.y}%`,
+                transform: 'translate(-50%, -50%)', cursor: 'grab', zIndex: 10 + idx,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+              }}
+            >
+              <div style={{ width: 14, height: 14, borderRadius: '50%', background: col, border: '2px solid #fff', boxShadow: '0 1px 4px rgba(0,0,0,0.7)' }} />
+              <span style={{ fontSize: '0.5rem', color: col, background: 'rgba(0,0,0,0.75)', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap', fontWeight: 700 }}>
+                {TYPE_ICONS[type] ?? '💬'} {speaker}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.3rem', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.5)', background: 'rgba(0,0,0,0.3)', borderRadius: '4px', padding: '2px 6px' }}>
+          T {textPos.x}%,{textPos.y}%
+        </span>
+        {speakers.map(({ key, speaker, type }, idx) => {
+          const defaultX = speakers.length === 1 ? 50 : Math.round(20 + (idx / (speakers.length - 1)) * 60)
+          const pos = positions[key] ?? { x: defaultX, y: 50 }
+          return (
+            <span key={key} style={{ fontSize: '0.58rem', color: colorFor(type), background: 'rgba(0,0,0,0.3)', borderRadius: '4px', padding: '2px 6px' }}>
+              {TYPE_ICONS[type] ?? '💬'} {speaker} — {pos.x}%,{pos.y}%
+            </span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Éditeur de phrases avec insertion de tags [speaker:type] ──
+function TaggablePhraseEditor({ planIdx, phrases, npcs, onChange, onBlur }: {
+  planIdx: number
+  phrases: string[]
+  npcs: Array<{ id: string; name: string | null }>
+  onChange: (lines: string[]) => void
+  onBlur: () => void
+}) {
+  const taRef = React.useRef<HTMLTextAreaElement>(null)
+  const [selNpc, setSelNpc] = React.useState('')
+  const [selType, setSelType] = React.useState('discours')
+
+  const BUBBLE_TYPES = [
+    { value: 'discours', label: '💬 Discours' },
+    { value: 'foule',    label: '📣 Foule' },
+    { value: 'pensee',   label: '💭 Pensée' },
+    { value: 'discussion', label: '🗨️ Discussion' },
+    { value: 'radio',    label: '📻 Radio' },
+    { value: 'bruit',    label: '💥 Bruit' },
+  ]
+
+  const rawValue = phrases.join('\n')
+
+  function insertTag(isClosing: boolean) {
+    const ta = taRef.current
+    if (!ta || !selNpc) return
+    const tag = isClosing ? `[/${selNpc}:${selType}]` : `[${selNpc}:${selType}]`
+    const start = ta.selectionStart
+    const newRaw = rawValue.slice(0, start) + tag + rawValue.slice(start)
+    onChange(newRaw.split('\n').filter(l => l.trim().length > 0))
+    requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + tag.length, start + tag.length) })
+  }
+
+  const selStyle: React.CSSProperties = {
+    background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px',
+    color: 'var(--foreground)', fontSize: '0.72rem', padding: '0.18rem 0.35rem', cursor: 'pointer', outline: 'none',
+  }
+  const btnStyle = (active: boolean): React.CSSProperties => ({
+    fontSize: '0.65rem', padding: '0.18rem 0.5rem', borderRadius: '4px',
+    border: '1px solid rgba(180,142,221,0.35)', background: 'rgba(180,142,221,0.12)',
+    color: active ? '#c9a6f5' : 'var(--muted)', cursor: active ? 'pointer' : 'default',
+    fontFamily: 'monospace', letterSpacing: '0.02em',
+  })
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+      {/* Toolbar tag insertion */}
+      <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center', flexWrap: 'wrap', padding: '0.28rem 0.4rem', background: 'rgba(180,142,221,0.06)', borderRadius: '4px', border: '1px solid rgba(180,142,221,0.14)' }}>
+        <span style={{ fontSize: '0.58rem', color: '#b48edd99', letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>Tag</span>
+        <select value={selNpc} onChange={e => setSelNpc(e.target.value)} style={selStyle}>
+          <option value="">— PNJ —</option>
+          {npcs.filter(n => n.name).map(n => (
+            <option key={n.id} value={n.name!.toLowerCase()}>{n.name}</option>
+          ))}
+        </select>
+        <select value={selType} onChange={e => setSelType(e.target.value)} style={selStyle}>
+          {BUBBLE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <button
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => insertTag(false)}
+          disabled={!selNpc}
+          style={btnStyle(!!selNpc)}
+          title="Insérer le tag d'ouverture à la position du curseur"
+        >[ Ouvrir</button>
+        <button
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => insertTag(true)}
+          disabled={!selNpc}
+          style={btnStyle(!!selNpc)}
+          title="Insérer le tag de fermeture à la position du curseur"
+        >Fermer ]</button>
+        {selNpc && (
+          <span style={{ fontSize: '0.56rem', color: 'rgba(180,142,221,0.5)', fontFamily: 'monospace', marginLeft: '0.1rem' }}>
+            [{selNpc}:{selType}]…[/{selNpc}:{selType}]
+          </span>
+        )}
+        <button
+          onMouseDown={e => e.preventDefault()}
+          onClick={() => {
+            const ta = taRef.current; if (!ta) return
+            const tag = '[bruit]BANG![/bruit]'
+            const start = ta.selectionStart
+            const newRaw = rawValue.slice(0, start) + tag + rawValue.slice(start)
+            onChange(newRaw.split('\n').filter(l => l.trim().length > 0))
+            requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(start + tag.length, start + tag.length) })
+          }}
+          style={{ fontSize: '0.65rem', padding: '0.18rem 0.5rem', borderRadius: '4px', border: '1px solid rgba(224,56,56,0.35)', background: 'rgba(224,56,56,0.1)', color: '#e07070', cursor: 'pointer', fontFamily: 'monospace' }}
+          title="Insérer un tag bruit (onomatopée)"
+        >💥 Bruit</button>
+      </div>
+      {/* Textarea */}
+      <textarea
+        ref={taRef}
+        value={rawValue}
+        onChange={e => onChange(e.target.value.split('\n').filter(l => l.trim().length > 0))}
+        onBlur={onBlur}
+        placeholder={`Phrases affichées sur le plan ${planIdx + 1} (une par ligne)…`}
+        rows={3}
+        style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '5px', padding: '0.5rem 0.7rem', color: 'var(--foreground)', fontSize: '0.88rem', resize: 'vertical', outline: 'none', fontFamily: 'Georgia, serif', boxSizing: 'border-box', lineHeight: 1.7 }}
+      />
+    </div>
+  )
+}
+
+function TransitionInlineBlock({ choiceId, initialText, imgUrl, initialTextPosition, onSave, onSavePosition }: {
+  choiceId: string
+  initialText: string
+  imgUrl: string | null
+  initialTextPosition: { x: number; y: number } | null
+  onSave: (text: string) => void
+  onSavePosition: (pos: { x: number; y: number }) => void
+}) {
+  const [text, setText] = React.useState(initialText)
+  const [textPos, setTextPos] = React.useState(initialTextPosition ?? { x: 50, y: 50 })
+  const imgContainerRef = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => { setText(initialText) }, [initialText])
+  React.useEffect(() => { setTextPos(initialTextPosition ?? { x: 50, y: 50 }) }, [initialTextPosition])
+
+  function startDragT(e: React.MouseEvent) {
+    e.preventDefault()
+    const container = imgContainerRef.current
+    if (!container) return
+    let last = textPos
+    function onMove(ev: MouseEvent) {
+      const rect = container!.getBoundingClientRect()
+      const x = Math.round(Math.min(100, Math.max(0, (ev.clientX - rect.left) / rect.width * 100)))
+      const y = Math.round(Math.min(100, Math.max(0, (ev.clientY - rect.top) / rect.height * 100)))
+      last = { x, y }
+      setTextPos({ x, y })
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      onSavePosition(last)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <div style={{ padding: '0.5rem 0.85rem', background: '#b48edd08', borderTop: '1px solid #b48edd22', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+      {imgUrl && (
+        <div>
+          <div style={{ fontSize: '0.55rem', color: 'var(--muted)', marginBottom: '0.25rem', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            📍 Position texte — glisser le T
+          </div>
+          <div ref={imgContainerRef} style={{ position: 'relative', userSelect: 'none', cursor: 'crosshair' }}>
+            <img src={imgUrl} alt="" style={{ width: '100%', maxHeight: '320px', objectFit: 'contain', borderRadius: '5px', display: 'block', background: '#000' }} />
+            <div
+              onMouseDown={startDragT}
+              style={{
+                position: 'absolute', left: `${textPos.x}%`, top: `${textPos.y}%`,
+                transform: 'translate(-50%, -50%)', cursor: 'grab', zIndex: 5,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+              }}
+            >
+              <div style={{ width: 18, height: 18, borderRadius: '3px', background: 'rgba(255,255,255,0.9)', border: '2px solid rgba(255,255,255,0.5)', boxShadow: '0 1px 4px rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: '10px', color: '#111', fontWeight: 900, fontFamily: 'Georgia, serif', lineHeight: 1 }}>T</span>
+              </div>
+              <span style={{ fontSize: '0.46rem', color: 'rgba(255,255,255,0.85)', background: 'rgba(0,0,0,0.75)', borderRadius: '3px', padding: '1px 4px', whiteSpace: 'nowrap' }}>{textPos.x}%,{textPos.y}%</span>
+            </div>
+          </div>
+        </div>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onBlur={() => onSave(text)}
+          onKeyDown={e => { if (e.key === 'Enter' && e.ctrlKey) (e.target as HTMLTextAreaElement).blur() }}
+          rows={3}
+          placeholder="Texte de transition (30–60 mots)…"
+          style={{ width: '100%', background: 'rgba(180,142,221,0.05)', border: '1px solid #b48edd33', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.85rem', resize: 'vertical', outline: 'none', fontFamily: 'Georgia, serif', boxSizing: 'border-box', lineHeight: 1.6 }}
+          onFocus={e => (e.target.style.borderColor = '#b48edd88')}
+          onBlurCapture={e => (e.target.style.borderColor = '#b48edd33')}
+        />
+        <CorrectButton text={text} size="sm" onCorrected={corrected => { setText(corrected); onSave(corrected) }} />
+      </div>
+    </div>
+  )
+}
+
+function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, npcs, locations = [], mangaSelectedNpcs = [], mangaEmotions = {}, settingsStep, section, sectionChoices, allSections = [], onChoiceClick, simMode, book, captionStyle = 1, textMode = 'descriptif', thoughtStyle = 1, choiceStyle = 3, choiceTitleStyle = 1, choiceFontSize = 15, phrasesPerSlide = 1, readingWpm = 180, textFontSize = 15, wordIntervalMs = 200, onSavePlayerPrefs, openSettingsRef, simPlayRef, onPlayingChange, simItems, simInventory, simMoney, onCollectItem, onOpenItem, simPlanOpen, simPlanFoldSoundUrl, simPlanFoldTrigger, simPlanIsOpening, simPlanMusicDucked, onTransitionStart, onTransitionEnd, onNavReady }: {
   s: import('@/types').SectionLayoutSettings
   previewMode: 'phone' | 'tablet'
   scale?: number
@@ -6376,73 +8805,243 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   mangaSelectedNpcs?: string[]
   mangaEmotions?: Record<string, string>
   npcs: import('@/types').Npc[]
+  locations?: import('@/types').Location[]
   settingsStep?: import('@/types').IntroStep
   section?: import('@/types').Section
   sectionChoices?: import('@/types').Choice[]
+  allSections?: import('@/types').Section[]
   onChoiceClick?: (choice: import('@/types').Choice) => void
   simMode?: boolean
   book?: import('@/types').Book | null
   captionStyle?: 1 | 2 | 3
   textMode?: 'descriptif' | 'narratif'
   thoughtStyle?: 1 | 2 | 3
-  choiceStyle?: 1 | 2 | 3
+  choiceStyle?: 1 | 2 | 3 | 4
   choiceTitleStyle?: 1 | 2 | 3 | 4 | 5
+  choiceFontSize?: 11 | 13 | 15 | 17 | 19
+  phrasesPerSlide?: 1 | 2 | 3
+  readingWpm?: 120 | 180 | 240
+  textFontSize?: 13 | 15 | 17 | 19
+  wordIntervalMs?: 120 | 200 | 280 | 400
   onSavePlayerPrefs?: (prefs: { sound: boolean; voice: boolean; mode: 1 | 2 }) => void
   openSettingsRef?: React.MutableRefObject<(() => void) | null>
   simPlayRef?: React.MutableRefObject<{ playing: boolean; toggle: () => void } | null>
   onPlayingChange?: (playing: boolean) => void
   simItems?: import('@/types').Item[]
   simInventory?: Record<string, boolean>
+  simMoney?: number
   onCollectItem?: (itemId: string) => void
+  onOpenItem?: (item: import('@/types').Item) => void
+  simPlanOpen?: boolean
+  simPlanFoldSoundUrl?: string
+  simPlanFoldTrigger?: number
+  simPlanIsOpening?: boolean
+  simPlanMusicDucked?: boolean
+  onTransitionStart?: (choice: import('@/types').Choice) => void
+  onTransitionEnd?: () => void
+  onNavReady?: () => void
 }) {
   const DEF = SECTION_LAYOUT_DEFAULTS
   const containerRef = React.useRef<HTMLDivElement>(null)
   const interactive = !!onUpdate
+  const isCombatSim = !!(simMode && section?.trial?.type === 'combat')
   const [showSettingsOverlay, setShowSettingsOverlay] = React.useState(false)
   React.useEffect(() => { if (openSettingsRef) openSettingsRef.current = () => setShowSettingsOverlay(true) }, [])
   const [simImgIdx, setSimImgIdx] = React.useState(0)
+  const [crossFadePrev, setCrossFadePrev] = React.useState<string | null>(null)
+  const [crossFadePrevTransform, setCrossFadePrevTransform] = React.useState('none')
+  const crossFadeTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastLoadedImgRef = React.useRef<string | null>(null)
+  // Ken Burns continu sur toute la section (pas remis à zéro entre chaque image)
+  const sectionStartTimeRef = React.useRef<number>(Date.now())
+  const KB_DURATION = 25 // secondes — durée totale Ken Burns par section
+  function captureKenBurnsTransform(): string {
+    const elapsed = (Date.now() - sectionStartTimeRef.current) / 1000
+    const t = Math.min(elapsed / KB_DURATION, 1)
+    const e = t * t * (3 - 2 * t) // smoothstep ease-in-out
+    const scale = 1 + e * 0.07
+    const tx = (-1 * e).toFixed(3)
+    const ty = (-0.5 * e).toFixed(3)
+    return `scale(${scale.toFixed(4)}) translate(${tx}%, ${ty}%)`
+  }
+  const [transitionFadingOut, setTransitionFadingOut] = React.useState(false)
+  const [transChunkCount, setTransChunkCount] = React.useState(0)
+  const [transDecisionAnnounce, setTransDecisionAnnounce] = React.useState(false)
+  const transWordTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+  // Empêche simShowNav=true résiduel d'une section précédente (race condition effets React)
+  const simTextDoneSectionRef = React.useRef<string | null>(null)
+  const afterPhraseTimersRef = React.useRef<ReturnType<typeof setTimeout>[]>([])
+  // Invalide simTextDoneSectionRef dès le rendu si la section change (pas besoin d'attendre l'effet)
+  const lastRenderedSectionIdRef = React.useRef<string | null | undefined>(undefined)
+  if (section?.id !== lastRenderedSectionIdRef.current) {
+    lastRenderedSectionIdRef.current = section?.id
+    simTextDoneSectionRef.current = null
+  }
+  const [vigCollapsed, setVigCollapsed] = React.useState(!!simMode)
+  const [npcVigCollapsed, setNpcVigCollapsed] = React.useState(true)
+  const [activeImgEffect, setActiveImgEffect] = React.useState<string | null>(null)
+  const imgEffectTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  React.useEffect(() => {
+    if (!simMode) return
+    const effect = (simPlayableImgs[simImgIdx] as any)?.appearance_effect
+    if (!effect || effect === 'none') return
+    if (imgEffectTimerRef.current) clearTimeout(imgEffectTimerRef.current)
+    setActiveImgEffect(effect)
+    const dur = effect === 'impact' ? 600 : effect === 'shake' ? 500 : 400
+    imgEffectTimerRef.current = setTimeout(() => setActiveImgEffect(null), dur)
+  }, [simImgIdx])
+  const [simBpm, setSimBpm] = React.useState(65)
+  const [choicesCollapsed, setChoicesCollapsed] = React.useState(false)
+  const choicesPanelRef = React.useRef<HTMLDivElement>(null)
+  const [choicesPanelH, setChoicesPanelH] = React.useState(160)
+  React.useEffect(() => {
+    const el = choicesPanelRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([e]) => setChoicesPanelH(Math.round(e.contentRect.height)))
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
   const [simPlaying, setSimPlaying] = React.useState(!!simMode)
   React.useEffect(() => {
     if (simPlayRef) simPlayRef.current = { playing: simPlaying, toggle: () => setSimPlaying(v => !v) }
     onPlayingChange?.(simPlaying)
   }, [simPlaying])
   const [simThoughtCount, setSimThoughtCount] = React.useState(0)
+  const [simThoughtFading, setSimThoughtFading] = React.useState(false)
+  const [simLastThought, setSimLastThought] = React.useState<string | null>(null)
+  const [simDiscFadingOut, setSimDiscFadingOut] = React.useState(false)
+  const [simThoughtIsNew, setSimThoughtIsNew] = React.useState(false)
+  const simDiscScrollRef = React.useRef<HTMLDivElement>(null)
+  const simDiscOutcomeRef = React.useRef<HTMLDivElement>(null)
   const [hoveredChoiceIdx, setHoveredChoiceIdx] = React.useState(-1)
+  const [confirmingChoiceIdx, setConfirmingChoiceIdx] = React.useState<number | null>(null)
+  const [editingTrialTransition, setEditingTrialTransition] = React.useState<'success' | 'failure' | null>(null)
+  const [trialTransitionDraft, setTrialTransitionDraft] = React.useState('')
+  const [translatingPlanIdx, setTranslatingPlanIdx] = React.useState<{ idx: number; dir: 'en2fr' | 'fr2en' } | null>(null)
   const [simTextVisible, setSimTextVisible] = React.useState(false)
   const [simDisplayedChars, setSimDisplayedChars] = React.useState(0)
   const [simTextDone, setSimTextDone] = React.useState(false)
+  // Phrases mode narratif (dernière image)
+  const [simPhraseIdx, setSimPhraseIdx] = React.useState(-1) // -1 = pas encore commencé
+  const [simPhraseFading, setSimPhraseFading] = React.useState(false)
+  const [simWordCount, setSimWordCount] = React.useState(0) // mots révélés dans la phrase courante
+  const simWordTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+  const [simDecisionAnnounce, setSimDecisionAnnounce] = React.useState(false) // annonce chrono avant choix
+  const [simDiscPhase, setSimDiscPhase] = React.useState<'idle' | 'pre_opening' | 'opening' | 'player_thinking' | 'active' | 'typing' | 'reading' | 'outcome' | 'nav'>('idle')
+  const [simDiscHistory, setSimDiscHistory] = React.useState<{type:'npc'|'player', text:string, label?:string}[]>([])
+  const [simDiscCurrentChoices, setSimDiscCurrentChoices] = React.useState<any[]|null>(null)
   const [transitionChoice, setTransitionChoice] = React.useState<import('@/types').Choice | null>(null)
   const transitionTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showRereadOverlay, setShowRereadOverlay] = React.useState(false)
+  const [simPhrasesCompleted, setSimPhrasesCompleted] = React.useState(false)
+  const [simTrialPhase, setSimTrialPhase] = React.useState<'idle' | 'pre_roll' | 'rolling' | 'result'>('idle')
+  const [simTrialResult, setSimTrialResult] = React.useState<'success' | 'failure' | null>(null)
+  const [simDiceFace, setSimDiceFace] = React.useState(1)
+  const simDiceIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
 
   // auto-restart on section change
   React.useEffect(() => {
+    // Cross-fade from last displayed image of previous section
+    const prev = lastLoadedImgRef.current
+    lastLoadedImgRef.current = null
     setSimImgIdx(0); setSimDisplayedChars(0); setSimTextDone(false)
+    setSimPhraseIdx(-1); setSimPhraseFading(false)
+    setSimPhrasesCompleted(false); setSimDecisionAnnounce(false)
+    afterPhraseTimersRef.current.forEach(clearTimeout); afterPhraseTimersRef.current = []
+    setShowRereadOverlay(false)
+    setSimDiscPhase('idle'); setSimDiscHistory([]); setSimDiscCurrentChoices(null)
+    setSimTrialPhase('idle'); setSimTrialResult(null); setSimDiceFace(1)
+    if (simDiceIntervalRef.current) { clearInterval(simDiceIntervalRef.current); simDiceIntervalRef.current = null }
+    setSimThoughtIsNew(false)
+    setSimDiscFadingOut(false)
+    setSimLastThought(null)
+    setChoicesCollapsed(false)
+    setNpcVigCollapsed(true)
     if (simMode) setSimPlaying(true)
+    sectionStartTimeRef.current = Date.now()
+    if (prev) {
+      setCrossFadePrev(prev)
+      setCrossFadePrevTransform(captureKenBurnsTransform())
+      if (crossFadeTimerRef.current) clearTimeout(crossFadeTimerRef.current)
+      // Fallback : nettoie si onLoad de la nouvelle image ne se déclenche pas
+      crossFadeTimerRef.current = setTimeout(() => setCrossFadePrev(null), 1500)
+    } else {
+      setCrossFadePrev(null)
+      if (crossFadeTimerRef.current) clearTimeout(crossFadeTimerRef.current)
+    }
+  }, [section?.id])
+
+  // Préchargement de toutes les images de la section courante
+  React.useEffect(() => {
+    if (!simMode) return
+    simPlayableImgs.forEach(img => {
+      if (img.url) { const el = new window.Image(); el.src = img.url }
+    })
   }, [section?.id])
 
   // ── Musique de section (simulation) ───────────────────────────────────
   React.useEffect(() => {
     if (!simMode) return
     if (simMusicRef.current) { simMusicRef.current.pause(); simMusicRef.current = null }
-    const url = section?.music_url
+    const typeLabel = section ? getSectionType(section).label : ''
+    const url = section?.music_url || DEFAULT_MUSIC[typeLabel] || null
     if (url) {
       const audio = new Audio(url)
       audio.loop = true
       audio.volume = 1.0
+      if (section?.music_start_time) audio.currentTime = section.music_start_time
       audio.play().catch(() => {})
       simMusicRef.current = audio
     }
     return () => { if (simMusicRef.current) { simMusicRef.current.pause(); simMusicRef.current = null } }
-  }, [section?.id, simMode])
+  }, [section?.id, section?.music_url, section?.music_start_time, simMode])
 
-  const [simMangaOpen, setSimMangaOpen] = React.useState(false)
-  const [simActiveNpc, setSimActiveNpc] = React.useState<import('@/types').Npc | null>(null)
-
-  // ── Duck musique quand la boîte manga est ouverte ─────────────────────
+  // ── Volume musique : duck plan (0.2) > duck phrases (0.4) > normal (1.0) ──
   React.useEffect(() => {
     if (!simMusicRef.current) return
-    simMusicRef.current.volume = simMangaOpen ? 0.2 : 1.0
-  }, [simMangaOpen])
+    let vol = 1.0
+    if (simPlanMusicDucked) vol = 0.2
+    else if (simPhraseIdx >= 0) vol = 0.4
+    simMusicRef.current.volume = vol
+  }, [simPlanMusicDucked, simPhraseIdx])
+
+  // ── Joue le son de pliage/dépliage à chaque trigger ─────────────────
+  const planFoldSoundRef = React.useRef<HTMLAudioElement | null>(null)
+  React.useEffect(() => {
+    if (!simPlanFoldTrigger || !simPlanFoldSoundUrl) return
+    if (planFoldSoundRef.current) planFoldSoundRef.current.pause()
+    const audio = new Audio(simPlanFoldSoundUrl)
+    planFoldSoundRef.current = audio
+    audio.play().catch(() => {})
+  }, [simPlanFoldTrigger])
+
+  // Phrases découpées du texte de section (mode narratif), groupées par phrasesPerSlide
+  const simPhrases = React.useMemo(() => {
+    const text = section?.content?.trim() ?? ''
+    if (!text) return []
+    // Split only plain text (outside tagged blocks) — tagged blocks are atomic units
+    const tagRe = /\[([a-zA-ZÀ-ÿ0-9_:]+)\]([\s\S]*?)\[\/\1\]/g
+    const atoms: string[] = []
+    let last = 0; let m: RegExpExecArray | null; tagRe.lastIndex = 0
+    while ((m = tagRe.exec(text)) !== null) {
+      if (m.index > last) {
+        const plain = text.slice(last, m.index).trim()
+        if (plain) atoms.push(...plain.split(/(?<=[.!?…»])\s+/).map(s => s.trim()).filter(Boolean))
+      }
+      atoms.push(m[0].trim())
+      last = m.index + m[0].length
+    }
+    if (last < text.length) {
+      const plain = text.slice(last).trim()
+      if (plain) atoms.push(...plain.split(/(?<=[.!?…»])\s+/).map(s => s.trim()).filter(Boolean))
+    }
+    if (phrasesPerSlide <= 1) return atoms
+    const groups: string[] = []
+    for (let i = 0; i < atoms.length; i += phrasesPerSlide) {
+      groups.push(atoms.slice(i, i + phrasesPerSlide).join(' '))
+    }
+    return groups
+  }, [section?.id, section?.content, phrasesPerSlide])
 
   // compute playable images (with url)
   const simPlayableImgs = React.useMemo(
@@ -6452,58 +9051,420 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
 
   const simIsLastImg = simImgIdx >= Math.max(simPlayableImgs.length - 1, 0)
 
-  // animate thought sentences + descriptif text when image changes
+  // Plafonne un bucket à max 2 phrases en fusionnant les excédents
+  function capPhrasesAt2(phrases: string[]): string[] {
+    if (phrases.length <= 2) return phrases
+    const mid = Math.ceil(phrases.length / 2)
+    return [phrases.slice(0, mid).join(' '), phrases.slice(mid).join(' ')]
+  }
+
+  // Distribution des phrases sur les images : stockée (phrase_distribution) ou 40/35/25 en fallback
+  const phrasesByImage = React.useMemo(() => {
+    const nImages = Math.max(simPlayableImgs.length, 1)
+    if (textMode !== 'narratif' || simPhrases.length === 0) {
+      return Array.from({ length: nImages }, () => [] as string[])
+    }
+    // Utiliser la distribution stockée si elle existe et couvre toutes les images
+    const stored = section?.phrase_distribution
+    if (stored && stored.length >= nImages && stored.some(arr => arr.length > 0)) {
+      return Array.from({ length: nImages }, (_, i) => capPhrasesAt2(stored[i] ?? []))
+    }
+    // Fallback : distribution automatique 40/35/25
+    const n = simPhrases.length
+    if (nImages === 1) return [capPhrasesAt2(simPhrases)]
+    if (nImages === 2) {
+      const n0 = Math.ceil(n * 0.5)
+      return [capPhrasesAt2(simPhrases.slice(0, n0)), capPhrasesAt2(simPhrases.slice(n0))]
+    }
+    const n0 = Math.ceil(n * 0.40)
+    const n1 = Math.ceil(Math.min(n - n0, n * 0.35))
+    const restPhrases = simPhrases.slice(n0 + n1)
+    const result: string[][] = [capPhrasesAt2(simPhrases.slice(0, n0)), capPhrasesAt2(simPhrases.slice(n0, n0 + n1))]
+    if (nImages === 3) {
+      result.push(capPhrasesAt2(restPhrases))
+    } else {
+      const perImg = Math.ceil(restPhrases.length / (nImages - 2))
+      for (let i = 0; i < nImages - 2; i++) {
+        result.push(capPhrasesAt2(restPhrases.slice(i * perImg, (i + 1) * perImg)))
+      }
+    }
+    return result
+  }, [simPhrases, simPlayableImgs.length, textMode, section?.phrase_distribution])
+
+  // Mots rouges : noms propres (PNJ + lieux uniquement)
+  const redWordsSet = React.useMemo(() => {
+    const s = new Set<string>()
+    for (const npc of npcs) {
+      if (npc.name) npc.name.split(/\s+/).forEach(w => { if (w.length > 2) s.add(w.toLowerCase()) })
+    }
+    for (const loc of locations) {
+      if (loc.name) loc.name.split(/\s+/).forEach(w => { if (w.length > 2) s.add(w.toLowerCase()) })
+    }
+    return s
+  }, [npcs, locations])
+
+  // Timer de lecture auto — se déclenche quand simPhraseIdx, readingWpm ou phrasesPerSlide change
+  const [simReadReady, setSimReadReady] = React.useState(false) // true = "Taper pour continuer" visible
+  React.useEffect(() => {
+    if (simPhraseIdx < 0 || simTextDone) { setSimReadReady(false); return }
+    // Mode narratif : simReadReady géré par l'effet mot-par-mot
+    if (textMode === 'narratif') return
+    const text = (phrasesByImage[simImgIdx] ?? [])[simPhraseIdx] ?? ''
+    const wordCount = text.split(/\s+/).filter(Boolean).length
+    const ms = Math.max(Math.round(wordCount / readingWpm * 60 * 1000), 1500)
+    setSimReadReady(false)
+    const t = setTimeout(() => setSimReadReady(true), ms)
+    return () => clearTimeout(t)
+  }, [simPhraseIdx, simTextDone, readingWpm, phrasesPerSlide, simImgIdx, textMode])
+
+  // Découpe un texte en chunks typés : lineBreak=true après .!?… (long break + nouvelle ligne)
+  // speaker + bubbleType = extraits des tags [name:type]...[/name:type]
+  type NarrChunk = { text: string; lineBreak: boolean; speaker?: string; bubbleType?: string }
+
+  // Extrait les segments taggés et non-taggés d'une phrase
+  // "[cypress:discours]Texte.[/cypress:discours] Suite." → [{ speaker:'cypress', bubbleType:'discours', text:'Texte.' }, { text:'Suite.' }]
+  function parseTaggedSegments(text: string): Array<{ text: string; speaker?: string; bubbleType?: string }> {
+    const segments: Array<{ text: string; speaker?: string; bubbleType?: string }> = []
+    // Handles both [name] and [name:type] formats, including unclosed tags (broken phrase_distribution)
+    const tagRe = /\[([a-zA-ZÀ-ÿ0-9_:]+)\]([\s\S]*?)\[\/\1\]/g
+    let last = 0
+    let m: RegExpExecArray | null
+    while ((m = tagRe.exec(text)) !== null) {
+      if (m.index > last) {
+        const plain = text.slice(last, m.index).trim()
+        if (plain) segments.push({ text: plain })
+      }
+      const full = m[1].toLowerCase()
+      const colonIdx = full.indexOf(':')
+      const speaker = colonIdx >= 0 ? full.slice(0, colonIdx) : full
+      const bubbleType = colonIdx >= 0 ? full.slice(colonIdx + 1) : (speaker === 'foule' ? 'foule' : undefined)
+      segments.push({ speaker, bubbleType, text: m[2].trim() })
+      last = m.index + m[0].length
+    }
+    if (last < text.length) {
+      const remainder = text.slice(last)
+      // Handle unclosed opening tag (e.g. broken split from stored phrase_distribution)
+      const unclosedRe = /\[([a-zA-ZÀ-ÿ0-9_:]+)\]([\s\S]+)$/
+      const uc = unclosedRe.exec(remainder)
+      if (uc) {
+        const plain = remainder.slice(0, uc.index).trim()
+        if (plain) segments.push({ text: plain })
+        const full = uc[1].toLowerCase()
+        const colonIdx = full.indexOf(':')
+        const speaker = colonIdx >= 0 ? full.slice(0, colonIdx) : full
+        const bubbleType = colonIdx >= 0 ? full.slice(colonIdx + 1) : (speaker === 'foule' ? 'foule' : undefined)
+        segments.push({ speaker, bubbleType, text: uc[2].trim() })
+      } else {
+        const plain = remainder.trim()
+        if (plain) segments.push({ text: plain })
+      }
+    }
+    return segments.length ? segments : [{ text }]
+  }
+
+  function getNarrChunks(text: string): NarrChunk[] {
+    const result: NarrChunk[] = []
+    const segments = parseTaggedSegments(text)
+    for (const seg of segments) {
+      const lines = seg.text.split(/(?<=[.!?…»])\s+/).map(s => s.trim()).filter(Boolean)
+      for (const line of lines) {
+        const inlines = line.split(/(?<=[,;:])[ ]*/g).map(s => s.trim()).filter(Boolean)
+        for (let i = 0; i < inlines.length; i++) {
+          result.push({ text: inlines[i], lineBreak: i === inlines.length - 1, speaker: seg.speaker, bubbleType: seg.bubbleType })
+        }
+      }
+    }
+    return result
+  }
+
+  // Effet chunk-par-chunk (mode narratif) — simWordCount = nb de chunks révélés
+  React.useEffect(() => {
+    if (simWordTimerRef.current) { clearInterval(simWordTimerRef.current); simWordTimerRef.current = null }
+    if (textMode !== 'narratif' || simPhraseIdx < 0 || simTextDone) { setSimWordCount(0); return }
+    setSimWordCount(0)
+    setSimReadReady(false)
+    const phrase = (phrasesByImage[simImgIdx] ?? [])[simPhraseIdx] ?? ''
+    const chunks = getNarrChunks(phrase)
+    if (chunks.length === 0) { setSimReadReady(true); return }
+    let cancelled = false
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    function scheduleChunk(idx: number) {
+      if (cancelled || idx >= chunks.length) return
+      const prevChunk = idx > 0 ? chunks[idx - 1] : null
+      let delay = 0
+      if (prevChunk) {
+        const wordCount = prevChunk.text.split(/\s+/).filter(Boolean).length
+        const readMs = Math.round(wordCount / readingWpm * 60000)
+        const baseBreak = prevChunk.lineBreak ? wordIntervalMs * 5 : wordIntervalMs * 2
+        delay = readMs + baseBreak
+      }
+      timeoutId = setTimeout(() => {
+        if (cancelled) return
+        setSimWordCount(idx + 1)
+        if (idx + 1 >= chunks.length) {
+          setTimeout(() => { if (!cancelled) setSimReadReady(true) }, 2000)
+        } else {
+          scheduleChunk(idx + 1)
+        }
+      }, delay)
+    }
+    scheduleChunk(0)
+    return () => { cancelled = true; if (timeoutId) clearTimeout(timeoutId) }
+  }, [simPhraseIdx, simImgIdx, textMode, simTextDone, wordIntervalMs])
+
+  // Auto-avance 2s après simReadReady, sauf dernière phrase de la dernière image
+  const autoAdvanceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  React.useEffect(() => {
+    if (autoAdvanceTimerRef.current) clearTimeout(autoAdvanceTimerRef.current)
+    if (!simReadReady || simTextDone) return
+    autoAdvanceTimerRef.current = setTimeout(() => handlePhraseAdvance(), 2000)
+    return () => { if (autoAdvanceTimerRef.current) clearTimeout(autoAdvanceTimerRef.current) }
+  }, [simReadReady, simImgIdx, simPhraseIdx])
+
+  // Garde : si phrasesPerSlide change et que simPhraseIdx est hors bornes → revenir à 0
+  React.useEffect(() => {
+    const myPhrases = phrasesByImage[simImgIdx] ?? []
+    if (simPhraseIdx >= 0 && simPhraseIdx >= myPhrases.length) {
+      setSimPhraseIdx(0)
+      setSimPhraseFading(false)
+    }
+  }, [phrasesPerSlide])
+
+  // ── Helpers séquence narrative ────────────────────────────────────────
+  function getSimSeq(imgIdx: number): import('@/types').TextSequenceItem[] {
+    const img = simPlayableImgs[imgIdx]
+    if (img?.text_sequence?.length) return img.text_sequence
+    if (img?.thought?.trim()) return [{ type: 'thought' as const, text: img.thought.trim() }]
+    return []
+  }
+
+  // Navigation visible : après discussion complète, ou sans discussion
+  // simTextDone est valide seulement si établi pour la section courante
+  const simTextDoneValid = simTextDone && simTextDoneSectionRef.current === section?.id
+  const simShowNav = simMode
+    ? ((section as any)?.discussion_scene ? (simTextDoneValid && (simDiscPhase === 'idle' || simDiscPhase === 'nav')) : simTextDoneValid)
+    : true
+
+  // animate text_sequence (narratif + pensées) when image changes
   React.useEffect(() => {
     setSimThoughtCount(0)
+    setSimThoughtFading(false)
     setSimTextVisible(false)
     setSimDisplayedChars(0)
     setSimTextDone(false)
+    setSimPhraseIdx(-1)
+    setSimPhraseFading(false)
+    setSimPhrasesCompleted(false); setSimDecisionAnnounce(false)
+    afterPhraseTimersRef.current.forEach(clearTimeout); afterPhraseTimersRef.current = []
+    setSimLastThought(null)
+    setChoicesCollapsed(false)
     if (!simMode) return
-    if (textMode === 'narratif') {
-      const thought = simPlayableImgs[simImgIdx]?.thought ?? ''
-      if (!thought) { if (simIsLastImg) setSimTextDone(true); return }
-      const sentences = thought.match(/[^.!?…]+[.!?…]*/g)?.map((s: string) => s.trim()).filter(Boolean) ?? [thought]
-      setSimThoughtCount(1)
-      const timers: ReturnType<typeof setTimeout>[] = []
-      for (let i = 1; i < sentences.length; i++) {
-        timers.push(setTimeout(() => setSimThoughtCount(i + 1), i * 1800))
-      }
-      if (simIsLastImg) {
-        timers.push(setTimeout(() => setSimTextDone(true), sentences.length * 1800 + 400))
-      }
-      return () => timers.forEach(clearTimeout)
-    } else {
-      // En mode descriptif, le texte n'apparaît que sur la dernière image
-      if (!simIsLastImg) return
-      const t = setTimeout(() => setSimTextVisible(true), 400)
+
+    // Narratif avec phrases assignées à cette image → lancer les phrases directement
+    const myPhrases = phrasesByImage[simImgIdx] ?? []
+    if (textMode === 'narratif' && myPhrases.length > 0) {
+      const t = setTimeout(() => setSimPhraseIdx(0), 300)
       return () => clearTimeout(t)
     }
-  }, [section?.id, simImgIdx, textMode, simMode])
 
-  // Typewriter sur la dernière image (mode descriptif)
+    // Sinon → séquence de pensées (descriptif ou narratif sans phrases sur cette image)
+    const seq = getSimSeq(simImgIdx)
+    if (seq.length === 0) {
+      if (simIsLastImg) {
+        // Pas de pensées, pas de phrases → terminé directement
+        const t = setTimeout(() => { simTextDoneSectionRef.current = section?.id ?? null; setSimTextDone(true); }, 300)
+        return () => clearTimeout(t)
+      }
+      return // non-dernière → auto-advance timer gère la suite
+    }
+    setSimThoughtCount(1)
+    const ITEM_MS = 3000
+    const FADE_MS = 450
+    const timers: ReturnType<typeof setTimeout>[] = []
+    for (let i = 1; i < seq.length; i++) {
+      timers.push(setTimeout(() => setSimThoughtFading(true), i * ITEM_MS - FADE_MS))
+      timers.push(setTimeout(() => { setSimThoughtCount(i + 1); setSimThoughtFading(false) }, i * ITEM_MS))
+    }
+    if (simIsLastImg) {
+      // Dernière image avec pensées mais sans phrases → terminé après les pensées
+      timers.push(setTimeout(() => setSimThoughtFading(true), seq.length * ITEM_MS - FADE_MS))
+      timers.push(setTimeout(() => { simTextDoneSectionRef.current = section?.id ?? null; setSimTextDone(true); }, seq.length * ITEM_MS))
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [section?.id, simImgIdx, textMode, simMode, simPlayableImgs.length])
+
+  // Capture la dernière pensée affichée (pour la garder lors des choix)
   React.useEffect(() => {
-    if (!simTextVisible || textMode !== 'descriptif' || !simIsLastImg) return
-    const fullText = section?.content ?? ''
-    if (!fullText) { setSimTextDone(true); return }
-    setSimDisplayedChars(0)
-    const id = setInterval(() => {
-      setSimDisplayedChars(n => {
-        if (n >= fullText.length) { clearInterval(id); setSimTextDone(true); return n }
-        return n + 4
-      })
-    }, 22)
-    return () => clearInterval(id)
-  }, [simTextVisible, section?.id])
+    if (simThoughtCount > 0) {
+      const seq = getSimSeq(simImgIdx)
+      const item = seq[simThoughtCount - 1]
+      if (item?.text) setSimLastThought(item.text)
+    }
+  }, [simThoughtCount, simImgIdx])
 
-  // auto-advance timer (seulement sur les images non-dernières)
+  // simLastThought is captured as thoughts progress — no settle state needed
+
+  // ── BPM : base selon intensité section, variation lente ──────────────
+  React.useEffect(() => {
+    if (!simMode) return
+    const trialType = section?.trial?.type
+    const tension   = section?.tension_level ?? 1
+    const base = trialType === 'combat'      ? 125
+               : trialType === 'dialogue'    ? 82
+               : tension >= 4               ? 110
+               : tension >= 3               ? 95
+               : tension >= 2               ? 80
+               :                              65
+    setSimBpm(base)
+    const tick = () => {
+      const jitter = Math.round((Math.random() - 0.5) * 10)
+      setSimBpm(Math.max(55, Math.min(165, base + jitter)))
+    }
+    let delay = 3000 + Math.random() * 3000
+    let timerId: ReturnType<typeof setTimeout>
+    const schedule = () => { timerId = setTimeout(() => { tick(); delay = 3000 + Math.random() * 3000; schedule() }, delay) }
+    schedule()
+    return () => clearTimeout(timerId)
+  }, [section?.id, simMode])
+
+  // ── BPM spike quand les choix apparaissent ────────────────────────────
+  React.useEffect(() => {
+    if (!simMode || !simTextDone) return
+    const trialType = section?.trial?.type
+    const tension   = section?.tension_level ?? 1
+    const base = trialType === 'combat' ? 125 : tension >= 3 ? 95 : tension >= 2 ? 80 : 65
+    setSimBpm(Math.min(170, base + 18))
+    const t = setTimeout(() => setSimBpm(base), 2500)
+    return () => clearTimeout(t)
+  }, [simTextDone, simMode])
+
+  // Quand toutes les phrases d'une image sont lues → avance ou termine
+  React.useEffect(() => {
+    if (!simPhrasesCompleted) return
+    if (simIsLastImg) {
+      const dt = section?.decision_time
+      if (dt && dt > 0 && textMode === 'narratif') {
+        // Démarrer le countdown et afficher l'annonce
+        startCountdown(dt)
+        setSimDecisionAnnounce(true)
+        const t = setTimeout(() => {
+          setSimDecisionAnnounce(false)
+          simTextDoneSectionRef.current = section?.id ?? null
+          setSimTextDone(true)
+        }, 2000)
+        return () => clearTimeout(t)
+      }
+      simTextDoneSectionRef.current = section?.id ?? null
+      setSimTextDone(true)
+    } else {
+      lastLoadedImgRef.current = simPlayableImgs[simImgIdx]?.url ?? null
+      setSimImgIdx(i => i + 1)
+    }
+  }, [simPhrasesCompleted])
+
+  // ── Déclenchement discussion sur dernière image ───────────────────────
+  React.useEffect(() => {
+    if (!simMode || !simIsLastImg || !simTextDone) return
+    onNavReady?.()
+    // La discussion est déclenchée manuellement par le joueur via le choix dédié
+  }, [simMode, simIsLastImg, simTextDone, section?.id])
+
+  // ── Transition opening → choices quand le joueur lance la discussion ──
+  React.useEffect(() => {
+    // pre_opening → opening : dots NPC visibles ~1.2s, puis le texte d'ouverture apparaît
+    if (simDiscPhase === 'pre_opening') {
+      const t = setTimeout(() => setSimDiscPhase('opening'), 750)
+      return () => clearTimeout(t)
+    }
+    // opening → player_thinking : lecture du texte NPC, puis dots joueur
+    if (simDiscPhase === 'opening') {
+      const disc = (section as any)?.discussion_scene
+      if (!disc) return
+      const words = (disc.npc_opening ?? '').split(' ').length
+      const delay = Math.max(words * 140 + 700, 1800)
+      const t = setTimeout(() => {
+        setSimDiscCurrentChoices(disc.choices)
+        setSimDiscPhase('player_thinking')
+      }, delay)
+      return () => clearTimeout(t)
+    }
+    // player_thinking → active : dots joueur ~900ms, puis choix apparaissent
+    if (simDiscPhase === 'player_thinking') {
+      const t = setTimeout(() => setSimDiscPhase('active'), 550)
+      return () => clearTimeout(t)
+    }
+  }, [simMode, simDiscPhase, section?.id])
+
+  // Auto-scroll discussion vers le bas à chaque nouvel échange (slide fluide)
+  React.useEffect(() => {
+    const el = simDiscScrollRef.current
+    if (!el) return
+    // Toujours scroller dans le container — évite que scrollIntoView remonte la page entière
+    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [simDiscHistory.length, simDiscPhase])
+
+  // Tap en mode narratif → avance les phrases, puis enchaîne les pensées de l'image
+  function handlePhraseAdvance() {
+    if (simPhraseIdx < 0 || simTextDone) return
+    const myPhrases = phrasesByImage[simImgIdx] ?? []
+    const isLast = simPhraseIdx >= myPhrases.length - 1
+    if (isLast) {
+      // En mode narratif : pas de fade-out, transition directe
+      if (textMode === 'narratif') {
+        setSimPhraseIdx(-1)
+        afterPhraseTimersRef.current.forEach(clearTimeout)
+        afterPhraseTimersRef.current = []
+        setSimPhrasesCompleted(true)
+        return
+      }
+      setSimPhraseFading(true)
+      setTimeout(() => {
+        setSimPhraseIdx(-1)
+        setSimPhraseFading(false)
+        // Annule les éventuels timers de pensées précédents
+        afterPhraseTimersRef.current.forEach(clearTimeout)
+        afterPhraseTimersRef.current = []
+        const seq = getSimSeq(simImgIdx)
+        if (seq.length === 0 || (textMode as string) === 'narratif') {
+          // Pas de pensées, ou mode narratif → avance directement sans pensées
+          setSimPhrasesCompleted(true)
+          return
+        }
+        // Lance la séquence de pensées puis avance (mode descriptif seulement)
+        setSimThoughtFading(false)
+        setSimThoughtCount(1)
+        const ITEM_MS = 3000
+        const FADE_MS = 450
+        const timers: ReturnType<typeof setTimeout>[] = []
+        for (let i = 1; i < seq.length; i++) {
+          timers.push(setTimeout(() => setSimThoughtFading(true), i * ITEM_MS - FADE_MS))
+          timers.push(setTimeout(() => { setSimThoughtCount(i + 1); setSimThoughtFading(false) }, i * ITEM_MS))
+        }
+        timers.push(setTimeout(() => setSimThoughtFading(true), seq.length * ITEM_MS - FADE_MS))
+        timers.push(setTimeout(() => { setSimThoughtCount(0); setSimPhrasesCompleted(true) }, seq.length * ITEM_MS))
+        afterPhraseTimersRef.current = timers
+      }, 400)
+    } else {
+      if (textMode === 'narratif') {
+        setSimPhraseIdx(i => i + 1)
+      } else {
+        setSimPhraseFading(true)
+        setTimeout(() => { setSimPhraseIdx(i => i + 1); setSimPhraseFading(false) }, 300)
+      }
+    }
+  }
+
+  // auto-advance timer (seulement sur les images non-dernières sans phrases assignées)
   React.useEffect(() => {
     if (!simMode || !simPlaying || simIsLastImg) return
-    const thought = simPlayableImgs[simImgIdx]?.thought ?? ''
-    const sentences = thought.match(/[^.!?…]+[.!?…]*/g)?.map((s: string) => s.trim()).filter(Boolean) ?? []
-    const delay = textMode === 'narratif'
-      ? Math.max(sentences.length * 1800 + 1600, 3500)
-      : 4000
+    // Si des phrases sont assignées à cette image, c'est simPhrasesCompleted qui gère l'avance
+    if ((phrasesByImage[simImgIdx] ?? []).length > 0) return
+    const seq = getSimSeq(simImgIdx)
+    // En mode narratif, pas de pensées → délai court fixe ; en descriptif on attend les pensées
+    const delay = textMode === 'narratif' ? 2000 : Math.max(seq.length * 3000 + 1000, 3500)
     const t = setTimeout(() => {
+      // Mise à jour de l'index seulement — le crossfade est géré par opacity CSS dans le conteneur
+      lastLoadedImgRef.current = simPlayableImgs[simImgIdx]?.url ?? null
       setSimImgIdx(i => {
         const next = i + 1
         if (next >= simPlayableImgs.length) { setSimPlaying(false); return i }
@@ -6511,73 +9472,44 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       })
     }, delay)
     return () => clearTimeout(t)
-  }, [simMode, simPlaying, simImgIdx, textMode, simPlayableImgs, simIsLastImg])
-  // ── Dialogue simulation ───────────────────────────────────────────────
-  type SimNpcResponse = { npc_id: string; text: string; agrees: boolean; emotion: string; test_result: string }
-  type SimDialogueData = { player_question: string; npc_responses: SimNpcResponse[] }
-  const [simDialoguePhase, setSimDialoguePhase] = React.useState<'idle' | 'loading' | 'question' | 'responding' | 'done'>('idle')
-  const [simDialogueData, setSimDialogueData] = React.useState<SimDialogueData | null>(null)
-  const [simRevealedIds, setSimRevealedIds] = React.useState<string[]>([])
-  const [simActiveBubbleId, setSimActiveBubbleId] = React.useState<string | null>(null)
-  const [simAutoNpcIds, setSimAutoNpcIds] = React.useState<string[]>([])
-  const [simNpcEmotions, setSimNpcEmotions] = React.useState<Record<string, string>>({})
-  const [simPlayerBubbleVisible, setSimPlayerBubbleVisible] = React.useState(false)
-  const [simClickedNpcId, setSimClickedNpcId] = React.useState<string | null>(null)
-  const [simCaptionSentences, setSimCaptionSentences] = React.useState<{ text: string; start: number; end: number; groups: { text: string; start: number; end: number }[] }[]>([])
-  const [simCaptionSentIdx, setSimCaptionSentIdx] = React.useState<number>(-1)
-  const [simCaptionGroupIdx, setSimCaptionGroupIdx] = React.useState<number>(-1)
-  const [simCaptionNpcId, setSimCaptionNpcId] = React.useState<string | null>(null)
-  const simAudioRef = React.useRef<HTMLAudioElement | null>(null)
+  }, [simMode, simPlaying, simImgIdx, textMode, simPlayableImgs, simIsLastImg, phrasesByImage])
   const simMusicRef = React.useRef<HTMLAudioElement | null>(null)
-  const simCaptionTimerRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
-  const simRunRef = React.useRef(0)
 
   // ── Countdown timer ───────────────────────────────────────────────────
-  const [countdown, setCountdown] = React.useState(() => {
-    const total = (section?.reading_time ?? 0) + (section?.decision_time ?? 0)
-    return total > 0 ? total : 0
-  })
+  const [countdown, setCountdown] = React.useState(0)
   const countdownIntervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null)
+  const countdownEndedRef = React.useRef(false)
 
-  React.useEffect(() => {
-    const total = (section?.reading_time ?? 0) + (section?.decision_time ?? 0)
-    setCountdown(total > 0 ? total : 0)
-    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current)
-    if (total > 0) {
+  function stopCountdown() {
+    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null }
+    countdownEndedRef.current = false
+    setCountdown(0)
+  }
+  function startCountdown(secs: number) {
+    if (countdownIntervalRef.current) { clearInterval(countdownIntervalRef.current); countdownIntervalRef.current = null }
+    countdownEndedRef.current = false
+    setCountdown(secs)
+    if (secs > 0) {
       countdownIntervalRef.current = setInterval(() => {
         setCountdown(prev => {
-          if (prev <= 1) { clearInterval(countdownIntervalRef.current!); countdownIntervalRef.current = null; return 0 }
+          if (prev <= 1) {
+            clearInterval(countdownIntervalRef.current!); countdownIntervalRef.current = null
+            countdownEndedRef.current = true
+            return 0
+          }
           return prev - 1
         })
       }, 1000)
     }
-    return () => { if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current) }
-  }, [section?.id, section?.reading_time, section?.decision_time])
+  }
+
+  // Reset countdown quand on change de section
+  React.useEffect(() => { stopCountdown() }, [section?.id])
 
   function formatCountdown(secs: number): string {
     const m = Math.floor(secs / 60)
     const s = secs % 60
     return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  }
-
-  function closeMangaDialog() {
-    simRunRef.current++  // invalide toute instance openMangaDialogue en cours
-    setSimMangaOpen(false)
-    setSimDialoguePhase('idle')
-    setSimDialogueData(null)
-    setSimRevealedIds([])
-    setSimActiveBubbleId(null)
-    setSimAutoNpcIds([])
-    setSimNpcEmotions({})
-    setSimPlayerBubbleVisible(false)
-    setSimClickedNpcId(null)
-    setSimCaptionSentences([])
-    setSimCaptionSentIdx(-1)
-
-    setSimCaptionGroupIdx(-1)
-    setSimCaptionNpcId(null)
-    if (simCaptionTimerRef.current) { clearInterval(simCaptionTimerRef.current); simCaptionTimerRef.current = null }
-    if (simAudioRef.current) { simAudioRef.current.pause(); simAudioRef.current = null }
   }
 
   function handleChoiceWithTransition(choice: import('@/types').Choice) {
@@ -6591,348 +9523,114 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     if (!imgUrl) { onChoiceClick?.(choice); return }
 
     setTransitionChoice(choice)
+    setTransChunkCount(0)
+    setTransDecisionAnnounce(false)
+    stopCountdown()
+    onTransitionStart?.(choice)
 
-    // Durée calculée depuis la longueur du texte (15 chars/s, min 2s, max 6s)
     const text = choice.transition_text ?? ''
-    const durationMs = text.length > 0
-      ? Math.max(2000, Math.min(6000, (text.length / 15) * 1000))
-      : 2500
+    const chunks = getNarrChunks(text)
+    const nextSec = allSections.find(sec => sec.id === choice.target_section_id)
+    const nextDecisionTime = nextSec?.decision_time ?? null
+
+    function doNavigate() {
+      if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
+      onChoiceClick?.(choice)
+      setTimeout(() => {
+        setTransitionFadingOut(true)
+        setTimeout(() => {
+          setTransitionChoice(null)
+          setTransitionFadingOut(false)
+          setTransChunkCount(0)
+          setTransDecisionAnnounce(false)
+          onTransitionEnd?.()
+        }, 750)
+      }, 100)
+    }
+
+    // Durée totale estimée = nb mots * intervalle + 3s announce + 0.75s fondu
+    const totalWordCount = text.split(/\s+/).filter(Boolean).length
+    const totalMs = totalWordCount > 0 ? totalWordCount / (readingWpm / 60) * 1000 + 3000 : 2500
 
     // Fondu progressif de la musique sur toute la durée
-    const audio = simMusicRef.current
-    if (audio) {
-      const startVol = audio.volume
+    // On capture l'instance audio courante — si simMusicRef change (nouvelle section),
+    // l'intervalle s'arrête sans toucher au nouvel audio.
+    const audioToFade = simMusicRef.current
+    if (audioToFade) {
+      const startVol = audioToFade.volume
       const steps = 40
-      const stepMs = durationMs / steps
+      const stepMs = totalMs / steps
       let step = 0
       const fadeId = setInterval(() => {
         step++
-        if (!simMusicRef.current) { clearInterval(fadeId); return }
-        simMusicRef.current.volume = Math.max(0, startVol * (1 - step / steps))
+        if (simMusicRef.current !== audioToFade) { clearInterval(fadeId); return }
+        audioToFade.volume = Math.max(0, startVol * (1 - step / steps))
         if (step >= steps) clearInterval(fadeId)
       }, stepMs)
     }
 
+    if (transWordTimerRef.current) { clearInterval(transWordTimerRef.current); transWordTimerRef.current = null }
     if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current)
-    transitionTimerRef.current = setTimeout(() => {
-      setTransitionChoice(null)
-      onChoiceClick?.(choice)
-    }, durationMs)
-  }
+    setTransitionFadingOut(false)
 
-  type CaptionGroup = { text: string; start: number; end: number; charStart?: number; charEnd?: number }
-  type CaptionSentence = { text: string; start: number; end: number; groups: CaptionGroup[] }
-  type VoiceData = { audio: HTMLAudioElement; groups: CaptionGroup[] }
-
-  function buildCaptionGroups(alignment: any, chunkSize = 3): CaptionGroup[] {
-    const chars: string[] = alignment?.characters ?? []
-    const starts: number[] = alignment?.character_start_times_seconds ?? []
-    const ends: number[] = alignment?.character_end_times_seconds ?? []
-    if (!chars.length) return []
-
-    const words: { text: string; start: number; end: number }[] = []
-    let word = '', wordStart = 0
-    for (let i = 0; i < chars.length; i++) {
-      if (chars[i] === ' ' || chars[i] === '\n') {
-        if (word) { words.push({ text: word, start: wordStart, end: ends[i - 1] ?? ends[i] }); word = '' }
-      } else {
-        if (!word) wordStart = starts[i]
-        word += chars[i]
-      }
-    }
-    if (word) words.push({ text: word, start: wordStart, end: ends[ends.length - 1] })
-
-    // Étendre chaque mot jusqu'au début du suivant pour supprimer les micro-gaps
-    for (let i = 0; i < words.length - 1; i++) {
-      words[i].end = words[i + 1].start
-    }
-
-    const groups: CaptionGroup[] = []
-    for (let i = 0; i < words.length; i += chunkSize) {
-      const chunk = words.slice(i, i + chunkSize)
-      groups.push({ text: chunk.map(w => w.text).join(' '), start: chunk[0].start, end: chunk[chunk.length - 1].end })
-    }
-    return groups
-  }
-
-  function buildCaptionSentences(groups: CaptionGroup[]): CaptionSentence[] {
-    if (!groups.length) return []
-    const sentences: CaptionSentence[] = []
-    let current: CaptionGroup[] = []
-
-    function makeSentence(grps: CaptionGroup[]): CaptionSentence {
-      const sentText = grps.map(g => g.text).join(' ')
-      let charPos = 0
-      const groupsWithPos = grps.map(g => {
-        const charStart = charPos
-        const charEnd = charPos + g.text.length
-        charPos += g.text.length + 1
-        return { ...g, charStart, charEnd }
-      })
-      return { text: sentText, start: grps[0].start, end: grps[grps.length - 1].end, groups: groupsWithPos }
-    }
-
-    for (const g of groups) {
-      current.push(g)
-      if (/[.,!?:;]$/.test(g.text.trimEnd())) {
-        sentences.push(makeSentence(current))
-        current = []
-      }
-    }
-    if (current.length) sentences.push(makeSentence(current))
-    return sentences
-  }
-
-  async function playAudio(voiceData: VoiceData, npcId?: string) {
-    const { audio, groups } = voiceData
-    if (simAudioRef.current) { simAudioRef.current.pause(); simAudioRef.current = null }
-    if (simCaptionTimerRef.current) { clearInterval(simCaptionTimerRef.current); simCaptionTimerRef.current = null }
-    simAudioRef.current = audio
-
-    if (groups.length > 0 && npcId) {
-      const sentences = buildCaptionSentences(groups)
-      setSimCaptionNpcId(npcId)
-      setSimCaptionSentences(sentences)
-      setSimCaptionSentIdx(-1)
-      setSimCaptionGroupIdx(-1)
-      const timerId = setInterval(() => {
-        const t = audio.currentTime
-        // Chercher la DERNIÈRE phrase dont le start a été atteint (évite que findIndex reste bloqué sur la phrase 0)
-        let sIdx = -1
-        for (let i = sentences.length - 1; i >= 0; i--) {
-          if (t >= sentences[i].start - 0.15) { sIdx = i; break }
+    if (chunks.length > 0) {
+      let transCancelled = false
+      function scheduleTransChunk(idx: number) {
+        if (transCancelled || idx >= chunks.length) return
+        const prevChunk = idx > 0 ? chunks[idx - 1] : null
+        let delay = 0
+        if (prevChunk) {
+          const wc = prevChunk.text.split(/\s+/).filter(Boolean).length
+          const readMs = Math.round(wc / readingWpm * 60000)
+          const baseBreak = prevChunk.lineBreak ? wordIntervalMs * 5 : wordIntervalMs * 2
+          delay = readMs + baseBreak
         }
-        // Effacer si la grace period après la fin de la phrase est expirée
-        // Dernière phrase : grace period plus longue (3s) pour laisser le temps de lire
-        const isLast = sIdx === sentences.length - 1
-        const gracePeriod = isLast ? 3.0 : 1.2
-        if (sIdx >= 0 && t > sentences[sIdx].end + gracePeriod) sIdx = -1
-        if (sIdx >= 0) {
-          const gIdx = sentences[sIdx].groups.findIndex(g => t >= g.start && t < g.end)
-          setSimCaptionSentIdx(sIdx)
-          setSimCaptionGroupIdx(gIdx)
-        } else {
-          setSimCaptionSentIdx(-1)
-          setSimCaptionGroupIdx(-1)
-        }
-      }, 50)
-      simCaptionTimerRef.current = timerId
-    }
-
-    const myTimerId = simCaptionTimerRef.current
-    await new Promise<void>(resolve => {
-      const done = () => {
-        // Ne clear QUE l'interval qui appartient à CET appel playAudio
-        if (myTimerId !== null && simCaptionTimerRef.current === myTimerId) {
-          clearInterval(myTimerId)
-          simCaptionTimerRef.current = null
-        }
-        // Ne resetter les états caption que si cet audio avait des captions
-        // (évite que done() du joueur/audio sans captions efface l'état d'un NPC suivant)
-        if (myTimerId !== null) {
-          setSimCaptionSentences([])
-          setSimCaptionSentIdx(-1)
-          setSimCaptionGroupIdx(-1)
-          setSimCaptionNpcId(null)
-        }
-        resolve()
+        const tid = setTimeout(() => {
+          if (transCancelled) return
+          setTransChunkCount(idx + 1)
+          if (idx + 1 >= chunks.length) {
+            // Dernier chunk : pause de lecture puis naviguer directement
+            const lastWc = chunks[idx].text.split(/\s+/).filter(Boolean).length
+            const readDelay = Math.round(lastWc / readingWpm * 60000) + wordIntervalMs * 5
+            transitionTimerRef.current = setTimeout(doNavigate, readDelay)
+          } else {
+            scheduleTransChunk(idx + 1)
+          }
+        }, delay)
+        ;(transWordTimerRef as React.MutableRefObject<any>).current = tid
       }
-      audio.addEventListener('ended', done, { once: true })
-      audio.addEventListener('error', done, { once: true })
-      const p = audio.play()
-      if (p) p.catch(done)
-      setTimeout(done, 30000)
-    })
-  }
-
-  // Joue 400ms de silence via Web Audio API pour réveiller les écouteurs Bluetooth
-  // avant le premier vrai stream audio (évite la coupure du début)
-  async function primeAudioDevice() {
-    try {
-      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const buffer = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.4), ctx.sampleRate)
-      const source = ctx.createBufferSource()
-      source.buffer = buffer
-      source.connect(ctx.destination)
-      source.start()
-      await new Promise(r => setTimeout(r, 450))
-      ctx.close()
-    } catch { /* ignore si Web Audio non dispo */ }
-  }
-
-  function extractEmotionFromTags(text: string, availableEmotions: string[]): string {
-    if (availableEmotions.length === 0) return 'neutre'
-    const tags = [...text.matchAll(/\[([^\]]+)\]/g)].map(m => m[1].toLowerCase())
-    for (const tag of tags) {
-      const found = availableEmotions.find(e => e.toLowerCase() === tag || tag.includes(e.toLowerCase()) || e.toLowerCase().includes(tag))
-      if (found) return found
-    }
-    return availableEmotions[0] ?? 'neutre'
-  }
-
-  async function openMangaDialogue(npc: import('@/types').Npc) {
-    // Invalider toute instance précédente et mémoriser ce run
-    simRunRef.current++
-    const myRun = simRunRef.current
-    // Nettoyer l'ancienne session audio/captions avant d'en démarrer une nouvelle
-    if (simCaptionTimerRef.current) { clearInterval(simCaptionTimerRef.current); simCaptionTimerRef.current = null }
-    if (simAudioRef.current) { simAudioRef.current.pause(); simAudioRef.current = null }
-
-    setSimMangaOpen(true)
-    setSimActiveNpc(npc)
-    setSimClickedNpcId(npc.id)
-    setSimDialoguePhase('loading')
-    primeAudioDevice()
-    setSimDialogueData(null)
-    setSimRevealedIds([])
-    setSimActiveBubbleId(null)
-    setSimAutoNpcIds([])
-    setSimNpcEmotions({})
-    setSimPlayerBubbleVisible(false)
-    setSimCaptionSentences([])
-    setSimCaptionSentIdx(-1)
-    setSimCaptionGroupIdx(-1)
-    setSimCaptionNpcId(null)
-
-    // ── 1. Question aléatoire parmi celles ayant une réponse en BDD ──
-    const storedQs = section?.player_questions ?? []
-    const rawResponses: Record<string, any> = (section as any)?.player_responses ?? {}
-
-    const getNpcResponse = (npcId: string, question: string): string | null => {
-      const byNpc = rawResponses[npcId]
-      if (byNpc && typeof byNpc === 'object') return byNpc[question] ?? null
-      const flat = rawResponses[question]
-      if (typeof flat === 'string') return flat
-      return null
-    }
-
-    const getNpcAudioUrl = (npcId: string, question: string): string | null => {
-      const byNpc = rawResponses[npcId]
-      if (byNpc && typeof byNpc === 'object') return byNpc[question + '__audio'] ?? null
-      return null
-    }
-
-    const getNpcAlignment = (npcId: string, question: string): any | null => {
-      const byNpc = rawResponses[npcId]
-      if (byNpc && typeof byNpc === 'object') return byNpc[question + '__alignment'] ?? null
-      return null
-    }
-
-    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
-    const isInternalKey = (k: string) => k.endsWith('__audio') || k.endsWith('__alignment') || uuidRe.test(k)
-    const inferredQs: string[] = storedQs.length === 0
-      ? (() => {
-          const byNpc = rawResponses[npc.id]
-          if (byNpc && typeof byNpc === 'object') return Object.keys(byNpc).filter(k => !isInternalKey(k))
-          return Object.keys(rawResponses).filter(k => !isInternalKey(k))
-        })()
-      : []
-    const allQs = storedQs.length > 0 ? storedQs : inferredQs
-
-    const qsWithSaved = allQs.filter(q => getNpcResponse(npc.id, q))
-    const playerQuestion = qsWithSaved.length > 0
-      ? qsWithSaved[Math.floor(Math.random() * qsWithSaved.length)]
-      : allQs.length > 0
-        ? allQs[Math.floor(Math.random() * allQs.length)]
-        : 'Vous avez une idée ?'
-
-    // Question joueur affichée immédiatement et persistante
-    setSimDialogueData({ player_question: playerQuestion, npc_responses: [] })
-    setSimPlayerBubbleVisible(true)
-    setSimDialoguePhase('question')
-
-    // ── 2. Ordre des PNJ : défini par companion_npc_ids dans la section (max 3) ──
-    // Le PNJ cliqué est toujours inclus, même s'il n'est pas dans companion_npc_ids
-    const companions = (simMode
-      ? npcs.filter(n => (section?.companion_npc_ids ?? []).includes(n.id) && n.type !== 'ennemi' && n.type !== 'boss')
-      : npcs.filter(n => n.id !== protagonist?.id).slice(0, 2)
-    )
-    const allSceneNpcs = [npc, ...companions.filter(n => n.id !== npc.id)]
-    const companionOrder = section?.companion_npc_ids ?? []
-    const orderedCompanions = [
-      ...companionOrder.map(id => allSceneNpcs.find(n => n.id === id)).filter(Boolean) as import('@/types').Npc[],
-      ...allSceneNpcs.filter(n => !companionOrder.includes(n.id))
-    ]
-    const sceneNpcs = orderedCompanions.slice(0, 4)
-
-    // ── 3. Réponses depuis BDD uniquement — pas d'appel API ──
-    const savedDbResponses: SimNpcResponse[] = sceneNpcs
-      .map(n => {
-        const text = getNpcResponse(n.id, playerQuestion)
-        if (!text) return null
-        const availableEmotions = Object.keys(n.portrait_emotions ?? {})
-        const emotion = extractEmotionFromTags(text, availableEmotions)
-        return { npc_id: n.id, text, agrees: true, emotion, test_result: 'success' } as SimNpcResponse
-      })
-      .filter(Boolean) as SimNpcResponse[]
-
-    if (savedDbResponses.length === 0) {
-      setSimDialoguePhase('done')
-      return
-    }
-
-    setSimDialogueData({ player_question: playerQuestion, npc_responses: savedDbResponses })
-    setSimAutoNpcIds(savedDbResponses.map(r => r.npc_id))
-
-    // ── 4. Voix joueur depuis BDD ──
-    const playerAudioUrl: string | null =
-      (rawResponses['__player__'] as any)?.[playerQuestion + '__audio'] ?? null
-    const playerWords = playerQuestion.trim().split(/\s+/).length
-    const playerReadMs = Math.max(2000, playerWords / 130 * 60000)
-    if (playerAudioUrl) {
-      try {
-        const res = await fetch(playerAudioUrl)
-        const buf = await res.arrayBuffer()
-        const audio = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' })))
-        await playAudio({ audio, groups: [] })
-        await new Promise(r => setTimeout(r, 400))
-      } catch {
-        // Audio indisponible → délai lecture
-        await new Promise(r => setTimeout(r, playerReadMs))
-      }
+      scheduleTransChunk(0)
     } else {
-      // Pas d'audio → délai basé sur le temps de lecture de la question
-      await new Promise(r => setTimeout(r, playerReadMs))
+      transitionTimerRef.current = setTimeout(doNavigate, 2500)
     }
-
-    // Si le dialogue a été fermé ou réouvert pendant l'attente, on abandonne
-    if (simRunRef.current !== myRun) return
-
-    setSimDialoguePhase('responding')
-
-    // ── 5. Séquence automatique — max 3 PNJ, audio depuis BDD uniquement ──
-    for (let i = 0; i < savedDbResponses.length; i++) {
-      if (simRunRef.current !== myRun) return
-      const resp = savedDbResponses[i]
-      const npcObj = sceneNpcs.find(n => n.id === resp.npc_id)
-      setSimRevealedIds(prev => [...prev, resp.npc_id])
-      setSimActiveBubbleId(resp.npc_id)
-      setSimNpcEmotions(prev => ({ ...prev, [resp.npc_id]: resp.emotion }))
-      if (npcObj) setSimActiveNpc(npcObj)
-
-      const audioUrl = getNpcAudioUrl(resp.npc_id, playerQuestion)
-      if (audioUrl) {
-        try {
-          const res = await fetch(audioUrl)
-          const buf = await res.arrayBuffer()
-          const audio = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/mpeg' })))
-          const alignment = getNpcAlignment(resp.npc_id, playerQuestion)
-          const groups = alignment ? buildCaptionGroups(alignment, 1) : []
-          await playAudio({ audio, groups }, resp.npc_id)
-        } catch {
-          const words = resp.text.trim().split(/\s+/).length
-          await new Promise(r => setTimeout(r, Math.max(2500, words / 130 * 60000)))
-        }
-      } else {
-        const words = resp.text.trim().split(/\s+/).length
-        await new Promise(r => setTimeout(r, Math.max(2500, words / 130 * 60000)))
-      }
-      if (simRunRef.current !== myRun) return
-      await new Promise(r => setTimeout(r, 300))
-    }
-    if (simRunRef.current !== myRun) return
-    setSimDialoguePhase('done')
   }
+
+  function handleChoiceConfirm(choice: import('@/types').Choice, ci: number) {
+    if (!simMode || !choice || confirmingChoiceIdx !== null) return
+    setConfirmingChoiceIdx(ci)
+    setTimeout(() => {
+      setConfirmingChoiceIdx(null)
+      handleChoiceWithTransition(choice)
+    }, 700)
+  }
+
+  // Ref toujours à jour pour l'auto-select (évite les closures périmées dans useEffect)
+  const sectionChoicesRef = React.useRef(sectionChoices)
+  sectionChoicesRef.current = sectionChoices
+  const handleChoiceConfirmRef = React.useRef(handleChoiceConfirm)
+  handleChoiceConfirmRef.current = handleChoiceConfirm
+
+  // Auto-select du choix par défaut quand le countdown atteint 0
+  React.useEffect(() => {
+    if (countdown !== 0 || !countdownEndedRef.current) return
+    countdownEndedRef.current = false
+    const choices = sectionChoicesRef.current
+    const defaultChoice = choices?.find(c => c.is_default)
+    if (!defaultChoice) return
+    const ci = choices!.indexOf(defaultChoice)
+    handleChoiceConfirmRef.current(defaultChoice, ci)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown])
 
   // ── Live state refs (drag closures) + states (render) ───────────────
   const livePhotoRef   = React.useRef({ ...(s.el_photo    ?? DEF.el_photo) })
@@ -7088,11 +9786,18 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   if (!simMode && vignettes.length === 0) vignettes.push({ name: 'Protagonist' }, { name: 'Rico' }, { name: 'Mara' })
   const vigPositions = (() => {
     if (simMode && vignettes.length > 0) {
-      const anchor = liveVigPos[0] ?? DEF.vignette_positions[0]
-      const szPlayer = Math.round(s.vignette_size * 1.15 * 0.7)  // taille réelle du protagoniste
+      const anchor   = liveVigPos[0] ?? DEF.vignette_positions[0]
+      const vigSt    = s.vignette_style ?? 'circle'
+      const szPlayer = Math.round(s.vignette_size * 1.15 * 0.7)
       const szNpc    = Math.round(s.vignette_size * 0.7)
-      const firstStep = szPlayer + 40  // espace après le protagoniste
-      const step      = szNpc    + 28  // espace entre NPCs
+      // Hauteur effective selon style
+      const hPlayer  = vigSt === 'card' ? Math.round(szPlayer * 1.35) : vigSt === 'tile' ? Math.round(szPlayer * 0.85) : szPlayer
+      const hNpc     = vigSt === 'card' ? Math.round(szNpc    * 1.35) : vigSt === 'tile' ? Math.round(szNpc    * 0.85) : szNpc
+      // Si >= 3 vignettes, "Mon gang" label (~22px) est placé sous le protagoniste → les PNJ doivent démarrer après
+      const hasGangLabel = vignettes.length >= 3
+      const gangOffset = hasGangLabel ? Math.round(CW * 0.105) : 0  // ~41px pour tile avec label
+      const firstStep = hPlayer + (vigSt === 'tile' ? Math.max(11, gangOffset) : 36)
+      const step      = hNpc   + (vigSt === 'tile' ? 3  : 19)
       return vignettes.map((_, i) => ({
         x: anchor.x,
         y: i === 0 ? anchor.y : anchor.y + firstStep + (i - 1) * step,
@@ -7122,8 +9827,10 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     ? `linear-gradient(to bottom, transparent, ${s.text_bg_color}${Math.round(s.text_bg_opacity * 2.55).toString(16).padStart(2,'0')} 28%)`
     : `${s.text_bg_color}${Math.round(s.text_bg_opacity * 2.55).toString(16).padStart(2,'0')}`
 
+  const shakeAnim = simMode && (activeImgEffect === 'shake' || activeImgEffect === 'impact') ? 'imgShake 0.5s ease both' : undefined
+
   return (
-    <div ref={containerRef} style={{ width: '390px', height: '845px', background: s.photo_bg, position: 'relative', overflow: 'hidden', userSelect: 'none' }}>
+    <div ref={containerRef} style={{ width: '390px', height: '845px', background: s.photo_bg, position: 'relative', overflow: 'hidden', userSelect: 'none', animation: shakeAnim }}>
 
       {/* ── Illustration plein écran (fond) ─────────────────────────── */}
       <div
@@ -7137,16 +9844,90 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           outline: interactive ? '1px dashed rgba(212,168,76,0.2)' : 'none',
           cursor: interactive ? (dragging === 'photo_pos' ? 'grabbing' : 'grab') : 'default',
         }}>
-        <style>{`@keyframes simImgIn{from{opacity:0}to{opacity:1}}@keyframes simBlink{0%,100%{opacity:1}50%{opacity:0}}@keyframes simItemPulse{0%,100%{box-shadow:0 0 10px rgba(212,168,76,0.5),0 0 22px rgba(212,168,76,0.2)}50%{box-shadow:0 0 18px rgba(212,168,76,0.9),0 0 36px rgba(212,168,76,0.4)}}@keyframes thoughtChar{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}`}</style>
-        <img key={`${section?.id}-${simImgIdx}`}
-          src={(simPlayableImgs[simImgIdx]?.url ?? section?.images?.[0]?.url) ?? section?.image_url ?? placeholderImg}
-          alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none', animation: simMode ? 'simImgIn 0.6s ease' : 'none' }} />
+        <style>{`@keyframes imgShake{0%{transform:translate(0,0)}10%{transform:translate(-6px,-4px)}20%{transform:translate(7px,3px)}30%{transform:translate(-5px,5px)}40%{transform:translate(6px,-3px)}50%{transform:translate(-4px,4px)}60%{transform:translate(5px,-5px)}70%{transform:translate(-3px,3px)}80%{transform:translate(4px,-2px)}90%{transform:translate(-2px,2px)}100%{transform:translate(0,0)}}@keyframes imgFlashRed{0%{opacity:0.85}100%{opacity:0}}@keyframes imgFlashWhite{0%{opacity:0.9}100%{opacity:0}}@keyframes imgImpact{0%{transform:scale(1.08)}100%{transform:scale(1)}}@keyframes simImgIn{from{opacity:0}to{opacity:1}}@keyframes simBlink{0%,100%{opacity:1}50%{opacity:0}}@keyframes simItemPulse{0%,100%{box-shadow:0 0 10px rgba(212,168,76,0.5),0 0 22px rgba(212,168,76,0.2)}50%{box-shadow:0 0 18px rgba(212,168,76,0.9),0 0 36px rgba(212,168,76,0.4)}}@keyframes thoughtAppear{from{opacity:0;transform:translateY(8px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes thoughtFadeOut{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-8px)}}@keyframes heartbeat{0%{transform:scale(1)}12%{transform:scale(1.35)}22%{transform:scale(1.05)}32%{transform:scale(1.2)}42%{transform:scale(1)}100%{transform:scale(1)}}@keyframes thoughtSlideDown{from{transform:translateY(0);opacity:0}to{transform:translateY(520px);opacity:1}}@keyframes portraitFadeOut{from{opacity:1}to{opacity:0}}@keyframes npcZoomIn{from{opacity:0;transform:scale(1.04)}to{opacity:1;transform:scale(1)}}@keyframes npcShrink{from{opacity:1;transform:scale(1)}to{opacity:0;transform:scale(0.96)}}@keyframes kenBurns{0%{transform:scale(1) translate(0%,0%)}100%{transform:scale(1.07) translate(-1%,-0.5%)}}@keyframes simPulse{0%,100%{opacity:0.3;transform:translateY(0)}50%{opacity:0.8;transform:translateY(4px)}}@keyframes discBubble{from{opacity:0;transform:translateY(12px) scale(0.95)}to{opacity:1;transform:translateY(0) scale(1)}}@keyframes discTyping{0%,100%{opacity:0.25;transform:translateY(0)}50%{opacity:0.85;transform:translateY(-3px)}}@keyframes discNpcSlideIn{from{opacity:0;transform:translateX(-48px)}to{opacity:1;transform:translateX(0)}}@keyframes discChoiceSlide{from{opacity:1;transform:translateX(0)}to{opacity:1;transform:translateX(60px)}}@keyframes discFadeIn{from{opacity:0}to{opacity:1}}@keyframes thoughtNewGlow{0%,100%{box-shadow:0 0 0 1px rgba(212,168,76,0.3)}50%{box-shadow:0 0 0 2px rgba(212,168,76,0.95),0 0 14px rgba(212,168,76,0.4)}}@keyframes wordAppear{0%{opacity:0;filter:blur(4px)}60%{opacity:0.7;filter:blur(1px)}100%{opacity:1;filter:blur(0)}}`}</style>
+        {simMode ? (() => {
+          // ── Conteneur Ken Burns fixe (ne remonte pas entre les images) ──
+          // Les images crossfadent en opacity à l'intérieur — zéro saccade
+          const allSrcs = simPlayableImgs.map(img => img.url).filter(Boolean) as string[]
+          const fallbackSrc = section?.images?.[0]?.url ?? section?.image_url ?? placeholderImg
+          return (
+            <div
+              key={section?.id}  // keyé section seulement — jamais remontée pendant le défilement
+              style={{ position: 'absolute', inset: 0, animation: `kenBurns ${KB_DURATION}s ease-in-out forwards`, willChange: 'transform' }}
+            >
+              {/* Image de cross-fade section→section : fade out via opacity, puis démontée */}
+              {crossFadePrev && (
+                <img
+                  src={crossFadePrev}
+                  alt=""
+                  onTransitionEnd={() => setCrossFadePrev(null)}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', pointerEvents: 'none', zIndex: 3, opacity: 0, transition: 'opacity 0.8s ease' }}
+                />
+              )}
+              {/* Toutes les images de la section — seule la courante est opaque */}
+              {(allSrcs.length > 0 ? allSrcs : [fallbackSrc]).map((src, idx) => (
+                <img
+                  key={src}
+                  src={src}
+                  alt=""
+                  onLoad={() => {
+                    if (idx === simImgIdx) {
+                      lastLoadedImgRef.current = src
+                      // Supprime le crossFadePrev dès que la première image est chargée
+                      if (crossFadeTimerRef.current) clearTimeout(crossFadeTimerRef.current)
+                      crossFadeTimerRef.current = setTimeout(() => { setCrossFadePrev(null); crossFadeTimerRef.current = null }, 700)
+                    }
+                  }}
+                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none', zIndex: 2, opacity: idx === simImgIdx ? 1 : 0, transition: 'opacity 0.75s ease' }}
+                />
+              ))}
+            </div>
+          )
+        })() : (() => {
+          const currentSrc = section?.images?.[0]?.url ?? section?.image_url ?? placeholderImg
+          return <img src={currentSrc} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+        })()}
         {interactive && <ResizeCorner onMouseDown={e => startDrag('photo_size', e)} />}
       </div>
 
+      {/* ── Effet d'apparition image ── */}
+      {simMode && activeImgEffect && activeImgEffect !== 'none' && (() => {
+        if (activeImgEffect === 'flash_rouge') return (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 50, pointerEvents: 'none', background: '#c0000088', animation: 'imgFlashRed 0.4s ease both' }} />
+        )
+        if (activeImgEffect === 'flash_blanc') return (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 50, pointerEvents: 'none', background: '#ffffffcc', animation: 'imgFlashWhite 0.35s ease both' }} />
+        )
+        if (activeImgEffect === 'impact') return (
+          <div style={{ position: 'absolute', inset: 0, zIndex: 51, pointerEvents: 'none', background: '#c0000055', animation: 'imgFlashRed 0.3s ease both' }} />
+        )
+        return null
+      })()}
+
+      {/* ── Bouton Passer (toutes images sauf la dernière, sans phrases actives) ── */}
+      {simMode && !simIsLastImg && simPlayableImgs.length > 1 && simPhraseIdx < 0 && (
+        <button
+          onClick={() => {
+            lastLoadedImgRef.current = simPlayableImgs[simImgIdx]?.url ?? null
+            setSimImgIdx(simPlayableImgs.length - 1)
+          }}
+          style={{
+            position: 'absolute', top: Math.round(CW * 0.031), left: '50%', transform: 'translateX(-50%)',
+            zIndex: 30, background: 'transparent',
+            border: 'none',
+            borderBottom: '1px solid rgba(224,85,85,0.5)',
+            borderRadius: 0, padding: `${Math.round(CW * 0.01)}px ${Math.round(CW * 0.041)}px`, color: 'rgba(255,255,255,0.8)',
+            fontSize: Math.round(CW * 0.028), cursor: 'pointer', letterSpacing: '0.1em',
+            fontWeight: 500, textShadow: '0 1px 8px rgba(0,0,0,1)',
+          }}
+        >
+          Passer
+        </button>
+      )}
+
       {/* ── Objets sur scène (simulation, dernière image) ─────────── */}
       {simMode && simIsLastImg && simTextDone && (() => {
-        const sceneItems = ((section as any)?.items_on_scene ?? []) as { item_id: string; x?: number; y?: number }[]
+        const sceneItems = ((section as any)?.items_on_scene ?? []) as { item_id: string; x?: number; y?: number; scale?: number }[]
         const uncollected = sceneItems.filter(si => !simInventory?.[si.item_id])
         if (!uncollected.length) return null
         return uncollected.map(si => {
@@ -7154,17 +9935,22 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           if (!item) return null
           const px = (si.x ?? 0.5) * livePhoto.w + livePhoto.x
           const py = (si.y ?? 0.8) * livePhoto.h + livePhoto.y
+          const sz = Math.round(56 * (si.scale ?? 1))
+          const innerSz = sz - 14
           return (
             <div key={si.item_id}
               onClick={() => onCollectItem?.(si.item_id)}
               title={item.name}
               style={{ position: 'absolute', left: px, top: py, transform: 'translate(-50%,-50%)', zIndex: 15,
-                width: 56, height: 56, borderRadius: '50%', cursor: 'pointer',
-                background: 'rgba(0,0,0,0.55)', border: '2px solid rgba(212,168,76,0.7)',
-                backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                width: sz, height: sz, borderRadius: '50%', cursor: 'pointer',
+                background: 'transparent',
+                border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                animation: 'simItemPulse 2.4s ease infinite',
+              }}>
               {item.illustration_url
-                ? <img src={item.illustration_url} alt={item.name} style={{ width: 42, height: 42, objectFit: 'cover', borderRadius: '50%' }} />
-                : <span style={{ fontSize: 28 }}>{ITEM_CATEGORY_ICONS[item.category ?? 'persistant'] ?? '📦'}</span>
+                ? <img src={item.illustration_url} alt={item.name} style={{ width: innerSz, height: innerSz, objectFit: 'contain', borderRadius: '50%' }} />
+                : <span style={{ fontSize: Math.round(sz * 0.5) }}>{ITEM_CATEGORY_ICONS[item.category ?? 'persistant'] ?? '📦'}</span>
               }
             </div>
           )
@@ -7172,12 +9958,22 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       })()}
 
       {/* ── Barre de santé ──────────────────────────────────────────── */}
-      {s.health_show && (
+      {s.health_show && (() => {
+        const isTileMode = simMode && (s.vignette_style ?? 'circle') === 'tile' && s.vignettes_show
+        const szFirst    = Math.round(s.vignette_size * 1.15 * 0.7)
+        const tileW0     = vigCollapsed ? Math.round(szFirst * 0.85) : Math.round(szFirst * 2.6)
+        // Offset horizontal = différence entre largeur tuile et largeur cercle/carte
+        const tileOffset = isTileMode ? tileW0 - szFirst : 0
+        const hLeft  = liveHealth.x + tileOffset
+        const hTop   = liveHealth.y
+        const hWidth = (s.health_mode ?? 'text') === 'text' ? 'fit-content' : `${liveHealth.w}px`
+        return (
         <div
           onMouseDown={interactive ? e => startDrag('health_pos', e) : undefined}
           onClick={interactive ? e => { e.stopPropagation(); onUpdate?.('health_mode', (s.health_mode ?? 'text') === 'text' ? 'bar' : 'text') } : undefined}
-          style={{ position: 'absolute', left: liveHealth.x, top: liveHealth.y, width: (s.health_mode ?? 'text') === 'text' ? 'fit-content' : liveHealth.w, maxWidth: CW - liveHealth.x, zIndex: 25, cursor: interactive ? 'pointer' : 'default',
-            opacity: simMode ? (simTextDone ? 1 : 0) : 1, transition: 'opacity 0.6s ease',
+          style={{ position: 'absolute', left: hLeft, top: hTop, width: hWidth, maxWidth: CW - hLeft, zIndex: 25, cursor: interactive ? 'pointer' : 'default',
+            opacity: simMode ? (simTextDone ? 1 : 0) : 1,
+            transition: isTileMode ? 'opacity 0.6s ease, left 0.3s ease' : 'opacity 0.6s ease',
             pointerEvents: simMode && !simTextDone ? 'none' : 'auto' }}>
           {interactive && (s.health_mode ?? 'text') === 'bar' && (
             <div onMouseDown={e => { e.stopPropagation(); startDrag('health_w', e) }}
@@ -7191,7 +9987,30 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
             const dynText  = pct >= 90 ? 'Indemne' : pct >= 70 ? 'Tu tiens encore debout, mais chaque mouvement réveille une douleur sourde dans tes côtes' : pct >= 50 ? 'Blessé' : pct >= 25 ? 'Grièvement blessé' : 'À l\'agonie'
             const txtColor = s.health_text_color || dynColor
             return (
-              <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: `${Math.round(fs2 * 0.55)}px`, padding: `${Math.round(fs2 * 0.5)}px ${Math.round(fs2 * 1.1)}px`, border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', gap: `${Math.round(fs2 * 0.6)}px`, pointerEvents: 'none' }}>
+              <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: `${Math.round(fs2 * 0.55)}px`, padding: `${Math.round(fs2 * 0.5)}px ${Math.round(fs2 * 1.1)}px`, border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', gap: `${Math.round(fs2 * 0.6)}px`, pointerEvents: 'none' }}>
+                {/* ── Pouls animé (simMode) ── */}
+                {simMode && (() => {
+                  // Accélération cardiaque proportionnelle au countdown restant
+                  const decisionTime = section?.decision_time ?? 0
+                  const urgencyBpm = (countdown > 0 && decisionTime > 0)
+                    ? Math.round(simBpm + (1 - countdown / decisionTime) * Math.max(0, 165 - simBpm))
+                    : simBpm
+                  const beatMs  = urgencyBpm > 0 ? Math.round(60000 / urgencyBpm) : 1000
+                  const bpmColor = urgencyBpm < 80 ? '#4caf7d' : urgencyBpm < 100 ? '#d4a84c' : urgencyBpm < 130 ? '#e07d55' : '#e05555'
+                  return (
+                    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', lineHeight:1, flexShrink:0, marginRight:2, gap:1 }}>
+                      <svg
+                        width={Math.round(fs2 * 3.2)} height={Math.round(fs2 * 2.9)}
+                        viewBox="0 0 24 22" fill={bpmColor}
+                        style={{ animation:`heartbeat ${beatMs}ms ease-in-out infinite`, transformOrigin:'center', transition:'fill 0.6s ease' }}
+                      >
+                        <path d="M12 21.593c-5.63-5.539-11-10.297-11-14.402C1 3.08 3.945 1 6.5 1c1.796 0 3.65.757 5.5 2.44C13.85 1.757 15.704 1 17.5 1 20.055 1 23 3.08 23 7.191c0 4.105-5.37 8.863-11 14.402z"/>
+                      </svg>
+                      <span style={{ fontSize:`${fs2 * 2.1}px`, fontFamily:'monospace', fontWeight:700, color:bpmColor, letterSpacing:'-0.02em', transition:'color 0.6s ease' }}>{urgencyBpm}</span>
+                      <span style={{ fontSize:`${fs2 * 0.75}px`, color:'rgba(255,255,255,0.3)', fontFamily:'monospace', letterSpacing:'0.04em' }}>bpm</span>
+                    </div>
+                  )
+                })()}
                 {mode === 'text' ? (
                   <span style={{ fontSize: `${fs2}px`, color: txtColor, fontFamily: 'Georgia, serif', fontStyle: 'italic', letterSpacing: '0.04em', flex: 1, minWidth: 0 }}>{dynText}</span>
                 ) : (
@@ -7206,21 +10025,18 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
             )
           })()}
         </div>
-      )}
+        )
+      })()}
 
-      {/* ── Texte narratif ──────────────────────────────────────────── */}
-      {!(simMode && textMode === 'narratif') && (
+      {/* ── Texte narratif (preview uniquement, pas en sim) ────────── */}
+      {!simMode && (
       <div
         onMouseDown={interactive ? e => startDrag('text_pos', e) : undefined}
-        style={{ position: 'absolute', left: liveText.x, top: liveText.y, width: liveText.w, height: liveText.h, zIndex: 20, cursor: interactive ? (dragging === 'text_pos' ? 'grabbing' : 'grab') : 'default',
-          opacity: simMode ? (simTextVisible ? 1 : 0) : 1, transition: 'opacity 0.5s ease',
-          display: simMode && !simIsLastImg ? 'none' : undefined }}>
+        style={{ position: 'absolute', left: liveText.x, top: liveText.y, width: liveText.w, height: liveText.h, zIndex: 20, cursor: interactive ? (dragging === 'text_pos' ? 'grabbing' : 'grab') : 'default' }}>
         <div style={{ position: 'absolute', inset: 0, background: textBg, overflow: 'hidden', pointerEvents: 'none' }}>
           <div style={{ padding: `8px ${s.text_padding}px 8px`, height: '100%', boxSizing: 'border-box', overflow: 'hidden' }}>
             <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: `${s.text_font_size * fs * 0.72}px`, color: '#ede9df', lineHeight: 1.6, overflow: 'hidden', height: '100%' }}>
-              {simMode
-                ? <>{(section?.content ?? '').slice(0, simDisplayedChars)}{simTextVisible && !simTextDone && <span style={{ animation: 'simBlink 0.7s step-end infinite', color: '#d4a84c' }}>▌</span>}</>
-                : (section?.content ?? 'Le silence pesait sur la rue comme une chape de béton. Rico ajusta sa capuche et scruta les fenêtres obscures en face. Quelque chose clochait — il le sentait dans ses os.')}
+              {section?.content ?? 'Le silence pesait sur la rue comme une chape de béton. Rico ajusta sa capuche et scruta les fenêtres obscures en face. Quelque chose clochait — il le sentait dans ses os.'}
             </p>
           </div>
         </div>
@@ -7231,21 +10047,40 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
 
       {/* ── Boutons de choix ────────────────────────────────────────── */}
       <div
+        ref={simMode ? choicesPanelRef : undefined}
         onMouseDown={!simMode && interactive ? e => startDrag('choices_pos', e) : undefined}
+        hidden={!!(simMode && section?.trial?.type === 'combat')}
         style={{ position: 'absolute',
-          left: simMode ? 8 : liveChoices.x,
+          left: simMode ? Math.round(CW * 0.021) : liveChoices.x,
           top: simMode ? undefined : liveChoices.y,
-          bottom: simMode ? 24 : undefined,
-          width: simMode ? 374 : liveChoices.w,
+          bottom: simMode ? Math.round(CW * 0.062) : undefined,
+          width: simMode ? CW - Math.round(CW * 0.041) : liveChoices.w,
           height: simMode ? 'auto' : liveChoices.h,
           zIndex: 21, cursor: interactive ? (dragging === 'choices_pos' ? 'grabbing' : 'grab') : 'default',
-          opacity: simMode ? (simTextDone ? 1 : 0) : 1,
-          pointerEvents: simMode && !simTextDone ? 'none' : 'auto',
-          transition: 'opacity 0.6s ease',
-          filter: simMode ? 'drop-shadow(0 0 18px rgba(212,168,76,0.35)) drop-shadow(0 0 6px rgba(212,168,76,0.2))' : undefined }}>
-        <div style={{ position: simMode ? 'relative' : 'absolute', inset: simMode ? undefined : 0, overflow: 'hidden', pointerEvents: simMode ? 'auto' : 'none' }}>
-          <div style={{ padding: '6px', height: simMode ? 'auto' : '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: simMode ? '6px' : '4px', justifyContent: 'center' }}>
-            {(sectionChoices && sectionChoices.length > 0 ? sectionChoices.map(c => c.label) : ['Entrer par la ruelle', 'Surveiller depuis le toit']).map((label, ci) => {
+          opacity: simMode ? (simShowNav ? 1 : 0) : 1,
+          pointerEvents: simMode && !simShowNav ? 'none' : 'auto',
+          transition: 'opacity 0.6s ease' }}>
+        {/* Barre ∧/Relire fallback — cas sans pensée */}
+        {simMode && !simLastThought && !choicesCollapsed && (
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${Math.round(CW * 0.013)}px ${Math.round(CW * 0.031)}px ${Math.round(CW * 0.01)}px` }}>
+            <div onClick={() => setChoicesCollapsed(true)} style={{ cursor: 'pointer', padding: `${Math.round(CW * 0.01)}px ${Math.round(CW * 0.015)}px` }}>
+              <span style={{ fontSize: Math.round(CW * 0.033), color: 'rgba(255,255,255,0.7)', lineHeight: 1, background: 'rgba(0,0,0,0.5)', borderRadius: Math.round(CW * 0.02), padding: `${Math.round(CW * 0.008)}px ${Math.round(CW * 0.023)}px`, display: 'inline-block' }}>∨</span>
+            </div>
+            {section?.content && (
+              <button onClick={() => setShowRereadOverlay(true)} style={{ position: 'absolute', right: Math.round(CW * 0.031), background: 'transparent', border: 'none', color: 'rgba(212,168,76,0.95)', fontSize: Math.round(CW * 0.028), cursor: 'pointer', padding: `${Math.round(CW * 0.005)}px ${Math.round(CW * 0.01)}px`, letterSpacing: '0.05em', fontWeight: 600, lineHeight: 1, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>↩ Relire</button>
+            )}
+          </div>
+        )}
+        {simMode && !simLastThought && choicesCollapsed && (
+          <div onClick={() => setChoicesCollapsed(false)} style={{ display: 'flex', justifyContent: 'center', padding: Math.round(CW * 0.01), cursor: 'pointer' }}>
+            <span style={{ fontSize: Math.round(CW * 0.033), color: 'rgba(212,168,76,0.9)', lineHeight: 1, background: 'rgba(0,0,0,0.5)', borderRadius: Math.round(CW * 0.02), padding: `${Math.round(CW * 0.008)}px ${Math.round(CW * 0.023)}px`, display: 'inline-block' }}>∧</span>
+          </div>
+        )}
+        <div style={{ position: simMode ? 'relative' : 'absolute', inset: simMode ? undefined : 0, overflow: 'hidden', pointerEvents: simMode ? 'auto' : 'none',
+          maxHeight: simMode ? ((choicesCollapsed || simTrialPhase !== 'idle') ? '0px' : '400px') : undefined,
+          transition: simMode ? 'max-height 0.35s ease' : undefined }}>
+          <div style={{ padding: simMode ? Math.round(CW * 0.015) : '6px', height: simMode ? 'auto' : '100%', boxSizing: 'border-box', display: 'flex', flexDirection: 'column', gap: simMode ? Math.round(CW * 0.015) : '4px', justifyContent: 'center' }}>
+            {(simMode && section?.trial?.type === 'chance' ? [] : sectionChoices && sectionChoices.length > 0 ? sectionChoices.map(c => c.label) : simMode ? [] : ['Entrer par la ruelle', 'Surveiller depuis le toit']).map((label, ci) => {
               const choice = sectionChoices?.[ci]
               const isActive = !simMode && ci === 0
               const choicesBg = s.choices_bg ?? '#0d0d0d'
@@ -7259,19 +10094,48 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
               const fontFamily = s.choices_font_family === 'serif' ? 'Georgia, serif' : s.choices_font_family === 'mono' ? 'monospace' : 'system-ui, sans-serif'
               const fontWeight = s.choices_bold ? 700 : 400
               const fontStyle = s.choices_italic ? 'italic' : 'normal'
-              const fontSize = simMode ? '17px' : `${(s.choices_font_size ?? 13) * fs * 0.72}px`
+              const fontSize = simMode ? `${choiceFontSize}px` : `${(s.choices_font_size ?? 13) * fs * 0.72}px`
               const isHovered = simMode && ci === hoveredChoiceIdx
               const hoverHandlers = simMode ? { onMouseEnter: () => setHoveredChoiceIdx(ci), onMouseLeave: () => setHoveredChoiceIdx(-1) } : {}
-              const isLocked = !!(simMode && (choice as any)?.condition?.item_id && !simInventory?.[(choice as any).condition.item_id])
-              const displayLabel = isLocked ? ((choice as any)?.locked_label ?? '🔒 Chemin verrouillé') : label
+              const isLockedByItem = !!(simMode && (choice as any)?.condition?.item_id && !simInventory?.[(choice as any).condition.item_id])
+              const moneyCost = (choice as any)?.money_cost
+              const isLockedByMoney = !!(simMode && moneyCost && (simMoney ?? 0) < moneyCost)
+              const isLocked = isLockedByItem || isLockedByMoney
+              const isConfirming = simMode && confirmingChoiceIdx === ci
+              const isOther = simMode && confirmingChoiceIdx !== null && confirmingChoiceIdx !== ci
+              const termOverlay = isConfirming ? (
+                <>
+                  <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(transparent, transparent 1px, rgba(200,20,20,0.07) 1px, rgba(200,20,20,0.07) 2px)', animation: 'termScan 0.12s linear infinite', pointerEvents: 'none', zIndex: 2, borderRadius: 'inherit' }} />
+                  <div style={{ position: 'absolute', top: 3, left: 3, width: 10, height: 10, borderTop: '2px solid #e03838', borderLeft: '2px solid #e03838', pointerEvents: 'none', zIndex: 3 }} />
+                  <div style={{ position: 'absolute', top: 3, right: 3, width: 10, height: 10, borderTop: '2px solid #e03838', borderRight: '2px solid #e03838', pointerEvents: 'none', zIndex: 3 }} />
+                  <div style={{ position: 'absolute', bottom: 3, left: 3, width: 10, height: 10, borderBottom: '2px solid #e03838', borderLeft: '2px solid #e03838', pointerEvents: 'none', zIndex: 3 }} />
+                  <div style={{ position: 'absolute', bottom: 3, right: 3, width: 10, height: 10, borderBottom: '2px solid #e03838', borderRight: '2px solid #e03838', pointerEvents: 'none', zIndex: 3 }} />
+                </>
+              ) : null
+              const displayLabel = isLockedByItem ? ((choice as any)?.locked_label ?? '🔒 Chemin verrouillé') : isLockedByMoney ? `🔒 Coûte ${moneyCost} $` : label
+
+              const archetype = (choice as any)?.archetype
+              const archetypePill = archetype && simMode ? (
+                <span style={{ display: 'inline-block', alignSelf: 'flex-start', fontSize: Math.round(CW * 0.021), fontWeight: 900, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#0f0d08', background: '#d4a84c', borderRadius: Math.round(CW * 0.005), padding: `${Math.round(CW * 0.005)}px ${Math.round(CW * 0.018)}px`, marginBottom: Math.round(CW * 0.013), fontFamily: 'system-ui, sans-serif' }}>
+                  {archetype}
+                </span>
+              ) : null
+              const isDefaultChoice = simMode && !!choice?.is_default && (section?.decision_time ?? 0) > 0
+              const defaultPill = isDefaultChoice ? (
+                <span style={{ position: 'absolute', top: 3, right: 6, fontSize: Math.round(CW * 0.022), color: '#e05555', opacity: 0.7, pointerEvents: 'none', userSelect: 'none' }}>⏱</span>
+              ) : null
 
               if (simMode && choiceStyle === 1) {
                 // ── Rune Forge ──────────────────────────────────────
                 return (
-                  <div key={ci} onClick={choice && !isLocked ? () => handleChoiceWithTransition(choice) : undefined} {...hoverHandlers}
-                    style={{ position: 'relative', background: isLocked ? `${choicesBg}80` : isActive ? bgActive : isHovered ? 'linear-gradient(135deg,rgba(30,22,10,0.92),rgba(50,36,12,0.88))' : `linear-gradient(135deg,${choicesBg}e8,${choicesBg}b0)`, border: `1px solid ${isLocked ? 'rgba(255,255,255,0.04)' : isActive ? borderActive : isHovered ? '#d4a84c99' : borderNormal}`, borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(6px)', cursor: choice && !isLocked ? 'pointer' : 'default', outline: isHovered && !isLocked ? '1px solid rgba(212,168,76,0.18)' : '1px solid transparent', outlineOffset: '2px', boxShadow: isHovered && !isLocked ? 'inset 0 1px 0 rgba(212,168,76,0.15),0 0 12px rgba(212,168,76,0.08),inset 0 -1px 0 rgba(0,0,0,0.4)' : 'inset 0 1px 0 rgba(255,255,255,0.04),inset 0 -1px 0 rgba(0,0,0,0.3)', transition: 'background 0.2s,border-color 0.2s,box-shadow 0.2s,outline-color 0.2s', overflow: 'hidden', opacity: isLocked ? 0.45 : 1 }}>
+                  <div key={ci} onClick={choice && !isLocked && confirmingChoiceIdx === null ? () => handleChoiceConfirm(choice, ci) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isLocked ? `${choicesBg}80` : isActive ? bgActive : isHovered ? 'linear-gradient(135deg,rgba(30,22,10,0.92),rgba(50,36,12,0.88))' : `linear-gradient(135deg,${choicesBg}e8,${choicesBg}b0)`, border: `1px solid ${isConfirming ? '#e03838' : isLocked ? 'rgba(255,255,255,0.04)' : isActive ? borderActive : isHovered ? '#d4a84c99' : borderNormal}`, borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(6px)', cursor: choice && !isLocked ? 'pointer' : 'default', outline: isHovered && !isLocked && !isConfirming ? '1px solid rgba(212,168,76,0.18)' : '1px solid transparent', outlineOffset: '2px', boxShadow: isConfirming ? undefined : isHovered && !isLocked ? 'inset 0 1px 0 rgba(212,168,76,0.15),0 0 12px rgba(212,168,76,0.08),inset 0 -1px 0 rgba(0,0,0,0.4)' : 'inset 0 1px 0 rgba(255,255,255,0.04),inset 0 -1px 0 rgba(0,0,0,0.3)', animation: isConfirming ? 'termGlow 0.25s ease infinite' : undefined, transition: 'background 0.2s,border-color 0.2s,box-shadow 0.2s,outline-color 0.2s,opacity 0.3s', overflow: 'hidden', opacity: isOther ? 0 : isLocked ? 0.45 : 1 }}>
+                    {termOverlay}{defaultPill}
                     <div style={{ position: 'absolute', top: 0, left: '10%', right: '10%', height: '1px', background: isHovered && !isLocked ? 'linear-gradient(90deg,transparent,rgba(212,168,76,0.4),transparent)' : 'linear-gradient(90deg,transparent,rgba(255,255,255,0.06),transparent)', transition: 'background 0.2s' }} />
-                    <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 500, fontStyle, letterSpacing: '0.04em', textShadow: isHovered && !isLocked ? '0 0 8px rgba(212,168,76,0.3)' : 'none', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{displayLabel}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      {archetypePill}
+                      <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 500, fontStyle, letterSpacing: '0.04em', textShadow: isHovered && !isLocked ? '0 0 8px rgba(212,168,76,0.3)' : 'none', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{displayLabel}</span>
+                    </div>
                   </div>
                 )
               }
@@ -7281,10 +10145,56 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
                 const accentColors = ['#d4a84c', '#9b59b6', '#e74c3c', '#2ecc71']
                 const accentColor = isLocked ? '#4a4a5a' : accentColors[ci % accentColors.length]
                 return (
-                  <div key={ci} onClick={choice && !isLocked ? () => handleChoiceWithTransition(choice) : undefined} {...hoverHandlers}
-                    style={{ position: 'relative', background: isLocked ? `${choicesBg}80` : isActive ? bgActive : isHovered ? 'rgba(212,168,76,0.10)' : `${choicesBg}d0`, borderTop: `1px solid ${isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderRight: `1px solid ${isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderBottom: `1px solid ${isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderLeft: `3px solid ${(isActive || (isHovered && !isLocked)) ? accentColor : `${accentColor}44`}`, borderRadius: `${radius}px`, padding: '9px 12px 9px 14px', backdropFilter: 'blur(8px)', cursor: choice && !isLocked ? 'pointer' : 'default', overflow: 'hidden', transition: 'background 0.18s,border-color 0.18s', opacity: isLocked ? 0.45 : 1 }}>
+                  <div key={ci} onClick={choice && !isLocked && confirmingChoiceIdx === null ? () => handleChoiceConfirm(choice, ci) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isLocked ? `${choicesBg}80` : isActive ? bgActive : isHovered ? 'rgba(212,168,76,0.10)' : `${choicesBg}d0`, borderTop: `1px solid ${isConfirming ? '#e03838' : isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderRight: `1px solid ${isConfirming ? '#e03838' : isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderBottom: `1px solid ${isConfirming ? '#e03838' : isActive ? borderActive : isHovered && !isLocked ? `${accentColor}55` : borderNormal}`, borderLeft: `3px solid ${isConfirming ? '#e03838' : (isActive || (isHovered && !isLocked)) ? accentColor : `${accentColor}44`}`, borderRadius: `${radius}px`, padding: '9px 12px 9px 14px', backdropFilter: 'blur(8px)', cursor: choice && !isLocked ? 'pointer' : 'default', overflow: 'hidden', animation: isConfirming ? 'termGlow 0.25s ease infinite' : undefined, transition: 'background 0.18s,border-color 0.18s,opacity 0.3s', opacity: isOther ? 0 : isLocked ? 0.45 : 1 }}>
+                    {termOverlay}{defaultPill}
                     <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(90deg,${accentColor}18 0%,transparent 60%)`, opacity: isHovered && !isLocked ? 1 : 0, transition: 'opacity 0.2s', pointerEvents: 'none' }} />
-                    <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 400, fontStyle, letterSpacing: '0.02em', position: 'relative', transition: 'color 0.18s', display: 'block' }}>{displayLabel}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                      {archetypePill}
+                      <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#f5e8c0' : colorNormal, fontWeight: fontWeight || 400, fontStyle, letterSpacing: '0.02em', transition: 'color 0.18s', display: 'block' }}>{displayLabel}</span>
+                    </div>
+                  </div>
+                )
+              }
+
+              if (simMode && choiceStyle === 4) {
+                // ── Gradient Glow (PocketFM style) ───────────────────
+                const glowColors = ['#d4a84c', '#9b59b6', '#e74c3c', '#2ecc71']
+                const glowColor = isLocked ? '#3a3a4a' : glowColors[ci % glowColors.length]
+                return (
+                  <div key={ci} onClick={choice && !isLocked && confirmingChoiceIdx === null ? () => handleChoiceConfirm(choice, ci) : undefined} {...hoverHandlers}
+                    style={{
+                      position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                      background: `linear-gradient(100deg, ${glowColor}${isHovered && !isLocked ? '55' : '2a'} 0%, ${glowColor}${isHovered && !isLocked ? '18' : '0a'} 35%, transparent 65%)`,
+                      borderLeft: `2px solid ${isConfirming ? '#e03838' : isHovered && !isLocked ? glowColor : glowColor + '55'}`,
+                      borderTop: isConfirming ? '1px solid #e03838' : 'none', borderRight: isConfirming ? '1px solid #e03838' : 'none',
+                      borderBottom: `1px solid ${isConfirming ? '#e03838' : glowColor + '20'}`,
+                      borderRadius: `0 ${radius}px ${radius}px 0`,
+                      padding: '10px 14px 10px 16px',
+                      cursor: choice && !isLocked ? 'pointer' : 'default',
+                      opacity: isOther ? 0 : isLocked ? 0.4 : 1,
+                      animation: isConfirming ? 'termGlow 0.25s ease infinite' : undefined,
+                      transition: 'background 0.22s, border-color 0.22s, opacity 0.3s',
+                    }}>
+                    {termOverlay}{defaultPill}
+                    <div style={{
+                      position: 'absolute', top: '50%', left: '-10px',
+                      width: '60%', height: '150%', transform: 'translateY(-50%)',
+                      background: `radial-gradient(ellipse at left, ${glowColor}${isHovered && !isLocked ? '35' : '18'} 0%, transparent 70%)`,
+                      pointerEvents: 'none', transition: 'background 0.22s',
+                    }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                      {archetypePill}
+                      <span style={{
+                        fontFamily, fontSize, fontWeight: fontWeight || 500, fontStyle,
+                        color: isLocked ? '#5a5a6a' : isHovered && !isLocked ? '#fff' : colorNormal,
+                        textShadow: isHovered && !isLocked ? `0 0 16px ${glowColor}99, 0 1px 4px rgba(0,0,0,0.9)` : '0 1px 4px rgba(0,0,0,0.8)',
+                        display: 'block', letterSpacing: '0.02em',
+                        transition: 'color 0.2s, text-shadow 0.2s',
+                      }}>
+                        {displayLabel}
+                      </span>
+                    </div>
                   </div>
                 )
               }
@@ -7292,22 +10202,89 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
               if (simMode && choiceStyle === 3) {
                 // ── Ghost Button ─────────────────────────────────────
                 return (
-                  <div key={ci} onClick={choice && !isLocked ? () => handleChoiceWithTransition(choice) : undefined} {...hoverHandlers}
-                    style={{ position: 'relative', background: isLocked ? 'rgba(10,8,6,0.35)' : isActive ? bgActive : isHovered ? 'rgba(255,255,255,0.07)' : 'rgba(10,8,6,0.55)', border: '1px solid transparent', borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(10px)', cursor: choice && !isLocked ? 'pointer' : 'default', overflow: 'hidden', boxShadow: isLocked ? `0 0 0 1px rgba(255,255,255,0.04),0 2px 8px rgba(0,0,0,0.2)` : isActive ? `0 0 0 1px ${borderActive},0 2px 12px rgba(212,168,76,0.15)` : isHovered ? '0 0 0 1px rgba(212,168,76,0.45),0 0 0 2px rgba(212,168,76,0.08),0 2px 16px rgba(0,0,0,0.5)' : `0 0 0 1px ${borderNormal},0 2px 8px rgba(0,0,0,0.3)`, transition: 'background 0.2s,box-shadow 0.25s', opacity: isLocked ? 0.45 : 1 }}>
+                  <div key={ci} onClick={choice && !isLocked && confirmingChoiceIdx === null ? () => handleChoiceConfirm(choice, ci) : undefined} {...hoverHandlers}
+                    style={{ position: 'relative', background: isLocked ? 'rgba(10,8,6,0.35)' : isActive ? bgActive : isHovered ? 'rgba(255,255,255,0.07)' : 'rgba(10,8,6,0.55)', border: '1px solid transparent', borderRadius: `${radius}px`, padding: '8px 12px', backdropFilter: 'blur(10px)', cursor: choice && !isLocked ? 'pointer' : 'default', overflow: 'hidden', boxShadow: isConfirming ? undefined : isLocked ? `0 0 0 1px rgba(255,255,255,0.04),0 2px 8px rgba(0,0,0,0.2)` : isActive ? `0 0 0 1px ${borderActive},0 2px 12px rgba(212,168,76,0.15)` : isHovered ? '0 0 0 1px rgba(212,168,76,0.45),0 0 0 2px rgba(212,168,76,0.08),0 2px 16px rgba(0,0,0,0.5)' : `0 0 0 1px ${borderNormal},0 2px 8px rgba(0,0,0,0.3)`, animation: isConfirming ? 'termGlow 0.25s ease infinite' : undefined, transition: 'background 0.2s,box-shadow 0.25s,opacity 0.3s', opacity: isOther ? 0 : isLocked ? 0.45 : 1 }}>
+                    {termOverlay}{defaultPill}
                     <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '1px', background: isHovered && !isLocked ? 'linear-gradient(90deg,transparent 5%,rgba(212,168,76,0.5) 50%,transparent 95%)' : 'linear-gradient(90deg,transparent 10%,rgba(255,255,255,0.08) 50%,transparent 90%)', transition: 'background 0.25s', pointerEvents: 'none' }} />
                     <div style={{ position: 'absolute', top: 0, left: isHovered && !isLocked ? '110%' : '-30%', width: '40%', height: '100%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.12),transparent)', transform: 'skewX(-15deg)', transition: isHovered && !isLocked ? 'left 0.4s ease' : 'left 0s', pointerEvents: 'none' }} />
-                    <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#fdf6e3' : colorNormal, fontWeight: isHovered && !isLocked ? 500 : fontWeight, fontStyle, letterSpacing: '0.05em', textShadow: isHovered && !isLocked ? '0 1px 4px rgba(0,0,0,0.8),0 0 12px rgba(212,168,76,0.2)' : '0 1px 3px rgba(0,0,0,0.6)', position: 'relative', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{displayLabel}</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                      {archetypePill}
+                      <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : isHovered ? '#fdf6e3' : colorNormal, fontWeight: isHovered && !isLocked ? 500 : fontWeight, fontStyle, letterSpacing: '0.05em', textShadow: isHovered && !isLocked ? '0 1px 4px rgba(0,0,0,0.8),0 0 12px rgba(212,168,76,0.2)' : '0 1px 3px rgba(0,0,0,0.6)', transition: 'color 0.2s,text-shadow 0.2s', display: 'block' }}>{displayLabel}</span>
+                    </div>
                   </div>
                 )
               }
 
               // ── Mode normal (hors simulation) ────────────────────
               return (
-                <div key={ci} onClick={simMode && choice && !isLocked ? () => handleChoiceWithTransition(choice) : undefined} style={{ background: isActive ? bgActive : bgNormal, border: `1px solid ${isActive ? borderActive : borderNormal}`, borderRadius: `${radius}px`, padding: '5px 8px', backdropFilter: 'blur(4px)', cursor: simMode && choice && !isLocked ? 'pointer' : 'default', opacity: isLocked ? 0.4 : 1 }}>
+                <div key={ci} onClick={simMode && choice && !isLocked && confirmingChoiceIdx === null ? () => handleChoiceConfirm(choice, ci) : undefined} style={{ background: isActive ? bgActive : bgNormal, border: `1px solid ${isConfirming ? '#e03838' : isActive ? borderActive : borderNormal}`, borderRadius: `${radius}px`, padding: '5px 8px', backdropFilter: 'blur(4px)', cursor: simMode && choice && !isLocked ? 'pointer' : 'default', animation: isConfirming ? 'termGlow 0.25s ease infinite' : undefined, transition: 'opacity 0.3s', opacity: isOther ? 0 : isLocked ? 0.4 : 1, overflow: 'hidden', position: 'relative' }}>
+                  {termOverlay}{defaultPill}
                   <span style={{ fontFamily, fontSize, color: isLocked ? '#6b6b80' : isActive ? colorActive : colorNormal, fontWeight, fontStyle }}>{displayLabel}</span>
                 </div>
               )
             })}
+
+
+            {/* ── Choix discussion dynamique (dans le collapse) ──── */}
+            {simMode && simIsLastImg && simDiscPhase === 'idle' && (() => {
+              const disc = (section as any)?.discussion_scene as import('@/types').DiscussionScene | null | undefined
+              if (!disc) return null
+              const discNpc = npcs.find(n => n.id === disc.npc_id)
+              const npcName = discNpc?.name ?? 'PNJ'
+              const npcPortrait = discNpc?.portrait_url ?? discNpc?.image_url ?? null
+              const fontFamily = s.choices_font_family === 'serif' ? 'Georgia, serif' : s.choices_font_family === 'mono' ? 'monospace' : 'system-ui, sans-serif'
+              return (
+                <div
+                  onClick={() => { setSimDiscPhase('pre_opening'); setSimDiscHistory([]); setSimDiscCurrentChoices(null) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: Math.round(CW * 0.023),
+                    background: 'rgba(212,168,76,0.07)',
+                    border: '1px solid rgba(212,168,76,0.28)',
+                    borderRadius: `${s.choices_border_radius ?? 6}px`,
+                    padding: `${Math.round(CW * 0.021)}px ${Math.round(CW * 0.031)}px`,
+                    cursor: 'pointer',
+                    backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                    animation: 'thoughtAppear 0.4s ease both',
+                  }}
+                >
+                  {(() => { const ps = Math.round(CW * 0.072); return (
+                  <div style={{ width: ps, height: ps, borderRadius: '50%', overflow: 'hidden', border: '1px solid rgba(212,168,76,0.45)', flexShrink: 0 }}>
+                    {npcPortrait
+                      ? <img src={npcPortrait} alt={npcName} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 10%' }} />
+                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(CW * 0.031), color: '#d4a84c', fontFamily: 'Georgia, serif' }}>{npcName[0]}</div>
+                    }
+                  </div>
+                  ); })()}
+                  <span style={{ fontFamily, fontSize: Math.round(CW * 0.038), color: 'rgba(255,255,255,0.75)', flex: 1, lineHeight: 1.35 }}>
+                    <span style={{ color: '#d4a84c', fontWeight: 600 }}>{npcName}</span> se rapproche et te dit un truc… l'écouter ?
+                  </span>
+                  <span style={{ fontSize: Math.round(CW * 0.028), color: 'rgba(212,168,76,0.55)' }}>›</span>
+                </div>
+              )
+            })()}
+
+            {/* ── Trigger épreuve Chance ────────────────────────── */}
+            {simMode && simIsLastImg && simTextDone && simDiscPhase === 'idle' && simTrialPhase === 'idle' && section?.trial?.type === 'chance' && (
+              <div
+                onClick={() => setSimTrialPhase('pre_roll')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: Math.round(CW * 0.023),
+                  background: 'rgba(255,200,50,0.07)',
+                  border: '1px solid rgba(255,200,50,0.32)',
+                  borderRadius: `${s.choices_border_radius ?? 6}px`,
+                  padding: `${Math.round(CW * 0.021)}px ${Math.round(CW * 0.031)}px`,
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
+                  animation: 'thoughtAppear 0.4s ease both',
+                }}
+              >
+                <span style={{ fontSize: Math.round(CW * 0.065), lineHeight: 1, flexShrink: 0 }}>🎲</span>
+                <span style={{ fontFamily: s.choices_font_family === 'serif' ? 'Georgia, serif' : 'system-ui, sans-serif', fontSize: Math.round(CW * 0.038), color: 'rgba(255,255,255,0.78)', flex: 1, lineHeight: 1.35 }}>
+                  <span style={{ color: '#f5d56a', fontWeight: 600 }}>Épreuve de Chance</span> — tenter ta chance ?
+                </span>
+                <span style={{ fontSize: Math.round(CW * 0.028), color: 'rgba(255,200,50,0.5)' }}>›</span>
+              </div>
+            )}
           </div>
         </div>
         {interactive && <ResizeCorner onMouseDown={e => startDrag('choices_size', e)} />}
@@ -7342,10 +10319,13 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
           <div style={{ background: `#0d0d0d${ovAlpha}`, border: '1px solid rgba(255,255,255,0.07)', borderRadius: '8px', padding: '5px 6px', backdropFilter: 'blur(6px)', pointerEvents: 'none' }}>
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', maxWidth: '120px' }}>
               {simMode
-                ? (simItems ?? []).filter(it => simInventory?.[it.id]).map(it => {
+                ? (simItems ?? []).filter(it => simInventory?.[it.id] && (!isCombatSim || it.item_type === 'arme')).map(it => {
                     const iconSz = s.inventory_icon_size ?? 18
+                    const hasDetail = !!(it as any).detail_url
                     return (
-                      <div key={it.id} title={it.name} style={{ width: `${iconSz}px`, height: `${iconSz}px`, border: '1px solid #d4a84c66', borderRadius: '3px', background: 'rgba(212,168,76,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                      <div key={it.id} title={it.name}
+                        onClick={hasDetail ? e => { e.stopPropagation(); onOpenItem?.(it) } : undefined}
+                        style={{ width: `${iconSz}px`, height: `${iconSz}px`, border: `1px solid ${hasDetail ? '#d4a84caa' : '#d4a84c66'}`, borderRadius: '3px', background: 'rgba(212,168,76,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', pointerEvents: hasDetail ? 'auto' : 'none', cursor: hasDetail ? 'pointer' : 'default' }}>
                         {it.illustration_url
                           ? <img src={it.illustration_url} alt={it.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           : <span style={{ fontSize: `${Math.round(iconSz * 0.6)}px` }}>{ITEM_CATEGORY_ICONS[it.category ?? 'persistant'] ?? '📦'}</span>
@@ -7368,10 +10348,12 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       )}
 
       {/* ── Horloge LCD ─────────────────────────────────────────────── */}
-      {s.clock_show && (
+      {s.clock_show && (!simMode || (textMode === 'narratif' && countdown > 0)) && (
         <div
           onMouseDown={interactive ? e => startDrag('clock_pos', e) : undefined}
-          style={{ position: 'absolute', left: liveClock.x, top: liveClock.y, zIndex: 28, cursor: interactive ? (dragging === 'clock_pos' ? 'grabbing' : 'grab') : 'default' }}>
+          style={{ position: 'absolute', left: liveClock.x, top: liveClock.y, zIndex: 28, cursor: interactive ? (dragging === 'clock_pos' ? 'grabbing' : 'grab') : 'default',
+            opacity: (simMode && simThoughtCount > 0 && simPhraseIdx < 0 && !simTextDone) ? 0 : 1,
+            transition: 'opacity 0.3s ease', pointerEvents: (simMode && simThoughtCount > 0 && simPhraseIdx < 0 && !simTextDone) ? 'none' : 'auto' }}>
           {(() => {
             const sz = (s.clock_font_size ?? 18) * fs
             const col = s.clock_color ?? '#ff3333'
@@ -7401,12 +10383,14 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       )}
 
       {/* ── Icône Paramètres ─────────────────────────────────────────── */}
-      {s.settings_show && (
+      {s.settings_show && !isCombatSim && (
         <div
           onMouseDown={interactive ? e => startDrag('settings_pos', e) : undefined}
-          style={{ position: 'absolute', left: liveSettings.x, top: liveSettings.y, zIndex: 28, cursor: interactive ? (dragging === 'settings_pos' ? 'grabbing' : 'grab') : 'default' }}>
+          style={{ position: 'absolute', left: liveSettings.x, top: liveSettings.y, zIndex: 28, cursor: interactive ? (dragging === 'settings_pos' ? 'grabbing' : 'grab') : 'default',
+            opacity: (simMode && simThoughtCount > 0 && simPhraseIdx < 0 && !simTextDone) ? 0 : 1,
+            transition: 'opacity 0.3s ease', pointerEvents: (simMode && simThoughtCount > 0 && simPhraseIdx < 0 && !simTextDone) ? 'none' : 'auto' }}>
           {(() => {
-            const sz = (s.health_font_size ?? 7) * fs * 1.4
+            const sz = simMode ? 22 : (s.health_font_size ?? 7) * fs * 1.4
             return (
               <div style={{ background: 'rgba(0,0,0,0.25)', borderRadius: `${sz * 0.4}px`, padding: `${sz * 0.4}px`, border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(4px)', pointerEvents: 'none' }}>
                 <svg width={sz} height={sz} viewBox="0 0 24 24" fill="none" stroke={showSettingsOverlay ? '#d4a84c' : 'rgba(255,255,255,0.6)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -7525,277 +10509,892 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       })()}
 
       {/* ── Vignettes — positionnement individuel ───────────────────── */}
-      {s.vignettes_show && vignettes.map((v, i) => {
+      {s.vignettes_show && !(simMode && section?.trial?.type === 'combat') && vignettes.map((v, i) => {
         const pos = vigPositions[i]
         const sz = s.vignette_size * (i === 0 ? 1.15 : 1) * fs * 0.7
+        const vigStyle = s.vignette_style ?? 'circle'
+        const borderColor = i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#3a3a48') : '#3a3a48'
         const isVigDragging = dragging === `vignette_pos_${i}`
+        const isTile = vigStyle === 'tile'
+        const isCard = vigStyle === 'card'
+        // Dimensions selon style
+        const imgW = sz
+        const imgH = isCard ? Math.round(sz * 1.35) : sz
+        const tileW = Math.round(sz * 2.6)
+        const tileH = Math.round(sz * 0.85)
+        // Options tuile
+        const tileNameSize    = (s.vignette_tile_name_size    ?? 8) * fs
+        const tileTextColor   = s.vignette_tile_text_color   ?? '#e8e8f0'
+        const tileBgOpacity   = (s.vignette_tile_bg_opacity  ?? 75) / 100
+        const tileShowHp      = s.vignette_tile_show_hp      ?? true
+        const tileNameX       = s.vignette_tile_name_x       ?? 8
+        const tileNameY       = s.vignette_tile_name_y       ?? 0
+        const npcHpColor      = v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#4caf7d') : '#4caf7d'
+        // ── Tuile simMode : layout carré Series ─────────────────────
         return (
           <div key={i}
             onMouseDown={interactive ? e => startDrag('vignette_pos', e, i) : undefined}
-            onClick={simMode && i > 0 && v.npc ? (e) => { e.stopPropagation(); openMangaDialogue(v.npc!) } : undefined}
-            style={{ position: 'absolute', left: pos.x, top: pos.y, width: `${sz}px`, zIndex: 27, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px', cursor: simMode && i > 0 && v.npc ? 'pointer' : interactive ? (isVigDragging ? 'grabbing' : 'grab') : 'default', opacity: simMode ? (simTextDone ? 1 : 0) : 1, transition: 'opacity 0.6s ease', pointerEvents: simMode && !simTextDone ? 'none' : 'auto' }}>
-            <div style={{ width: `${sz}px`, height: `${sz}px`, borderRadius: s.vignette_style === 'circle' ? '50%' : '6px', overflow: 'hidden', border: `2px solid ${i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#3a3a48') : '#3a3a48'}`, boxShadow: `0 0 ${sz * 0.35}px ${(i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#3a3a48') : '#3a3a48')}88, 0 0 ${sz * 0.7}px ${(i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#3a3a48') : '#3a3a48')}33`, background: '#1a1a1f', flexShrink: 0, pointerEvents: 'none' }}>
-              {v.img
-                ? <img src={v.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 10%' }} />
-                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${sz * 0.35}px`, opacity: 0.3 }}>🧑</div>
-              }
-            </div>
-            <span style={{ fontSize: `${6.5 * fs}px`, color: i === 0 ? (s.vignette_border_color ?? '#d4a84c') : v.npc ? (NPC_TYPE_CONFIG[v.npc.type]?.color ?? '#9898b4') : '#9898b4', fontFamily: 'Georgia, serif', whiteSpace: 'nowrap', pointerEvents: 'none', background: 'rgba(0,0,0,0.6)', borderRadius: '3px', padding: '1px 4px' }}>{v.name}</span>
+            onClick={undefined}
+            style={{ position: 'absolute', left: pos.x,
+              top: simMode && i > 0 && npcVigCollapsed ? (vigPositions[0]?.y ?? pos.y) : pos.y,
+              zIndex: simMode && i > 0 && npcVigCollapsed ? 26 : 27,
+              display: 'flex', flexDirection: isTile ? 'row' : 'column', alignItems: isTile ? 'center' : 'center', gap: isTile ? '0' : '2px',
+              cursor: simMode && i > 0 && v.npc ? 'pointer' : interactive ? (isVigDragging ? 'grabbing' : 'grab') : 'default',
+              opacity: simMode ? (simTextDone ? (i > 0 && npcVigCollapsed ? 0 : 1) : 0) : 1,
+              transition: `opacity 0.3s ease ${i > 0 ? (i - 1) * 40 : 0}ms, top 0.3s ease ${i > 0 ? (i - 1) * 40 : 0}ms, width 0.3s ease`,
+              pointerEvents: simMode && (!simTextDone || (i > 0 && npcVigCollapsed)) ? 'none' : 'auto',
+              ...(isTile ? {
+                width: `${vigCollapsed ? tileH : tileW}px`, height: `${tileH}px`,
+                borderRadius: '8px', overflow: 'hidden',
+                border: 'none',
+                boxShadow: 'none',
+                backdropFilter: 'blur(4px)',
+              } : {})
+            }}>
+            {/* Image */}
+            {isTile ? (
+              <div style={{ width: `${tileH}px`, height: `${tileH}px`, flexShrink: 0, overflow: 'hidden', borderRight: 'none', pointerEvents: 'none' }}>
+                {v.img
+                  ? <img src={v.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 10%' }} />
+                  : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${sz * 0.35}px`, opacity: 0.3 }}>🧑</div>
+                }
+              </div>
+            ) : (
+              <div style={{ width: `${imgW}px`, height: `${imgH}px`, borderRadius: '8px', overflow: 'hidden', border: 'none', boxShadow: 'none', background: 'rgba(8,8,16,0.82)', flexShrink: 0, pointerEvents: 'none', position: 'relative' }}>
+                {v.img
+                  ? <img src={v.img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 10%' }} />
+                  : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${sz * 0.35}px`, opacity: 0.3 }}>🧑</div>
+                }
+                {/* Bande dégradée en bas */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 4, background: `linear-gradient(90deg, ${borderColor}cc, ${borderColor}44, transparent)`, borderRadius: '0 0 8px 8px' }} />
+              </div>
+            )}
+            {/* Nom */}
+            {isTile ? (
+              <div style={{ width: vigCollapsed ? '0px' : undefined, flex: vigCollapsed ? undefined : 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '4px', background: `rgba(8,8,16,${tileBgOpacity})`, paddingLeft: vigCollapsed ? 0 : `${tileNameX}px`, paddingTop: `${tileNameY}px`, paddingRight: vigCollapsed ? 0 : '6px', pointerEvents: 'none', overflow: 'hidden', transition: 'width 0.3s ease, padding 0.3s ease', flexShrink: 0 }}>
+                <span style={{ fontSize: `${tileNameSize}px`, color: tileTextColor, fontFamily: 'Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{v.name}</span>
+                {tileShowHp && i > 0 && v.npc && (
+                  <div style={{ width: '85%', height: '3px', background: 'rgba(255,255,255,0.12)', borderRadius: '2px', overflow: 'hidden', flexShrink: 0 }}>
+                    <div style={{ width: '100%', height: '100%', background: npcHpColor, borderRadius: '2px' }} />
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span style={{ fontSize: `${6.5 * fs}px`, color: borderColor, fontFamily: 'Georgia, serif', whiteSpace: 'nowrap', pointerEvents: 'none', background: 'rgba(0,0,0,0.6)', borderRadius: '3px', padding: '1px 4px' }}>{v.name}</span>
+            )}
+            {/* Bande dégradée en bas (tuile) */}
+            {isTile && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: `linear-gradient(90deg, ${borderColor}cc, ${borderColor}44, transparent)`, pointerEvents: 'none' }} />}
           </div>
         )
       })}
 
-      {/* ── Overlay dialogue manga (simulation) ─────────────────────────── */}
-      {simMangaOpen && simActiveNpc && (() => {
-        const dlg = liveMangaDialog
-        const W = dlg.w, H = dlg.h
-        const bgColor = s.manga_dialog_bg_color ?? '#0d0d0d'
-        const nw = Math.round(W * (s.manga_npc_zone_ratio ?? 0.55))
-        const pw = W - nw - 4
-        const playerRect = s.manga_player_panel_rect ?? { x: nw + 4, y: 0, w: pw, h: H }
-        const playerPortrait = protagonist?.portrait_emotions?.['neutre'] ?? protagonist?.portrait_url ?? protagonist?.image_url ?? undefined
-        const playerImg = s.manga_player_panel_image ?? undefined
-
-        // Même ordre que le tab Manga (mangaSelectedNpcs) pour que les portraits correspondent aux bons rects
-        const simSceneNpcs = (mangaSelectedNpcs.length > 0
-          ? mangaSelectedNpcs.map(id => npcs.find(n => n.id === id)).filter(Boolean) as import('@/types').Npc[]
-          : sceneCompanions
-        ).slice(0, 4)
-
-        const dlgBorder = s.manga_dialog_border ? `${s.manga_dialog_border_width ?? 2}px solid ${s.manga_dialog_border_color ?? '#d4a84c'}` : 'none'
-        const dlgBorderRadius = s.manga_dialog_border ? (s.manga_dialog_border_radius ?? 0) : 0
-        const shadow = (() => {
-          if (!s.manga_dialog_shadow) return 'none'
-          const blur = s.manga_dialog_shadow_blur ?? 32
-          const hex = s.manga_dialog_shadow_color ?? '#000000'
-          const op = (s.manga_dialog_shadow_opacity ?? 80) / 100
-          const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16)
-          return `0 ${Math.round(blur/4)}px ${blur}px rgba(${r},${g},${b},${op})`
-        })()
-
-        const col = s.clock_color ?? '#ff3333'
-        const mangaClockSz = (s.clock_font_size ?? 18) * fs * 1.8
-        const mangaClockDisplay = formatCountdown(countdown)
-        const mangaClockGlow = `0 0 ${mangaClockSz * 0.4}px ${col}, 0 0 ${mangaClockSz * 0.8}px ${col}44`
-        const mangaClockFontStyle: React.CSSProperties = {
-          fontFamily: '"Courier New", "Lucida Console", monospace',
-          fontSize: `${mangaClockSz}px`,
-          fontWeight: 700,
-          letterSpacing: `${mangaClockSz * 0.08}px`,
-          lineHeight: 1,
-        }
-
+      {/* ── Label "Mon gang" — absolument positionné sous le portrait protagoniste ── */}
+      {simMode && s.vignettes_show && simTextDone && vignettes.length >= 3 && (() => {
+        const anchor0  = liveVigPos[0] ?? DEF.vignette_positions[0]
+        const sz0      = Math.round(s.vignette_size * 1.15 * 0.7)
+        const isTile0  = (s.vignette_style ?? 'circle') === 'tile'
+        const h0       = isTile0 ? Math.round(sz0 * 0.85) : sz0
         return (
-          <div onClick={closeMangaDialog} style={{ position: 'absolute', inset: 0, zIndex: 49, background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(2px)' }}>
-            {/* Timer agrandi — centré au-dessus de la dialog */}
-            {s.clock_show && (
-              <div style={{ position: 'absolute', left: dlg.x, width: W, top: dlg.y - mangaClockSz - 10, display: 'flex', justifyContent: 'center', pointerEvents: 'none', zIndex: 50 }}>
-                <div style={{ background: 'rgba(0,0,0,0.55)', borderRadius: `${mangaClockSz * 0.2}px`, position: 'relative', lineHeight: 1 }}>
-                  <span style={{ ...mangaClockFontStyle, color: `${col}18`, position: 'absolute', top: 0, left: 0 }}>00:00</span>
-                  <span style={{ ...mangaClockFontStyle, color: countdown === 0 ? col + '66' : col, textShadow: countdown === 0 ? 'none' : mangaClockGlow, position: 'relative' }}>{mangaClockDisplay}</span>
-                </div>
-              </div>
-            )}
-            <div onClick={e => e.stopPropagation()} style={{ position: 'absolute', left: dlg.x, top: dlg.y, width: W, height: H, background: bgColor, overflow: 'hidden', border: dlgBorder, borderRadius: dlgBorderRadius, boxShadow: shadow }}>
-
-              {/* Panneaux NPC — ordre fixe (slots 0-3), opacité pilotée par simActiveBubbleId */}
-              {simSceneNpcs.map((npc, idx) => {
-                const rKey = `manga_npc_panel_rect_${idx}` as keyof import('@/types').SectionLayoutSettings
-                const slotH = Math.round(H / simSceneNpcs.length)
-                const defaultRect = { x: 0, y: idx * slotH, w: nw, h: slotH }
-                const r = (s[rKey] as any) ?? defaultRect
-                if (!r) return null
-                const isActive = npc.id === simActiveNpc.id
-                const isRevealed = simRevealedIds.includes(npc.id)
-                const resp = simDialogueData?.npc_responses.find(r => r.npc_id === npc.id)
-                // Portrait : émotion de simulation > émotion manga tab > neutre
-                const emotion = simNpcEmotions[npc.id] ?? mangaEmotions[npc.id] ?? 'neutre'
-                const firstEmotion = npc.portrait_emotions ? Object.values(npc.portrait_emotions).find(Boolean) : undefined
-                const portrait = npc.portrait_emotions?.[emotion] || npc.portrait_url || npc.image_url || npc.character_illustrations?.[0] || firstEmotion || undefined
-                const panelImgKey = `manga_panel_image_${idx + 1}` as keyof import('@/types').SectionLayoutSettings
-                const panelImg = s[panelImgKey] as string | undefined
-                const zIdx = ((s[`manga_npc_panel_zindex_${idx}` as keyof import('@/types').SectionLayoutSettings] as number | undefined) ?? (idx + 1))
-                // Bulle visible uniquement si c'est le NPC actif dans la séquence
-                const isBubbleActive = npc.id === simActiveBubbleId
-                // canReveal : réponse dispo, pas encore révélé, hors loading
-                const canReveal = !isRevealed && resp && simDialoguePhase !== 'loading'
-                // Déjà révélé mais bulle cachée → cliquer pour revoir
-                const canShowBubble = isRevealed && !isBubbleActive && resp
-                const clickable = canReveal || canShowBubble
-                return (
-                  <div key={npc.id}
-                    onClick={clickable ? e => {
-                      e.stopPropagation()
-                      if (!isRevealed) {
-                        setSimRevealedIds(prev => [...prev, npc.id])
-                        setSimNpcEmotions(prev => ({ ...prev, [npc.id]: resp!.emotion }))
-                      }
-                      setSimActiveBubbleId(npc.id)
-                      setSimActiveNpc(npc)
-                    } : isActive ? undefined : e => { e.stopPropagation(); setSimActiveNpc(npc) }}
-                    style={{ position: 'absolute', left: r.x, top: r.y, width: r.w, height: r.h, overflow: 'hidden', background: bgColor, zIndex: zIdx, opacity: simActiveBubbleId ? (isBubbleActive ? 1 : 0.35) : (isActive ? 0.85 : 0.5), cursor: clickable ? 'pointer' : isActive ? 'default' : 'pointer', transition: 'opacity 0.3s ease' }}>
-                    {portrait && (
-                      <img src={portrait} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
-                    )}
-                    {panelImg && <img src={panelImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', mixBlendMode: (s.manga_panel_blend_mode ?? 'normal') as React.CSSProperties['mixBlendMode'] }} />}
-                    {/* Nom NPC — visible tant que sa bulle n'est pas affichée */}
-                    {isActive && !isBubbleActive && (
-                      <div style={{ position: 'absolute', bottom: 6, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
-                        <span style={{ fontFamily: 'Georgia, serif', fontSize: '7px', fontWeight: 700, color: s.manga_npc_name_color ?? '#d4a84c', textShadow: '0 1px 4px #000', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{npc.name}</span>
-                      </div>
-                    )}
-                    {/* Texte CapCut — phrase entière + surligneur jaune synchronisé */}
-                    {isBubbleActive && resp && simCaptionNpcId === npc.id && simCaptionSentIdx >= 0 && simCaptionSentences[simCaptionSentIdx] && (() => {
-                      const sent = simCaptionSentences[simCaptionSentIdx]
-                      const activeGroup = simCaptionGroupIdx >= 0 ? sent.groups[simCaptionGroupIdx] : null
-                      const activeGroupStart = activeGroup ? (activeGroup as any).charStart ?? -1 : -1
-                      const activeGroupEnd = activeGroup ? (activeGroup as any).charEnd ?? -1 : -1
-                      return (
-                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 6px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', pointerEvents: 'none' }}>
-                          <p style={{ margin: 0, fontFamily: '"Arial Black", Arial, sans-serif', fontSize: '11px', fontWeight: 900, lineHeight: 1.5, textAlign: 'center', letterSpacing: '0.03em', wordBreak: 'break-word' }}>
-                            {sent.text.split('').map((char, ci) => {
-                              const inHighlight = activeGroupStart >= 0 && ci >= activeGroupStart && ci < activeGroupEnd
-                              const spanStyle: React.CSSProperties = captionStyle === 2
-                                ? { color: inHighlight ? '#FFB347' : 'rgba(255,220,180,0.45)', textShadow: inHighlight ? '0 0 5px rgba(255,140,0,1), 0 0 14px rgba(255,80,0,0.6)' : '0 1px 4px rgba(0,0,0,0.9)', transition: 'color 0.1s, text-shadow 0.1s' }
-                                : captionStyle === 3
-                                ? { color: inHighlight ? '#ffffff' : 'rgba(255,255,255,0.18)', textShadow: inHighlight ? '0 0 12px rgba(255,255,255,0.9), 0 2px 4px rgba(0,0,0,0.9)' : 'none', transition: 'color 0.07s, text-shadow 0.1s' }
-                                : { color: inHighlight ? '#e0f8ff' : 'rgba(255,255,255,0.4)', textShadow: inHighlight ? '0 0 4px #00d4ff, 0 0 12px #00aaff, 0 0 22px #0077ff' : '0 1px 3px rgba(0,0,0,0.8)', transition: 'color 0.08s, text-shadow 0.12s' }
-                              return <span key={ci} style={spanStyle}>{char}</span>
-                            })}
-                          </p>
-                        </div>
-                      )
-                    })()}
-                  </div>
-                )
-              })}
-
-              {/* Panneau joueur */}
-              <div style={{ position: 'absolute', left: playerRect.x, top: playerRect.y, width: playerRect.w, height: playerRect.h, overflow: 'hidden', background: bgColor }}>
-                {playerPortrait && (
-                  <img src={playerPortrait} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
-                )}
-                {playerImg && <img src={playerImg} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'fill', mixBlendMode: (s.manga_player_blend_mode ?? 'normal') as any }} />}
-                {/* Texte CapCut — question joueur persistante */}
-                {simPlayerBubbleVisible && simDialogueData?.player_question && (
-                  <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '10px 6px 6px', background: 'linear-gradient(transparent, rgba(0,0,0,0.85))', pointerEvents: 'none' }}>
-                    <p style={{ margin: 0, fontFamily: '"Arial Black", Arial, sans-serif', fontSize: '11px', fontWeight: 900, color: '#ffe580', lineHeight: 1.35, textAlign: 'center', textShadow: '0 0 10px #000, 0 2px 4px #000', letterSpacing: '0.03em' }}>
-                      {simDialogueData.player_question}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* ── Overlay choix — phase done ──────────────────────────── */}
-              {simDialoguePhase === 'done' && sectionChoices && sectionChoices.length > 0 && (() => {
-                const playerQuestion = simDialogueData?.player_question ?? ''
-                const npcRaw: Record<string, any> = (section as any)?.player_responses ?? {}
-                // Pour chaque choix, trouver quel NPC l'a suggéré
-                const choiceNpc = (choiceId: string) =>
-                  simSceneNpcs.find(n => npcRaw[n.id]?.[`${playerQuestion}__choice`] === choiceId) ?? null
-                return (
-                  <div
-                    onClick={e => e.stopPropagation()}
-                    style={{ position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(3px)', display: 'flex', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'space-evenly', gap: '10px', padding: '16px 14px' }}>
-                    {sectionChoices.map(choice => {
-                      const npc = choiceNpc(choice.id)
-                      const npcPortrait = npc
-                        ? (npc.portrait_emotions?.[simNpcEmotions[npc.id] ?? 'neutre'] ?? npc.portrait_url ?? npc.image_url ?? undefined)
-                        : undefined
-                      const choiceLocked = !!((choice as any)?.condition?.item_id && !simInventory?.[(choice as any).condition.item_id])
-                      const choiceDisplayLabel = choiceLocked ? ((choice as any)?.locked_label ?? '🔒 Chemin verrouillé') : choice.label
-                      return (
-                        <div
-                          key={choice.id}
-                          onClick={choiceLocked ? undefined : () => { closeMangaDialog(); handleChoiceWithTransition(choice) }}
-                          style={{ position: 'relative', flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', background: choiceLocked ? 'rgba(10,10,16,0.55)' : 'rgba(10,10,16,0.88)', border: `1px solid ${choiceLocked ? 'rgba(255,255,255,0.06)' : 'rgba(212,168,76,0.5)'}`, borderRadius: '8px', padding: '12px 14px', cursor: choiceLocked ? 'default' : 'pointer', transition: 'border-color 0.15s, background 0.15s', opacity: choiceLocked ? 0.45 : 1 }}
-                          onMouseEnter={choiceLocked ? undefined : e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,76,0.14)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,168,76,0.95)' }}
-                          onMouseLeave={choiceLocked ? undefined : e => { (e.currentTarget as HTMLDivElement).style.background = 'rgba(10,10,16,0.88)'; (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(212,168,76,0.5)' }}>
-                          {npcPortrait && !choiceLocked && (
-                            <div style={{ position: 'absolute', top: -10, right: -10, width: 32, height: 32, borderRadius: '50%', overflow: 'hidden', border: '1.5px solid #d4a84c', boxShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
-                              <img src={npcPortrait} alt={npc?.name ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }} />
-                            </div>
-                          )}
-                          <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: '13px', color: choiceLocked ? '#6b6b80' : '#fff', lineHeight: 1.5, textAlign: 'center', paddingRight: npcPortrait && !choiceLocked ? '14px' : 0 }}>{choiceDisplayLabel}</p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
-            </div>
-            {/* Tap pour fermer — masqué pendant l'affichage des choix */}
-            {simDialoguePhase !== 'done' && (
-              <div style={{ position: 'absolute', bottom: 12, left: 0, right: 0, textAlign: 'center', pointerEvents: 'none' }}>
-                <span style={{ fontSize: '8px', color: 'rgba(255,255,255,0.35)', fontFamily: 'Georgia, serif' }}>Appuyez pour fermer</span>
-              </div>
-            )}
+          <div
+            onClick={() => setNpcVigCollapsed(v => !v)}
+            style={{
+              position: 'absolute',
+              left: anchor0.x,
+              top: anchor0.y + h0 + Math.round(CW * 0.022),
+              zIndex: 30,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: Math.round(CW * 0.01),
+              background: 'rgba(0,0,0,0.68)',
+              borderRadius: Math.round(CW * 0.01),
+              padding: `${Math.round(CW * 0.008)}px ${Math.round(CW * 0.02)}px`,
+              border: '1px solid rgba(255,255,255,0.12)',
+              cursor: 'pointer',
+              pointerEvents: 'auto',
+            }}
+          >
+            <span style={{ fontSize: Math.round(CW * 0.023), color: 'rgba(255,255,255,0.8)', letterSpacing: '0.08em', textTransform: 'uppercase', fontFamily: 'system-ui, sans-serif', fontWeight: 600, lineHeight: 1.2, whiteSpace: 'nowrap' }}>Mon gang</span>
+            <span style={{ fontSize: Math.round(CW * 0.026), color: 'rgba(255,255,255,0.6)', lineHeight: 1 }}>{npcVigCollapsed ? '∧' : '∨'}</span>
           </div>
         )
       })()}
 
-      {/* ── Bulle de pensée (mode narratif) ──────────────────────── */}
-      {simMode && textMode === 'narratif' && !simTextDone && (() => {
-        const thought = simPlayableImgs[simImgIdx]?.thought?.trim() ?? ''
-        if (!thought) return null
-        const sentences = thought.match(/[^.!?…]+[.!?…]*/g)?.map((s: string) => s.trim()).filter(Boolean) ?? [thought]
-        const currentSentence = sentences[simThoughtCount - 1] ?? ''
-        if (!currentSentence) return null
-        const dots = simPlayableImgs.length > 1 ? (
-          <div style={{ display: 'flex', justifyContent: 'center', gap: 5, pointerEvents: 'none' }}>
-            {simPlayableImgs.map((_, i) => (
-              <div key={i} style={{ width: i === simImgIdx ? 14 : 5, height: 5, borderRadius: 3, background: i === simImgIdx ? 'rgba(200,160,232,0.85)' : 'rgba(200,160,232,0.25)', transition: 'all 0.3s ease' }} />
-            ))}
-          </div>
-        ) : null
-
-        // Rendu caractère par caractère (style animatic)
-        const charSpans = (text: string, color: string, fontSize: string, extraStyle?: React.CSSProperties) => (
-          <p key={simThoughtCount} style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize, fontStyle: 'italic', color, lineHeight: 1.65, ...extraStyle }}>
-            {text.split('').map((char: string, i: number) => (
-              <span key={i} style={{ display: 'inline-block', animation: `thoughtChar 0.05s ${i * 0.032}s both` }}>
-                {char === ' ' ? '\u00a0' : char}
-              </span>
-            ))}
-          </p>
-        )
-
-        // ── Variante 1 : Cinematic Strip ─────────────────────────
-        if (thoughtStyle === 1) return (
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 22, pointerEvents: 'none' }}>
-            {dots && <div style={{ marginBottom: 8 }}>{dots}</div>}
-            <div style={{ background: 'linear-gradient(to top, rgba(5,3,12,0.97) 60%, rgba(5,3,12,0))', borderTop: '1px solid rgba(200,160,232,0.3)', padding: '18px 20px 28px' }}>
-              <div style={{ fontSize: '11px', color: 'rgba(200,160,232,0.45)', marginBottom: '8px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>💭 Pensées</div>
-              {charSpans(currentSentence, '#e8caff', '15px', { textShadow: '0 1px 8px rgba(0,0,0,0.9)' })}
-            </div>
-          </div>
-        )
-
-        // ── Variante 2 : Manga Caption ────────────────────────────
-        if (thoughtStyle === 2) return (
-          <div style={{ position: 'absolute', bottom: '14%', left: '50%', transform: 'translateX(-50%)', width: '86%', zIndex: 22, pointerEvents: 'none' }}>
-            <style>{`@keyframes bubbleGlow { 0%,100% { box-shadow:0 0 18px rgba(180,130,255,0.18),0 6px 32px rgba(0,0,0,0.75) } 50% { box-shadow:0 0 28px rgba(180,130,255,0.32),0 6px 32px rgba(0,0,0,0.75) } }`}</style>
-            <div style={{ background: 'rgba(8,5,18,0.88)', border: '1px solid rgba(200,160,232,0.35)', borderRadius: '4px 18px 18px 18px', padding: '14px 18px 16px', backdropFilter: 'blur(10px)', animation: 'bubbleGlow 3s ease-in-out infinite', position: 'relative' }}>
-              <div style={{ position: 'absolute', top: -1, left: -1, width: 10, height: 10, borderTop: '2px solid rgba(200,160,232,0.7)', borderLeft: '2px solid rgba(200,160,232,0.7)', borderRadius: '4px 0 0 0' }} />
-              <div style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderBottom: '2px solid rgba(200,160,232,0.7)', borderRight: '2px solid rgba(200,160,232,0.7)', borderRadius: '0 0 18px 0' }} />
-              <div style={{ fontSize: '13px', marginBottom: '8px', lineHeight: 1 }}>💭</div>
-              {charSpans(currentSentence, '#e2c4ff', '14px', { textShadow: '0 1px 6px rgba(0,0,0,0.8)' })}
-            </div>
-            {dots && <div style={{ marginTop: 8 }}>{dots}</div>}
-          </div>
-        )
-
-        // ── Variante 3 : Ghost Overlay ────────────────────────────
+      {/* ── Bouton repli vignettes (tuile, simulation) ───────────────────── */}
+      {simMode && s.vignettes_show && (s.vignette_style ?? 'circle') === 'tile' && simTextDone && vignettes.length > 1 && !npcVigCollapsed && (() => {
+        const anchor   = liveVigPos[0] ?? DEF.vignette_positions[0]
+        const szFirst  = Math.round(s.vignette_size * 1.15 * 0.7)
+        const szNpc    = Math.round(s.vignette_size * 0.7)
+        const tileH0   = Math.round(szFirst * 0.85)
+        const tileHN   = Math.round(szNpc   * 0.85)
+        const tileW0   = vigCollapsed ? tileH0 : Math.round(szFirst * 2.6)
+        // Recalcul identique à vigPositions pour garantir l'alignement
+        const numNpcs     = vignettes.length - 1
+        const gangOff     = vignettes.length >= 3 ? Math.round(CW * 0.105) : 0
+        const firstNpcTop = anchor.y + tileH0 + Math.max(11, gangOff)
+        const lastNpcTop  = firstNpcTop + (numNpcs - 1) * (tileHN + 3)
+        const lastNpcBtm  = lastNpcTop + tileHN
+        const arrowX   = anchor.x + tileW0 + 2
+        const arrowY   = Math.round((firstNpcTop + lastNpcBtm) / 2)
         return (
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 22, pointerEvents: 'none' }}>
-            <div style={{ background: 'linear-gradient(to top, rgba(2,1,8,0.95) 0%, rgba(2,1,8,0.7) 40%, transparent 100%)', padding: '60px 22px 22px' }}>
-              {dots && <div style={{ marginBottom: 14 }}>{dots}</div>}
-              <div style={{ width: 28, height: 1, background: 'linear-gradient(to right, transparent, rgba(200,160,232,0.6), transparent)', margin: '0 auto 12px' }} />
-              <div style={{ textAlign: 'center' }}>
-                {charSpans(currentSentence, '#edd9ff', '17px', { textShadow: '0 2px 12px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.8)', letterSpacing: '0.02em' })}
+          <button
+            onClick={() => setVigCollapsed(v => !v)}
+            style={{
+              position: 'absolute', left: arrowX, top: arrowY, transform: 'translateY(-50%)',
+              zIndex: 28, background: 'rgba(0,0,0,0.35)', border: 'none',
+              borderRadius: Math.round(CW * 0.015), width: Math.round(CW * 0.056), height: Math.round(CW * 0.097),
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: 'rgba(255,255,255,0.65)', fontSize: Math.round(CW * 0.041), padding: 0,
+              transition: 'left 0.3s ease',
+            }}
+          >
+            {vigCollapsed ? '›' : '‹'}
+          </button>
+        )
+      })()}
+      {/* ── Phrases texte (mode narratif) — mots mot-par-mot, ancre centrale ─ */}
+      {simMode && textMode === 'narratif' && simPhraseIdx >= 0 && !simTextDone && !simDecisionAnnounce && (() => {
+        const myPhrases = phrasesByImage[simImgIdx] ?? []
+        const completedPhrases = myPhrases.slice(0, simPhraseIdx)
+        const currentPhrase = myPhrases[simPhraseIdx] ?? ''
+        const allNarrChunks = getNarrChunks(currentPhrase)
+        const visibleNarrChunks = allNarrChunks.slice(0, simWordCount)
+        const allChunksShown = simWordCount >= allNarrChunks.length && allNarrChunks.length > 0
+        const isLastImage = simImgIdx >= simPlayableImgs.length - 1
+        const isLastPhrase = simPhraseIdx >= myPhrases.length - 1
+
+        // Trouver le début de la phrase courante (après le dernier lineBreak=true qui n'est pas le dernier chunk visible)
+        let currentSentenceStart = 0
+        for (let ci = 0; ci < visibleNarrChunks.length - 1; ci++) {
+          if (visibleNarrChunks[ci].lineBreak) currentSentenceStart = ci + 1
+        }
+        const currentSentenceChunks = visibleNarrChunks.slice(currentSentenceStart)
+
+        // Détecter si la phrase courante est mono-chunk (pas de ponctuation interne) → centré
+        let fullSentenceEnd = allNarrChunks.length - 1
+        for (let ci = currentSentenceStart; ci < allNarrChunks.length; ci++) {
+          if (allNarrChunks[ci].lineBreak) { fullSentenceEnd = ci; break }
+        }
+        const isSingleChunkSentence = (fullSentenceEnd - currentSentenceStart) === 0
+        const sentenceAlign: 'center' | 'left' = isSingleChunkSentence ? 'center' : 'left'
+
+        // Speaker + type de bulle du chunk courant
+        const currentSpeaker = currentSentenceChunks[0]?.speaker ?? null
+        const currentBubbleType = currentSentenceChunks[0]?.bubbleType ?? (currentSpeaker === 'foule' ? 'foule' : 'discours')
+        const isFoule = currentBubbleType === 'foule'
+
+        // Position de la bulle — clé = "speaker:type"
+        const imgData = section?.images?.[simImgIdx] as any
+        const bubblePosKey = currentSpeaker ? `${currentSpeaker}:${currentBubbleType}` : null
+        // Fallback : ancienne clé sans type pour rétrocompatibilité
+        const bubblePos = bubblePosKey
+          ? (imgData?.bubble_positions?.[bubblePosKey] ?? imgData?.bubble_positions?.[currentSpeaker as string] ?? null)
+          : null
+        // Portrait NPC
+        const speakerNpc = currentSpeaker ? npcs.find(n => n.name?.toLowerCase() === currentSpeaker.toLowerCase()) : null
+
+        const normalFontSize = textFontSize + 10  // Texte narratif normal
+        const discoursFontSize = textFontSize + 10  // Discours PNJ/PJ — même taille que le texte normal
+        const bubbleFontSize = textFontSize + 2    // Autres bulles
+        const LH = Math.round(normalFontSize * 1.7)
+
+        function isRedW(word: string): boolean {
+          const clean = word.toLowerCase().replace(/[.,!?;:'"«»()\[\]!]/g, '')
+          return redWordsSet.has(clean)
+        }
+
+        // noRed=true pour toutes les bulles (pensée, foule, discours, discussion, radio)
+        function renderWords(chunks: NarrChunk[], startKey: number, olderWC: number, noRed = false) {
+          // Construire la liste de mots avec marquage fin-de-paragraphe par chunk
+          const items: { word: string; isParaEnd: boolean }[] = []
+          chunks.forEach((chunk, ci) => {
+            const words = chunk.text.split(/\s+/).filter(Boolean)
+            const isLastChunk = ci === chunks.length - 1
+            words.forEach((word, wi) => {
+              const isParaEnd = (chunk.lineBreak || isLastChunk) && wi === words.length - 1
+              items.push({ word, isParaEnd })
+            })
+          })
+          let wi = 0
+          return items.map(({ word, isParaEnd }, idx) => {
+            const isPunctOnly = /^[.,!?;:…»«\-–—()[\]"']+$/.test(word)
+            const red = !noRed && !isPunctOnly && (isParaEnd || isRedW(word))
+            const isNew = idx >= olderWC
+            wi++
+            return (
+              <React.Fragment key={`${startKey}-${idx}`}>
+                {idx > 0 && ' '}
+                <span style={{ color: red ? '#e03030' : 'inherit', animation: isNew ? 'wordAppear 0.35s ease both' : undefined }}>
+                  {word}
+                </span>
+              </React.Fragment>
+            )
+          })
+        }
+
+        const olderWordCount = currentSentenceChunks.slice(0, -1).map(c => c.text).join(' ').split(/\s+/).filter(Boolean).length
+
+        const pStyle: React.CSSProperties = {
+          margin: 0, fontFamily: 'Georgia, serif', fontSize: `${normalFontSize}px`,
+          lineHeight: 1.7, color: '#f0ece4',
+          textShadow: '0 2px 20px rgba(0,0,0,1), 0 0 40px rgba(0,0,0,0.9)',
+          pointerEvents: 'none',
+        }
+
+        // ── Rendu bulle manga — style selon bubbleType ──
+        function renderBubble() {
+          const bx = bubblePos ? bubblePos.x : 50
+          const by = bubblePos ? bubblePos.y : 50
+          const pad = `${Math.round(CW * 0.025)}px ${Math.round(CW * 0.04)}px`
+          const bubbleW = Math.round(CW * (isFoule ? 0.72 : 0.68))
+          const portraitSize = Math.round(CW * 0.10)
+
+          let bubbleStyle: React.CSSProperties
+          let flexDir: 'row' | 'row-reverse' = 'row'
+          let portraitBorder = 'rgba(255,255,255,0.8)'
+
+          switch (currentBubbleType) {
+            case 'foule':
+              bubbleStyle = {
+                background: 'rgba(240,167,66,0.92)', borderRadius: '12px 12px 2px 12px', padding: pad,
+                boxShadow: '0 2px 16px rgba(0,0,0,0.6)', fontFamily: '"Courier New", monospace',
+                fontSize: `${textFontSize - 1}px`, fontWeight: 700, color: '#1a0a00',
+                lineHeight: 1.4, textAlign: 'center', letterSpacing: '0.03em',
+              }
+              flexDir = 'row-reverse'; portraitBorder = 'rgba(240,167,66,0.9)'
+              break
+            case 'pensee':
+              bubbleStyle = {
+                background: 'rgba(200,228,255,0.88)', borderRadius: '20px', padding: pad,
+                boxShadow: '0 2px 16px rgba(0,0,0,0.4)', border: '3px dotted rgba(100,170,255,0.65)',
+                fontFamily: 'Georgia, serif', fontSize: `${textFontSize}px`, fontStyle: 'italic',
+                color: '#1a304e', lineHeight: 1.55, textAlign: 'left',
+              }
+              portraitBorder = 'rgba(100,170,255,0.8)'
+              break
+            case 'discussion':
+              bubbleStyle = {
+                background: 'rgba(128,210,168,0.90)', borderRadius: '16px', padding: pad,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.4)', border: '2px solid rgba(90,185,135,0.5)',
+                fontFamily: 'Georgia, serif', fontSize: `${textFontSize}px`,
+                color: '#0a281a', lineHeight: 1.5, textAlign: 'left',
+              }
+              portraitBorder = 'rgba(90,185,135,0.8)'
+              break
+            case 'radio':
+              bubbleStyle = {
+                background: 'rgba(0,14,8,0.96)', borderRadius: '6px', padding: pad,
+                boxShadow: '0 2px 16px rgba(0,0,0,0.85)', border: '2px solid rgba(0,210,90,0.45)',
+                fontFamily: '"Courier New", monospace', fontSize: `${textFontSize - 1}px`,
+                color: '#00ee78', lineHeight: 1.5, letterSpacing: '0.04em',
+                textShadow: '0 0 8px rgba(0,240,100,0.55)',
+              }
+              portraitBorder = 'rgba(0,200,90,0.7)'
+              break
+            case 'bruit': {
+              const bruitSize = Math.round(CW * 0.18)
+              return (
+                <div style={{ position: 'absolute', left: `${bx}%`, top: `${by}%`, transform: 'translate(-50%,-50%)', zIndex: 24, pointerEvents: 'none', textAlign: 'center' }}>
+                  <span style={{
+                    display: 'inline-block',
+                    fontFamily: '"Impact", "Arial Black", sans-serif',
+                    fontSize: `${bruitSize}px`,
+                    fontWeight: 900,
+                    color: '#fff',
+                    textShadow: '0 0 8px #e03030, 0 0 24px #e03030, -3px -3px 0 #c00, 3px -3px 0 #c00, -3px 3px 0 #c00, 3px 3px 0 #c00',
+                    letterSpacing: '-0.02em',
+                    lineHeight: 1,
+                    textTransform: 'uppercase',
+                    animation: 'thoughtAppear 0.15s ease both',
+                    filter: 'drop-shadow(0 4px 16px rgba(200,0,0,0.8))',
+                  }}>
+                    {currentSentenceChunks.map(c => c.text).join(' ')}
+                  </span>
+                </div>
+              )
+            }
+            default: // 'discours'
+              bubbleStyle = {
+                background: 'rgba(255,255,255,0.95)', borderRadius: '12px 12px 12px 2px', padding: pad,
+                boxShadow: '0 2px 16px rgba(0,0,0,0.5)',
+                fontFamily: 'Georgia, serif', fontSize: `${discoursFontSize}px`,
+                color: '#111', lineHeight: 1.5, textAlign: 'left',
+              }
+              break
+          }
+
+          return (
+            <div style={{
+              position: 'absolute', left: `${bx}%`, top: `${by}%`,
+              transform: 'translate(-50%, -50%)',
+              zIndex: 24, pointerEvents: 'none', width: `${bubbleW}px`,
+              display: 'flex', alignItems: 'flex-end', gap: `${Math.round(CW * 0.02)}px`,
+              flexDirection: flexDir,
+            }}>
+              {speakerNpc?.portrait_url && (
+                <img src={speakerNpc.portrait_url} alt={speakerNpc.name ?? ''} style={{ width: portraitSize, height: portraitSize, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, border: `2px solid ${portraitBorder}`, boxShadow: '0 2px 8px rgba(0,0,0,0.5)' }} />
+              )}
+              <div style={{ ...bubbleStyle, flex: 1, textAlign: currentBubbleType === 'foule' ? 'center' : sentenceAlign }}>
+                {renderWords(currentSentenceChunks, currentSentenceStart, olderWordCount, true)}
               </div>
-              <div style={{ width: 28, height: 1, background: 'linear-gradient(to right, transparent, rgba(200,160,232,0.4), transparent)', margin: '12px auto 0' }} />
             </div>
+          )
+        }
+
+        return (
+          <div
+            onClick={() => {
+              if (!allChunksShown) {
+                if (simWordTimerRef.current) { clearInterval(simWordTimerRef.current); simWordTimerRef.current = null }
+                setSimWordCount(allNarrChunks.length)
+                setSimReadReady(true)
+              } else {
+                handlePhraseAdvance()
+              }
+            }}
+            style={{ position: 'absolute', inset: 0, zIndex: 22, cursor: 'pointer' }}
+          >
+            {/* Fond semi-opaque — absent pour les bulles */}
+            {!currentSpeaker && <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 40% at 50% 50%, rgba(0,0,0,0.55) 0%, transparent 100%)', pointerEvents: 'none' }} />}
+
+            {currentSpeaker ? renderBubble() : (
+              /* Ancre positionnée selon text_position de l'image — défaut centre */
+              (() => {
+                const tp = imgData?.text_position ?? { x: 50, y: 50 }
+                return (
+                  <div style={{ position: 'absolute', left: `${tp.x}%`, top: `${tp.y}%`, transform: 'translate(-50%, -50%)', width: `${Math.round(CW * 0.82)}px` }}>
+                    <p style={{ ...pStyle, textAlign: sentenceAlign, minHeight: `${LH}px` }}>
+                      {renderWords(currentSentenceChunks, currentSentenceStart, olderWordCount)}
+                    </p>
+                  </div>
+                )
+              })()
+            )}
+
+            {/* Indicateur */}
+            <div style={{ position: 'absolute', bottom: Math.round(CW * 0.06), left: 0, right: 0, textAlign: 'center' }}>
+              {allChunksShown ? (
+                <span key="ready" style={{ fontSize: Math.round(CW * 0.026), color: isLastImage && isLastPhrase ? 'rgba(212,168,76,0.85)' : 'rgba(255,255,255,0.55)', letterSpacing: '0.12em', textTransform: 'uppercase', animation: 'thoughtAppear 0.5s ease both' }}>
+                  {isLastImage && isLastPhrase ? '✦ Taper pour continuer' : '▼ Suite'}
+                </span>
+              ) : (
+                <span style={{ fontSize: Math.round(CW * 0.026), color: 'rgba(255,255,255,0.2)', letterSpacing: '0.08em' }}>
+                  {isLastImage && isLastPhrase ? '✦' : '▼'}
+                </span>
+              )}
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Annonce décision (mode narratif, après dernier paragraphe) — stylée comme une phrase narrative ── */}
+      {simMode && simDecisionAnnounce && section?.decision_time && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 22, pointerEvents: 'none' }}>
+          <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 40% at 50% 50%, rgba(0,0,0,0.55) 0%, transparent 100%)' }} />
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: `${Math.round(CW * 0.82)}px`, textAlign: 'center' }}>
+            <p style={{ margin: '0 0 16px', fontFamily: 'Georgia, serif', fontSize: `${textFontSize + 10}px`, fontStyle: 'normal', color: '#f0ece4', textShadow: '0 2px 20px rgba(0,0,0,1), 0 0 40px rgba(0,0,0,0.9)', lineHeight: 1.7, animation: 'wordAppear 0.5s ease both' }}>
+              Tu as {section.decision_time} secondes pour faire un <span style={{ color: '#e03030' }}>choix</span>.
+            </p>
+            <p style={{ margin: 0, fontFamily: '"Courier New", monospace', fontSize: Math.round(CW * 0.082), fontWeight: 700, color: '#e03030', textShadow: '0 0 24px rgba(224,48,48,0.7)', letterSpacing: '0.05em', animation: 'thoughtAppear 0.4s 0.2s ease both' }}>
+              {formatCountdown(countdown)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Pensées (tous modes) — portrait + bulle en haut ─────── */}
+      {simMode && !simTextDone && simPhraseIdx < 0 && textMode !== 'narratif' && (() => {
+        const seq = getSimSeq(simImgIdx)
+        if (seq.length === 0) return null
+        const currentItem = seq[simThoughtCount - 1]
+        if (!currentItem) return null
+        const portraitUrl = protagonist ? (protagonist.portrait_url ?? protagonist.image_url ?? null) : null
+        const pSz = Math.round(CW * 0.123)  // ~48px
+        return (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, zIndex: 22, pointerEvents: 'none',
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.55) 60%, transparent 100%)',
+            padding: `${Math.round(CW * 0.036)}px ${Math.round(CW * 0.185)}px ${Math.round(CW * 0.072)}px ${Math.round(CW * 0.041)}px`,
+            display: 'flex', alignItems: 'center', gap: Math.round(CW * 0.031),
+          }}>
+            {portraitUrl && (
+              <div style={{ flexShrink: 0, width: pSz, height: pSz, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.25)', overflow: 'hidden', background: '#111' }}>
+                <img src={portraitUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 15%' }} />
+              </div>
+            )}
+            <p key={simThoughtCount} style={{
+              margin: 0, flex: 1,
+              fontFamily: 'Georgia, serif',
+              fontSize: Math.round(CW * 0.046),
+              fontWeight: 700, fontStyle: 'italic',
+              color: '#ffffff', lineHeight: 1.35,
+              textShadow: '0 1px 8px rgba(0,0,0,1), 0 0 24px rgba(0,0,0,0.9)',
+              animation: simThoughtFading ? 'thoughtFadeOut 0.45s ease forwards' : 'thoughtAppear 0.5s ease both',
+            }}>
+              {currentItem.text}
+            </p>
+          </div>
+        )
+      })()}
+
+      {/* ── Pensée glissante ────────────────────────────────────────── */}
+      {simMode && simTextDone && simLastThought && !choicesCollapsed && (simDiscPhase === 'idle' || simDiscPhase === 'nav') && (() => {
+        const portraitUrl = protagonist ? (protagonist.portrait_url ?? protagonist.image_url ?? null) : null
+        const pSz = Math.round(CW * 0.113)  // ~44px
+        const fs  = Math.round(CW * 0.038)  // ~15px
+        return (
+          <div style={{
+            position: 'absolute', bottom: choicesPanelH + 4, left: 0, right: 0, zIndex: 22, pointerEvents: 'none',
+            display: 'flex', flexDirection: 'column',
+            animation: 'thoughtAppear 0.5s cubic-bezier(0.25,0.46,0.45,0.94) both',
+          }}>
+            {/* ∨ centré + Relire absolu à droite */}
+            <div style={{ pointerEvents: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: `${Math.round(CW*0.013)}px ${Math.round(CW*0.031)}px ${Math.round(CW*0.01)}px` }}>
+              <div onClick={() => setChoicesCollapsed(true)} style={{ cursor: 'pointer', padding: `${Math.round(CW*0.01)}px ${Math.round(CW*0.015)}px` }}>
+                <span style={{ fontSize: Math.round(CW*0.033), color: 'rgba(255,255,255,0.7)', lineHeight: 1, background: 'rgba(0,0,0,0.5)', borderRadius: Math.round(CW*0.02), padding: `${Math.round(CW*0.008)}px ${Math.round(CW*0.023)}px`, display: 'inline-block' }}>∨</span>
+              </div>
+              {section?.content && (
+                <button onClick={() => setShowRereadOverlay(true)} style={{ position: 'absolute', right: Math.round(CW*0.031), background: 'transparent', border: 'none', color: 'rgba(212,168,76,0.95)', fontSize: Math.round(CW*0.028), cursor: 'pointer', padding: `${Math.round(CW*0.005)}px ${Math.round(CW*0.01)}px`, letterSpacing: '0.05em', fontWeight: 600, lineHeight: 1, textShadow: '0 1px 4px rgba(0,0,0,0.8)' }}>↩ Relire</button>
+              )}
+            </div>
+            {/* Portrait + pensée */}
+            <div style={{
+              background: 'linear-gradient(to bottom, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.35) 80%, transparent 100%)',
+              padding: `${Math.round(CW*0.02)}px ${Math.round(CW*0.041)}px ${Math.round(CW*0.036)}px`,
+              display: 'flex', alignItems: 'center', gap: Math.round(CW*0.031),
+            }}>
+              {portraitUrl && (
+                <div style={{ flexShrink: 0, width: pSz, height: pSz, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.2)', overflow: 'hidden', background: '#111' }}>
+                  <img src={portraitUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 15%' }} />
+                </div>
+              )}
+              <p style={{
+                margin: 0, flex: 1,
+                fontFamily: 'Georgia, serif',
+                fontSize: fs, fontWeight: 700, fontStyle: 'italic',
+                color: 'rgba(255,255,255,0.88)', lineHeight: 1.35,
+                textShadow: '0 1px 8px rgba(0,0,0,1), 0 0 24px rgba(0,0,0,0.9)',
+                borderRadius: Math.round(CW * 0.018),
+                padding: simThoughtIsNew ? `${Math.round(CW*0.008)}px ${Math.round(CW*0.012)}px` : '0',
+                animation: simThoughtIsNew ? 'thoughtNewGlow 1.1s ease-in-out 4' : 'none',
+              }}>
+                {simLastThought}
+              </p>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Expand button quand tout est replié ──────────────────── */}
+      {simMode && simTextDone && choicesCollapsed && (simDiscPhase === 'idle' || simDiscPhase === 'nav') && (
+        <div
+          onClick={() => setChoicesCollapsed(false)}
+          style={{ position: 'absolute', bottom: Math.round(CW * 0.072), left: 0, right: 0, zIndex: 30, display: 'flex', justifyContent: 'center', cursor: 'pointer', pointerEvents: 'auto' }}
+        >
+          <span style={{ fontSize: Math.round(CW * 0.033), color: 'rgba(212,168,76,0.9)', lineHeight: 1, background: 'rgba(0,0,0,0.5)', borderRadius: Math.round(CW * 0.02), padding: `${Math.round(CW*0.008)}px ${Math.round(CW*0.023)}px`, display: 'inline-block' }}>∧</span>
+        </div>
+      )}
+
+      {/* ── Discussion face-à-face (dernière image) ─────────────── */}
+      {simMode && simIsLastImg && simDiscPhase !== 'idle' && simDiscPhase !== 'nav' && (() => {
+        const disc = (section as any)?.discussion_scene as import('@/types').DiscussionScene | null | undefined
+        if (!disc) return null
+
+        const discNpc = npcs.find(n => n.id === disc.npc_id)
+        const npcName = discNpc?.name ?? 'PNJ'
+        const npcPortrait = discNpc?.portrait_url ?? discNpc?.image_url ?? null
+        const heroPortrait = protagonist?.portrait_url ?? protagonist?.image_url ?? null
+
+        const stripTags = (t: string) => t.replace(/\[[^\]]+\]\s*/g, '').trim()
+
+        // ── Dimensions — tout proportionnel à CW ────────────────────
+        const SIDE_PAD  = Math.round(CW * 0.038)
+        const P_CHAT    = Math.round(CW * 0.095)
+        const GAP       = Math.round(CW * 0.023)
+        const ROW_GAP   = Math.round(CW * 0.018)
+        const BPV       = Math.round(CW * 0.020)
+        const BPH       = Math.round(CW * 0.031)
+        const F_BUB     = Math.round(CW * 0.034)
+        const F_LBL     = Math.round(CW * 0.022)
+        const F_CHO     = Math.round(CW * 0.031)
+        const DOT       = Math.round(CW * 0.014)
+
+        // ── Handlers génériques (N tours) ───────────────────────────
+        const closeOverlay = () => {
+          setSimDiscFadingOut(true)
+          setTimeout(() => {
+            setSimDiscFadingOut(false)
+            setSimDiscPhase('nav')
+            setChoicesCollapsed(false)
+            if (disc.outcome_thought) {
+              setSimLastThought(disc.outcome_thought)
+              setSimThoughtIsNew(true)
+              setTimeout(() => setSimThoughtIsNew(false), 3000)
+            }
+          }, 500)
+        }
+
+        const endConversation = () => {
+          if (disc.outcome_thought) {
+            // Affiche la pensée finale du protagoniste, puis ferme après délai de lecture
+            setSimDiscPhase('outcome')
+            const words = disc.outcome_thought.split(' ').length
+            const readDelay = Math.max(words * 160 + 700, 1800)
+            setTimeout(() => closeOverlay(), readDelay)
+          } else {
+            closeOverlay()
+          }
+        }
+
+        const navigateFromDisc = (targetSectionId: string) => {
+          // Chercher un choix réel dans sectionChoices pour déclencher la transition animée
+          const realChoice = sectionChoices?.find((c: import('@/types').Choice) => c.target_section_id === targetSectionId)
+          setSimDiscFadingOut(true)
+          setTimeout(() => {
+            setSimDiscFadingOut(false)
+            setSimDiscPhase('idle')
+            setSimDiscHistory([])
+            setSimDiscCurrentChoices(null)
+            if (realChoice) {
+              handleChoiceWithTransition(realChoice)
+            } else {
+              // Pas de choix régulier (ex: épreuve trial) — navigation directe
+              onChoiceClick?.({ target_section_id: targetSectionId } as import('@/types').Choice)
+            }
+          }, 500)
+        }
+
+        const handlePickChoice = (choice: any) => {
+          const npcText = stripTags(choice.npc_response ?? '')
+          const nextChoices: any[] = choice.sub_choices?.length ? choice.sub_choices : []
+
+          // 1. Bulle joueur + dots de reflexion NPC
+          setSimDiscHistory(h => [...h, { type: 'player', text: choice.player_text, label: choice.emotion_label }])
+          setSimDiscCurrentChoices(null)
+          setSimDiscPhase('typing')
+
+          // 2. Après temps de réflexion (700ms) → réponse NPC, dots disparaissent
+          setTimeout(() => {
+            setSimDiscHistory(h => [...h, { type: 'npc', text: npcText }])
+            setSimDiscPhase('reading')
+
+            // 3. Pause lecture, puis suite
+            const readWords = npcText.split(' ').length
+            const readDelay = Math.max(readWords * 140 + 550, 1400)
+            if (nextChoices.length > 0) {
+              setTimeout(() => {
+                setSimDiscCurrentChoices(nextChoices)
+                setSimDiscPhase('player_thinking')
+              }, readDelay)
+            } else if (choice.target_section_id) {
+              // Navigation directe vers la section cible après la discussion
+              setTimeout(() => navigateFromDisc(choice.target_section_id), readDelay)
+            } else {
+              setTimeout(() => endConversation(), readDelay)
+            }
+          }, 700)
+        }
+
+        // ── Portrait helper ──────────────────────────────────────────
+        const PortraitCircle = ({ url, name, size, gold }: { url: string | null; name: string; size: number; gold?: boolean }) => (
+          <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: `2px solid ${gold ? 'rgba(212,168,76,0.75)' : 'rgba(255,255,255,0.25)'}`, background: 'rgba(0,0,0,0.5)', flexShrink: 0 }}>
+            {url
+              ? <img src={url} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 10%' }} />
+              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * 0.4), color: gold ? '#d4a84c' : 'rgba(255,255,255,0.5)', fontFamily: 'Georgia, serif' }}>{name[0]}</div>
+            }
+          </div>
+        )
+
+        // ── Couleurs WhatsApp dark ───────────────────────────────────
+        const NPC_BG   = 'rgba(255,255,255,0.96)'
+        const PLY_BG   = 'rgba(11,92,255,0.95)'
+        const NPC_TEXT = '#111827'
+        const BR_NPC_W = `4px 18px 18px 18px`
+        const BR_PLY_W = `18px 4px 18px 18px`
+        const BR_CHO_W = `18px 4px 18px 18px`
+
+        const isOpening        = simDiscPhase === 'pre_opening' || simDiscPhase === 'opening'
+        const showNpcOpening   = simDiscPhase !== 'pre_opening'   // texte NPC caché pendant dots initiaux
+        const showNpcTyping    = simDiscPhase === 'typing' || simDiscPhase === 'pre_opening'  // 'reading' exclu → dots disparaissent dès que NPC répond
+        const showPlayerThinking = simDiscPhase === 'player_thinking'
+        const showChoices      = simDiscPhase === 'active' && !!simDiscCurrentChoices?.length
+        const showOutcome      = simDiscPhase === 'outcome' && !!disc.outcome_thought
+        const padTop = isOpening ? Math.round(CW * 0.9) : Math.round(CW * 0.05)
+
+        return (
+          <div
+            style={{
+              position: 'absolute', inset: 0, zIndex: 30,
+              background: 'rgba(4,4,16,0.58)',
+              backdropFilter: 'blur(5px)', WebkitBackdropFilter: 'blur(5px)',
+              display: 'flex', flexDirection: 'column',
+              opacity: simDiscFadingOut ? 0 : 1,
+              transition: simDiscFadingOut ? 'opacity 0.5s ease' : 'none',
+              pointerEvents: simDiscFadingOut ? 'none' : 'auto',
+            }}
+          >
+            {/* Container scrollable — slide fluide via auto-scroll */}
+            <style>{`#disc-scroll-inner::-webkit-scrollbar{display:none}`}</style>
+            <div
+              id="disc-scroll-inner"
+              ref={simDiscScrollRef}
+              style={{
+                flex: 1, display: 'flex', flexDirection: 'column',
+                justifyContent: 'flex-start',
+                paddingTop: padTop, paddingLeft: SIDE_PAD, paddingRight: SIDE_PAD,
+                paddingBottom: Math.round(CW * 0.082), gap: ROW_GAP,
+                overflowY: 'scroll', scrollbarWidth: 'none',
+                transition: 'padding-top 0.45s cubic-bezier(0.25,0.46,0.45,0.94)',
+              }}
+            >
+
+              {/* NPC opening — caché pendant pre_opening (dots d'abord) */}
+              {showNpcOpening && (
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: GAP, animation: 'discBubble 0.4s 0.1s cubic-bezier(0.34,1.26,0.64,1) both', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(CW * 0.005), flexShrink: 0 }}>
+                    <PortraitCircle url={npcPortrait} name={npcName} size={P_CHAT} gold />
+                    <span style={{ fontSize: F_LBL, color: 'rgba(212,168,76,0.9)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 700, fontFamily: 'system-ui', whiteSpace: 'nowrap' }}>{npcName}</span>
+                  </div>
+                  <div style={{ maxWidth: '72%', background: NPC_BG, borderRadius: BR_NPC_W, padding: `${BPV}px ${BPH}px` }}>
+                    <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: F_BUB, fontStyle: 'italic', color: NPC_TEXT, lineHeight: 1.5 }}>{stripTags(disc.npc_opening)}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Historique des échanges (N tours) */}
+              {simDiscHistory.map((item, i) => (
+                item.type === 'player' ? (
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: Math.round(CW * 0.006), animation: 'discBubble 0.35s ease both', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(CW * 0.008) }}>
+                      <span style={{ fontSize: F_LBL, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 700, fontFamily: 'system-ui' }}>Toi</span>
+                      <PortraitCircle url={heroPortrait} name="Toi" size={Math.round(P_CHAT * 0.75)} />
+                    </div>
+                    <div style={{ maxWidth: '72%', background: PLY_BG, borderRadius: BR_PLY_W, padding: `${BPV}px ${BPH}px` }}>
+                      <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: F_BUB, fontStyle: 'italic', color: '#fff', lineHeight: 1.5 }}>{item.text}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: GAP, animation: 'discBubble 0.35s 0.05s ease both', flexShrink: 0 }}>
+                    <PortraitCircle url={npcPortrait} name={npcName} size={Math.round(P_CHAT * 0.75)} gold />
+                    <div style={{ maxWidth: '72%', background: NPC_BG, borderRadius: BR_NPC_W, padding: `${BPV}px ${BPH}px` }}>
+                      <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: F_BUB, fontStyle: 'italic', color: NPC_TEXT, lineHeight: 1.5 }}>{item.text}</p>
+                    </div>
+                  </div>
+                )
+              ))}
+
+              {/* Dots NPC — côté gauche (pre_opening et après choix joueur) */}
+              {showNpcTyping && (
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: GAP, animation: 'discBubble 0.25s ease both', flexShrink: 0 }}>
+                  <PortraitCircle url={npcPortrait} name={npcName} size={Math.round(P_CHAT * 0.75)} gold />
+                  <div style={{ background: NPC_BG, borderRadius: BR_NPC_W, padding: `${BPV}px ${Math.round(BPH * 1.3)}px`, display: 'flex', gap: Math.round(CW * 0.013), alignItems: 'center' }}>
+                    {[0, 1, 2].map(i => <span key={i} style={{ display: 'inline-block', width: DOT, height: DOT, borderRadius: '50%', background: 'rgba(30,30,50,0.45)', animation: `discTyping 1.1s ${i * 0.22}s ease-in-out infinite` }} />)}
+                  </div>
+                </div>
+              )}
+
+              {/* Dots joueur — côté droit (player_thinking, avant que les choix apparaissent) */}
+              {showPlayerThinking && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: Math.round(CW * 0.006), animation: 'discBubble 0.25s ease both', flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(CW * 0.008) }}>
+                    <span style={{ fontSize: F_LBL, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 700, fontFamily: 'system-ui' }}>Toi</span>
+                    <PortraitCircle url={heroPortrait} name="Toi" size={Math.round(P_CHAT * 0.75)} />
+                  </div>
+                  <div style={{ background: PLY_BG, borderRadius: BR_PLY_W, padding: `${BPV}px ${Math.round(BPH * 1.3)}px`, display: 'flex', gap: Math.round(CW * 0.013), alignItems: 'center' }}>
+                    {[0, 1, 2].map(i => <span key={i} style={{ display: 'inline-block', width: DOT, height: DOT, borderRadius: '50%', background: 'rgba(255,255,255,0.7)', animation: `discTyping 1.1s ${i * 0.22}s ease-in-out infinite` }} />)}
+                  </div>
+                </div>
+              )}
+
+              {/* Tour du joueur : portrait + choix empilés verticalement à droite */}
+              {showChoices && (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: Math.round(CW * 0.010), flexShrink: 0, animation: 'discBubble 0.35s 0.1s both' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(CW * 0.008) }}>
+                    <span style={{ fontSize: F_LBL, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 700, fontFamily: 'system-ui' }}>Toi</span>
+                    <PortraitCircle url={heroPortrait} name="Toi" size={P_CHAT} />
+                  </div>
+                  {/* Choix empilés, texte complet visible */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: Math.round(CW * 0.010), alignItems: 'flex-end', width: '80%' }}>
+                    {simDiscCurrentChoices!.map((choice: any, idx: number) => (
+                      <button
+                        key={choice.id ?? idx}
+                        onClick={e => { e.stopPropagation(); handlePickChoice(choice) }}
+                        style={{
+                          width: '100%', background: 'rgba(11,92,255,0.18)',
+                          border: '1px solid rgba(11,92,255,0.55)',
+                          borderRadius: BR_CHO_W,
+                          padding: `${Math.round(CW * 0.018)}px ${Math.round(CW * 0.038)}px`,
+                          cursor: 'pointer',
+                          animation: `discBubble 0.3s ${idx * 0.08}s cubic-bezier(0.34,1.26,0.64,1) both`,
+                          display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                          gap: Math.round(CW * 0.004), textAlign: 'left',
+                        }}
+                      >
+                        {choice.emotion_label && (
+                          <span style={{ fontSize: Math.round(F_LBL * 0.82), color: 'rgba(120,170,255,0.9)', textTransform: 'uppercase', letterSpacing: '0.1em', fontFamily: 'system-ui', fontWeight: 700, lineHeight: 1 }}>{choice.emotion_label}</span>
+                        )}
+                        <span style={{ fontSize: F_CHO, fontFamily: 'Georgia, serif', color: '#fff', lineHeight: 1.35 }}>{choice.player_text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Pensée finale — bulle centrée au-dessus du portrait ── */}
+              {showOutcome && (() => {
+                const P_OUT  = Math.round(CW * 0.23)   // portrait large centré
+                const C1     = Math.round(CW * 0.022)  // cercle 1 (proche portrait)
+                const C2     = Math.round(CW * 0.015)  // cercle 2
+                const C3     = Math.round(CW * 0.010)  // cercle 3 (proche bulle)
+                const F_OUT  = Math.round(CW * 0.037)  // fonte bulle pensée
+                const F_CTA  = Math.round(CW * 0.032)  // fonte phrase finale
+                return (
+                  <div ref={simDiscOutcomeRef} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, flexShrink: 0, padding: `${Math.round(CW * 0.05)}px 0 ${Math.round(CW * 0.03)}px`, animation: 'discBubble 0.55s 0.1s ease both' }}>
+
+                    {/* Bulle de pensée — au-dessus */}
+                    <div style={{
+                      position: 'relative', maxWidth: '86%', width: '86%',
+                      background: 'rgba(255,255,255,0.97)',
+                      borderRadius: Math.round(CW * 0.065),
+                      padding: `${Math.round(CW * 0.048)}px ${Math.round(CW * 0.052)}px`,
+                      boxShadow: '0 6px 32px rgba(0,0,0,0.45)',
+                      marginBottom: Math.round(CW * 0.008),
+                    }}>
+                      <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: F_OUT, fontStyle: 'italic', color: '#111827', lineHeight: 1.6, textAlign: 'center' }}>
+                        {disc.outcome_thought}
+                      </p>
+                      <p style={{ margin: `${Math.round(CW * 0.022)}px 0 0`, fontFamily: 'system-ui, sans-serif', fontSize: F_CTA, fontStyle: 'normal', fontWeight: 600, color: '#374151', lineHeight: 1.4, textAlign: 'center' }}>
+                        Il faut que je fasse un choix.
+                      </p>
+                    </div>
+
+                    {/* Cercles de connexion bulle → portrait */}
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: Math.round(CW * 0.012) }}>
+                      <div style={{ width: C3, height: C3, borderRadius: '50%', background: 'rgba(255,255,255,0.85)', boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }} />
+                      <div style={{ width: C2, height: C2, borderRadius: '50%', background: 'rgba(255,255,255,0.88)', boxShadow: '0 1px 6px rgba(0,0,0,0.35)' }} />
+                      <div style={{ width: C1, height: C1, borderRadius: '50%', background: 'rgba(255,255,255,0.92)', boxShadow: '0 2px 8px rgba(0,0,0,0.4)' }} />
+                    </div>
+
+                    {/* Portrait protagoniste — centré, grand, avec halo */}
+                    <div style={{
+                      width: P_OUT, height: P_OUT, borderRadius: '50%', overflow: 'hidden', flexShrink: 0,
+                      border: `3px solid rgba(255,255,255,0.9)`,
+                      boxShadow: '0 0 0 5px rgba(212,168,76,0.28), 0 0 50px rgba(0,0,0,0.75)',
+                      marginTop: Math.round(CW * 0.008),
+                    }}>
+                      {heroPortrait
+                        ? <img src={heroPortrait} alt="Toi" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 10%' }} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#1c2132', color: '#fff', fontSize: Math.round(P_OUT * 0.4), fontFamily: 'Georgia, serif' }}>T</div>
+                      }
+                    </div>
+
+                  </div>
+                )
+              })()}
+
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* ── Overlay épreuve Chance (dés) ─────────────────────────── */}
+      {simMode && simTrialPhase !== 'idle' && section?.trial?.type === 'chance' && (() => {
+        const DICE_FACES: Record<number, string> = { 1: '⚀', 2: '⚁', 3: '⚂', 4: '⚃', 5: '⚄', 6: '⚅' }
+        const face = DICE_FACES[simDiceFace] ?? '🎲'
+        const isResult = simTrialPhase === 'result'
+        const isSuccess = simTrialResult === 'success'
+
+        const startRoll = () => {
+          setSimTrialPhase('rolling')
+          let count = 0
+          const total = 14
+          simDiceIntervalRef.current = setInterval(() => {
+            count++
+            setSimDiceFace(Math.ceil(Math.random() * 6))
+            if (count >= total) {
+              clearInterval(simDiceIntervalRef.current!)
+              simDiceIntervalRef.current = null
+              const finalFace = Math.ceil(Math.random() * 6)
+              setSimDiceFace(finalFace)
+              const result: 'success' | 'failure' = finalFace >= 4 ? 'success' : 'failure'
+              setSimTrialResult(result)
+              setSimTrialPhase('result')
+              const targetId = result === 'success'
+                ? section?.trial?.success_section_id
+                : section?.trial?.failure_section_id
+              if (targetId) {
+                const transText = result === 'success'
+                  ? (section?.trial as any)?.success_transition_text
+                  : (section?.trial as any)?.failure_transition_text
+                const transImg = result === 'success'
+                  ? (section?.trial as any)?.success_transition_image_url
+                  : (section?.trial as any)?.failure_transition_image_url
+                setTimeout(() => {
+                  handleChoiceWithTransition({
+                    target_section_id: targetId,
+                    ...(transText ? { transition_text: transText } : {}),
+                    ...(transImg ? { transition_image_url: transImg } : {}),
+                  } as import('@/types').Choice)
+                }, 1800)
+              }
+            }
+          }, 75)
+        }
+
+        return (
+          <div style={{
+            position: 'absolute', inset: 0, zIndex: 60,
+            background: 'rgba(4,4,10,0.93)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            gap: Math.round(CW * 0.04),
+          }}>
+            <div style={{ fontSize: Math.round(CW * 0.032), color: 'rgba(255,255,255,0.45)', fontFamily: 'Georgia, serif', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+              Épreuve de Chance
+            </div>
+            <div style={{
+              fontSize: Math.round(CW * 0.38),
+              lineHeight: 1,
+              animation: simTrialPhase === 'rolling' ? 'diceShake 0.075s linear infinite' : 'none',
+              filter: isResult
+                ? isSuccess ? 'drop-shadow(0 0 28px rgba(90,210,90,0.75))' : 'drop-shadow(0 0 28px rgba(220,70,70,0.75))'
+                : 'none',
+              transition: 'filter 0.3s ease',
+            }}>
+              {face}
+            </div>
+            {isResult && (
+              <div style={{
+                fontSize: Math.round(CW * 0.054),
+                fontWeight: 700,
+                fontFamily: 'Georgia, serif',
+                color: isSuccess ? '#6ddc6d' : '#dc5050',
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                animation: 'thoughtAppear 0.35s ease both',
+                textShadow: isSuccess ? '0 0 20px rgba(90,210,90,0.55)' : '0 0 20px rgba(220,70,70,0.55)',
+              }}>
+                {isSuccess ? '✓ Succès' : '✗ Échec'}
+              </div>
+            )}
+            {simTrialPhase === 'pre_roll' && (
+              <div
+                onClick={startRoll}
+                style={{
+                  marginTop: Math.round(CW * 0.015),
+                  padding: `${Math.round(CW * 0.023)}px ${Math.round(CW * 0.062)}px`,
+                  background: 'rgba(212,168,76,0.13)',
+                  border: '1px solid rgba(212,168,76,0.48)',
+                  borderRadius: Math.round(CW * 0.023),
+                  fontSize: Math.round(CW * 0.038),
+                  color: '#d4a84c',
+                  cursor: 'pointer',
+                  fontFamily: 'Georgia, serif',
+                  letterSpacing: '0.04em',
+                  animation: 'thoughtAppear 0.4s 0.15s ease both',
+                  backdropFilter: 'blur(6px)',
+                }}
+              >
+                Lancer les dés
+              </div>
+            )}
           </div>
         )
       })()}
@@ -7807,19 +11406,95 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
         const imgUrl = transitionChoice.transition_image_url ?? imgs[Math.min(idx, imgs.length - 1)]?.url ?? null
         if (!imgUrl) return null
         return (
-          <div style={{ position: 'absolute', inset: 0, zIndex: 100, background: '#000', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ position: 'absolute', inset: 0, zIndex: 100, background: '#000', display: 'flex', flexDirection: 'column', opacity: transitionFadingOut ? 0 : 1, transition: transitionFadingOut ? 'opacity 0.75s ease' : 'none' }}>
             <style>{`@keyframes transitionFadeIn { from { opacity:0 } to { opacity:1 } }`}</style>
             <img src={imgUrl} alt="" style={{ flex: 1, width: '100%', objectFit: 'cover', display: 'block', animation: 'transitionFadeIn 0.4s ease both' }} />
-            {transitionChoice.transition_text && (
-              <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '70px 24px 36px', background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.65) 55%, transparent 100%)', animation: 'transitionFadeIn 0.7s 0.3s ease both' }}>
-                <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: '16px', fontStyle: 'italic', color: '#ede9df', lineHeight: 1.7, textAlign: 'center', textShadow: '0 2px 12px rgba(0,0,0,1), 0 0 30px rgba(0,0,0,0.9)' }}>
-                  {transitionChoice.transition_text}
-                </p>
-              </div>
-            )}
+            {transitionChoice.transition_text && (() => {
+              const allTransChunks = getNarrChunks(transitionChoice.transition_text)
+              const visibleTransChunks = allTransChunks.slice(0, transChunkCount)
+              const LH = Math.round((textFontSize + 10) * 1.7)
+              // Phrase courante (après le dernier lineBreak=true non-terminal)
+              let transSentenceStart = 0
+              for (let ci = 0; ci < visibleTransChunks.length - 1; ci++) {
+                if (visibleTransChunks[ci].lineBreak) transSentenceStart = ci + 1
+              }
+              const transSentenceChunks = visibleTransChunks.slice(transSentenceStart)
+              // Mono-chunk → centré, multi-chunk → gauche
+              let transFullSentenceEnd = allTransChunks.length - 1
+              for (let ci = transSentenceStart; ci < allTransChunks.length; ci++) {
+                if (allTransChunks[ci].lineBreak) { transFullSentenceEnd = ci; break }
+              }
+              const transIsCenter = (transFullSentenceEnd - transSentenceStart) === 0
+              const nextSec = allSections.find(sec => sec.id === transitionChoice.target_section_id)
+              function isRedTW(word: string): boolean {
+                const clean = word.toLowerCase().replace(/[.,!?;:'"«»()\[\]!]/g, '')
+                return redWordsSet.has(clean)
+              }
+              function renderTransSentence() {
+                const olderWC = transSentenceChunks.slice(0, -1).map(c => c.text).join(' ').split(/\s+/).filter(Boolean).length
+                const allWords = transSentenceChunks.map(c => c.text).join(' ').split(/\s+/).filter(Boolean)
+                return allWords.map((word, wi) => {
+                  const isLastWord = wi === allWords.length - 1
+                  const isPunctOnlyTW = /^[.,!?;:…»«\-–—()[\]"']+$/.test(word)
+                  const red = (isLastWord && !isPunctOnlyTW) || isRedTW(word)
+                  const isNew = wi >= olderWC
+                  return (
+                    <React.Fragment key={`${transSentenceStart}-${wi}`}>
+                      {wi > 0 && ' '}
+                      <span style={{ color: red ? '#e03030' : 'inherit', animation: isNew ? 'wordAppear 0.35s ease both' : undefined }}>
+                        {word}
+                      </span>
+                    </React.Fragment>
+                  )
+                })
+              }
+              const pStyle: React.CSSProperties = {
+                margin: 0, fontFamily: 'Georgia, serif', fontSize: `${textFontSize + 10}px`,
+                fontStyle: 'normal', lineHeight: 1.7, color: '#f0ece4',
+                textShadow: '0 2px 20px rgba(0,0,0,1), 0 0 40px rgba(0,0,0,0.9)',
+                pointerEvents: 'none',
+              }
+              const tp = (transitionChoice as any).transition_text_position ?? { x: 50, y: 50 }
+              return (
+                <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                  <div style={{ position: 'absolute', left: `${tp.x}%`, top: `${tp.y}%`, transform: 'translate(-50%, -50%)', width: `${Math.round(CW * 0.82)}px` }}>
+                    <p style={{ ...pStyle, textAlign: transIsCenter ? 'center' : 'left', minHeight: `${LH}px` }}>
+                      {renderTransSentence()}
+                    </p>
+                  </div>
+                </div>
+              )
+            })()}
           </div>
         )
       })()}
+
+      {/* ── Overlay Relire le texte ──────────────────────────────── */}
+      {simMode && showRereadOverlay && (
+        <div
+          onClick={() => setShowRereadOverlay(false)}
+          style={{ position: 'absolute', inset: 0, zIndex: 48, background: 'rgba(4,4,10,0.94)', display: 'flex', flexDirection: 'column', padding: `${Math.round(CW * 0.092)}px 0 ${Math.round(CW * 0.062)}px` }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: `0 ${Math.round(CW * 0.051)}px`, marginBottom: Math.round(CW * 0.041), flexShrink: 0 }}>
+            <span style={{ fontSize: Math.round(CW * 0.028), color: '#d4a84c', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>§{section?.number}</span>
+            <button
+              onClick={() => setShowRereadOverlay(false)}
+              style={{ background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.35)', fontSize: Math.round(CW * 0.046), cursor: 'pointer', padding: `${Math.round(CW * 0.01)}px ${Math.round(CW * 0.02)}px`, lineHeight: 1 }}
+            >✕</button>
+          </div>
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{ flex: 1, overflowY: 'auto', padding: `0 ${Math.round(CW * 0.062)}px`, scrollbarWidth: 'thin', scrollbarColor: 'rgba(212,168,76,0.2) transparent' }}
+          >
+            <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: textFontSize, color: '#ede9df', lineHeight: 1.85, whiteSpace: 'pre-wrap' }}>
+              {section?.content?.trim() ?? section?.summary?.trim() ?? ''}
+            </p>
+          </div>
+          <div style={{ marginTop: Math.round(CW * 0.036), textAlign: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: Math.round(CW * 0.023), color: 'rgba(255,255,255,0.2)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>Taper en dehors pour fermer</span>
+          </div>
+        </div>
+      )}
 
       {/* ── Overlay Préférences joueur ────────────────────────────── */}
       {showSettingsOverlay && settingsStep && (
@@ -7836,39 +11511,665 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
   )
 }
 
+// ── Combat Scene Editor ───────────────────────────────────────────────────────
+
+const COMBAT_LAYOUT_DEFAULTS: NonNullable<import('@/types').CombatLayoutSettings['v3']> = {
+  bg:          { vignette_opacity: 0.65, filter: 'none', subject_position: 'center' },
+  narrative:   { position_y: 80, bg_opacity: 0.82, bg_color: '#08080f', font_size: 13, font_color: '#e8e8f0', padding: 14, style: 'roman' },
+  choices:     { position_y: 24, style: 'card', accent_color: '#d4a84c', font_size: 12, gap: 8, appear: 'cascade', appear_delay_ms: 200, cascade_stagger_ms: 180 },
+  hp:          { height: 5, player_color: '#4caf7d', enemy_color: '#e05555', player_name_color: '#4caf7d', enemy_name_color: '#e05555', show_numbers: true, show_names: true, player_x: 16, player_y: 20, enemy_x: 210, enemy_y: 20, bar_width: 155 },
+  transition:  { type: 'fade', duration_ms: 350 },
+  impact:      { screen_shake: true, damage_font_size: 28, damage_color: '#d4a84c', flash_on_hit: true },
+  timing:      { image_hold_ms: 400, narrative_hold_ms: 800, action_hold_ms: 1000, result_hold_ms: 1200 },
+  player_turn: { text: 'Que fais-tu ?', position_y: 220, bg_color: '#000000', bg_opacity: 0 },
+  action_text: { position_y: 22, font_size: 22, color: '#ffffff' },
+  phase_texts: {
+    player_hit:  { action: 'Tu frappes',  result: 'Touché !'  },
+    player_miss: { action: 'Tu frappes',  result: 'Raté !'    },
+    enemy_hit:   { action: 'Il frappe',   result: 'Aïe !'     },
+    enemy_miss:  { action: 'Il frappe',   result: 'Esquivé !' },
+  },
+  end_screens:  { victory_text: 'Tu as gagné !', defeat_text: 'Tu es KO.' },
+  player_label: { show: false, position_x: 16, position_y: 60, font_size: 16, color: '#4caf7d', bold: true },
+  npc_label:    { show: true, position_x: 16, position_y: 60, font_size: 18, color: '#ffffff', bold: true },
+  dice:         { mode: 'interactive', timeout_ms: 5000, show_enemy_score: true },
+}
+
+function CombatSceneEditor({ bookId, savedLayout, onSaved, sections, npcs, combatTypes, protagonistName }: {
+  bookId: string
+  savedLayout: NonNullable<import('@/types').CombatLayoutSettings['v3']> | null
+  onSaved: (layout: NonNullable<import('@/types').CombatLayoutSettings['v3']>) => void
+  sections: import('@/types').Section[]
+  npcs: import('@/types').Npc[]
+  combatTypes: import('@/types').CombatType[]
+  protagonistName: string
+}) {
+  // Trouver toutes les sections combat
+  const combatSections = sections.filter(s => s.trial?.type === 'combat').sort((a, b) => a.number - b.number)
+  const firstCombatSection = combatSections[0] ?? null
+
+  const [selectedSectionId, setSelectedSectionId] = React.useState<string | null>(firstCombatSection?.id ?? null)
+
+  const selectedSection = sections.find(s => s.id === selectedSectionId) ?? firstCombatSection
+  const previewNpcId = selectedSection?.trial?.npc_id ?? null
+  const previewNpc = previewNpcId ? npcs.find(n => n.id === previewNpcId) : (npcs.find(n => n.type === 'ennemi' || n.type === 'boss') ?? null)
+  const previewCombatTypeId = (selectedSection as any)?.combat_type_id ?? null
+  const previewCombatType = previewCombatTypeId ? combatTypes.find(ct => ct.id === previewCombatTypeId) : (combatTypes[0] ?? null)
+
+  const [layout, setLayout] = React.useState<NonNullable<import('@/types').CombatLayoutSettings['v3']>>(() => {
+    const s = savedLayout
+    if (!s) return COMBAT_LAYOUT_DEFAULTS
+    return {
+      bg:          { ...COMBAT_LAYOUT_DEFAULTS.bg,          ...(s.bg          ?? {}) },
+      narrative:   { ...COMBAT_LAYOUT_DEFAULTS.narrative,   ...(s.narrative   ?? {}) },
+      choices:     { ...COMBAT_LAYOUT_DEFAULTS.choices,     ...(s.choices     ?? {}) },
+      hp:          { ...COMBAT_LAYOUT_DEFAULTS.hp,          ...(s.hp          ?? {}) },
+      transition:  { ...COMBAT_LAYOUT_DEFAULTS.transition,  ...(s.transition  ?? {}) },
+      impact:      { ...COMBAT_LAYOUT_DEFAULTS.impact,      ...(s.impact      ?? {}) },
+      timing:      { ...COMBAT_LAYOUT_DEFAULTS.timing,      ...(s.timing      ?? {}) },
+      player_turn: { ...COMBAT_LAYOUT_DEFAULTS.player_turn, ...(s.player_turn ?? {}) },
+      action_text: { ...COMBAT_LAYOUT_DEFAULTS.action_text, ...(s.action_text ?? {}) },
+      phase_texts: {
+        player_hit:  { ...COMBAT_LAYOUT_DEFAULTS.phase_texts.player_hit,  ...(s.phase_texts?.player_hit  ?? {}) },
+        player_miss: { ...COMBAT_LAYOUT_DEFAULTS.phase_texts.player_miss, ...(s.phase_texts?.player_miss ?? {}) },
+        enemy_hit:   { ...COMBAT_LAYOUT_DEFAULTS.phase_texts.enemy_hit,   ...(s.phase_texts?.enemy_hit   ?? {}) },
+        enemy_miss:  { ...COMBAT_LAYOUT_DEFAULTS.phase_texts.enemy_miss,  ...(s.phase_texts?.enemy_miss  ?? {}) },
+      },
+      end_screens:  { ...COMBAT_LAYOUT_DEFAULTS.end_screens,  ...(s.end_screens  ?? {}) },
+      player_label: { ...COMBAT_LAYOUT_DEFAULTS.player_label, ...(s.player_label ?? {}) },
+      npc_label:    { ...COMBAT_LAYOUT_DEFAULTS.npc_label,   ...(s.npc_label   ?? {}) },
+      dice:         { ...COMBAT_LAYOUT_DEFAULTS.dice!,       ...(s.dice        ?? {}) },
+    }
+  })
+  const [saving, setSaving] = React.useState(false)
+  const [saved, setSaved] = React.useState(false)
+  const [previewPhase, setPreviewPhase] = React.useState<'player_choose' | 'player_hit' | 'player_miss' | 'enemy_hit' | 'enemy_miss'>('player_choose')
+
+  const phoneRef = React.useRef<HTMLDivElement>(null)
+  const [phoneScale, setPhoneScale] = React.useState(1)
+  React.useEffect(() => {
+    const el = phoneRef.current; if (!el) return
+    const obs = new ResizeObserver(() => { setPhoneScale(el.clientHeight / 845) })
+    obs.observe(el); setPhoneScale(el.clientHeight / 845)
+    return () => obs.disconnect()
+  }, [])
+
+  function upd<K extends keyof typeof layout>(section: K, patch: Partial<typeof layout[K]>) {
+    setLayout(l => ({ ...l, [section]: { ...l[section], ...patch } }))
+  }
+
+  async function saveLayout() {
+    setSaving(true)
+    await fetch(`/api/books/${bookId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ combat_layout: { v3: layout } }),
+    })
+    onSaved(layout)
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  const inputS: React.CSSProperties = { background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--foreground)', padding: '0.35rem 0.55rem', fontSize: '0.8rem', width: '100%' }
+  const labelS: React.CSSProperties = { fontSize: '0.68rem', color: 'var(--muted)', display: 'block', marginBottom: '0.25rem' }
+  const titleS: React.CSSProperties = { fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.6rem', marginTop: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.3rem' }
+
+  return (
+    <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+
+      {/* ── Contrôles ── */}
+      <div style={{ width: '320px', flexShrink: 0, overflowY: 'auto', padding: '1.25rem', borderRight: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+          <h2 style={{ margin: 0, fontSize: '1rem', fontWeight: 700 }}>⚔ Écran combat V3</h2>
+          <button onClick={saveLayout} disabled={saving} style={{ padding: '0.35rem 0.9rem', background: saved ? '#4caf7d' : 'var(--accent)', color: '#000', border: 'none', borderRadius: '6px', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer' }}>
+            {saving ? '…' : saved ? '✓ Sauvegardé' : 'Sauvegarder'}
+          </button>
+        </div>
+
+        {/* Sélecteur de section de preview */}
+        <div style={{ marginBottom: '1rem', padding: '0.6rem 0.75rem', background: 'var(--surface-2)', borderRadius: '7px', border: '1px solid var(--border)' }}>
+          <label style={{ ...labelS, marginBottom: '0.3rem' }}>Section de preview</label>
+          {combatSections.length > 0 ? (
+            <select style={inputS} value={selectedSectionId ?? ''} onChange={e => setSelectedSectionId(e.target.value || null)}>
+              {combatSections.map(s => (
+                <option key={s.id} value={s.id}>
+                  §{s.number}{s.trial?.npc_id ? ` — ${npcs.find(n => n.id === s.trial!.npc_id)?.name ?? '?'}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p style={{ margin: 0, fontSize: '0.68rem', color: 'var(--muted)', fontStyle: 'italic' }}>Aucune section combat dans ce livre</p>
+          )}
+          {previewNpc && (
+            <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {previewNpc.image_url && <img src={previewNpc.image_url} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover' }} />}
+              <span style={{ fontSize: '0.68rem', color: 'var(--muted)' }}>{previewNpc.name}</span>
+              {previewCombatType && <span style={{ fontSize: '0.62rem', color: 'var(--accent)', background: 'rgba(212,168,76,0.1)', borderRadius: '4px', padding: '0.1rem 0.35rem' }}>{previewCombatType.name}</span>}
+            </div>
+          )}
+        </div>
+
+        <div style={titleS}>Fond & image</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+          <div><label style={labelS}>Position sujet</label>
+            <select style={inputS} value={layout.bg.subject_position} onChange={e => upd('bg', { subject_position: e.target.value as any })}>
+              <option value="center">Centre</option><option value="left">Gauche</option><option value="right">Droite</option>
+            </select></div>
+          <div><label style={labelS}>Filtre</label>
+            <select style={inputS} value={layout.bg.filter} onChange={e => upd('bg', { filter: e.target.value as any })}>
+              <option value="none">Aucun</option><option value="desaturate">Désaturé</option><option value="contrast">Contraste+</option><option value="dark">Sombre</option>
+            </select></div>
+        </div>
+        <div><label style={labelS}>Vignette ({Math.round(layout.bg.vignette_opacity * 100)}%)</label>
+          <input type="range" min={0} max={1} step={0.05} value={layout.bg.vignette_opacity} onChange={e => upd('bg', { vignette_opacity: parseFloat(e.target.value) })} style={{ width: '100%' }} /></div>
+
+        <div style={titleS}>Texte narratif</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+          <div><label style={labelS}>Style</label>
+            <select style={inputS} value={layout.narrative.style} onChange={e => upd('narrative', { style: e.target.value as any })}>
+              <option value="roman">Roman</option><option value="manuscrit">Manuscrit</option><option value="sobre">Sobre</option>
+            </select></div>
+          <div><label style={labelS}>Taille police ({layout.narrative.font_size}px)</label>
+            <input type="range" min={10} max={18} step={1} value={layout.narrative.font_size} onChange={e => upd('narrative', { font_size: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+          <div><label style={labelS}>Couleur fond</label>
+            <input type="color" value={layout.narrative.bg_color} onChange={e => upd('narrative', { bg_color: e.target.value })} style={{ width: '100%', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          <div><label style={labelS}>Opacité fond ({Math.round(layout.narrative.bg_opacity * 100)}%)</label>
+            <input type="range" min={0} max={1} step={0.05} value={layout.narrative.bg_opacity} onChange={e => upd('narrative', { bg_opacity: parseFloat(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <div><label style={labelS}>Couleur texte</label>
+            <input type="color" value={layout.narrative.font_color} onChange={e => upd('narrative', { font_color: e.target.value })} style={{ width: '100%', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          <div><label style={labelS}>Position Y ({layout.narrative.position_y}%)</label>
+            <input type="range" min={30} max={85} step={1} value={layout.narrative.position_y} onChange={e => upd('narrative', { position_y: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+
+        <div style={titleS}>Boutons de choix</div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label style={labelS}>Position verticale ({layout.choices.position_y}px depuis le bas)</label>
+          <input type="range" min={0} max={300} step={4} value={layout.choices.position_y} onChange={e => upd('choices', { position_y: parseInt(e.target.value) })} style={{ width: '100%' }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+          <div><label style={labelS}>Style bouton</label>
+            <select style={inputS} value={layout.choices.style} onChange={e => upd('choices', { style: e.target.value as any })}>
+              <option value="card">Card</option><option value="filled">Rempli</option><option value="outlined">Contour</option><option value="text_only">Texte seul</option>
+            </select></div>
+          <div><label style={labelS}>Apparition</label>
+            <select style={inputS} value={layout.choices.appear} onChange={e => upd('choices', { appear: e.target.value as any })}>
+              <option value="cascade">Cascade</option><option value="fade">Fondu</option><option value="flash_cascade">Flash cascade</option><option value="typewriter">Machine à écrire</option>
+            </select></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+          <div><label style={labelS}>Couleur accent</label>
+            <input type="color" value={layout.choices.accent_color} onChange={e => upd('choices', { accent_color: e.target.value })} style={{ width: '100%', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          <div><label style={labelS}>Taille police ({layout.choices.font_size}px)</label>
+            <input type="range" min={10} max={16} step={1} value={layout.choices.font_size} onChange={e => upd('choices', { font_size: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <div><label style={labelS}>Délai apparition ({layout.choices.appear_delay_ms}ms)</label>
+            <input type="range" min={0} max={1000} step={50} value={layout.choices.appear_delay_ms} onChange={e => upd('choices', { appear_delay_ms: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          <div><label style={labelS}>Décalage cascade ({layout.choices.cascade_stagger_ms}ms)</label>
+            <input type="range" min={50} max={500} step={25} value={layout.choices.cascade_stagger_ms} onChange={e => upd('choices', { cascade_stagger_ms: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+
+        <div style={titleS}>Barres de vie</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+          <div><label style={labelS}>Épaisseur ({layout.hp.height}px)</label>
+            <input type="range" min={2} max={14} step={1} value={layout.hp.height} onChange={e => upd('hp', { height: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          <div><label style={labelS}>Largeur ({layout.hp.bar_width}px)</label>
+            <input type="range" min={60} max={358} step={2} value={layout.hp.bar_width} onChange={e => upd('hp', { bar_width: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '0.5rem' }}>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.hp.show_names} onChange={e => upd('hp', { show_names: e.target.checked })} /> Noms
+          </label>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.hp.show_numbers} onChange={e => upd('hp', { show_numbers: e.target.checked })} /> Nombres
+          </label>
+        </div>
+
+        {/* Barre joueur */}
+        <div style={{ marginBottom: '0.6rem', padding: '0.5rem 0.6rem', background: 'var(--surface-2)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 700, marginBottom: '0.4rem' }}>👤 Barre joueur</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.4rem' }}>
+            <div><label style={labelS}>X ({layout.hp.player_x}px)</label>
+              <input type="range" min={0} max={358} step={2} value={layout.hp.player_x} onChange={e => upd('hp', { player_x: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+            <div><label style={labelS}>Y ({layout.hp.player_y}px)</label>
+              <input type="range" min={0} max={700} step={2} value={layout.hp.player_y} onChange={e => upd('hp', { player_y: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            <div><label style={labelS}>Couleur barre</label>
+              <input type="color" value={layout.hp.player_color} onChange={e => upd('hp', { player_color: e.target.value })} style={{ width: '100%', height: '28px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+            <div><label style={labelS}>Couleur nom</label>
+              <input type="color" value={layout.hp.player_name_color} onChange={e => upd('hp', { player_name_color: e.target.value })} style={{ width: '100%', height: '28px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          </div>
+        </div>
+
+        {/* Barre ennemi */}
+        <div style={{ marginBottom: '0.5rem', padding: '0.5rem 0.6rem', background: 'var(--surface-2)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 700, marginBottom: '0.4rem' }}>💀 Barre ennemi</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.4rem' }}>
+            <div><label style={labelS}>X ({layout.hp.enemy_x}px)</label>
+              <input type="range" min={0} max={358} step={2} value={layout.hp.enemy_x} onChange={e => upd('hp', { enemy_x: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+            <div><label style={labelS}>Y ({layout.hp.enemy_y}px)</label>
+              <input type="range" min={0} max={700} step={2} value={layout.hp.enemy_y} onChange={e => upd('hp', { enemy_y: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            <div><label style={labelS}>Couleur barre</label>
+              <input type="color" value={layout.hp.enemy_color} onChange={e => upd('hp', { enemy_color: e.target.value })} style={{ width: '100%', height: '28px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+            <div><label style={labelS}>Couleur nom</label>
+              <input type="color" value={layout.hp.enemy_name_color} onChange={e => upd('hp', { enemy_name_color: e.target.value })} style={{ width: '100%', height: '28px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          </div>
+        </div>
+
+        <div style={titleS}>Effets d'impact</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.impact.screen_shake} onChange={e => upd('impact', { screen_shake: e.target.checked })} /> Screen shake
+          </label>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.impact.flash_on_hit} onChange={e => upd('impact', { flash_on_hit: e.target.checked })} /> Flash coup
+          </label>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <div><label style={labelS}>Couleur dégâts</label>
+            <input type="color" value={layout.impact.damage_color} onChange={e => upd('impact', { damage_color: e.target.value })} style={{ width: '100%', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          <div><label style={labelS}>Taille chiffre ({layout.impact.damage_font_size}px)</label>
+            <input type="range" min={14} max={40} step={2} value={layout.impact.damage_font_size} onChange={e => upd('impact', { damage_font_size: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+
+        <div style={titleS}>Timing</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <div><label style={labelS}>Durée texte action ({layout.timing.action_hold_ms}ms)</label>
+            <input type="range" min={300} max={3000} step={100} value={layout.timing.action_hold_ms} onChange={e => upd('timing', { action_hold_ms: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          <div><label style={labelS}>Durée texte résultat ({layout.timing.result_hold_ms}ms)</label>
+            <input type="range" min={300} max={3000} step={100} value={layout.timing.result_hold_ms} onChange={e => upd('timing', { result_hold_ms: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginTop: '0.5rem' }}>
+          <div><label style={labelS}>Pause image ({layout.timing.image_hold_ms}ms)</label>
+            <input type="range" min={0} max={2000} step={100} value={layout.timing.image_hold_ms} onChange={e => upd('timing', { image_hold_ms: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          <div><label style={labelS}>Pause avant choix ({layout.timing.narrative_hold_ms}ms)</label>
+            <input type="range" min={0} max={2000} step={100} value={layout.timing.narrative_hold_ms} onChange={e => upd('timing', { narrative_hold_ms: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+
+        <div style={titleS}>Tour joueur — "Que fais-tu ?"</div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label style={labelS}>Texte</label>
+          <input type="text" style={inputS} value={layout.player_turn.text} onChange={e => upd('player_turn', { text: e.target.value })} />
+        </div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label style={labelS}>Position ({layout.player_turn.position_y}px depuis le bas)</label>
+          <input type="range" min={50} max={600} step={5} value={layout.player_turn.position_y} onChange={e => upd('player_turn', { position_y: parseInt(e.target.value) })} style={{ width: '100%' }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <div><label style={labelS}>Fond</label>
+            <input type="color" value={layout.player_turn.bg_color} onChange={e => upd('player_turn', { bg_color: e.target.value })} style={{ width: '100%', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          <div><label style={labelS}>Opacité fond ({Math.round(layout.player_turn.bg_opacity * 100)}%)</label>
+            <input type="range" min={0} max={1} step={0.05} value={layout.player_turn.bg_opacity} onChange={e => upd('player_turn', { bg_opacity: parseFloat(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+
+        <div style={titleS}>Texte action ("Tu frappes / Il frappe")</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+          <div><label style={labelS}>Position Y ({layout.action_text.position_y}% depuis le haut)</label>
+            <input type="range" min={5} max={70} step={1} value={layout.action_text.position_y} onChange={e => upd('action_text', { position_y: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          <div><label style={labelS}>Taille police ({layout.action_text.font_size}px)</label>
+            <input type="range" min={12} max={48} step={2} value={layout.action_text.font_size} onChange={e => upd('action_text', { font_size: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+        </div>
+        <div><label style={labelS}>Couleur</label>
+          <input type="color" value={layout.action_text.color} onChange={e => upd('action_text', { color: e.target.value })} style={{ width: '100%', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+
+        <div style={titleS}>Textes par phase</div>
+        {(['player_hit', 'player_miss', 'enemy_hit', 'enemy_miss'] as const).map(phase => (
+          <div key={phase} style={{ marginBottom: '0.6rem', padding: '0.5rem 0.6rem', background: 'var(--surface-2)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 700, marginBottom: '0.4rem' }}>
+              {phase === 'player_hit' ? '⚔ Joueur touche' : phase === 'player_miss' ? '💨 Joueur rate' : phase === 'enemy_hit' ? '🩸 Ennemi touche' : '🛡 Ennemi rate'}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              <div>
+                <label style={labelS}>Action</label>
+                <input type="text" style={inputS} value={layout.phase_texts[phase].action} onChange={e => setLayout(l => ({ ...l, phase_texts: { ...l.phase_texts, [phase]: { ...l.phase_texts[phase], action: e.target.value } } }))} />
+              </div>
+              <div>
+                <label style={labelS}>Résultat</label>
+                <input type="text" style={inputS} value={layout.phase_texts[phase].result} onChange={e => setLayout(l => ({ ...l, phase_texts: { ...l.phase_texts, [phase]: { ...l.phase_texts[phase], result: e.target.value } } }))} />
+              </div>
+            </div>
+          </div>
+        ))}
+
+        <div style={titleS}>Écrans fin</div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label style={labelS}>Texte victoire</label>
+          <input type="text" style={inputS} value={layout.end_screens.victory_text} onChange={e => upd('end_screens', { victory_text: e.target.value })} />
+        </div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label style={labelS}>Texte défaite</label>
+          <input type="text" style={inputS} value={layout.end_screens.defeat_text} onChange={e => upd('end_screens', { defeat_text: e.target.value })} />
+        </div>
+
+        <div style={titleS}>Nom du joueur (PJ)</div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.player_label.show} onChange={e => upd('player_label', { show: e.target.checked })} /> Afficher le nom
+          </label>
+        </div>
+        {layout.player_label.show && (<>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <div><label style={labelS}>Position X ({layout.player_label.position_x}px)</label>
+              <input type="range" min={0} max={360} step={4} value={layout.player_label.position_x} onChange={e => upd('player_label', { position_x: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+            <div><label style={labelS}>Position Y ({layout.player_label.position_y}px)</label>
+              <input type="range" min={0} max={700} step={4} value={layout.player_label.position_y} onChange={e => upd('player_label', { position_y: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <div><label style={labelS}>Taille police ({layout.player_label.font_size}px)</label>
+              <input type="range" min={10} max={36} step={1} value={layout.player_label.font_size} onChange={e => upd('player_label', { font_size: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+            <div><label style={labelS}>Couleur</label>
+              <input type="color" value={layout.player_label.color} onChange={e => upd('player_label', { color: e.target.value })} style={{ width: '100%', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          </div>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.player_label.bold} onChange={e => upd('player_label', { bold: e.target.checked })} /> Gras
+          </label>
+        </>)}
+
+        <div style={titleS}>Nom du PNJ</div>
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.npc_label.show} onChange={e => upd('npc_label', { show: e.target.checked })} /> Afficher le nom
+          </label>
+        </div>
+        {layout.npc_label.show && (<>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <div><label style={labelS}>Position X ({layout.npc_label.position_x}px)</label>
+              <input type="range" min={0} max={360} step={4} value={layout.npc_label.position_x} onChange={e => upd('npc_label', { position_x: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+            <div><label style={labelS}>Position Y ({layout.npc_label.position_y}px)</label>
+              <input type="range" min={0} max={700} step={4} value={layout.npc_label.position_y} onChange={e => upd('npc_label', { position_y: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem', marginBottom: '0.5rem' }}>
+            <div><label style={labelS}>Taille police ({layout.npc_label.font_size}px)</label>
+              <input type="range" min={10} max={36} step={1} value={layout.npc_label.font_size} onChange={e => upd('npc_label', { font_size: parseInt(e.target.value) })} style={{ width: '100%' }} /></div>
+            <div><label style={labelS}>Couleur</label>
+              <input type="color" value={layout.npc_label.color} onChange={e => upd('npc_label', { color: e.target.value })} style={{ width: '100%', height: '32px', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} /></div>
+          </div>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.npc_label.bold} onChange={e => upd('npc_label', { bold: e.target.checked })} /> Gras
+          </label>
+        </>)}
+
+        <div style={titleS}>Dés & mécanique de combat</div>
+        <div style={{ marginBottom: '0.6rem' }}>
+          <label style={labelS}>Mode de lancer</label>
+          <select style={inputS} value={layout.dice?.mode ?? 'interactive'} onChange={e => upd('dice', { mode: e.target.value as any })}>
+            <option value="interactive">Interactif — le joueur appuie pour arrêter le dé</option>
+            <option value="simple">Simple — lancer automatique avec animation</option>
+          </select>
+        </div>
+        {(layout.dice?.mode ?? 'interactive') === 'interactive' && (
+          <div style={{ marginBottom: '0.6rem' }}>
+            <label style={labelS}>Arrêt automatique ({layout.dice?.timeout_ms === 0 ? 'jamais' : `${(layout.dice?.timeout_ms ?? 5000) / 1000}s`})</label>
+            <input type="range" min={0} max={10000} step={500} value={layout.dice?.timeout_ms ?? 5000} onChange={e => upd('dice', { timeout_ms: parseInt(e.target.value) })} style={{ width: '100%' }} />
+            <div style={{ fontSize: '0.62rem', color: 'var(--muted)', marginTop: '0.2rem' }}>0 = le joueur doit appuyer lui-même</div>
+          </div>
+        )}
+        <div style={{ marginBottom: '0.5rem' }}>
+          <label style={{ ...labelS, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: 0 }}>
+            <input type="checkbox" checked={layout.dice?.show_enemy_score ?? true} onChange={e => upd('dice', { show_enemy_score: e.target.checked })} />
+            Afficher le score ennemi pendant la parade
+          </label>
+          <div style={{ fontSize: '0.62rem', color: 'var(--muted)', marginTop: '0.2rem', marginLeft: '1.3rem' }}>Si coché, le joueur voit ce qu'il doit dépasser</div>
+        </div>
+
+        <div style={{ marginTop: '1.5rem' }}>
+          <button onClick={saveLayout} disabled={saving} style={{ width: '100%', padding: '0.6rem', background: saved ? '#4caf7d' : 'var(--accent)', color: '#000', border: 'none', borderRadius: '6px', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}>
+            {saving ? '…' : saved ? '✓ Sauvegardé' : 'Sauvegarder les réglages'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Preview téléphone ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#08080c', overflow: 'hidden', gap: '0.75rem' }}>
+        {/* Sélecteur de phase */}
+        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+          {(['player_choose', 'player_hit', 'player_miss', 'enemy_hit', 'enemy_miss'] as const).map(ph => (
+            <button key={ph} onClick={() => setPreviewPhase(ph)} style={{ padding: '0.25rem 0.55rem', background: previewPhase === ph ? 'var(--accent)' : 'var(--surface-2)', color: previewPhase === ph ? '#000' : 'var(--muted)', border: `1px solid ${previewPhase === ph ? 'var(--accent)' : 'var(--border)'}`, borderRadius: '5px', fontSize: '0.6rem', cursor: 'pointer', fontWeight: 700 }}>
+              {ph === 'player_choose' ? '⚔ Choix' : ph === 'player_hit' ? '✅ Touché' : ph === 'player_miss' ? '❌ Raté' : ph === 'enemy_hit' ? '🩸 Reçu' : '🛡 Esquivé'}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center', flex: 1, overflow: 'hidden', width: '100%', justifyContent: 'center', paddingBottom: '1rem' }}>
+          {/* Téléphone */}
+          <div ref={phoneRef} style={{ height: '90%', aspectRatio: '9 / 19.5', maxWidth: '38%', position: 'relative', borderRadius: '28px', overflow: 'hidden', background: '#000', border: '2px solid #2a2a30', boxShadow: '0 0 0 5px #161618, 0 16px 48px rgba(0,0,0,0.9)', flexShrink: 0 }}>
+            <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '80px', height: '10px', background: '#161618', borderRadius: '0 0 8px 8px', zIndex: 100 }} />
+            <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+              <div style={{ width: '390px', height: '845px', transformOrigin: 'top left', transform: `scale(${phoneScale})`, position: 'relative' }}>
+                {previewNpc && previewCombatType
+                  ? <CombatPreviewV3 layout={layout} npc={previewNpc} combatType={previewCombatType} protagonistName={protagonistName} phase={previewPhase} />
+                  : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '0.5rem', color: 'rgba(255,255,255,0.3)', fontSize: '0.75rem' }}>
+                      <span style={{ fontSize: '2rem' }}>👥</span>
+                      <span>Créez un PNJ ennemi</span>
+                      <span style={{ fontSize: '0.65rem' }}>et un type de combat pour voir la preview</span>
+                    </div>
+                }
+              </div>
+            </div>
+          </div>
+          {/* Panneau textes pleine taille */}
+          <div style={{ width: '200px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <div style={{ fontSize: '0.6rem', color: 'var(--accent)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              {previewPhase === 'player_choose' ? '⚔ Tour joueur' : previewPhase === 'player_hit' ? '✅ Joueur touche' : previewPhase === 'player_miss' ? '❌ Joueur rate' : previewPhase === 'enemy_hit' ? '🩸 Ennemi touche' : '🛡 Ennemi rate'}
+            </div>
+            {previewPhase === 'player_choose' ? (
+              <div style={{ background: layout.player_turn.bg_opacity > 0 ? `rgba(${parseInt(layout.player_turn.bg_color.slice(1,3),16)},${parseInt(layout.player_turn.bg_color.slice(3,5),16)},${parseInt(layout.player_turn.bg_color.slice(5,7),16)},${layout.player_turn.bg_opacity})` : 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.75rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: `${layout.player_turn.bg_opacity > 0 ? 18 : 16}px`, fontWeight: 700, fontStyle: 'italic', color: '#fff', textShadow: '1px 1px 8px #000' }}>{layout.player_turn.text}</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.6rem 0.75rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: '0.55rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>ACTION</div>
+                  <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: `${layout.action_text.font_size * 0.7}px`, fontWeight: 700, fontStyle: 'italic', color: layout.action_text.color, textShadow: '1px 1px 6px #000' }}>{layout.phase_texts[previewPhase].action}</p>
+                </div>
+                <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: '8px', padding: '0.6rem 0.75rem', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: '0.55rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>RÉSULTAT</div>
+                  <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: `${layout.impact.damage_font_size * 0.7}px`, fontWeight: 900, fontStyle: 'italic', color: layout.impact.damage_color, textShadow: '1px 1px 6px #000' }}>{layout.phase_texts[previewPhase].result}</p>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Combat Preview V3 (statique, pour l'éditeur de layout) ───────────────────
+
+function CombatPreviewV3({ layout, npc, combatType, protagonistName, phase }: {
+  layout: NonNullable<import('@/types').CombatLayoutSettings['v3']>
+  npc: import('@/types').Npc
+  combatType: import('@/types').CombatType
+  protagonistName: string
+  phase: 'player_choose' | 'player_hit' | 'player_miss' | 'enemy_hit' | 'enemy_miss'
+}) {
+  const v3 = npc.combat_v3 ?? {}
+  const bgImage = v3.neutral_url ?? npc.image_url ?? null
+  const playerHp = phase === 'enemy_hit' ? 6 : 8; const playerHpMax = 10
+  const enemyHp = phase === 'player_hit' ? 3 : 5; const enemyHpMax = 8
+  const moves = (combatType.moves ?? []).filter(m => !m.is_parry && !m.is_contextual).slice(0, 3)
+  const L = layout
+
+  // Filtre CSS selon réglage
+  const filterCss = layout.bg.filter === 'desaturate' ? 'saturate(0.2)'
+    : layout.bg.filter === 'contrast' ? 'contrast(1.4) brightness(0.85)'
+    : layout.bg.filter === 'dark' ? 'brightness(0.55)'
+    : 'none'
+
+  // Style fond de bouton selon réglage
+  function btnBg() {
+    if (layout.choices.style === 'filled') return layout.choices.accent_color
+    if (layout.choices.style === 'outlined') return 'transparent'
+    if (layout.choices.style === 'text_only') return 'transparent'
+    return 'rgba(8,8,20,0.88)' // card
+  }
+  function btnColor() {
+    if (layout.choices.style === 'filled') return '#000'
+    return layout.choices.accent_color
+  }
+  function btnBorder() {
+    if (layout.choices.style === 'text_only') return 'none'
+    return `1px solid ${layout.choices.accent_color}88`
+  }
+
+  const hpBarStyle = (pct: number, color: string): React.CSSProperties => ({
+    height: '100%', width: `${pct * 100}%`, background: color, borderRadius: '3px', transition: 'width 0.4s',
+  })
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, background: '#000', overflow: 'hidden', fontFamily: layout.narrative.style === 'manuscrit' ? 'Georgia, serif' : 'inherit' }}>
+      {/* Image fond */}
+      {bgImage && (
+        <img src={bgImage} alt="" style={{
+          position: 'absolute', inset: 0, width: '100%', height: '100%',
+          objectFit: 'cover',
+          objectPosition: layout.bg.subject_position === 'left' ? 'left center' : layout.bg.subject_position === 'right' ? 'right center' : 'center top',
+          filter: filterCss,
+        }} />
+      )}
+      {!bgImage && <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, #1a0a0a 0%, #0a0a1a 100%)' }} />}
+
+      {/* Vignette */}
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: `radial-gradient(ellipse at center, rgba(0,0,0,0) 35%, rgba(0,0,0,${layout.bg.vignette_opacity}) 100%)` }} />
+
+      {/* HP bar joueur */}
+      <div style={{ position: 'absolute', left: L.hp.player_x, top: L.hp.player_y, width: L.hp.bar_width, zIndex: 10 }}>
+        {L.hp.show_names && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.5rem', color: L.hp.player_name_color, marginBottom: 2 }}>
+          <span>👤 {protagonistName}</span>{L.hp.show_numbers && <span>{playerHp}/{playerHpMax}</span>}
+        </div>}
+        <div style={{ height: L.hp.height, background: 'rgba(255,255,255,0.15)', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={hpBarStyle(playerHp / playerHpMax, L.hp.player_color)} />
+        </div>
+      </div>
+      {/* HP bar ennemi */}
+      <div style={{ position: 'absolute', left: L.hp.enemy_x, top: L.hp.enemy_y, width: L.hp.bar_width, zIndex: 10 }}>
+        {L.hp.show_names && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.5rem', color: L.hp.enemy_name_color, marginBottom: 2 }}>
+          <span>💀 {npc.name}</span>{L.hp.show_numbers && <span>{enemyHp}/{enemyHpMax}</span>}
+        </div>}
+        <div style={{ height: L.hp.height, background: 'rgba(255,255,255,0.15)', borderRadius: 3, overflow: 'hidden' }}>
+          <div style={hpBarStyle(enemyHp / enemyHpMax, L.hp.enemy_color)} />
+        </div>
+      </div>
+
+      {/* Nom du joueur */}
+      {L.player_label.show && (
+        <div style={{ position: 'absolute', left: L.player_label.position_x, top: L.player_label.position_y, zIndex: 12, pointerEvents: 'none' }}>
+          <span style={{ fontSize: `${L.player_label.font_size}px`, color: L.player_label.color, fontWeight: L.player_label.bold ? 700 : 400, fontFamily: 'Georgia, serif', textShadow: '1px 2px 8px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7)', letterSpacing: '0.04em' }}>
+            {protagonistName}
+          </span>
+        </div>
+      )}
+      {/* Nom du PNJ */}
+      {L.npc_label.show && (
+        <div style={{ position: 'absolute', left: L.npc_label.position_x, top: L.npc_label.position_y, zIndex: 12, pointerEvents: 'none' }}>
+          <span style={{ fontSize: `${L.npc_label.font_size}px`, color: L.npc_label.color, fontWeight: L.npc_label.bold ? 700 : 400, fontFamily: 'Georgia, serif', textShadow: '1px 2px 8px rgba(0,0,0,0.9), 0 0 20px rgba(0,0,0,0.7)', letterSpacing: '0.04em' }}>
+            {npc.name}
+          </span>
+        </div>
+      )}
+
+      {/* Texte action (phases résultat) */}
+      {phase !== 'player_choose' && (
+        <div style={{ position: 'absolute', left: 0, right: 0, top: `${L.action_text.position_y}%`, zIndex: 15, textAlign: 'center', pointerEvents: 'none', padding: '0 24px' }}>
+          <p style={{ margin: 0, fontFamily: 'Georgia, serif', fontSize: `${L.action_text.font_size}px`, fontWeight: 700, fontStyle: 'italic', color: L.action_text.color, textShadow: '1px 1px 8px rgba(0,0,0,1)' }}>
+            {L.phase_texts[phase].action}
+          </p>
+        </div>
+      )}
+
+      {/* Texte résultat flottant (phases résultat) */}
+      {phase !== 'player_choose' && (
+        <div style={{ position: 'absolute', left: '50%', top: '38%', transform: 'translateX(-50%)', zIndex: 16, pointerEvents: 'none', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: 'Georgia, serif', fontSize: `${L.impact.damage_font_size}px`, fontWeight: 900, fontStyle: 'italic', color: L.impact.damage_color, textShadow: '0 2px 12px rgba(0,0,0,0.9)' }}>
+            {L.phase_texts[phase].result}
+          </span>
+        </div>
+      )}
+
+      {/* Texte "Que fais-tu ?" + boutons de choix (phase player_choose) */}
+      {phase === 'player_choose' && (
+        <>
+          {/* "Que fais-tu ?" avec fond optionnel */}
+          <div style={{ position: 'absolute', left: 16, right: 16, bottom: L.player_turn.position_y, zIndex: 14, textAlign: 'center', pointerEvents: 'none' }}>
+            {(() => {
+              const bgHex = L.player_turn.bg_color ?? '#000000'
+              const r = parseInt(bgHex.slice(1,3),16), g = parseInt(bgHex.slice(3,5),16), b = parseInt(bgHex.slice(5,7),16)
+              const hasBg = L.player_turn.bg_opacity > 0
+              return (
+                <span style={{ fontFamily: 'Georgia, serif', fontSize: '26px', fontWeight: 700, fontStyle: 'italic', color: '#fff', textShadow: '2px 2px 10px rgba(0,0,0,1), 0 0 40px rgba(0,0,0,1)', ...(hasBg ? { background: `rgba(${r},${g},${b},${L.player_turn.bg_opacity})`, borderRadius: '10px', padding: '8px 18px', display: 'inline-block' } : {}) }}>
+                  {L.player_turn.text}
+                </span>
+              )
+            })()}
+          </div>
+          {/* Boutons */}
+          <div style={{ position: 'absolute', bottom: L.choices.position_y, left: 16, right: 16, zIndex: 10, display: 'flex', flexDirection: 'column', gap: `${L.choices.gap}px` }}>
+            {(moves.length > 0 ? moves : [{ id: '1', name: 'Attaque', damage: 2, bonus_malus: 0, hint_text: null }, { id: '2', name: 'Contre', damage: 3, bonus_malus: -1, hint_text: null }] as any[]).map((move, i) => (
+              <div key={(move as any).id ?? i} style={{ width: '100%', padding: '10px 14px', background: btnBg(), border: btnBorder(), borderRadius: 8, color: btnColor(), fontSize: `${L.choices.font_size}px`, fontWeight: 600 }}>
+                {(move as any).hint_text && <div style={{ fontSize: `${Math.max(9, L.choices.font_size - 2)}px`, color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', marginBottom: 2 }}>{(move as any).hint_text}</div>}
+                <span>{(move as any).name}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Badge "PREVIEW" */}
+      <div style={{ position: 'absolute', top: 8, right: 8, fontSize: '0.45rem', background: 'rgba(212,168,76,0.2)', color: '#d4a84c', border: '1px solid #d4a84c44', borderRadius: 4, padding: '1px 5px', zIndex: 20, letterSpacing: '0.05em' }}>PREVIEW</div>
+    </div>
+  )
+}
+
 // ── Game Simulation Tab ───────────────────────────────────────────────────────
 
-function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, sectionLayout, introOrder, onNavigate, book }: {
+function GameSimTab({ bookId, sections, choices, npcs, items, locations, protagonist, sectionLayout, introOrder, onNavigate, book, combatTypes }: {
   bookId: string
   sections: import('@/types').Section[]
   choices: import('@/types').Choice[]
   npcs: import('@/types').Npc[]
   items: import('@/types').Item[]
+  locations: import('@/types').Location[]
   protagonist: import('@/types').Npc | null
   sectionLayout: import('@/types').SectionLayoutDevice | null
   introOrder: import('@/types').IntroStep[] | null
   onNavigate: (tab: any) => void
   book: import('@/types').Book | null
+  combatTypes: import('@/types').CombatType[]
 }) {
   const DEF = SECTION_LAYOUT_DEFAULTS
 
-  // BFS depuis section 1 pour trouver les 4 premiers noeuds atteignables
+  // BFS depuis section 1 — toutes les sections atteignables (choix + épreuves)
   const reachableNodes = React.useMemo(() => {
     const start = sections.find(s => s.number === 1)
     if (!start) return []
     const visited = new Set<string>()
     const queue = [start.id]
     const result: import('@/types').Section[] = []
-    while (queue.length > 0 && result.length < 4) {
+    while (queue.length > 0) {
       const id = queue.shift()!
       if (visited.has(id)) continue
       visited.add(id)
       const sec = sections.find(s => s.id === id)
-      if (sec) result.push(sec)
-      choices
-        .filter(c => c.section_id === id && c.target_section_id && !visited.has(c.target_section_id!))
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .forEach(c => queue.push(c.target_section_id!))
+      if (sec) {
+        result.push(sec)
+        // Choix normaux
+        choices
+          .filter(c => c.section_id === id && c.target_section_id && !visited.has(c.target_section_id!))
+          .forEach(c => queue.push(c.target_section_id!))
+        // Épreuves succès/échec
+        if (sec.trial?.success_section_id && !visited.has(sec.trial.success_section_id))
+          queue.push(sec.trial.success_section_id)
+        if (sec.trial?.failure_section_id && !visited.has(sec.trial.failure_section_id))
+          queue.push(sec.trial.failure_section_id)
+      }
     }
     return result
   }, [sections, choices])
@@ -7876,15 +12177,124 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
   const [currentId, setCurrentId] = React.useState<string | null>(null)
   // Inventaire joueur : item_id → true si possédé
   const [inventory, setInventory] = React.useState<Record<string, boolean>>({})
-  const [captionStyle, setCaptionStyle] = React.useState<1 | 2 | 3>(1)
-  const [textMode, setTextMode] = React.useState<'descriptif' | 'narratif'>('narratif')
-  const [thoughtStyle, setThoughtStyle] = React.useState<1 | 2 | 3>(3)
-  const [choiceStyle, setChoiceStyle] = React.useState<1 | 2 | 3>(3)
+  // Argent du joueur (stat, pas un objet)
+  const [playerMoney, setPlayerMoney] = React.useState<number>(() => Math.floor(Math.random() * 41) + 10) // 10–50 $
+  // Sections dont le butin a déjà été collecté
+  const [moneyLootedSections, setMoneyLootedSections] = React.useState<Set<string>>(new Set())
+  const [itemFoundModal, setItemFoundModal] = React.useState<{ item: import('@/types').Item } | null>(null)
+  const [mapZoomed, setMapZoomed] = React.useState(false)
+  const [mapPan, setMapPan] = React.useState({ x: 0, y: 0 })
+  const [mapZoomOrigin, setMapZoomOrigin] = React.useState<string>('50% 50%')
+  const [isPlanClosing, setIsPlanClosing] = React.useState(false)
+  const mapDragRef = React.useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null)
+  const mapContainerRef = React.useRef<HTMLDivElement>(null)
+  // Mémorise l'URL du son de pliage même pendant l'animation de fermeture
+  const [lastPlanFoldSoundUrl, setLastPlanFoldSoundUrl] = React.useState<string | undefined>(undefined)
+  // Trigger (compteur) qui s'incrémente à chaque début d'animation (ouverture ET fermeture)
+  const [planFoldTrigger, setPlanFoldTrigger] = React.useState(0)
+  const [simPlanIsOpening, setSimPlanIsOpening] = React.useState(true)
+  // Duck musique : géré ici avec un timer, appliqué via prop dans SectionPreviewCard
+  const [planMusicDucked, setPlanMusicDucked] = React.useState(false)
+  const planMusicTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  React.useEffect(() => {
+    const url = (itemFoundModal?.item as any)?.fold_sound_url
+    if (url) setLastPlanFoldSoundUrl(url)
+  }, [itemFoundModal])
+
+  function triggerPlanAnim(isOpening: boolean, soundUrl: string | undefined) {
+    if (planMusicTimerRef.current) { clearTimeout(planMusicTimerRef.current); planMusicTimerRef.current = null }
+    setSimPlanIsOpening(isOpening)
+    setPlanFoldTrigger(t => t + 1)
+    if (soundUrl) setLastPlanFoldSoundUrl(soundUrl)
+    setPlanMusicDucked(true)
+    // Restaure la musique après la fin de l'animation :
+    // Ouverture : dépliage 850ms + zoom 600ms ≈ 1500ms | Fermeture : pliage 720ms → 750ms
+    const delay = isOpening ? 1500 : 750
+    planMusicTimerRef.current = setTimeout(() => { setPlanMusicDucked(false); planMusicTimerRef.current = null }, delay)
+  }
+  // true pendant toute la durée où le plan est visible (ouverture + visible + fermeture)
+  const simPlanOpen = !!(itemFoundModal?.item.item_type === 'plan') || isPlanClosing
+  // Auto-zoom à l'ouverture — attend la fin du dépliage
+  React.useEffect(() => {
+    if (!itemFoundModal) { setMapZoomed(false); setMapPan({ x: 0, y: 0 }); return }
+    const isPlan = itemFoundModal.item.item_type === 'plan'
+    // Initialise l'origine de zoom sur la localisation courante
+    const curLocId = sections.find(s => s.id === currentId)?.location_id
+    const curLoc = curLocId ? locations.find(l => l.id === curLocId) : null
+    setMapZoomOrigin(curLoc ? `${curLoc.x}% ${curLoc.y}%` : '50% 50%')
+    const t = setTimeout(() => setMapZoomed(true), isPlan ? 950 : 500)
+    return () => clearTimeout(t)
+  }, [itemFoundModal])
+
+  function closePlanModal() {
+    const isPlan = itemFoundModal?.item.item_type === 'plan'
+    if (isPlan) {
+      triggerPlanAnim(false, lastPlanFoldSoundUrl)
+      setIsPlanClosing(true)
+      setMapZoomed(false)
+      setTimeout(() => { setItemFoundModal(null); setIsPlanClosing(false); setMapPan({ x: 0, y: 0 }) }, 720)
+    } else {
+      setItemFoundModal(null); setMapPan({ x: 0, y: 0 })
+    }
+  }
+
+  // ── Stats joueur (initialisées depuis le protagoniste) ───────────────────
+  const [playerStats, setPlayerStats] = React.useState<import('@/types').PlayerStats>(() => {
+    const p = protagonist
+    return {
+      force_current: p?.force ?? 5, force_max: p?.force ?? 5,
+      agilite_current: p?.agilite ?? 5, agilite_max: p?.agilite ?? 5,
+      intelligence_current: p?.intelligence ?? 5, intelligence_max: p?.intelligence ?? 5,
+      magie_current: p?.magie ?? 3, magie_max: p?.magie ?? 3,
+      endurance_current: p?.endurance ?? 10, endurance_max: p?.endurance ?? 10,
+      chance_current: p?.chance ?? 5, chance_max: p?.chance ?? 5,
+      volonte_current: 5, volonte_max: 5,
+    }
+  })
+
+  // ── État combat actif ────────────────────────────────────────────────────
+  const [combatDismissed, setCombatDismissed] = React.useState(false)
+  const [activeTransitionChoice, setActiveTransitionChoice] = React.useState<import('@/types').Choice | null>(null)
+  const [simNavReady, setSimNavReady] = React.useState(false)
+  // Version déterminée automatiquement selon la composition du combat
+  const [activeWeaponId, setActiveWeaponId] = React.useState<string | null>(null)
+  const [protagonistCurrentHp, setProtagonistCurrentHp] = React.useState<number | null>(null)
+
+  // Initialise les PV du protagoniste depuis ses stats quand ils ne sont pas encore définis
+  React.useEffect(() => {
+    if (protagonist && protagonistCurrentHp === null) {
+      setProtagonistCurrentHp(protagonist.endurance ?? 10)
+    }
+  }, [protagonist])
+
+  const [simPrefs, setSimPrefs] = React.useState<{ captionStyle: 1|2|3; textMode: 'descriptif'|'narratif'; thoughtStyle: 1|2|3; choiceStyle: 1|2|3|4; choiceFontSize: 11|13|15|17|19; phrasesPerSlide: 1|2|3; readingWpm: 120|180|240; textFontSize: 13|15|17|19; wordIntervalMs: 120|200|280|400 }>({ captionStyle: 1, textMode: 'narratif', thoughtStyle: 3, choiceStyle: 4, choiceFontSize: 15, phrasesPerSlide: 1, readingWpm: 180, textFontSize: 15, wordIntervalMs: 200 })
+  // Clé de stockage basée sur l'URL (évite de fermer sur `id` dans les closures)
+  const simPrefsKey = typeof window !== 'undefined' ? `sim_prefs_${window.location.pathname}` : null
+  // Charger depuis localStorage au montage (client uniquement)
+  React.useEffect(() => {
+    if (!simPrefsKey) return
+    try { const p = JSON.parse(localStorage.getItem(simPrefsKey) ?? '{}'); if (Object.keys(p).length) setSimPrefs(prev => ({ ...prev, ...p })) } catch {}
+  }, [simPrefsKey])
+  // Sauvegarder dans localStorage à chaque changement
+  React.useEffect(() => {
+    if (!simPrefsKey) return
+    try { localStorage.setItem(simPrefsKey, JSON.stringify(simPrefs)) } catch {}
+  }, [simPrefsKey, simPrefs])
+  const { captionStyle, textMode, thoughtStyle, choiceStyle, choiceFontSize, phrasesPerSlide, readingWpm, textFontSize, wordIntervalMs } = simPrefs
+  const setCaptionStyle    = (v: 1|2|3) => setSimPrefs(p => ({ ...p, captionStyle: v }))
+  const setTextMode        = (v: 'descriptif'|'narratif') => setSimPrefs(p => ({ ...p, textMode: v }))
+  const setThoughtStyle    = (v: 1|2|3) => setSimPrefs(p => ({ ...p, thoughtStyle: v }))
+  const setChoiceStyle     = (v: 1|2|3|4) => setSimPrefs(p => ({ ...p, choiceStyle: v }))
+  const setChoiceFontSize  = (v: 11|13|15|17|19) => setSimPrefs(p => ({ ...p, choiceFontSize: v }))
+  const setPhrasesPerSlide = (v: 1|2|3) => setSimPrefs(p => ({ ...p, phrasesPerSlide: v }))
+  const setReadingWpm      = (v: 120|180|240) => setSimPrefs(p => ({ ...p, readingWpm: v }))
+  const setTextFontSize    = (v: 13|15|17|19) => setSimPrefs(p => ({ ...p, textFontSize: v }))
+  const setWordIntervalMs  = (v: 120|200|280|400) => setSimPrefs(p => ({ ...p, wordIntervalMs: v }))
   const openSettingsRef = React.useRef<(() => void) | null>(null)
   const simPlayRef = React.useRef<{ playing: boolean; toggle: () => void } | null>(null)
   const [simPlayingDisplay, setSimPlayingDisplay] = React.useState(true)
   React.useEffect(() => {
-    if (reachableNodes.length > 0 && !currentId) setCurrentId(reachableNodes[0].id)
+    if (!currentId) { const s1 = sections.find(s => s.number === 1); if (s1) setCurrentId(s1.id) }
   }, [reachableNodes])
 
   const phoneRef = React.useRef<HTMLDivElement>(null)
@@ -7901,10 +12311,29 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
     return () => obs.disconnect()
   }, [])
 
-  const currentSection = reachableNodes.find(s => s.id === currentId) ?? reachableNodes[0] ?? null
+  const currentSection = sections.find(s => s.id === currentId) ?? sections.find(s => s.number === 1) ?? null
+  // combatDismissed se remet à false à chaque changement de section
+  React.useEffect(() => { setCombatDismissed(false); setSimNavReady(false) }, [currentId])
+  // Butin argent : attribuer une fois par section
+  React.useEffect(() => {
+    if (!currentId) return
+    const sec = sections.find(s => s.id === currentId)
+    const loot = (sec as any)?.money_loot
+    if (loot && !moneyLootedSections.has(currentId)) {
+      setPlayerMoney(m => m + loot)
+      setMoneyLootedSections(prev => new Set([...prev, currentId]))
+    }
+  }, [currentId])
+  const combatActive = !combatDismissed && currentSection?.trial?.type === 'combat'
+  const setCombatActive = (v: boolean) => { if (!v) setCombatDismissed(true) }
   const currentChoices = currentSection
     ? choices.filter(c => c.section_id === currentSection.id).sort((a, b) => a.sort_order - b.sort_order)
     : []
+
+  // Armes disponibles dans l'inventaire du joueur
+  const weaponItems = items.filter(item => item.item_type === 'arme' && inventory[item.id])
+  // Arme active : celle sélectionnée, sinon la première disponible, sinon null (main nue)
+  const activeWeapon = weaponItems.find(w => w.id === activeWeaponId) ?? weaponItems[0] ?? null
 
   const s: import('@/types').SectionLayoutSettings = { ...DEF, ...(sectionLayout?.phone ?? {}) }
 
@@ -7922,7 +12351,9 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
 
   function handleChoice(choice: import('@/types').Choice) {
     if (!choice.target_section_id) return
-    const target = reachableNodes.find(s => s.id === choice.target_section_id)
+    const cost = (choice as any).money_cost
+    if (cost) setPlayerMoney(m => Math.max(0, m - cost))
+    const target = sections.find(s => s.id === choice.target_section_id)
     if (target) setCurrentId(target.id)
   }
 
@@ -7935,7 +12366,7 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
     })
   }
 
-  if (reachableNodes.length === 0) {
+  if (sections.length === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '1rem', color: 'var(--muted)', fontSize: '0.85rem' }}>
         <span style={{ fontSize: '2rem' }}>📭</span>
@@ -7952,7 +12383,7 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
         <div ref={phoneRef} style={{ height: '92%', aspectRatio: '9 / 19.5', maxWidth: '46%', position: 'relative', borderRadius: '28px', overflow: 'hidden', background: '#000', border: '2px solid #2a2a30', boxShadow: '0 0 0 5px #161618, 0 16px 48px rgba(0,0,0,0.9)', flexShrink: 0 }}>
           <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '80px', height: '10px', background: '#161618', borderRadius: '0 0 8px 8px', zIndex: 100 }} />
           <div style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
-            <div style={{ width: '390px', height: '845px', transformOrigin: 'top left', transform: `scale(${phoneScale})` }}>
+            <div style={{ width: '390px', height: '845px', transformOrigin: 'top left', transform: `scale(${phoneScale})`, position: 'relative' }}>
               {currentSection && (
                 <SectionPreviewCard
                   s={s}
@@ -7960,8 +12391,10 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
                   scale={phoneScale}
                   protagonist={protagonist}
                   npcs={npcs}
+                  locations={locations}
                   section={currentSection}
                   sectionChoices={currentChoices}
+                  allSections={sections}
                   onChoiceClick={handleChoice}
                   simMode
                   mangaSelectedNpcs={mangaSelectedNpcs}
@@ -7972,22 +12405,305 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
                   textMode={textMode}
                   thoughtStyle={thoughtStyle}
                   choiceStyle={choiceStyle}
+                  choiceFontSize={choiceFontSize}
+                  phrasesPerSlide={phrasesPerSlide}
+                  readingWpm={readingWpm}
+                  textFontSize={textFontSize}
+                  wordIntervalMs={wordIntervalMs}
                   onSavePlayerPrefs={handleSavePlayerPrefs}
                   openSettingsRef={openSettingsRef}
                   simPlayRef={simPlayRef}
                   onPlayingChange={setSimPlayingDisplay}
                   simItems={items}
                   simInventory={inventory}
-                  onCollectItem={itemId => setInventory(inv => ({ ...inv, [itemId]: true }))}
+                  simMoney={playerMoney}
+                  onCollectItem={itemId => {
+                    const found = items.find(it => it.id === itemId)
+                    setInventory(inv => ({ ...inv, [itemId]: true }))
+                    if (found && (found as any).detail_url) {
+                      if (found.item_type === 'plan') triggerPlanAnim(true, (found as any).fold_sound_url)
+                      setItemFoundModal({ item: found })
+                    }
+                  }}
+                  onOpenItem={item => { if ((item as any).detail_url) { setMapZoomed(false); setMapPan({ x: 0, y: 0 }); if (item.item_type === 'plan') triggerPlanAnim(true, (item as any).fold_sound_url); setItemFoundModal({ item }) } }}
+                  simPlanOpen={simPlanOpen}
+                  simPlanFoldSoundUrl={lastPlanFoldSoundUrl}
+                  simPlanFoldTrigger={planFoldTrigger}
+                  simPlanIsOpening={simPlanIsOpening}
+                  simPlanMusicDucked={planMusicDucked}
+                  onTransitionStart={c => setActiveTransitionChoice(c)}
+                  onTransitionEnd={() => setActiveTransitionChoice(null)}
+                  onNavReady={() => setSimNavReady(true)}
                 />
               )}
+              {combatActive && currentSection?.trial?.type === 'combat' && (() => {
+                const combatNpcId = currentSection.trial?.npc_id ?? null
+                const combatNpc = combatNpcId ? npcs.find(n => n.id === combatNpcId) : null
+                const combatTypeId = (currentSection as any).combat_type_id ?? null
+                const combatType = combatTypes.find(ct => ct.id === combatTypeId) ?? null
+                if (!combatNpc || !combatType) return (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#080810', color: 'rgba(255,255,255,0.4)', fontSize: '0.75rem', flexDirection: 'column', gap: '0.5rem' }}>
+                    <div>⚔ Combat non configuré</div>
+                    {!combatNpc && <div style={{ fontSize: '0.65rem' }}>Aucun PNJ ennemi assigné</div>}
+                    {!combatType && <div style={{ fontSize: '0.65rem' }}>Aucun type de combat assigné</div>}
+                    <button onClick={() => setCombatActive(false)} style={{ marginTop: '0.5rem', padding: '0.3rem 0.8rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '5px', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', fontSize: '0.7rem' }}>← Fermer</button>
+                  </div>
+                )
+                const combatLayout = (book?.combat_layout as import('@/types').CombatLayoutSettings | null)?.v3 ?? null
+                // Compagnons de la section : alliés et ennemis supplémentaires
+                const sectionCompanionIds: string[] = (currentSection as any).companion_npc_ids ?? []
+                const combatExtraEnemies = sectionCompanionIds
+                  .map(id => npcs.find(n => n.id === id))
+                  .filter((n): n is import('@/types').Npc => !!n && (n.type === 'ennemi' || n.type === 'boss') && n.id !== combatNpcId)
+                const combatAllies = sectionCompanionIds
+                  .map(id => npcs.find(n => n.id === id))
+                  .filter((n): n is import('@/types').Npc => !!n && n.type === 'allié')
+                const combatProps = {
+                  section: currentSection as any,
+                  npc: combatNpc,
+                  protagonist,
+                  combatType,
+                  playerWeaponType: activeWeapon?.weapon_type ?? null,
+                  layout: combatLayout,
+                  items,
+                  initialPlayerHp: protagonistCurrentHp ?? undefined,
+                  extraEnemies: combatExtraEnemies.length > 0 ? combatExtraEnemies : undefined,
+                  allies: combatAllies.length > 0 ? combatAllies : undefined,
+                  onVictory: (remainingHp: number) => {
+                    setProtagonistCurrentHp(remainingHp)
+                    setCombatActive(false)
+                    const successId = currentSection.trial?.success_section_id
+                    if (successId) { const s = sections.find(x => x.id === successId); if (s) setCurrentId(s.id) }
+                  },
+                  onDefeat: () => {
+                    setCombatActive(false)
+                    const failId = currentSection.trial?.failure_section_id
+                    if (failId) { const s = sections.find(x => x.id === failId); if (s) setCurrentId(s.id) }
+                  },
+                  onClose: () => setCombatActive(false),
+                }
+                return (
+                  (combatExtraEnemies.length > 0 || combatAllies.length > 0)
+                    ? <CombatOverlayV6 key={`v6-${currentSection.id}`} {...combatProps} cw={390} />
+                    : <CombatOverlayV4 key={`v4-${currentSection.id}`} {...combatProps} cw={390} />
+                )
+              })()}
+              {/* ── Modal item trouvé — dans le téléphone ── */}
+              {itemFoundModal && (() => {
+                const { item } = itemFoundModal
+                const isPlan = item.item_type === 'plan'
+                const currentSection = sections.find(s => s.id === currentId)
+                const currentLocId = currentSection?.location_id
+                const currentLoc = currentLocId ? locations.find(l => l.id === currentLocId) : null
+                const choiceTargetLocs: { x: number; y: number }[] = []
+                if (isPlan && currentSection) {
+                  for (const ch of choices.filter(c => c.section_id === currentSection.id && c.target_section_id)) {
+                    const targetSec = sections.find(s => s.id === ch.target_section_id)
+                    if (!targetSec?.location_id || targetSec.location_id === currentLocId) continue
+                    const loc = locations.find(l => l.id === targetSec.location_id)
+                    if (!loc || choiceTargetLocs.some(cl => cl.x === loc.x && cl.y === loc.y)) continue
+                    choiceTargetLocs.push({ x: loc.x, y: loc.y })
+                  }
+                }
+                const ZOOM_SCALE = 4
+                const mapTransform = mapZoomed
+                  ? `translate(${mapPan.x}px, ${mapPan.y}px) scale(${ZOOM_SCALE})`
+                  : 'translate(0px, 0px) scale(1)'
+                const bgAnim = isPlan ? (isPlanClosing ? 'planBgOut 0.7s ease forwards' : 'planBgIn 0.8s ease forwards') : 'none'
+                const planAnim = isPlan ? (isPlanClosing ? 'planFold 0.7s ease forwards' : 'planUnfold 0.85s ease forwards') : 'none'
+                const invPos = s.el_inventory ?? DEF.el_inventory
+                const iconSz = s.inventory_icon_size ?? 18
+                const foldTx = Math.round((invPos.x + iconSz / 2) - 195)
+                const foldTy = Math.round((invPos.y + iconSz / 2) - 422)
+                return (
+                  <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: isPlan ? 'transparent' : 'rgba(0,0,0,0.9)', animation: bgAnim, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', padding: '1rem' }}>
+                    <style>{`
+                      @keyframes planUnfold {
+                        0%   { transform: scaleX(0.04) scaleY(0.04); }
+                        38%  { transform: scaleX(0.04) scaleY(1); }
+                        100% { transform: scaleX(1)    scaleY(1); }
+                      }
+                      @keyframes planFold {
+                        0%   { transform: translate(0px, 0px) scaleX(1)    scaleY(1); }
+                        62%  { transform: translate(0px, 0px) scaleX(0.04) scaleY(1); }
+                        100% { transform: translate(var(--fold-tx), var(--fold-ty)) scaleX(0.04) scaleY(0.04); }
+                      }
+                      @keyframes planBgIn  { from { background: rgba(0,0,0,0) } to { background: rgba(0,0,0,0.9) } }
+                      @keyframes planBgOut { from { background: rgba(0,0,0,0.9) } to { background: rgba(0,0,0,0) } }
+                    `}</style>
+                    <div style={{ color: '#d4a84c', fontWeight: 700, fontSize: '0.9rem', textAlign: 'center', opacity: isPlan ? (isPlanClosing ? 0 : 1) : 1, transition: isPlan ? 'opacity 0.2s ease' : 'none', transitionDelay: isPlan && !isPlanClosing ? '0.7s' : '0s' }}>{item.name}</div>
+                    {/* Conteneur zoomable — overflow:hidden + drag + animation dépliage */}
+                    <div
+                      ref={mapContainerRef}
+                      style={{ position: 'relative', width: '100%', flex: 1, minHeight: 0, overflow: 'hidden', borderRadius: '6px', cursor: mapZoomed ? (mapDragRef.current ? 'grabbing' : 'grab') : 'zoom-in', animation: planAnim, transformOrigin: 'center center', ['--fold-tx' as any]: `${foldTx}px`, ['--fold-ty' as any]: `${foldTy}px` }}
+                      onMouseDown={e => { e.preventDefault(); mapDragRef.current = { startX: e.clientX, startY: e.clientY, panX: mapPan.x, panY: mapPan.y } }}
+                      onMouseMove={e => { if (!mapDragRef.current || !mapZoomed) return; setMapPan({ x: mapDragRef.current.panX + (e.clientX - mapDragRef.current.startX), y: mapDragRef.current.panY + (e.clientY - mapDragRef.current.startY) }) }}
+                      onMouseUp={e => {
+                        const wasDrag = mapDragRef.current && (Math.abs(e.clientX - mapDragRef.current.startX) > 4 || Math.abs(e.clientY - mapDragRef.current.startY) > 4)
+                        mapDragRef.current = null
+                        if (wasDrag) return
+                        if (mapZoomed) {
+                          setMapZoomed(false); setMapPan({ x: 0, y: 0 })
+                        } else {
+                          const rect = mapContainerRef.current?.getBoundingClientRect()
+                          if (rect) setMapZoomOrigin(`${((e.clientX - rect.left) / rect.width * 100).toFixed(1)}% ${((e.clientY - rect.top) / rect.height * 100).toFixed(1)}%`)
+                          setMapZoomed(true)
+                        }
+                      }}
+                      onMouseLeave={() => { mapDragRef.current = null }}
+                      onTouchStart={e => { const t = e.touches[0]; mapDragRef.current = { startX: t.clientX, startY: t.clientY, panX: mapPan.x, panY: mapPan.y } }}
+                      onTouchMove={e => { if (!mapDragRef.current || !mapZoomed) return; e.preventDefault(); const t = e.touches[0]; setMapPan({ x: mapDragRef.current.panX + (t.clientX - mapDragRef.current.startX), y: mapDragRef.current.panY + (t.clientY - mapDragRef.current.startY) }) }}
+                      onTouchEnd={e => {
+                        const touch = e.changedTouches[0]
+                        const wasDrag = mapDragRef.current && (Math.abs(touch.clientX - mapDragRef.current.startX) > 8 || Math.abs(touch.clientY - mapDragRef.current.startY) > 8)
+                        mapDragRef.current = null
+                        if (wasDrag) return
+                        if (mapZoomed) {
+                          setMapZoomed(false); setMapPan({ x: 0, y: 0 })
+                        } else {
+                          const rect = mapContainerRef.current?.getBoundingClientRect()
+                          if (rect) setMapZoomOrigin(`${((touch.clientX - rect.left) / rect.width * 100).toFixed(1)}% ${((touch.clientY - rect.top) / rect.height * 100).toFixed(1)}%`)
+                          setMapZoomed(true)
+                        }
+                      }}
+                    >
+                      <div style={{ width: '100%', height: '100%', transformOrigin: mapZoomOrigin, transform: mapTransform, transition: mapDragRef.current ? 'none' : 'transform 0.6s ease' }}>
+                        <img
+                          src={(item as any).detail_url}
+                          alt={item.name}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', userSelect: 'none', draggable: false } as any}
+                        />
+                        {isPlan && (currentLoc || choiceTargetLocs.length > 0) && (
+                          <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }} viewBox="0 0 100 100" preserveAspectRatio="none">
+                            <defs>
+                              <filter id="hd">
+                                <feTurbulence type="turbulence" baseFrequency="0.05" numOctaves="3" seed="7" result="noise" />
+                                <feDisplacementMap in="SourceGraphic" in2="noise" scale="0.6" xChannelSelector="R" yChannelSelector="G" />
+                              </filter>
+                            </defs>
+                            {choiceTargetLocs.map((loc, i) => {
+                              const { x: cx, y: cy } = loc, arm = 2.2
+                              return (
+                                <g key={i} filter="url(#hd)">
+                                  <line x1={cx-arm} y1={cy-arm} x2={cx+arm} y2={cy+arm} stroke="#e74c3c" strokeWidth="0.7" strokeLinecap="round" opacity="0.95" />
+                                  <line x1={cx+arm} y1={cy-arm} x2={cx-arm} y2={cy+arm} stroke="#e74c3c" strokeWidth="0.7" strokeLinecap="round" opacity="0.95" />
+                                </g>
+                              )
+                            })}
+                            {currentLoc && (() => {
+                              const { x: cx, y: cy } = currentLoc, rx = 3, ry = 2.2
+                              const p = `M ${cx-rx+0.3} ${cy-0.4} C ${cx-rx-0.3} ${cy-ry-0.3},${cx-rx*0.2} ${cy-ry-0.7},${cx} ${cy-ry+0.2} C ${cx+rx*0.3} ${cy-ry-0.5},${cx+rx+0.1} ${cy-ry*0.2},${cx+rx-0.2} ${cy+0.3} C ${cx+rx+0.2} ${cy+ry*0.3},${cx+rx*0.1} ${cy+ry+0.5},${cx} ${cy+ry-0.2} C ${cx-rx*0.2} ${cy+ry+0.4},${cx-rx-0.1} ${cy+ry*0.2},${cx-rx+0.3} ${cy-0.4} Z`
+                              return (
+                                <path d={p} fill="none" stroke="#e74c3c" strokeWidth="0.5" strokeLinecap="round" strokeLinejoin="round" opacity="0.95" filter="url(#hd)" />
+                              )
+                            })()}
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    <button onClick={closePlanModal} style={{ flexShrink: 0, padding: '0.5rem 2rem', borderRadius: '8px', border: 'none', background: '#d4a84c', color: '#0f0f14', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', opacity: isPlan ? (isPlanClosing ? 0 : 1) : 1, transition: isPlan ? 'opacity 0.15s ease' : 'none' }}>
+                      📦 Ranger
+                    </button>
+                  </div>
+                )
+              })()}
             </div>
           </div>
         </div>
       </div>
 
+      {/* ── Panneau section courante ── */}
+      {currentSection && (
+        <div style={{ width: 280, background: '#0a0a10', borderLeft: '1px solid #1e1e28', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Bannière de transition active */}
+          {activeTransitionChoice && (
+            <div style={{ padding: '0.6rem 1rem', background: 'rgba(212,168,76,0.08)', borderBottom: '1px solid rgba(212,168,76,0.2)', flexShrink: 0 }}>
+              <div style={{ fontSize: '0.58rem', fontWeight: 700, color: '#d4a84c', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.3rem' }}>
+                ✦ Transition vers §{sections.find(s => s.id === activeTransitionChoice.target_section_id)?.number ?? '?'}
+              </div>
+              {activeTransitionChoice.transition_text ? (
+                <p style={{ margin: 0, fontSize: '0.7rem', color: '#c8a0e8', lineHeight: 1.6, fontStyle: 'italic' }}>
+                  {activeTransitionChoice.transition_text}
+                </p>
+              ) : (
+                <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--muted)', fontStyle: 'italic' }}>Pas de texte de transition</p>
+              )}
+            </div>
+          )}
+          {/* En-tête section */}
+          <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginBottom: '0.2rem' }}>
+              <span style={{ fontSize: '1rem', fontWeight: 700, color: '#d4a84c' }}>§{currentSection.number}</span>
+              {currentSection.trial?.type && (
+                <span style={{ fontSize: '0.58rem', padding: '1px 6px', borderRadius: 3, background: currentSection.trial.type === 'combat' ? 'rgba(224,85,85,0.15)' : 'rgba(160,132,200,0.15)', color: currentSection.trial.type === 'combat' ? '#e05555' : '#c8a0e8', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {currentSection.trial.type}
+                </span>
+              )}
+              {currentSection.is_ending && (
+                <span style={{ fontSize: '0.58rem', padding: '1px 6px', borderRadius: 3, background: 'rgba(224,85,85,0.15)', color: '#e05555', fontWeight: 600 }}>FIN</span>
+              )}
+            </div>
+            {currentSection.location_id && locations.find(l => l.id === currentSection.location_id) && (
+              <div style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>
+                📍 {locations.find(l => l.id === currentSection.location_id)!.name}
+              </div>
+            )}
+          </div>
+          {/* Contenu texte */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0.75rem 1rem' }}>
+            <p style={{ margin: 0, fontSize: '0.72rem', color: '#ede9df', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              {currentSection.content?.trim() || currentSection.summary?.trim() || <span style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Aucun contenu</span>}
+            </p>
+          </div>
+          {/* Choix */}
+          <div style={{ borderTop: '1px solid #1e1e28', padding: '0.6rem 0.75rem', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <p style={{ margin: '0 0 0.4rem', fontSize: '0.58rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Choix ({currentChoices.length})</p>
+            {currentChoices.length === 0 && currentSection.trial?.success_section_id == null && (
+              <p style={{ margin: 0, fontSize: '0.65rem', color: 'var(--muted)', fontStyle: 'italic' }}>Aucun choix</p>
+            )}
+            {!simNavReady && (
+              <p style={{ margin: 0, fontSize: '0.62rem', color: 'var(--muted)', fontStyle: 'italic', opacity: 0.6 }}>En attente de la fin de la section…</p>
+            )}
+            {currentSection.trial?.success_section_id && (
+              <button
+                disabled={!simNavReady}
+                onClick={() => { const s = sections.find(x => x.id === currentSection.trial!.success_section_id); if (s) setCurrentId(s.id) }}
+                style={{ textAlign: 'left', padding: '0.35rem 0.6rem', borderRadius: 5, border: '1px solid rgba(64,192,87,0.3)', background: 'rgba(64,192,87,0.06)', color: simNavReady ? '#40c057' : 'var(--muted)', fontSize: '0.65rem', cursor: simNavReady ? 'pointer' : 'default', lineHeight: 1.4, opacity: simNavReady ? 1 : 0.4 }}
+              >
+                ✓ Succès → §{sections.find(x => x.id === currentSection.trial!.success_section_id)?.number ?? '?'}
+              </button>
+            )}
+            {currentSection.trial?.failure_section_id && (
+              <button
+                disabled={!simNavReady}
+                onClick={() => { const s = sections.find(x => x.id === currentSection.trial!.failure_section_id); if (s) setCurrentId(s.id) }}
+                style={{ textAlign: 'left', padding: '0.35rem 0.6rem', borderRadius: 5, border: '1px solid rgba(224,85,85,0.3)', background: 'rgba(224,85,85,0.06)', color: simNavReady ? '#e05555' : 'var(--muted)', fontSize: '0.65rem', cursor: simNavReady ? 'pointer' : 'default', lineHeight: 1.4, opacity: simNavReady ? 1 : 0.4 }}
+              >
+                ✗ Échec → §{sections.find(x => x.id === currentSection.trial!.failure_section_id)?.number ?? '?'}
+              </button>
+            )}
+            {currentChoices.map(c => {
+              const target = sections.find(s => s.id === c.target_section_id)
+              const isActive = activeTransitionChoice?.id === c.id
+              const clickable = simNavReady && !!target
+              return (
+                <button
+                  key={c.id}
+                  disabled={!clickable}
+                  onClick={() => { if (clickable) handleChoice(c) }}
+                  style={{ textAlign: 'left', padding: '0.35rem 0.6rem', borderRadius: 5, border: `1px solid ${isActive ? '#d4a84c88' : clickable ? '#d4a84c44' : '#1e1e28'}`, background: isActive ? 'rgba(212,168,76,0.12)' : clickable ? 'rgba(212,168,76,0.05)' : 'rgba(255,255,255,0.02)', color: clickable ? '#ede9df' : 'var(--muted)', fontSize: '0.65rem', cursor: clickable ? 'pointer' : 'default', lineHeight: 1.4, transition: 'all 0.2s', opacity: simNavReady ? 1 : 0.4 }}
+                >
+                  <span style={{ color: clickable ? '#d4a84c' : 'var(--muted)', fontWeight: 700, marginRight: '0.3rem' }}>→ §{target?.number ?? '?'}</span>
+                  {(c as any).text ?? c.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Panneau latéral — nœuds ── */}
-      <div style={{ width: 260, background: '#0e0e14', borderLeft: '1px solid #1e1e28', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ width: 260, background: '#0e0e14', borderLeft: '1px solid #1e1e28', display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden' }}>
         <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
           <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Style dialogue</p>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -8016,6 +12732,61 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
           </div>
         </div>
         <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Phrases par glissement</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([1, 2, 3] as const).map(n => {
+              const active = phrasesPerSlide === n
+              return (
+                <button key={n} onClick={() => setPhrasesPerSlide(n)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.58rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#d4a84c' : '#1e1e28'}`, background: active ? 'rgba(212,168,76,0.15)' : 'rgba(255,255,255,0.03)', color: active ? '#d4a84c' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {n === 1 ? '1 phrase' : n === 2 ? '2 phrases' : '3 phrases'}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Vitesse de lecture (mots/min)</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([120, 180, 240] as const).map(wpm => {
+              const labels: Record<number, string> = { 120: '🐢 Lent', 180: '📖 Normal', 240: '⚡ Rapide' }
+              const active = readingWpm === wpm
+              return (
+                <button key={wpm} onClick={() => setReadingWpm(wpm)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.55rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#d4a84c' : '#1e1e28'}`, background: active ? 'rgba(212,168,76,0.15)' : 'rgba(255,255,255,0.03)', color: active ? '#d4a84c' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {labels[wpm]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Vitesse mots (narratif)</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([120, 200, 280, 400] as const).map(ms => {
+              const labels: Record<number, string> = { 120: '⚡ Vite', 200: '📖 Normal', 280: '🐢 Lent', 400: '🌙 Très lent' }
+              const active = wordIntervalMs === ms
+              return (
+                <button key={ms} onClick={() => setWordIntervalMs(ms)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.5rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#d4a84c' : '#1e1e28'}`, background: active ? 'rgba(212,168,76,0.15)' : 'rgba(255,255,255,0.03)', color: active ? '#d4a84c' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {labels[ms]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Taille du texte</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([13, 15, 17, 19] as const).map(sz => {
+              const labels: Record<number, string> = { 13: 'XS', 15: 'S', 17: 'M', 19: 'L' }
+              const active = textFontSize === sz
+              return (
+                <button key={sz} onClick={() => setTextFontSize(sz)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.58rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#a084c8' : '#1e1e28'}`, background: active ? 'rgba(160,132,200,0.15)' : 'rgba(255,255,255,0.03)', color: active ? '#c8a0e8' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {labels[sz]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
           <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Style pensées</p>
           <div style={{ display: 'flex', gap: 4 }}>
             {([1, 2, 3] as const).map(n => {
@@ -8032,8 +12803,8 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
         <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
           <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Style choix</p>
           <div style={{ display: 'flex', gap: 4 }}>
-            {([1, 2, 3] as const).map(n => {
-              const labels: Record<number, string> = { 1: '⚒ Forge', 2: '📜 Scroll', 3: '💎 Ghost' }
+            {([1, 2, 3, 4] as const).map(n => {
+              const labels: Record<number, string> = { 1: '⚒ Forge', 2: '📜 Scroll', 3: '💎 Ghost', 4: '◈ Glow' }
               const active = choiceStyle === n
               return (
                 <button key={n} onClick={() => setChoiceStyle(n)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.58rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#d4a84c' : '#1e1e28'}`, background: active ? 'rgba(212,168,76,0.12)' : 'rgba(255,255,255,0.03)', color: active ? '#d4a84c' : 'var(--muted)', transition: 'all 0.15s' }}>
@@ -8042,6 +12813,27 @@ function GameSimTab({ bookId, sections, choices, npcs, items, protagonist, secti
               )
             })}
           </div>
+        </div>
+        <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid #1e1e28' }}>
+          <p style={{ margin: '0 0 6px', fontSize: '0.6rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Taille texte choix</p>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {([11, 13, 15, 17, 19] as const).map(sz => {
+              const labels: Record<number, string> = { 11: 'XS', 13: 'S', 15: 'M', 17: 'L', 19: 'XL' }
+              const active = choiceFontSize === sz
+              return (
+                <button key={sz} onClick={() => setChoiceFontSize(sz)} style={{ flex: 1, padding: '4px 2px', fontSize: '0.58rem', fontWeight: active ? 700 : 400, borderRadius: 4, cursor: 'pointer', border: `1px solid ${active ? '#d4a84c' : '#1e1e28'}`, background: active ? 'rgba(212,168,76,0.15)' : 'rgba(255,255,255,0.03)', color: active ? '#d4a84c' : 'var(--muted)', transition: 'all 0.15s' }}>
+                  {labels[sz]}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        {/* ── Argent & Inventaire ── */}
+        <div style={{ padding: '0.6rem 1rem', borderBottom: '1px solid #1e1e28', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ fontSize: '0.62rem', fontWeight: 700, color: '#52c484', flex: 1 }}>💵 Argent</span>
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#52c484' }}>{playerMoney} $</span>
+          <button onClick={() => setPlayerMoney(m => m + 10)} title="+10 $" style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #52c48433', background: '#52c48411', color: '#52c484', cursor: 'pointer' }}>+10</button>
+          <button onClick={() => setPlayerMoney(m => Math.max(0, m - 10))} title="-10 $" style={{ fontSize: '0.6rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #e0555533', background: '#e0555511', color: '#e05555', cursor: 'pointer' }}>−10</button>
         </div>
         <div style={{ padding: '0.75rem 1rem 0.5rem', borderBottom: '1px solid #1e1e28' }}>
           <p style={{ margin: 0, fontSize: '0.65rem', fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>🎮 Nœuds chargés ({reachableNodes.length})</p>
@@ -8854,13 +13646,13 @@ function SectionLayoutTab({ bookId, sectionLayout, protagonist, npcs, sections, 
   const accordion = (key: string, title: string, children: React.ReactNode) => {
     const isOpen = openSections.has(key)
     return (
-      <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-        <button onClick={() => toggleSection(key)} style={{ width: '100%', padding: '0.5rem 0.75rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isOpen ? 'rgba(255,255,255,0.04)' : 'transparent', border: 'none', textAlign: 'left' }}>
+      <div style={{ border: '1px solid var(--border)', borderRadius: '8px' }}>
+        <button onClick={() => toggleSection(key)} style={{ width: '100%', padding: '0.5rem 0.75rem', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: isOpen ? 'rgba(255,255,255,0.04)' : 'transparent', border: 'none', textAlign: 'left', borderRadius: isOpen ? '8px 8px 0 0' : '8px' }}>
           <span style={{ fontSize: '0.62rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 600 }}>{title}</span>
           <span style={{ fontSize: '10px', color: 'var(--muted)', display: 'inline-block', transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>▼</span>
         </button>
         {isOpen && (
-          <div style={{ padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.01)' }}>
+          <div style={{ padding: '0.6rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.55rem', borderTop: '1px solid var(--border)', background: 'rgba(255,255,255,0.01)', borderRadius: '0 0 8px 8px' }}>
             {children}
           </div>
         )}
@@ -8955,15 +13747,25 @@ function SectionLayoutTab({ bookId, sectionLayout, protagonist, npcs, sections, 
             </div>
             {colorPicker('choices_text_color', 'Couleur texte')}
             {colorPicker('choices_active_color', 'Couleur actif')}
-            {(['choices_bg', 'choices_active_bg', 'choices_border_color', 'choices_active_border'] as const).map(k => (
-              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '0.65rem', color: 'var(--muted)', minWidth: '90px', flexShrink: 0 }}>
-                  {k === 'choices_bg' ? 'Fond normal' : k === 'choices_active_bg' ? 'Fond actif' : k === 'choices_border_color' ? 'Bordure' : 'Bordure active'}
-                </span>
-                <input type="text" value={ds[k] as string ?? ''} onChange={e => update(k, e.target.value)}
-                  style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--fg)', fontSize: '0.62rem', padding: '2px 6px' }} />
-              </div>
-            ))}
+            {([
+              ['choices_bg', 'Fond normal'],
+              ['choices_active_bg', 'Fond actif'],
+              ['choices_border_color', 'Bordure'],
+              ['choices_active_border', 'Bordure active'],
+            ] as const).map(([k, label]) => {
+              const raw = (ds[k] as string) ?? '#000000'
+              // Extrait un hex approximatif pour l'input color (ignore alpha rgba)
+              const hexMatch = raw.match(/#[0-9a-fA-F]{3,8}/)
+              const hexVal = hexMatch ? hexMatch[0].slice(0, 7) : '#000000'
+              return (
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--muted)', minWidth: '90px', flexShrink: 0 }}>{label}</span>
+                  <input type="color" value={hexVal} onChange={e => update(k, e.target.value)}
+                    style={{ width: '36px', height: '22px', border: 'none', borderRadius: '3px', cursor: 'pointer', background: 'none', flexShrink: 0 }} />
+                  <span style={{ fontSize: '0.62rem', color: 'var(--muted)', fontFamily: 'monospace' }}>{raw}</span>
+                </div>
+              )
+            })}
           </>)}
 
           {accordion('vignettes', '👤 Vignettes', <>
@@ -8972,13 +13774,35 @@ function SectionLayoutTab({ bookId, sectionLayout, protagonist, npcs, sections, 
               {slider('vignette_size', 'Taille', 28, 80, 'px')}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ fontSize: '0.65rem', color: 'var(--muted)', minWidth: '90px', flexShrink: 0 }}>Style</span>
-                {(['circle', 'card'] as const).map(v => (
+                {([['circle', '⬤', 'Cercle'], ['card', '▯', 'Carte'], ['tile', '▬', 'Tuile']] as const).map(([v, icon, label]) => (
                   <button key={v} onClick={() => update('vignette_style', v)} style={{ padding: '2px 10px', borderRadius: '4px', fontSize: '0.65rem', cursor: 'pointer', border: `1px solid ${ds.vignette_style === v ? '#d4a84c' : 'var(--border)'}`, background: ds.vignette_style === v ? 'rgba(212,168,76,0.15)' : 'var(--surface-2)', color: ds.vignette_style === v ? '#d4a84c' : 'var(--muted)' }}>
-                    {v === 'circle' ? '⬤' : '▬'} {v === 'circle' ? 'Cercle' : 'Carte'}
+                    {icon} {label}
                   </button>
                 ))}
               </div>
               {colorPicker('vignette_border_color', 'Bordure')}
+              {ds.vignette_style === 'tile' && <>
+                <div style={{ borderTop: '1px solid var(--border)', marginTop: '4px', paddingTop: '6px', fontSize: '0.62rem', color: 'var(--muted)', fontStyle: 'italic' }}>Options tuile</div>
+                {slider('vignette_tile_name_size', 'Taille nom', 6, 18, 'px')}
+                {colorPicker('vignette_tile_text_color', 'Couleur texte')}
+                {slider('vignette_tile_bg_opacity', 'Opacité fond nom', 0, 100, '%')}
+                {toggle('vignette_tile_show_hp', 'Barre HP (NPCs)')}
+                {/* Position nom X/Y */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--muted)', minWidth: '90px', flexShrink: 0 }}>Pos. nom X</span>
+                  <input type="range" min={0} max={40} value={ds.vignette_tile_name_x ?? 8}
+                    onChange={e => update('vignette_tile_name_x', Number(e.target.value))}
+                    style={{ flex: 1, accentColor: 'var(--accent)' }} />
+                  <span style={{ fontSize: '0.65rem', color: 'var(--foreground)', minWidth: '30px', textAlign: 'right' }}>{ds.vignette_tile_name_x ?? 8}px</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--muted)', minWidth: '90px', flexShrink: 0 }}>Pos. nom Y</span>
+                  <input type="range" min={-20} max={20} value={ds.vignette_tile_name_y ?? 0}
+                    onChange={e => update('vignette_tile_name_y', Number(e.target.value))}
+                    style={{ flex: 1, accentColor: 'var(--accent)' }} />
+                  <span style={{ fontSize: '0.65rem', color: 'var(--foreground)', minWidth: '30px', textAlign: 'right' }}>{ds.vignette_tile_name_y ?? 0}px</span>
+                </div>
+              </>}
             </>}
           </>)}
 
@@ -11033,6 +15857,11 @@ function FichePersonnageTab({ bookId, protagonistNpcId, npcs, setNpcs, imageProv
             <span style={{ fontSize: '0.6rem', padding: '1px 6px', borderRadius: '4px', background: previewMode === 'tablet' ? 'rgba(76,155,240,0.15)' : 'rgba(212,168,76,0.15)', color: previewMode === 'tablet' ? '#4c9bf0' : '#d4a84c', border: `1px solid ${previewMode === 'tablet' ? '#4c9bf040' : '#d4a84c40'}` }}>{previewMode === 'tablet' ? '📟' : '📱'}</span>
           </div>
           {!_ic && <div style={{ padding: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.72rem', color: 'var(--foreground)' }}>
+            <input type="checkbox" checked={nameSettings.ill_show ?? true} onChange={e => updateNameSetting('ill_show', e.target.checked)} style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
+            Afficher les illustrations
+          </label>
+          {(nameSettings.ill_show ?? true) && <>
           <p style={{ margin: 0, fontSize: '0.62rem', color: 'var(--muted)', letterSpacing: '0.05em' }}>DIMENSIONS</p>
           {([
             { key: 'ill_height', label: 'Hauteur', min: 40, max: 300, unit: 'px' },
@@ -11050,6 +15879,7 @@ function FichePersonnageTab({ bookId, protagonistNpcId, npcs, setNpcs, imageProv
               </span>
             </div>
           ))}
+          </>}
           </div>}
         </div>
         )})()}
@@ -11436,7 +16266,7 @@ const VOICE_SETTINGS_DEFAULTS = { stability: 0.5, style: 0, speed: 1, similarity
 
 const NPC_DEFAULTS = {
   name: '', type: 'ennemi' as NpcType, description: '',
-  appearance: '', origin: '',
+  appearance: '', origin: '', group_name: '',
   force: 5, agilite: 5, intelligence: 5, magie: 0, endurance: 10, chance: 5,
   special_ability: '', resistances: '', loot: '',
   speech_style: '', dialogue_intro: '',
@@ -11445,13 +16275,125 @@ const NPC_DEFAULTS = {
   voice_prompt: '',
 }
 
-function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = '', imageProvider, npcs, setNpcs, sections, onNavigate, protagonistNpcId, onSetProtagonist, voices = [], voicesLoaded = false }: { bookId: string; bookTheme: string; bookIllustrationStyle: string; illustrationBible?: string; imageProvider?: 'replicate' | 'leonardo'; npcs: Npc[]; setNpcs: (fn: (prev: Npc[]) => Npc[]) => void; sections: Section[]; onNavigate: (n: number) => void; protagonistNpcId: string | null; onSetProtagonist: (npcId: string | null) => Promise<void>; voices?: { voice_id: string; name: string; category?: string; labels: Record<string, string>; preview_url: string | null }[]; voicesLoaded?: boolean }) {
+function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = '', imageProvider, npcs, setNpcs, sections, combatTypes = [], onNavigate, protagonistNpcId, onSetProtagonist, voices = [], voicesLoaded = false, weaponTypes = [] }: { bookId: string; bookTheme: string; bookIllustrationStyle: string; illustrationBible?: string; imageProvider?: 'replicate' | 'leonardo'; npcs: Npc[]; setNpcs: (fn: (prev: Npc[]) => Npc[]) => void; sections: Section[]; combatTypes?: import('@/types').CombatType[]; onNavigate: (n: number) => void; protagonistNpcId: string | null; onSetProtagonist: (npcId: string | null) => Promise<void>; voices?: { voice_id: string; name: string; category?: string; labels: Record<string, string>; preview_url: string | null }[]; voicesLoaded?: boolean; weaponTypes?: string[] }) {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ ...NPC_DEFAULTS })
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null)
+  const [combatV3Open, setCombatV3Open] = useState<string | null>(null) // npc.id ouvert
+  const [combatV3Generating, setCombatV3Generating] = useState<string | null>(null) // slotKey en cours
+  const [newAttackName, setNewAttackName] = useState<string>('') // nom du move pour attack_urls
+
+  async function saveCombatV3(npcId: string, patch: Partial<import('@/types').NpcCombatV3>) {
+    const npc = npcs.find(n => n.id === npcId)
+    const updated = { ...( npc?.combat_v3 ?? {}), ...patch }
+    await fetch(`/api/npcs/${npcId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ combat_v3: updated }) })
+    setNpcs(prev => prev.map(n => n.id === npcId ? { ...n, combat_v3: updated } : n))
+  }
+
+  async function saveAttackUrl(npcId: string, moveName: string, url: string) {
+    const npc = npcs.find(n => n.id === npcId)
+    const updated: import('@/types').NpcCombatV3 = {
+      ...(npc?.combat_v3 ?? {}),
+      attack_urls: { ...(npc?.combat_v3?.attack_urls ?? {}), [moveName]: url },
+    }
+    await fetch(`/api/npcs/${npcId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ combat_v3: updated }) })
+    setNpcs(prev => prev.map(n => n.id === npcId ? { ...n, combat_v3: updated } : n))
+  }
+
+  async function deleteAttackUrl(npcId: string, moveName: string) {
+    const npc = npcs.find(n => n.id === npcId)
+    const urls = { ...(npc?.combat_v3?.attack_urls ?? {}) }
+    delete urls[moveName]
+    const updated: import('@/types').NpcCombatV3 = { ...(npc?.combat_v3 ?? {}), attack_urls: urls }
+    await fetch(`/api/npcs/${npcId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ combat_v3: updated }) })
+    setNpcs(prev => prev.map(n => n.id === npcId ? { ...n, combat_v3: updated } : n))
+  }
+
+  async function generateCombatV3Image(npc: Npc, slot: string, moveName?: string) {
+    const slotKey = moveName ? `attack_${moveName}` : slot
+    setCombatV3Generating(slotKey)
+
+    const SLOT_PROMPTS: Record<string, string> = {
+      neutral_url:     'en posture de garde, position neutre, regard concentré, face au spectateur, prêt à se battre',
+      hit_url:         'recevant un coup violent, expression de douleur et surprise, projeté en arrière, impact visible',
+      dodge_url:       'esquivant une attaque, mouvement de côté ou en arrière, regard calculateur',
+      ko_url:          'à terre, inconscient, hors combat, vaincu, sol visible',
+      portrait_75_url: 'légèrement blessé, petit saignement, lèvre fendue ou coupure, regard toujours combatif mais teinté de douleur, combattant encore debout',
+      portrait_50_url: 'blessé à mi-combat, visage marqué, saignement visible, expression tendue et déterminée malgré la souffrance, position légèrement courbée',
+      portrait_25_url: 'gravement blessé, épuisé, blessures multiples visibles, regard désespéré mais résolu, souffle court, au bord de l\'effondrement',
+    }
+
+    const actionDesc = moveName
+      ? `attaquant avec le mouvement "${moveName}", posture offensive dynamique, bras ou arme en mouvement vers l'adversaire`
+      : (SLOT_PROMPTS[slot] ?? slot)
+
+    const visualDesc = npc.appearance?.trim() || npc.description?.trim() || npc.name
+    const prompt = `${npc.name} : ${visualDesc}. ${actionDesc}. Plan américain, éclairage cinématique dramatique, sans texte ni interface.`
+
+    try {
+      const res = await fetch('/api/generate-image', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'npc',
+          data: { custom_prompt: prompt, style: bookIllustrationStyle ?? 'realistic', illustration_bible: illustrationBible ?? '', framing: 'full action shot' },
+          ...(npc.image_url ? { input_image_url: npc.image_url } : {}),
+        }),
+      })
+      const d = await res.json()
+      if (!res.ok) throw new Error(d.error)
+
+      let imageUrl: string | null = null
+      if (d.image_url) {
+        imageUrl = d.image_url
+      } else if (d.prediction_id) {
+        const start = Date.now()
+        while (Date.now() - start < 300_000) {
+          await new Promise(r => setTimeout(r, 3000))
+          const poll = await fetch(`/api/generate-image?id=${d.prediction_id}&provider=${d.provider ?? 'replicate'}`)
+          const pd = await poll.json()
+          if (pd.status === 'succeeded') { imageUrl = pd.image_url; break }
+          if (pd.status === 'failed' || pd.status === 'canceled') throw new Error(pd.error ?? pd.status)
+        }
+      }
+
+      if (imageUrl) {
+        const formData = new FormData()
+        const blob = await fetch(imageUrl).then(r => r.blob())
+        formData.append('file', blob, `${slotKey}.webp`)
+        formData.append('path', `books/${bookId}/npcs/${npc.id}/combat_v3/${slotKey}`)
+        const upRes = await fetch('/api/upload-file', { method: 'POST', body: formData })
+        const savedUrl = upRes.ok ? (await upRes.json()).url : imageUrl
+        if (moveName) {
+          await saveAttackUrl(npc.id, moveName, savedUrl)
+        } else {
+          await saveCombatV3(npc.id, { [slot]: savedUrl })
+        }
+      }
+    } catch (err: any) {
+      alert('Erreur génération : ' + err.message)
+    }
+    setCombatV3Generating(null)
+  }
+
+  async function uploadCombatV3File(npc: Npc, slot: string, moveName: string | undefined, file: File) {
+    const slotKey = moveName ? `attack_${moveName}` : slot
+    setCombatV3Generating(slotKey)
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('path', `books/${bookId}/npcs/${npc.id}/combat_v3/${slotKey}`)
+    const res = await fetch('/api/upload-file', { method: 'POST', body: formData })
+    if (!res.ok) { alert('Erreur upload'); setCombatV3Generating(null); return }
+    const { url } = await res.json()
+    if (moveName) {
+      await saveAttackUrl(npc.id, moveName, url)
+    } else {
+      await saveCombatV3(npc.id, { [slot]: url })
+    }
+    setCombatV3Generating(null)
+  }
 
   function playVoicePreview(voiceId: string) {
     const voice = voices.find(v => v.voice_id === voiceId)
@@ -11466,7 +16408,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
   function openEdit(npc: Npc) {
     setForm({
       name: npc.name, type: npc.type, description: npc.description ?? '',
-      appearance: npc.appearance ?? '', origin: npc.origin ?? '',
+      appearance: npc.appearance ?? '', origin: npc.origin ?? '', group_name: npc.group_name ?? '',
       force: npc.force, agilite: npc.agilite, intelligence: npc.intelligence,
       magie: npc.magie, endurance: npc.endurance, chance: npc.chance,
       special_ability: npc.special_ability ?? '', resistances: npc.resistances ?? '', loot: npc.loot ?? '',
@@ -11612,6 +16554,10 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
             <textarea value={form.origin} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))}
               style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} placeholder="Ex: Ancien chevalier de la garde royale, tombé en disgrâce après la bataille de Voraven..." />
           </div>
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={labelStyle}>🏴 Nom du gang / clan / équipe</label>
+            <input value={form.group_name} onChange={e => setForm(f => ({ ...f, group_name: e.target.value }))} style={inputStyle} placeholder="Ex: Les Wolves, Crew du Bronx, Garde Noire..." />
+          </div>
 
           <div style={{ marginBottom: '1.25rem' }}>
             <label style={labelStyle}>🎭 Style de parole / Accent</label>
@@ -11724,6 +16670,10 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                     <textarea value={form.origin} onChange={e => setForm(f => ({ ...f, origin: e.target.value }))}
                       style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' }} placeholder="Ex: Ancien chevalier de la garde royale, tombé en disgrâce après la bataille de Voraven..." />
                   </div>
+                  <div style={{ marginBottom: '1.25rem' }}>
+                    <label style={labelStyle}>🏴 Nom du gang / clan / équipe</label>
+                    <input value={form.group_name} onChange={e => setForm(f => ({ ...f, group_name: e.target.value }))} style={inputStyle} placeholder="Ex: Les Wolves, Crew du Bronx, Garde Noire..." />
+                  </div>
 
                   <div style={{ marginBottom: '1.25rem' }}>
                     <label style={labelStyle}>🎭 Style de parole / Accent</label>
@@ -11739,6 +16689,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                     voices={voices} voicesLoaded={voicesLoaded}
                     playVoicePreview={playVoicePreview}
                   />
+
 
                   <div style={{ display: 'flex', gap: '0.75rem' }}>
                     <button onClick={save} disabled={saving || !form.name.trim()} style={btnStyle('var(--accent)', '#0f0f14')}>
@@ -11807,7 +16758,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                       <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.55rem', borderRadius: '20px', background: tc.color + '22', color: tc.color, fontWeight: 'bold' }}>
                         {tc.label}
                       </span>
-                      <div style={{ marginTop: '0.3rem' }}>
+                      <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                         <ImageGenButton
                           type="npc"
                           provider={imageProvider}
@@ -11899,30 +16850,221 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                   </div>
                 )}
 
-                {/* Portraits émotions (dialogue manga) */}
-                <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
-                  <div style={{ fontSize: '0.6rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>😶 Portraits émotions</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
-                    {EMOTIONS.map(em => {
-                      const url = npc.portrait_emotions?.[em]
-                      const isUploading = uploadingEmotion === `${npc.id}_${em}`
-                      return (
-                        <label key={em} title={em} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadNpcEmotion(npc.id, em, f) }} />
-                          <div style={{ width: '44px', height: '54px', borderRadius: '4px', overflow: 'hidden', border: `1px solid ${url ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {isUploading
-                              ? <span style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>⏳</span>
-                              : url
-                                ? <img src={url} alt={em} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
-                                : <span style={{ fontSize: '1rem', opacity: 0.3 }}>+</span>
-                            }
-                          </div>
-                          <span style={{ fontSize: '0.5rem', color: url ? 'var(--accent)' : 'var(--muted)', whiteSpace: 'nowrap' }}>{em}</span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
+
+                {/* Images de combat V3 */}
+                {(npc.type === 'ennemi' || npc.type === 'boss' || npc.id === protagonistNpcId) && (() => {
+                  const isProtagonist = npc.id === protagonistNpcId
+                  const isOpen = combatV3Open === npc.id
+                  const v3 = npc.combat_v3 ?? {}
+
+                  // Trouver les moves d'attaque de ce NPC via ses sections de combat
+                  const npcCombatSections = sections.filter(s => s.trial?.npc_id === npc.id)
+                  const npcCombatTypeId = (npcCombatSections[0] as any)?.combat_type_id ?? null
+                  const npcCombatType = combatTypes.find(ct => ct.id === npcCombatTypeId)
+                  const attackMoves = (npcCombatType?.moves ?? []).filter(m => !m.is_parry)
+
+                  const FIXED_SLOTS: { key: keyof import('@/types').NpcCombatV3; label: string; desc: string }[] = isProtagonist
+                    ? [
+                        { key: 'portrait_75_url', label: 'Blessé (≤75% PV)',   desc: "Portrait affiché quand les PV sont ≤ 75% du max" },
+                        { key: 'portrait_50_url', label: 'Blessé (≤50% PV)',   desc: "Portrait affiché quand les PV sont ≤ 50% du max" },
+                        { key: 'portrait_25_url', label: 'Critique (≤25% PV)', desc: "Portrait affiché quand les PV sont ≤ 25% du max" },
+                      ]
+                    : [
+                        { key: 'neutral_url',     label: 'En garde',           desc: "Fond pendant le tour d'attaque du joueur" },
+                        { key: 'ko_url',          label: 'KO',                 desc: "Affiché à la victoire du joueur" },
+                        { key: 'portrait_75_url', label: 'Blessé (≤75% PV)',   desc: "Portrait affiché quand les PV ennemis sont ≤ 75% du max" },
+                        { key: 'portrait_50_url', label: 'Blessé (≤50% PV)',   desc: "Portrait affiché quand les PV ennemis sont ≤ 50% du max" },
+                        { key: 'portrait_25_url', label: 'Critique (≤25% PV)', desc: "Portrait affiché quand les PV ennemis sont ≤ 25% du max" },
+                      ]
+
+                  return (
+                    <div style={{ marginTop: '0.75rem', borderTop: '1px solid var(--border)', paddingTop: '0.6rem' }}>
+                      {/* Header accordion */}
+                      <button
+                        onClick={() => setCombatV3Open(isOpen ? null : npc.id)}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                      >
+                        <div style={{ fontSize: '0.6rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>⚔️</span>
+                          <span>Images de combat V3</span>
+                          {FIXED_SLOTS.some(s => v3[s.key]) && (
+                            <span style={{ color: 'var(--accent)', fontWeight: 700 }}>
+                              {FIXED_SLOTS.filter(s => v3[s.key]).length}/{FIXED_SLOTS.length}
+                            </span>
+                          )}
+                        </div>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>{isOpen ? '▲' : '▼'}</span>
+                      </button>
+
+                      {isOpen && (
+                        <div style={{ marginTop: '0.6rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                          {/* Slots fixes */}
+                          {FIXED_SLOTS.map(({ key, label, desc }) => {
+                            const url = v3[key] as string | undefined
+                            const slotKey = key as string
+                            const isGenerating = combatV3Generating === slotKey
+                            return (
+                              <div key={slotKey} style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start', padding: '0.5rem', background: 'rgba(255,255,255,0.03)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                {/* Miniature */}
+                                <label style={{ cursor: 'pointer', flexShrink: 0 }}>
+                                  <input type="file" accept="image/*" style={{ display: 'none' }}
+                                    onChange={e => { const f = e.target.files?.[0]; if (f) uploadCombatV3File(npc, slotKey, undefined, f) }}
+                                  />
+                                  <div style={{ width: '52px', height: '70px', borderRadius: '5px', overflow: 'hidden', border: `1px solid ${url ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
+                                    {isGenerating
+                                      ? <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>⏳</span>
+                                      : url
+                                        ? <img src={url} alt={label} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                                        : <span style={{ fontSize: '1.1rem', opacity: 0.25 }}>+</span>
+                                    }
+                                  </div>
+                                </label>
+                                {/* Infos + actions */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: '0.72rem', fontWeight: 600, color: url ? 'var(--accent)' : 'var(--fg)', marginBottom: '0.15rem' }}>{label}</div>
+                                  <div style={{ fontSize: '0.6rem', color: 'var(--muted)', marginBottom: '0.35rem', lineHeight: 1.3 }}>{desc}</div>
+                                  {/* Prompts EN / FR Storyboarder.ai */}
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.25rem', marginBottom: '0.25rem' }}>
+                                    <textarea
+                                      key={`${slotKey}_en`}
+                                      defaultValue={(v3 as any)[`${slotKey}_prompt_en`] ?? ''}
+                                      onBlur={e => saveCombatV3(npc.id, { [`${slotKey}_prompt_en`]: e.target.value || undefined } as any)}
+                                      placeholder="Shot description (EN)…"
+                                      rows={2}
+                                      style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.4rem', color: 'var(--foreground)', fontSize: '0.68rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                    />
+                                    <button
+                                      title="Traduire EN → FR"
+                                      onClick={async () => {
+                                        const enText = (v3 as any)[`${slotKey}_prompt_en`] ?? ''
+                                        if (!enText.trim()) return
+                                        const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: enText }) })
+                                        const data = await res.json()
+                                        if (data.translated) saveCombatV3(npc.id, { [`${slotKey}_prompt_fr`]: data.translated } as any)
+                                      }}
+                                      style={{ flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: '#d4a84c', cursor: 'pointer', padding: '0.25rem 0.4rem', fontSize: '0.68rem' }}
+                                    >→ FR</button>
+                                  </div>
+                                  <textarea
+                                    key={`${slotKey}_fr`}
+                                    defaultValue={(v3 as any)[`${slotKey}_prompt_fr`] ?? ''}
+                                    onBlur={e => saveCombatV3(npc.id, { [`${slotKey}_prompt_fr`]: e.target.value || undefined } as any)}
+                                    placeholder="Description FR (pour le designer)…"
+                                    rows={2}
+                                    style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.4rem', color: 'var(--muted)', fontSize: '0.65rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '0.3rem' }}
+                                  />
+                                  <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                    <label style={{ cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.6rem', borderRadius: '4px', border: '1px solid var(--border)', color: 'var(--muted)', background: 'none' }}>
+                                      <input type="file" accept="image/*" style={{ display: 'none' }}
+                                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadCombatV3File(npc, slotKey, undefined, f) }}
+                                      />
+                                      📁 Upload
+                                    </label>
+                                    <button
+                                      disabled={isGenerating}
+                                      onClick={() => generateCombatV3Image(npc, slotKey)}
+                                      style={{ padding: '0.2rem 0.5rem', fontSize: '0.6rem', borderRadius: '4px', border: '1px solid #d4a84c55', color: '#d4a84c', background: 'rgba(212,168,76,0.08)', cursor: 'pointer', opacity: isGenerating ? 0.5 : 1 }}
+                                    >✦ IA</button>
+                                    {url && (
+                                      <button
+                                        onClick={() => saveCombatV3(npc.id, { [slotKey]: undefined })}
+                                        style={{ padding: '0.2rem 0.5rem', fontSize: '0.6rem', borderRadius: '4px', border: '1px solid #ff4d4d44', color: '#ff4d4d', background: 'none', cursor: 'pointer' }}
+                                      >✕</button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+
+                          {/* attack_urls — uniquement pour ennemis/boss */}
+                          {!isProtagonist && (
+                            <div style={{ marginTop: '0.2rem' }}>
+                              <div style={{ fontSize: '0.6rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.4rem' }}>
+                                Indices visuels d'attaque
+                                <span style={{ fontStyle: 'italic', textTransform: 'none', marginLeft: '0.4rem', opacity: 0.7 }}>— apparaissent comme fond pendant le QTE</span>
+                              </div>
+
+                              {/* Moves depuis le type de combat */}
+                              {attackMoves.map(move => {
+                                const url = v3.attack_urls?.[move.name]
+                                const slotKey = `attack_${move.name}`
+                                const isGenerating = combatV3Generating === slotKey
+                                return (
+                                  <div key={move.id} style={{ display: 'flex', gap: '0.6rem', alignItems: 'flex-start', padding: '0.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '0.35rem' }}>
+                                    <label style={{ cursor: 'pointer', flexShrink: 0 }}>
+                                      <input type="file" accept="image/*" style={{ display: 'none' }}
+                                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadCombatV3File(npc, 'attack_urls', move.name, f) }}
+                                      />
+                                      <div style={{ width: '52px', height: '70px', borderRadius: '5px', overflow: 'hidden', border: `1px solid ${url ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {isGenerating
+                                          ? <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>⏳</span>
+                                          : url
+                                            ? <img src={url} alt={move.name} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' }} />
+                                            : <span style={{ fontSize: '1.1rem', opacity: 0.25 }}>+</span>
+                                        }
+                                      </div>
+                                    </label>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                      <div style={{ fontSize: '0.72rem', fontWeight: 600, color: url ? 'var(--accent)' : 'var(--fg)', marginBottom: '0.1rem' }}>{move.name}</div>
+                                      {move.weapon_type && <div style={{ fontSize: '0.58rem', color: 'var(--muted)', marginBottom: '0.25rem' }}>🗡 {move.weapon_type}</div>}
+                                      <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                        <label style={{ cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.6rem', borderRadius: '4px', border: '1px solid var(--border)', color: 'var(--muted)', background: 'none' }}>
+                                          <input type="file" accept="image/*" style={{ display: 'none' }}
+                                            onChange={e => { const f = e.target.files?.[0]; if (f) uploadCombatV3File(npc, 'attack_urls', move.name, f) }}
+                                          />
+                                          📁 Upload
+                                        </label>
+                                        <button
+                                          disabled={isGenerating}
+                                          onClick={() => generateCombatV3Image(npc, 'attack_urls', move.name)}
+                                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.6rem', borderRadius: '4px', border: '1px solid #d4a84c55', color: '#d4a84c', background: 'rgba(212,168,76,0.08)', cursor: 'pointer', opacity: isGenerating ? 0.5 : 1 }}
+                                        >✦ IA</button>
+                                        {url && (
+                                          <button
+                                            onClick={() => deleteAttackUrl(npc.id, move.name)}
+                                            style={{ padding: '0.2rem 0.5rem', fontSize: '0.6rem', borderRadius: '4px', border: '1px solid #ff4d4d44', color: '#ff4d4d', background: 'none', cursor: 'pointer' }}
+                                          >✕</button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+
+                              {/* Ajout manuel si pas de type de combat associé */}
+                              {attackMoves.length === 0 && (
+                                <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontStyle: 'italic', marginBottom: '0.4rem' }}>
+                                  {npcCombatTypeId ? 'Aucun move d\'attaque dans ce type de combat.' : 'Ce PNJ n\'est pas encore associé à un type de combat.'}
+                                </div>
+                              )}
+
+                              {/* Ajouter manuellement par nom */}
+                              <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.3rem' }}>
+                                <input
+                                  value={newAttackName}
+                                  onChange={e => setNewAttackName(e.target.value)}
+                                  placeholder="Nom du move (ex: Coup haut)"
+                                  style={{ flex: 1, padding: '0.25rem 0.5rem', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--fg)' }}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter' && newAttackName.trim()) {
+                                      saveAttackUrl(npc.id, newAttackName.trim(), '')
+                                      setNewAttackName('')
+                                    }
+                                  }}
+                                />
+                                <button
+                                  onClick={() => { if (newAttackName.trim()) { saveAttackUrl(npc.id, newAttackName.trim(), ''); setNewAttackName('') } }}
+                                  style={{ padding: '0.25rem 0.6rem', fontSize: '0.65rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--fg)', cursor: 'pointer' }}
+                                >+ Ajouter</button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {/* Sections où ce PNJ apparaît */}
                 {(() => {
@@ -12232,18 +17374,47 @@ function NarrationPanel({ sectionId, content, onApply, onClose }: {
 
 // ── Génération d'image (Replicate FLUX) ───────────────────────────────────────
 
-function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 'replicate', storagePath }: {
+type GenMeta = { prompt_used?: string; model_used?: string; aspect_ratio_used?: string; style_used?: string }
+
+function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 'replicate', storagePath, input_image_url, model, gen4_refs }: {
   type: 'cover' | 'section' | 'npc' | 'item'
   data: Record<string, string>
   currentUrl?: string
-  onSaved: (url: string) => void
+  onSaved: (url: string, meta?: GenMeta) => void
   label?: string
   provider?: 'replicate' | 'leonardo'
-  storagePath?: string  // ex: "books/123/cover", "books/123/sections/456"
+  storagePath?: string
+  input_image_url?: string
+  model?: string
+  gen4_refs?: Array<{ url: string; name: string }>
 }) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
+  const [previewPrompt, setPreviewPrompt] = useState<{ prompt: string; aspect_ratio: string; model: string } | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewStale, setPreviewStale] = useState(false)
+  const previewDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Auto-refresh preview quand data change (si preview ouvert)
+  React.useEffect(() => {
+    if (!previewPrompt) return
+    setPreviewStale(true)
+    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
+    previewDebounceRef.current = setTimeout(async () => {
+      setPreviewLoading(true)
+      try {
+        const res = await fetch('/api/generate-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, data, provider, preview: true, ...(input_image_url ? { input_image_url } : {}), ...(model ? { model } : {}), ...(gen4_refs?.length ? { gen4_refs } : {}) }),
+        })
+        const d = await res.json()
+        if (d.prompt) { setPreviewPrompt(d); setPreviewStale(false) }
+      } catch { /* ignore */ }
+      finally { setPreviewLoading(false) }
+    }, 1000)
+  }, [data.summary, data.npc_appearances, data.aspect_ratio, data.style, data.kontext_ref_name, input_image_url])
 
   async function saveImage(externalUrl: string): Promise<string> {
     if (!storagePath) return externalUrl
@@ -12261,21 +17432,46 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 're
     }
   }
 
+  async function removeBg(imageUrl: string): Promise<string> {
+    setStatus('Suppression fond…')
+    try {
+      const res = await fetch('/api/remove-bg', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageUrl }),
+      })
+      const d = await res.json()
+      if (!res.ok || !d.image_url) return imageUrl // fallback : image originale
+      return d.image_url
+    } catch {
+      return imageUrl
+    }
+  }
+
   async function generate() {
     setLoading(true); setError(''); setStatus('Génération…')
     try {
       const res = await fetch('/api/generate-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, data, provider }),
+        body: JSON.stringify({ type, data, provider, ...(input_image_url ? { input_image_url } : {}), ...(model ? { model } : {}), ...(gen4_refs?.length ? { gen4_refs } : {}) }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
 
+      // Extraire les meta de génération (prompt, modèle, etc.)
+      const genMeta: GenMeta = {
+        prompt_used: d.prompt_used,
+        model_used: d.model_used,
+        aspect_ratio_used: d.aspect_ratio_used,
+        style_used: d.style_used,
+      }
+
       // Résultat immédiat (Replicate mode synchrone)
       if (d.image_url) {
-        const url = await saveImage(d.image_url)
-        onSaved(url)
+        const rawUrl = type === 'item' ? await removeBg(d.image_url) : d.image_url
+        const url = await saveImage(rawUrl)
+        onSaved(url, genMeta)
         setLoading(false); setStatus('')
         return
       }
@@ -12291,8 +17487,9 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 're
         const poll = await fetch(`/api/generate-image?id=${prediction_id}&provider=${resProvider ?? provider}`)
         const pd = await poll.json()
         if (pd.status === 'succeeded') {
-          const url = await saveImage(pd.image_url)
-          onSaved(url)
+          const rawUrl = type === 'item' ? await removeBg(pd.image_url) : pd.image_url
+          const url = await saveImage(rawUrl)
+          onSaved(url, genMeta)
           setLoading(false); setStatus('')
           return
         }
@@ -12307,15 +17504,59 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 're
     }
   }
 
+  async function showPreview() {
+    setPreviewLoading(true)
+    setPreviewPrompt(null)
+    try {
+      const res = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, data, provider, preview: true, ...(input_image_url ? { input_image_url } : {}), ...(model ? { model } : {}), ...(gen4_refs?.length ? { gen4_refs } : {}) }),
+      })
+      const d = await res.json()
+      if (d.prompt) setPreviewPrompt(d)
+    } catch { /* ignore */ }
+    finally { setPreviewLoading(false) }
+  }
+
   return (
-    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem' }}>
-      <button onClick={generate} disabled={loading} style={{
-        background: 'none', border: '1px solid #b48edd44', borderRadius: '4px',
-        color: loading ? 'var(--muted)' : '#b48edd', cursor: loading ? 'not-allowed' : 'pointer',
-        padding: '0.25rem 0.6rem', fontSize: '0.72rem', whiteSpace: 'nowrap',
-      }}>
-        {loading ? `⏳ ${status}` : `🎨 ${label ?? (currentUrl ? 'Régénérer' : 'Illustrer')}`}
-      </button>
+    <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.2rem', position: 'relative' }}>
+      <div style={{ display: 'flex', gap: '0.25rem', alignItems: 'center' }}>
+        <button onClick={generate} disabled={loading} style={{
+          background: 'none', border: '1px solid #b48edd44', borderRadius: '4px',
+          color: loading ? 'var(--muted)' : '#b48edd', cursor: loading ? 'not-allowed' : 'pointer',
+          padding: '0.25rem 0.6rem', fontSize: '0.72rem', whiteSpace: 'nowrap',
+        }}>
+          {loading ? `⏳ ${status}` : `🎨 ${label ?? (currentUrl ? 'Régénérer' : 'Illustrer')}`}
+        </button>
+        <button
+          onClick={() => previewPrompt ? setPreviewPrompt(null) : showPreview()}
+          disabled={previewLoading}
+          title="Voir le prompt exact envoyé à Replicate"
+          style={{ background: previewPrompt ? 'rgba(76,155,240,0.15)' : 'none', border: `1px solid ${previewPrompt ? '#4c9bf066' : 'var(--border)'}`, borderRadius: '4px', color: previewLoading ? 'var(--muted)' : previewPrompt ? '#4c9bf0' : 'var(--muted)', cursor: previewLoading ? 'default' : 'pointer', padding: '0.25rem 0.4rem', fontSize: '0.68rem', lineHeight: 1 }}
+        >
+          {previewLoading ? '…' : '👁'}
+        </button>
+      </div>
+      {previewPrompt && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, marginTop: '0.3rem', background: 'var(--surface)', border: `1px solid ${previewStale ? '#4c9bf022' : '#4c9bf044'}`, borderRadius: '8px', padding: '0.75rem', width: '320px', boxShadow: '0 4px 24px rgba(0,0,0,0.6)', transition: 'opacity 0.2s', opacity: previewStale ? 0.6 : 1 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.6rem', background: '#4c9bf022', border: '1px solid #4c9bf044', borderRadius: '3px', padding: '0.1rem 0.35rem', color: '#4c9bf0', fontWeight: 'bold' }}>{previewPrompt.model}</span>
+              <span style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>{previewPrompt.aspect_ratio}</span>
+              {previewStale && <span style={{ fontSize: '0.6rem', color: 'var(--muted)', fontStyle: 'italic' }}>mise à jour…</span>}
+            </div>
+            <button onClick={() => setPreviewPrompt(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.8rem', lineHeight: 1, padding: '0 0.2rem' }}>✕</button>
+          </div>
+          <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--foreground)', lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: '200px', overflow: 'auto' }}>{previewPrompt.prompt}</p>
+          <button
+            onClick={() => { navigator.clipboard.writeText(previewPrompt.prompt); setPreviewPrompt(null) }}
+            style={{ marginTop: '0.5rem', fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--muted)', cursor: 'pointer' }}
+          >
+            📋 Copier
+          </button>
+        </div>
+      )}
       {error && <span style={{ fontSize: '0.65rem', color: '#c94c4c' }}>{error}</span>}
     </div>
   )
@@ -12325,7 +17566,7 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 're
 
 function SectionImagePromptsButton({ sectionId, onPrompts }: {
   sectionId: string
-  onPrompts: (prompts: string[], promptsFr: string[]) => void
+  onPrompts: (prompts: string[], promptsFr: string[], shotSizes: string[], perspectives: string[]) => void
 }) {
   const [loading, setLoading] = useState(false)
 
@@ -12335,7 +17576,7 @@ function SectionImagePromptsButton({ sectionId, onPrompts }: {
       const res = await fetch(`/api/sections/${sectionId}/image-prompts`, { method: 'POST' })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
-      onPrompts(d.prompts, d.prompts_fr ?? [])
+      onPrompts(d.prompts, d.prompts_fr ?? [], d.prompts_shot_size ?? [], d.prompts_perspective ?? [])
     } catch (err: any) {
       alert('Erreur : ' + err.message)
     }
@@ -12348,7 +17589,7 @@ function SectionImagePromptsButton({ sectionId, onPrompts }: {
       color: loading ? 'var(--muted)' : '#b48edd', cursor: loading ? 'not-allowed' : 'pointer',
       padding: '0.2rem 0.5rem', fontSize: '0.68rem', whiteSpace: 'nowrap',
     }}>
-      {loading ? '⏳ Découpage…' : '🎬 Découper en 4 plans'}
+      {loading ? '⏳ Découpage…' : '🎬 Découper en 3 plans'}
     </button>
   )
 }
@@ -12808,18 +18049,19 @@ function FreesoundModal({ sectionType, onSelect, onClose }: {
 
 // ── SectionModal ──────────────────────────────────────────────────────────────
 
-type EditImage = { url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; style: string; includeProtagonist: boolean }
+type EditImage = { url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; shot_size?: string; perspective?: string; style: string; includeProtagonist: boolean }
 
 function SectionModal({
   section, choices, book, npcs, sections,
-  editContent, editSummary, editHint, editImages, editMusicUrl, imageProvider,
+  editContent, editSummary, editHint, editImages, editMusicUrl, editMusicStartTime, imageProvider,
   isSaving, editingTransition, transitionDraft, generatingTransition,
   editingReturn, returnDraft, generatingReturn,
-  setEditContent, setEditSummary, setEditHint, setEditImages, setEditMusicUrl, setImageProvider,
+  setEditContent, setEditSummary, setEditHint, setEditImages, setEditMusicUrl, setEditMusicStartTime, setImageProvider,
   setEditingTransition, setTransitionDraft, setGeneratingTransition,
   setEditingReturn, setReturnDraft, setGeneratingReturn,
   setFreesoundModal, setSections, setChoices,
   onSave, scrollToSection, detectCompanionsInText, consultCompanion, consultingCompanion, bookId, onOpenSection, previousSection, onGoBack, onClose, highlightChoiceId,
+  uploadingSectionMusic, uploadSectionMusic, sectionMusicUploaded, sectionMusicBuster,
 }: {
   section: Section
   choices: Choice[]
@@ -12831,6 +18073,7 @@ function SectionModal({
   editHint: string
   editImages: EditImage[]
   editMusicUrl: string
+  editMusicStartTime: number
   imageProvider: 'replicate' | 'leonardo'
   isSaving: boolean
   editingTransition: string | null
@@ -12844,6 +18087,7 @@ function SectionModal({
   setEditHint: (v: string) => void
   setEditImages: React.Dispatch<React.SetStateAction<EditImage[]>>
   setEditMusicUrl: (v: string) => void
+  setEditMusicStartTime: (v: number) => void
   setImageProvider: (v: 'replicate' | 'leonardo') => void
   setEditingTransition: (v: string | null) => void
   setTransitionDraft: (v: string) => void
@@ -12865,6 +18109,10 @@ function SectionModal({
   onGoBack: () => void
   onClose: () => void
   highlightChoiceId?: string
+  uploadingSectionMusic: boolean
+  uploadSectionMusic: (file: File, sectionId: string) => void
+  sectionMusicUploaded: boolean
+  sectionMusicBuster: number
 }) {
   const [openSubs, setOpenSubs] = React.useState<Set<number>>(new Set())
   const [companionSelectId, setCompanionSelectId] = React.useState('')
@@ -12872,11 +18120,15 @@ function SectionModal({
   const [choiceLabelDraft, setChoiceLabelDraft] = React.useState('')
   const [editingChoiceTarget, setEditingChoiceTarget] = React.useState<string | null>(null)
   const [extractingDialogues, setExtractingDialogues] = React.useState(false)
+  const [translatingTransitionImg, setTranslatingTransitionImg] = React.useState<{ choiceId: string; dir: 'en2fr' | 'fr2en' } | null>(null)
   const [playingDialogue, setPlayingDialogue] = React.useState<number | null>(null)
   const [savingDialogue, setSavingDialogue] = React.useState<number | null>(null)
   const [focusedDialogue, setFocusedDialogue] = React.useState<number | null>(null)
   const dialogueAudioRef = React.useRef<HTMLAudioElement | null>(null)
   const dialogueTextareaRefs = React.useRef<(HTMLTextAreaElement | null)[]>([])
+  const [translatingPlanIdx, setTranslatingPlanIdx] = React.useState<{ idx: number; dir: 'en2fr' | 'fr2en' } | null>(null)
+  const [editingTrialTransition, setEditingTrialTransition] = React.useState<'success' | 'failure' | null>(null)
+  const [trialTransitionDraft, setTrialTransitionDraft] = React.useState('')
 
   const EMOTION_TAGS = ['sighs','exhales','whispers','laughs','laughs harder','excited','crying','sarcastic','curious','mischievously','snorts','frustrated sigh','happy gasp']
 
@@ -12936,7 +18188,7 @@ function SectionModal({
     }
   }
 
-  async function saveDialogueTts(npc: Npc, text: string, idx: number, dialogues: import('@/types').SectionDialogue[]) {
+  async function saveDialogueTts(npc: Npc, text: string, idx: number, dialogues: any[]) {
     setSavingDialogue(idx)
     try {
       const savePath = `books/${bookId}/dialogues/${section.id}_${idx}`
@@ -13090,12 +18342,9 @@ function SectionModal({
                   </div>
                 </div>
 
-                {/* Combat / Dialogue card */}
-                {section.trial && section.trial.type !== 'dialogue' && (
+                {/* Combat card */}
+                {section.trial && (
                   <CombatCard trial={section.trial} npcs={npcs} sections={sections} onNavigate={scrollToSection} />
-                )}
-                {section.trial?.type === 'dialogue' && (
-                  <DialogueCard trial={section.trial} npcs={npcs} sections={sections} book={book} sectionNumber={section.number} onNavigate={scrollToSection} />
                 )}
 
                 <button onClick={() => onSave(section.id)} disabled={isSaving} style={{ background: 'var(--accent)', color: '#0f0f14', border: 'none', borderRadius: '4px', padding: '0.4rem 0.9rem', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.8rem' }}>
@@ -13124,34 +18373,56 @@ function SectionModal({
                   </div>
                   <SectionImagePromptsButton
                     sectionId={section.id}
-                    onPrompts={(prompts, promptsFr) => setEditImages(imgs => imgs.map((img, i) => ({ ...img, description: prompts[i] ?? img.description, description_fr: promptsFr[i] || img.description_fr })))}
+                    onPrompts={(prompts, promptsFr, shotSizes, perspectives) => setEditImages(imgs => imgs.map((img, i) => ({ ...img, description: prompts[i] ?? img.description, description_fr: promptsFr[i] || img.description_fr, shot_size: shotSizes[i] || img.shot_size, perspective: perspectives[i] || img.perspective })))}
                   />
                 </div>
-                {[0, 1, 2].map(i => (
+                {editImages.map((_, i) => (
                   <div key={i} style={{ background: 'var(--surface-2)', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.5rem', border: '1px solid var(--border)' }}>
-                    <div style={{ fontSize: '0.68rem', color: 'var(--muted)', marginBottom: '0.4rem', fontWeight: 'bold' }}>Image {i + 1}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+                      <div style={{ fontSize: '0.68rem', color: 'var(--muted)', fontWeight: 'bold' }}>Image {i + 1}</div>
+                      {editImages[i]?.shot_size && <span style={{ fontSize: '0.6rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.35rem', color: 'var(--accent)' }}>{editImages[i].shot_size}</span>}
+                      {editImages[i]?.perspective && <span style={{ fontSize: '0.6rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.35rem', color: 'var(--muted)' }}>{editImages[i].perspective}</span>}
+                      <button onClick={() => setEditImages(imgs => imgs.filter((_, idx) => idx !== i))} title="Supprimer ce plan" style={{ marginLeft: 'auto', fontSize: '0.6rem', padding: '0.12rem 0.4rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕ Plan</button>
+                    </div>
                     {editImages[i]?.url && (
                       <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
                         <img src={editImages[i].url} style={{ width: '100%', maxHeight: '260px', objectFit: 'contain', borderRadius: '4px', border: '1px solid var(--border)', background: '#000' }} />
                         <button onClick={() => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, url: undefined } : img))} style={{ position: 'absolute', top: '4px', right: '4px', background: '#c94c4ccc', border: 'none', borderRadius: '3px', color: '#fff', cursor: 'pointer', padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}>✕</button>
                       </div>
                     )}
-                    <textarea
-                      value={editImages[i]?.description ?? ''}
-                      onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, description: e.target.value } : img))}
-                      placeholder={`Description de l'image ${i + 1} (utilisée comme prompt)…`}
-                      rows={2}
-                      style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.4rem 0.5rem', color: 'var(--foreground)', fontSize: '0.8rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '0.25rem' }}
-                    />
-                    {(editImages[i]?.prompt_fr !== undefined || editImages[i]?.description_fr) ? (
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.3rem', marginBottom: '0.25rem' }}>
                       <textarea
-                        value={editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''}
-                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: e.target.value } : img))}
-                        placeholder="Description du plan en français…"
+                        value={editImages[i]?.description ?? ''}
+                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, description: e.target.value } : img))}
+                        placeholder={`Shot description (EN) — image ${i + 1}…`}
                         rows={2}
-                        style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.4rem 0.5rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '0.25rem' }}
+                        style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.4rem 0.5rem', color: 'var(--foreground)', fontSize: '0.8rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
                       />
-                    ) : null}
+                      <button
+                        title="Traduire EN → FR"
+                        disabled={translatingPlanIdx?.idx === i && translatingPlanIdx?.dir === 'en2fr'}
+                        onClick={async () => {
+                          const enText = editImages[i]?.description ?? ''
+                          if (!enText.trim()) return
+                          setTranslatingPlanIdx({ idx: i, dir: 'en2fr' })
+                          try {
+                            const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: enText }) })
+                            const data = await res.json()
+                            if (data.translated) setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: data.translated } : img))
+                          } finally {
+                            setTranslatingPlanIdx(null)
+                          }
+                        }}
+                        style={{ flexShrink: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', color: translatingPlanIdx?.idx === i ? 'var(--muted)' : '#d4a84c', cursor: translatingPlanIdx ? 'default' : 'pointer', padding: '0.3rem 0.45rem', fontSize: '0.7rem', marginTop: '0.1rem', opacity: translatingPlanIdx?.idx === i ? 0.5 : 1 }}
+                      >{translatingPlanIdx?.idx === i && translatingPlanIdx?.dir === 'en2fr' ? '…' : '→ FR'}</button>
+                    </div>
+                    <textarea
+                      value={editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''}
+                      onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: e.target.value } : img))}
+                      placeholder="Description FR (pour le designer)…"
+                      rows={2}
+                      style={{ width: '100%', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.4rem 0.5rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '0.25rem' }}
+                    />
                     <textarea
                       value={editImages[i]?.thought ?? ''}
                       onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, thought: e.target.value } : img))}
@@ -13162,6 +18433,8 @@ function SectionModal({
                     <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
                       <select value={editImages[i]?.style ?? 'realistic'} onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, style: e.target.value } : img))} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.5rem', color: 'var(--foreground)', fontSize: '0.75rem', outline: 'none', cursor: 'pointer' }}>
                         <option value="realistic">🖼️ Réaliste</option>
+                        <option value="photo">📷 Photo</option>
+                        <option value="sketch">✏️ Esquisse</option>
                         <option value="manga">⛩️ Manga</option>
                         <option value="bnw">⬛ Noir & Blanc</option>
                         <option value="watercolor">🎨 Aquarelle</option>
@@ -13187,19 +18460,36 @@ function SectionModal({
                           return { summary: editImages[i]?.description || editSummary, content: editContent, theme: book.theme, style: editImages[i]?.style ?? book.illustration_style ?? 'realistic', protagonist: editImages[i]?.includeProtagonist ? (book.protagonist_description ?? '') : '', illustration_bible: book.illustration_bible ?? '', npc_appearances: mentionedNpcAppearances }
                         })()}
                         currentUrl={editImages[i]?.url}
-                        onSaved={url => {
-                          // Bust browser cache by appending a timestamp to the display URL
+                        onSaved={async (url, meta) => {
                           const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
-                          const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl } : img)
+                          const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl, ...(meta ?? {}) } : img)
                           setEditImages(() => newImgs)
-                          // Save clean URL (without cache-buster) to DB
                           const cleanImages = newImgs
                             .filter(img => img.url || img.description.trim())
-                            .map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined }))
-                          fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImages }) })
+                            .map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, prompt_used: (img as any).prompt_used || undefined, model_used: (img as any).model_used || undefined, aspect_ratio_used: (img as any).aspect_ratio_used || undefined, style_used: (img as any).style_used || undefined, model: (img as any).model || undefined, aspect_ratio: (img as any).aspect_ratio || undefined, chain_from_prev: (img as any).chain_from_prev || undefined, gen4_ref_npc_ids: (img as any).gen4_ref_npc_ids?.length ? (img as any).gen4_ref_npc_ids : undefined, kontext_ref_npc_id: (img as any).kontext_ref_npc_id || undefined, includeProtagonist: img.includeProtagonist || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                          const res = await fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImages }) })
+                          if (!res.ok) { const e = await res.json().catch(() => ({})); console.error('[onSaved] PATCH failed:', e) }
                           setSections(ss => ss.map(s => s.id === section.id ? { ...s, images: cleanImages } : s))
                         }}
                       />
+                      <label style={{ cursor: 'pointer' }} title="Charger depuis le PC">
+                        <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={async e => {
+                          const file = e.target.files?.[0]; if (!file) return
+                          const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${bookId}/sections/${section.id}_${i}`)
+                          const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                          const d = await res.json()
+                          if (d.url) {
+                            const displayUrl = d.url + '?t=' + Date.now()
+                            const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl } : img)
+                            setEditImages(() => newImgs)
+                            const cleanImages = newImgs.filter(img => img.url || img.description.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                            fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImages }) })
+                            setSections(ss => ss.map(s => s.id === section.id ? { ...s, images: cleanImages } : s))
+                          }
+                          e.target.value = ''
+                        }} />
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.55rem', fontSize: '0.75rem', color: 'var(--muted)' }}>📁 PC</span>
+                      </label>
                     </div>
                     {editImages[i]?.description.trim() && !editImages[i]?.url && (
                       <button onClick={() => {
@@ -13212,6 +18502,12 @@ function SectionModal({
                     )}
                   </div>
                 ))}
+                {editImages.length < 3 && (
+                  <button onClick={() => setEditImages(imgs => [...imgs, { description: '', style: book.illustration_style ?? 'realistic', includeProtagonist: false }])}
+                    style={{ alignSelf: 'flex-start', fontSize: '0.72rem', padding: '0.3rem 0.75rem', borderRadius: '6px', border: '1px dashed var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>
+                    + Image {editImages.length + 1}
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -13231,19 +18527,24 @@ function SectionModal({
                   <button onClick={() => setFreesoundModal({ sectionType })} title="Rechercher sur Freesound" style={{ background: 'none', border: '1px solid #4c9bf044', borderRadius: '4px', color: '#4c9bf0', cursor: 'pointer', padding: '0.3rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                     🔍 Freesound
                   </button>
+                  <label title="Importer un fichier audio" style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: uploadingSectionMusic ? 'default' : 'pointer', padding: '0.3rem 0.5rem', fontSize: '0.75rem', whiteSpace: 'nowrap', opacity: uploadingSectionMusic ? 0.5 : 1 }}>
+                    {uploadingSectionMusic ? '⟳' : '📁'}
+                    <input type="file" accept="audio/*" style={{ display: 'none' }} disabled={uploadingSectionMusic} onChange={e => { const f = e.target.files?.[0]; if (f) uploadSectionMusic(f, section.id) }} />
+                  </label>
                   {editMusicUrl && (
                     <button onClick={() => setEditMusicUrl('')} title="Supprimer la musique" style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--muted)', cursor: 'pointer', padding: '0.3rem 0.5rem', fontSize: '0.75rem' }}>✕</button>
                   )}
                 </div>
                 {/* Lecteur de prévisualisation */}
                 {(editMusicUrl || DEFAULT_MUSIC[sectionType]) && (
-                  <audio
-                    key={editMusicUrl || DEFAULT_MUSIC[sectionType]}
-                    controls
-                    src={editMusicUrl || DEFAULT_MUSIC[sectionType]}
-                    style={{ width: '100%', height: '32px', marginBottom: '0.5rem', accentColor: 'var(--accent)' }}
+                  <MusicStartPlayer
+                    key={`${editMusicUrl || DEFAULT_MUSIC[sectionType]}-${sectionMusicBuster}`}
+                    src={`${(editMusicUrl || DEFAULT_MUSIC[sectionType]).split('?')[0]}?v=${sectionMusicBuster}`}
+                    startTime={editMusicStartTime}
+                    onSetStartTime={setEditMusicStartTime}
                   />
                 )}
+                {sectionMusicUploaded && <p style={{ fontSize: '0.7rem', color: '#52c484', margin: '0 0 0.4rem', fontStyle: 'italic' }}>✓ Fichier chargé — pensez à sauvegarder</p>}
                 {!editMusicUrl && section.music_url && (
                   <p style={{ fontSize: '0.7rem', color: '#f0a742', margin: '0 0 0.4rem', fontStyle: 'italic' }}>⚠ Musique personnalisée en base — le champ est vide, sauvegarder supprimera cette musique.</p>
                 )}
@@ -13342,31 +18643,116 @@ function SectionModal({
                 {section.trial && (section.trial.success_section_id || section.trial.failure_section_id) && (() => {
                   const successSec = sections.find(s => s.id === section.trial!.success_section_id)
                   const failureSec = sections.find(s => s.id === section.trial!.failure_section_id)
+
+                  const saveTrialField = async (field: string, value: string | null) => {
+                    const newTrial = { ...section.trial, [field]: value || null }
+                    await fetch(`/api/sections/${section.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trial: newTrial }) })
+                    setSections(ss => ss.map(s => s.id === section.id ? { ...s, trial: newTrial as any } : s))
+                  }
+
+                  const renderTrialTransitionPanel = (kind: 'success' | 'failure', targetSec: typeof successSec) => {
+                    if (!targetSec) return null
+                    const isEditing = editingTrialTransition === kind
+                    const textField = kind === 'success' ? 'success_transition_text' : 'failure_transition_text'
+                    const imgField = kind === 'success' ? 'success_transition_image_url' : 'failure_transition_image_url'
+                    const currentText = (section.trial as any)?.[textField] as string | null | undefined
+                    const currentImg = (section.trial as any)?.[imgField] as string | null | undefined
+                    const color = kind === 'success' ? '#4caf7d' : '#c94c4c'
+                    const label = kind === 'success' ? '✓ Victoire' : '✗ Défaite'
+                    return (
+                      <div style={{ border: `1px solid ${color}44`, borderRadius: '6px', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', background: `${color}08` }}>
+                          <button onClick={() => onOpenSection(targetSec.id)} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--foreground)', padding: 0 }}>
+                            <span style={{ color, marginRight: '0.5rem' }}>{kind === 'success' ? '✓' : '✗'}</span>
+                            {label.replace('✓ ', '').replace('✗ ', '')}
+                            <span style={{ color, fontSize: '0.7rem', marginLeft: '0.5rem' }}>[§{targetSec.number}]</span>
+                          </button>
+                          <button
+                            onClick={() => { if (isEditing) { setEditingTrialTransition(null) } else { setEditingTrialTransition(kind); setTrialTransitionDraft(currentText ?? '') } }}
+                            style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: currentText ? '#b48edd' : 'var(--muted)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            {currentText ? '✨ Transition' : '+ Transition'}
+                          </button>
+                        </div>
+                        {isEditing && (
+                          <div style={{ padding: '0.6rem 0.75rem', background: '#b48edd08', borderTop: '1px solid #b48edd33' }}>
+                            <div style={{ fontSize: '0.65rem', color: '#b48edd', marginBottom: '0.3rem', fontWeight: 'bold' }}>✨ Texte de transition → §{targetSec.number}</div>
+                            <textarea
+                              value={trialTransitionDraft}
+                              onChange={e => setTrialTransitionDraft(e.target.value)}
+                              placeholder="Texte affiché au joueur pendant la transition (30-60 mots)…"
+                              rows={3}
+                              style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #b48edd55', borderRadius: '4px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.8rem', resize: 'vertical', outline: 'none', fontFamily: 'Georgia, serif', boxSizing: 'border-box', lineHeight: 1.5 }}
+                            />
+                            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.4rem' }}>
+                              <button onClick={async () => { await saveTrialField(textField, trialTransitionDraft); setEditingTrialTransition(null) }}
+                                style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', borderRadius: '4px', border: '1px solid var(--accent)', background: 'transparent', color: 'var(--accent)', cursor: 'pointer' }}>
+                                Sauvegarder
+                              </button>
+                              {currentText && (
+                                <button onClick={async () => { await saveTrialField(textField, null); setEditingTrialTransition(null) }}
+                                  style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', borderRadius: '4px', border: '1px solid #c94c4c55', background: 'transparent', color: '#c94c4c', cursor: 'pointer' }}>
+                                  Supprimer
+                                </button>
+                              )}
+                            </div>
+                            {/* Sélecteur image de section */}
+                            {section.images && section.images.some(img => img.url) && (
+                              <div style={{ marginTop: '0.5rem' }}>
+                                <div style={{ fontSize: '0.65rem', color: 'var(--muted)', marginBottom: '0.3rem' }}>Image affichée pendant la transition :</div>
+                                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                  {[0, 1, 2].map(idx => {
+                                    const imgUrl = section.images?.[idx]?.url
+                                    return (
+                                      <button key={idx} title={`Image ${idx + 1}`} style={{ padding: 0, border: `2px solid ${currentImg === imgUrl && imgUrl ? '#b48edd' : 'transparent'}`, borderRadius: '4px', background: 'none', cursor: 'pointer', flexShrink: 0 }}>
+                                        {imgUrl
+                                          ? <img src={imgUrl} alt={`Image ${idx + 1}`} onClick={async () => { await saveTrialField(imgField, imgUrl!); setSections(ss => ss.map(s => s.id === section.id ? { ...s, trial: { ...s.trial, [imgField]: imgUrl } as any } : s)) }} style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '3px', display: 'block' }} />
+                                          : <div style={{ width: '48px', height: '48px', background: 'var(--surface-2)', borderRadius: '3px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>{idx + 1}</div>
+                                        }
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {/* Illustrer ou image dédiée */}
+                            <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                              {currentImg && <img src={currentImg} alt="" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #b48edd55', flexShrink: 0 }} />}
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                <ImageGenButton
+                                  type="section"
+                                  provider={imageProvider}
+                                  storagePath={`books/${bookId}/transitions/trial-${section.id}-${kind}`}
+                                  data={{ summary: trialTransitionDraft || currentText || '', content: trialTransitionDraft || currentText || '', theme: book.theme, style: book.illustration_style ?? 'realistic', protagonist: book.protagonist_description ?? '', illustration_bible: book.illustration_bible ?? '' }}
+                                  currentUrl={currentImg ?? undefined}
+                                  label="🖼 Illustrer"
+                                  onSaved={async (url) => { await saveTrialField(imgField, url.split('?')[0]) }}
+                                />
+                                {currentImg && (
+                                  <button onClick={async () => { await saveTrialField(imgField, null) }}
+                                    style={{ fontSize: '0.65rem', padding: '0.2rem 0.45rem', borderRadius: '4px', border: '1px solid #c94c4c55', background: 'transparent', color: '#c94c4c', cursor: 'pointer' }}>
+                                    ✕ Image
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {!isEditing && currentText && (
+                          <div style={{ padding: '0.35rem 0.75rem', background: '#b48edd08', borderTop: '1px solid #b48edd22', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+                            {currentImg && <img src={currentImg} alt="" style={{ width: '52px', height: '52px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />}
+                            <p style={{ fontSize: '0.75rem', color: '#b48edd', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>{currentText}</p>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  }
+
                   return (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                       <div style={{ fontSize: '0.65rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Routage épreuve</div>
-                      {successSec && (
-                        <div style={{ border: '1px solid #4caf7d44', borderRadius: '6px', overflow: 'hidden' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', background: '#4caf7d08' }}>
-                            <button onClick={() => onOpenSection(successSec.id)} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--foreground)', padding: 0 }}>
-                              <span style={{ color: '#4caf7d', marginRight: '0.5rem' }}>✓</span>
-                              Victoire
-                              <span style={{ color: '#4caf7d', fontSize: '0.7rem', marginLeft: '0.5rem' }}>[§{successSec.number}]</span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
-                      {failureSec && (
-                        <div style={{ border: '1px solid #c94c4c44', borderRadius: '6px', overflow: 'hidden' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', background: '#c94c4c08' }}>
-                            <button onClick={() => onOpenSection(failureSec.id)} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--foreground)', padding: 0 }}>
-                              <span style={{ color: '#c94c4c', marginRight: '0.5rem' }}>✗</span>
-                              Défaite
-                              <span style={{ color: '#c94c4c', fontSize: '0.7rem', marginLeft: '0.5rem' }}>[§{failureSec.number}]</span>
-                            </button>
-                          </div>
-                        </div>
-                      )}
+                      {renderTrialTransitionPanel('success', successSec)}
+                      {renderTrialTransitionPanel('failure', failureSec)}
                       {!successSec && section.trial.success_section_id && <span style={{ fontSize: '0.7rem', color: '#c9a84c' }}>⚠ Section victoire introuvable</span>}
                       {!failureSec && section.trial.failure_section_id && <span style={{ fontSize: '0.7rem', color: '#c9a84c' }}>⚠ Section défaite introuvable</span>}
                     </div>
@@ -13394,33 +18780,21 @@ function SectionModal({
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.4rem 0.75rem', background: choice.is_back ? '#6b8cde0a' : 'var(--surface-2)' }}>
                           <span style={{ color: arrowColor, flexShrink: 0 }}>{arrow}</span>
-                          {editingChoiceLabel === choice.id ? (
-                            <input
-                              autoFocus
-                              value={choiceLabelDraft}
-                              onChange={e => setChoiceLabelDraft(e.target.value)}
-                              onBlur={async () => {
-                                const trimmed = choiceLabelDraft.trim()
-                                if (trimmed && trimmed !== choice.label) {
-                                  await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: trimmed }) })
-                                  setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, label: trimmed } : c))
-                                }
-                                setEditingChoiceLabel(null)
-                              }}
-                              onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditingChoiceLabel(null) }}
-                              style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--accent)', borderRadius: '4px', padding: '0.2rem 0.5rem', color: 'var(--foreground)', fontSize: '0.82rem', outline: 'none' }}
-                            />
-                          ) : (
-                            <button
-                              onClick={() => { if (choice.target_section_id) onOpenSection(choice.target_section_id) }}
-                              onDoubleClick={() => { setEditingChoiceLabel(choice.id); setChoiceLabelDraft(choice.label) }}
-                              title={targetNum ? `Ouvrir §${targetNum}` : 'Section cible non définie'}
-                              style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', cursor: choice.target_section_id ? 'pointer' : 'default', fontSize: '0.82rem', color: 'var(--foreground)', padding: 0 }}>
-                              {choice.label}
-                              {targetNum && <span style={{ color: 'var(--accent)', fontSize: '0.7rem', marginLeft: '0.5rem' }}>[§{targetNum}]</span>}
-                            </button>
-                          )}
-                          <button onClick={() => { setEditingChoiceLabel(choice.id); setChoiceLabelDraft(choice.label) }} title="Modifier le texte" style={{ fontSize: '0.62rem', padding: '0.1rem 0.35rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer', flexShrink: 0 }}>✎</button>
+                          <input
+                            defaultValue={choice.label}
+                            onBlur={async e => {
+                              const trimmed = e.target.value.trim()
+                              if (trimmed && trimmed !== choice.label) {
+                                await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label: trimmed }) })
+                                setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, label: trimmed } : c))
+                              }
+                            }}
+                            onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+                            style={{ flex: 1, background: 'transparent', border: '1px solid transparent', borderRadius: '4px', padding: '0.2rem 0.5rem', color: 'var(--foreground)', fontSize: '0.82rem', outline: 'none', transition: 'border-color 0.15s' }}
+                            onFocus={e => (e.target.style.borderColor = 'var(--accent)')}
+                            onBlurCapture={e => (e.target.style.borderColor = 'transparent')}
+                          />
+                          {targetNum && <span style={{ color: 'var(--accent)', fontSize: '0.7rem', flexShrink: 0 }}>[§{targetNum}]</span>}
                           <button
                             onClick={() => setEditingChoiceTarget(editingChoiceTarget === choice.id ? null : choice.id)}
                             title={choice.target_section_id ? `Changer la section cible (§${targetNum})` : 'Définir la section cible'}
@@ -13472,6 +18846,7 @@ function SectionModal({
                               }} disabled={isGenerating || !targetSection} style={{ fontSize: '0.72rem', padding: '0.25rem 0.6rem', borderRadius: '4px', border: 'none', background: '#b48edd', color: '#0f0f14', cursor: isGenerating || !targetSection ? 'default' : 'pointer', fontWeight: 'bold', opacity: isGenerating ? 0.6 : 1 }}>
                                 {isGenerating ? '…' : '✨ Générer'}
                               </button>
+                              <CorrectButton text={transitionDraft} onCorrected={setTransitionDraft} />
                               <button onClick={async () => {
                                 await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_text: transitionDraft || null }) })
                                 setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_text: transitionDraft || undefined } : c))
@@ -13510,32 +18885,154 @@ function SectionModal({
                                 </div>
                               </div>
                             )}
-                            <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                              {choice.transition_image_url && (
-                                <img src={choice.transition_image_url} alt="" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #b48edd55', flexShrink: 0 }} />
-                              )}
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                <ImageGenButton
-                                  type="section"
-                                  provider={imageProvider}
-                                  storagePath={`books/${bookId}/transitions/${choice.id}`}
-                                  data={{ summary: transitionDraft || choice.transition_text || choice.label, content: transitionDraft || choice.transition_text || '', theme: book.theme, style: book.illustration_style ?? 'realistic', protagonist: book.protagonist_description ?? '', illustration_bible: book.illustration_bible ?? '' }}
-                                  currentUrl={choice.transition_image_url}
-                                  label="🖼 Illustrer"
-                                  onSaved={async (url) => {
-                                    const cleanUrl = url.split('?')[0]
-                                    await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_url: cleanUrl }) })
-                                    setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_image_url: cleanUrl } : c))
-                                  }}
-                                />
-                                {choice.transition_image_url && (
-                                  <button onClick={async () => {
-                                    await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_url: null }) })
-                                    setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_image_url: undefined } : c))
-                                  }} style={{ fontSize: '0.65rem', padding: '0.2rem 0.45rem', borderRadius: '4px', border: '1px solid #c94c4c55', background: 'transparent', color: '#c94c4c', cursor: 'pointer' }}>✕ Image</button>
-                                )}
-                              </div>
-                            </div>
+                            {(() => {
+                              const tSett = choice.transition_img_settings ?? { model: 'auto', style: book.illustration_style ?? 'realistic', aspect_ratio: '16:9', section_ref_idx: null }
+                              const updateTS = (patch: Partial<typeof tSett>) =>
+                                setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_img_settings: { ...tSett, ...patch } } : c))
+                              const saveTS = (patch: Partial<typeof tSett>) => {
+                                const newSett = { ...tSett, ...patch }
+                                setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_img_settings: newSett } : c))
+                                fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_img_settings: newSett }) }).catch(() => {})
+                              }
+                              const isGen4 = tSett.model === 'gen4-image' || tSett.model === 'gen4-image-turbo'
+                              const sectionImgs = section.images ?? []
+                              const refUrl = tSett.section_ref_idx !== null ? sectionImgs[tSett.section_ref_idx]?.url?.split('?')[0] ?? null : null
+                              const selSt = { background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer' } as const
+                              const isTrEN = translatingTransitionImg?.choiceId === choice.id && translatingTransitionImg.dir === 'en2fr'
+                              const isTrFR = translatingTransitionImg?.choiceId === choice.id && translatingTransitionImg.dir === 'fr2en'
+                              return (
+                                <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                  {/* Description EN */}
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
+                                    <textarea
+                                      value={tSett.description ?? ''}
+                                      onChange={e => updateTS({ description: e.target.value })}
+                                      onBlur={e => saveTS({ description: e.target.value })}
+                                      placeholder="Description image (EN) — laissez vide pour utiliser le texte de transition…"
+                                      rows={2}
+                                      style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.78rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                    />
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.1rem' }}>
+                                      <button title="Traduire EN → FR" disabled={!!translatingTransitionImg} onClick={async () => {
+                                        const enText = tSett.description ?? ''; if (!enText.trim()) return
+                                        setTranslatingTransitionImg({ choiceId: choice.id, dir: 'en2fr' })
+                                        try {
+                                          const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: enText }) })
+                                          const d = await res.json(); if (d.translated) saveTS({ prompt_fr: d.translated })
+                                        } finally { setTranslatingTransitionImg(null) }
+                                      }} style={{ flexShrink: 0, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: isTrEN ? 'var(--muted)' : '#d4a84c', cursor: translatingTransitionImg ? 'default' : 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.65rem', opacity: translatingTransitionImg ? 0.5 : 1 }}>
+                                        {isTrEN ? '…' : '→ FR'}
+                                      </button>
+                                      <button title="Traduire FR → EN" disabled={!!translatingTransitionImg} onClick={async () => {
+                                        const frText = tSett.prompt_fr ?? ''; if (!frText.trim()) return
+                                        setTranslatingTransitionImg({ choiceId: choice.id, dir: 'fr2en' })
+                                        try {
+                                          const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: frText, target: 'en' }) })
+                                          const d = await res.json(); if (d.translated) saveTS({ description: d.translated })
+                                        } finally { setTranslatingTransitionImg(null) }
+                                      }} style={{ flexShrink: 0, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: isTrFR ? 'var(--muted)' : '#7ab8d8', cursor: translatingTransitionImg ? 'default' : 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.65rem', opacity: translatingTransitionImg ? 0.5 : 1 }}>
+                                        {isTrFR ? '…' : '← EN'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {/* Description FR */}
+                                  <textarea
+                                    value={tSett.prompt_fr ?? ''}
+                                    onChange={e => updateTS({ prompt_fr: e.target.value })}
+                                    onBlur={e => saveTS({ prompt_fr: e.target.value })}
+                                    placeholder="Description FR…"
+                                    rows={2}
+                                    style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+                                  />
+                                  {/* Settings */}
+                                  <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <select value={tSett.style} onChange={e => saveTS({ style: e.target.value })} style={selSt}>
+                                      <option value="realistic">🖼️ Réaliste</option>
+                                      <option value="photo">📷 Photo</option>
+                                      <option value="sketch">✏️ Esquisse</option>
+                                      <option value="manga">⛩️ Manga</option>
+                                      <option value="bnw">⬛ N&B</option>
+                                      <option value="watercolor">🎨 Aquarelle</option>
+                                      <option value="comic">💬 BD</option>
+                                      <option value="dark_fantasy">🩸 Dark Fantasy</option>
+                                    </select>
+                                    <select value={tSett.model} onChange={e => saveTS({ model: e.target.value })} style={selSt} title="Modèle">
+                                      <option value="auto">🤖 Auto</option>
+                                      <option value="flux-schnell">⚡ Schnell</option>
+                                      <option value="flux-dev">🌟 Flux Dev</option>
+                                      <option value="flux-kontext-dev">🔄 Kontext Dev</option>
+                                      <option value="flux-kontext-pro">✨ Kontext Pro</option>
+                                      <option value="ideogram-character">👤 Ideogram</option>
+                                      <option value="gen4-image">🎬 Gen-4</option>
+                                      <option value="gen4-image-turbo">🎬 Gen-4 Turbo</option>
+                                    </select>
+                                    <select value={tSett.aspect_ratio} onChange={e => saveTS({ aspect_ratio: e.target.value })} style={selSt} title="Format">
+                                      <option value="16:9">16:9</option>
+                                      <option value="9:16">📱 9:16</option>
+                                      <option value="1:1">1:1</option>
+                                      <option value="4:3">4:3</option>
+                                      <option value="2:3">2:3</option>
+                                    </select>
+                                    {/* Réf. images section */}
+                                    {sectionImgs.some(img => img?.url) && (
+                                      <div style={{ display: 'flex', gap: '0.2rem', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.6rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Réf:</span>
+                                        {[0, 1, 2].map(idx => {
+                                          const imgUrl = sectionImgs[idx]?.url
+                                          if (!imgUrl) return null
+                                          const sel = tSett.section_ref_idx === idx
+                                          return (
+                                            <button key={idx} onClick={() => saveTS({ section_ref_idx: sel ? null : idx })} title={`Image ${idx + 1} comme référence`}
+                                              style={{ padding: 0, border: sel ? '2px solid #4c9bf0' : '2px solid transparent', borderRadius: '3px', background: 'none', cursor: 'pointer' }}>
+                                              <img src={imgUrl} alt="" style={{ width: '26px', height: '26px', objectFit: 'cover', borderRadius: '2px', display: 'block', opacity: sel ? 1 : 0.55 }} />
+                                            </button>
+                                          )
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                  {/* Image + boutons */}
+                                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                                    {choice.transition_image_url && (
+                                      <img src={choice.transition_image_url} alt="" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #b48edd55', flexShrink: 0 }} />
+                                    )}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                      <ImageGenButton
+                                        type="section"
+                                        provider={imageProvider}
+                                        storagePath={`books/${bookId}/transitions/${choice.id}`}
+                                        data={(() => {
+                                          const descText = tSett.description || transitionDraft || choice.transition_text || choice.label
+                                          const npcApps = npcs
+                                            .filter(n => n.name && descText.toLowerCase().includes(n.name.toLowerCase()) && (n.appearance || n.description))
+                                            .map(n => (n.appearance || n.description || '').slice(0, 80))
+                                            .join(' | ')
+                                          return { summary: descText, content: tSett.description || transitionDraft || choice.transition_text || '', theme: book.theme, style: tSett.style, aspect_ratio: tSett.aspect_ratio, protagonist: book.protagonist_description ?? '', illustration_bible: book.illustration_bible ?? '', npc_appearances: npcApps }
+                                        })()}
+                                        model={tSett.model !== 'auto' ? tSett.model : undefined}
+                                        input_image_url={!isGen4 && refUrl ? refUrl : undefined}
+                                        gen4_refs={isGen4 && refUrl ? [{ url: refUrl, name: 'scene' }] : undefined}
+                                        currentUrl={choice.transition_image_url}
+                                        label="🖼 Illustrer"
+                                        onSaved={async (url) => {
+                                          const cleanUrl = url.split('?')[0]
+                                          console.log('[transition modal onSaved] url:', cleanUrl, 'choiceId:', choice.id)
+                                          const res = await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_url: cleanUrl }) })
+                                          if (!res.ok) { const e = await res.json().catch(() => ({})); console.error('[transition modal onSaved] PATCH failed:', e) }
+                                          else { setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_image_url: `${cleanUrl}?v=${Date.now()}` } : c)) }
+                                        }}
+                                      />
+                                      {choice.transition_image_url && (
+                                        <button onClick={async () => {
+                                          await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_url: null }) })
+                                          setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_image_url: undefined } : c))
+                                        }} style={{ fontSize: '0.65rem', padding: '0.2rem 0.45rem', borderRadius: '4px', border: '1px solid #c94c4c55', background: 'transparent', color: '#c94c4c', cursor: 'pointer' }}>✕ Image</button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                           </div>
                         )}
                         {!isEditingTransition_ && choice.transition_text && (
@@ -13658,7 +19155,7 @@ function SectionModal({
                   </button>
                 </div>
                 {(() => {
-                  const dialogues = section.dialogues ?? []
+                  const dialogues: any[] = (section as any).dialogues ?? []
                   if (!dialogues.length) return (
                     <p style={{ fontSize: '0.75rem', color: 'var(--muted)', fontStyle: 'italic', textAlign: 'center', padding: '0.5rem 0' }}>
                       Aucun dialogue extrait — cliquez sur Extraire.
@@ -14107,6 +19604,175 @@ function MapView({ bookId, locations, setLocations, sections, choices, mapStyle,
             </p>
           )}
         </div>}
+      </div>
+    </div>
+  )
+}
+
+// ── Modal de positionnement d'objet sur scène ──────────────────────────────
+
+function ItemPositionModal({
+  item, sections, onSave, onClose,
+}: {
+  item: import('@/types').Item & { sections_used?: string[]; illustration_url?: string; category?: string }
+  sections: import('@/types').Section[]
+  onSave: (sectionId: string, x: number, y: number, scale: number) => void
+  onClose: () => void
+}) {
+  const sectionIds = (item as any).sections_used ?? []
+  const [secIdx, setSecIdx] = React.useState(0)
+  const sectionId = sectionIds[secIdx] as string | undefined
+
+  const sec = sections.find(s => s.id === sectionId)
+  const currentPos = ((sec as any)?.items_on_scene ?? []).find((si: any) => si.item_id === item.id)
+
+  const [x, setX] = React.useState<number>(currentPos?.x ?? 0.5)
+  const [y, setY] = React.useState<number>(currentPos?.y ?? 0.8)
+  const [itemScale, setItemScale] = React.useState<number>(currentPos?.scale ?? 1)
+
+  const imgRef = React.useRef<HTMLDivElement>(null)
+  const dragging = React.useRef(false)
+  const [saved, setSaved] = React.useState(false)
+
+  // Mise à jour de la position quand on change de section
+  React.useEffect(() => {
+    const s = sections.find(s => s.id === sectionIds[secIdx])
+    const pos = ((s as any)?.items_on_scene ?? []).find((si: any) => si.item_id === item.id)
+    setX(pos?.x ?? 0.5)
+    setY(pos?.y ?? 0.8)
+    setItemScale(pos?.scale ?? 1)
+    setSaved(false)
+  }, [secIdx])
+
+  const lastImg = sec ? [...(sec.images ?? [])].reverse().find((img: any) => img.url) : null
+
+  // Dimensions du téléphone dans la modale
+  const PHONE_W = 260
+  const PHONE_H = Math.round(PHONE_W * (845 / 390)) // proportions réelles CW/CH
+  const MODAL_SCALE = PHONE_W / 390
+  const BASE_SZ = 56
+  const itemSz = Math.max(24, BASE_SZ * itemScale * MODAL_SCALE)
+
+  function updatePosFromEvent(e: React.MouseEvent) {
+    if (!imgRef.current) return
+    const rect = imgRef.current.getBoundingClientRect()
+    const nx = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+    const ny = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
+    setX(Math.round(nx * 1000) / 1000)
+    setY(Math.round(ny * 1000) / 1000)
+  }
+
+  function handleSave() {
+    if (!sectionId) return
+    onSave(sectionId, x, y, itemScale)
+    setSaved(true)
+  }
+
+  const cat = (item as any).category ?? 'persistant'
+  const ICONS: Record<string, string> = { persistant: '📦', consommable: '🧪', arme: '⚔️' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.82)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div style={{ background: '#16161e', borderRadius: '16px', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem', width: 'min(340px, 96vw)', maxHeight: '96vh', overflowY: 'auto', boxShadow: '0 16px 64px rgba(0,0,0,0.8)' }}>
+
+        {/* En-tête */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {(item as any).illustration_url
+              ? <img src={(item as any).illustration_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', border: '1px solid #d4a84c55' }} />
+              : <span style={{ fontSize: '1.1rem' }}>{ICONS[cat] ?? '📦'}</span>
+            }
+            <span style={{ fontSize: '0.88rem', fontWeight: 'bold', color: 'var(--foreground)' }}>{(item as any).name}</span>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--muted)', fontSize: '1.1rem', cursor: 'pointer', lineHeight: 1, padding: '0.2rem 0.4rem' }}>✕</button>
+        </div>
+
+        {/* Sélecteur de section si plusieurs */}
+        {sectionIds.length > 1 && (
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+            {sectionIds.map((sid: string, i: number) => {
+              const s = sections.find(s => s.id === sid)
+              const hasPos = ((s as any)?.items_on_scene ?? []).some((si: any) => si.item_id === item.id && si.x !== undefined)
+              return (
+                <button key={sid} onClick={() => setSecIdx(i)} style={{ fontSize: '0.7rem', padding: '0.2rem 0.55rem', borderRadius: '4px', border: `1px solid ${i === secIdx ? '#d4a84c' : 'var(--border)'}`, background: i === secIdx ? '#d4a84c18' : 'transparent', color: i === secIdx ? '#d4a84c' : 'var(--muted)', cursor: 'pointer' }}>
+                  §{s?.number ?? i + 1}{hasPos ? ' ✓' : ''}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Téléphone */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: PHONE_W + 20, background: '#0a0a10', borderRadius: '36px', padding: '14px 10px', border: '2px solid #2a2a38', boxShadow: '0 8px 40px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.06)' }}>
+            {/* Notch */}
+            <div style={{ width: 56, height: 6, background: '#1a1a24', borderRadius: 6, margin: '0 auto 10px' }} />
+            {/* Écran */}
+            <div
+              ref={imgRef}
+              onMouseDown={e => { dragging.current = true; updatePosFromEvent(e) }}
+              onMouseMove={e => { if (dragging.current) updatePosFromEvent(e) }}
+              onMouseUp={() => { dragging.current = false }}
+              onMouseLeave={() => { dragging.current = false }}
+              style={{ position: 'relative', width: PHONE_W, height: PHONE_H, borderRadius: '10px', overflow: 'hidden', cursor: 'crosshair', background: '#000', userSelect: 'none' }}
+            >
+              {lastImg
+                ? <img src={lastImg.url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', pointerEvents: 'none' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2a2a38', fontSize: '3rem' }}>🖼</div>
+              }
+              {/* Objet draggable */}
+              <div
+                onMouseDown={e => { e.stopPropagation(); dragging.current = true }}
+                style={{
+                  position: 'absolute',
+                  left: `${x * 100}%`, top: `${y * 100}%`,
+                  transform: 'translate(-50%,-50%)',
+                  width: itemSz, height: itemSz,
+                  borderRadius: '50%',
+                  background: 'rgba(0,0,0,0.6)',
+                  border: '2px solid rgba(212,168,76,0.9)',
+                  backdropFilter: 'blur(4px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  cursor: 'grab', zIndex: 2, boxSizing: 'border-box',
+                  boxShadow: '0 2px 12px rgba(212,168,76,0.4)',
+                }}>
+                {(item as any).illustration_url
+                  ? <img src={(item as any).illustration_url} alt="" style={{ width: itemSz - 10, height: itemSz - 10, objectFit: 'contain', borderRadius: '50%', display: 'block' }} />
+                  : <span style={{ fontSize: itemSz * 0.45, lineHeight: 1 }}>{ICONS[cat] ?? '📦'}</span>
+                }
+              </div>
+            </div>
+            {/* Barre home */}
+            <div style={{ width: 72, height: 4, background: '#2a2a38', borderRadius: 4, margin: '10px auto 0' }} />
+          </div>
+        </div>
+
+        {/* Slider taille */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <span style={{ fontSize: '0.72rem', color: 'var(--muted)', flexShrink: 0 }}>Taille</span>
+          <input
+            type="range" min={0.4} max={2.5} step={0.05} value={itemScale}
+            onChange={e => setItemScale(parseFloat(e.target.value))}
+            style={{ flex: 1, accentColor: '#d4a84c' }}
+          />
+          <span style={{ fontSize: '0.72rem', color: '#d4a84c', width: '2.8rem', textAlign: 'right', flexShrink: 0 }}>{Math.round(itemScale * 100)}%</span>
+        </div>
+
+        {/* Coordonnées */}
+        <div style={{ fontSize: '0.62rem', color: 'var(--muted)', textAlign: 'center', fontFamily: 'monospace' }}>
+          x: {Math.round(x * 100)}% · y: {Math.round(y * 100)}%
+        </div>
+
+        {/* Boutons */}
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ fontSize: '0.78rem', padding: '0.4rem 1rem', borderRadius: '6px', border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>Fermer</button>
+          <button
+            onClick={handleSave}
+            disabled={!sectionId}
+            style={{ fontSize: '0.78rem', padding: '0.4rem 1.1rem', borderRadius: '6px', border: 'none', background: saved ? '#4caf7d' : '#d4a84c', color: '#0f0f14', cursor: 'pointer', fontWeight: 'bold', transition: 'background 0.2s' }}>
+            {saved ? '✓ Sauvegardé' : 'Sauvegarder'}
+          </button>
+        </div>
       </div>
     </div>
   )
