@@ -567,6 +567,16 @@ export interface Npc {
   name_image_settings?: Record<string, unknown>
   portrait_emotions?: Record<string, string>  // emotion → url ex: { tendu: '...', souriant: '...' }
   combat_v3?: NpcCombatV3                     // images de combat QCM cinématique
+  portrait_settings?: {                       // paramètres de génération ComfyUI
+    prompt_fr?: string                        // description FR originale
+    prompt_en?: string                        // prompt SDXL traduit (envoyé à ComfyUI)
+    negative?: string                         // negative prompt
+    steps?: number
+    cfg?: number
+    seed?: number
+    checkpoint?: string
+    style?: string
+  }
   created_at: string
 }
 
