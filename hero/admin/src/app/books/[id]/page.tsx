@@ -16129,7 +16129,9 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
   const [combatV3Generating, setCombatV3Generating] = useState<string | null>(null) // slotKey en cours
   const [newAttackName, setNewAttackName] = useState<string>('') // nom du move pour attack_urls
   const [npcPortraitPrompts, setNpcPortraitPrompts] = useState<Record<string, string>>({}) // custom portrait prompts per NPC
+  const [npcPortraitParams, setNpcPortraitParams] = useState<Record<string, { steps: number; cfg: number; seed: number; negative: string; checkpoint: string }>>({})
   const [translatingNpc, setTranslatingNpc] = useState<string | null>(null)
+  const [portraitPanelOpen, setPortraitPanelOpen] = useState<string | null>(null) // npc.id with open panel
 
   async function saveCombatV3(npcId: string, patch: Partial<import('@/types').NpcCombatV3>) {
     const npc = npcs.find(n => n.id === npcId)
@@ -16570,85 +16572,41 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                 {/* En-tête PNJ */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
                   <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                    {/* Colonne images */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', flexShrink: 0 }}>
-                      {/* Portrait IA */}
-                      <div style={{ position: 'relative' }}>
-                        {npc.image_url ? (
-                          <img src={npc.image_url} alt={npc.name} style={{ width: '56px', height: '56px', objectFit: 'cover', borderRadius: '8px', border: `2px solid ${tc.color}55` }} />
-                        ) : (
-                          <span style={{ fontSize: '1.5rem', width: '56px', height: '56px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: tc.color + '22', borderRadius: '8px' }}>{tc.icon}</span>
-                        )}
-                      </div>
-                      {/* Miniatures background + portrait corps */}
-                      <div style={{ display: 'flex', gap: '0.3rem' }}>
-                        <label title="Background fiche personnage" style={{ cursor: 'pointer', position: 'relative' }}>
-                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadNpcFile(npc.id, 'background_image_url', f) }} />
-                          {npc.background_image_url ? (
-                            <img src={npc.background_image_url} alt="bg" style={{ width: '26px', height: '26px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--accent)55' }} />
-                          ) : (
-                            <span style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', borderRadius: '4px', border: '1px dashed var(--border)', fontSize: '0.65rem', color: 'var(--muted)' }} title="Ajouter un background">🖼</span>
-                          )}
-                        </label>
-                        <label title="Portrait corps entier" style={{ cursor: 'pointer', position: 'relative' }}>
-                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadNpcFile(npc.id, 'portrait_url', f) }} />
-                          {npc.portrait_url ? (
-                            <img src={npc.portrait_url} alt="portrait" style={{ width: '26px', height: '26px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--accent)55' }} />
-                          ) : (
-                            <span style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', borderRadius: '4px', border: '1px dashed var(--border)', fontSize: '0.65rem', color: 'var(--muted)' }} title="Ajouter un portrait corps entier">🧍</span>
-                          )}
-                        </label>
+                    {/* Portrait cliquable — ouvre le panneau de génération */}
+                    <div style={{ flexShrink: 0, cursor: 'pointer' }} onClick={() => setPortraitPanelOpen(portraitPanelOpen === npc.id ? null : npc.id)}>
+                      {npc.image_url ? (
+                        <img src={npc.image_url} alt={npc.name} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '8px', border: `2px solid ${portraitPanelOpen === npc.id ? '#b48edd' : tc.color + '55'}`, transition: 'border 0.2s' }} />
+                      ) : (
+                        <span style={{ fontSize: '2rem', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: tc.color + '22', borderRadius: '8px', border: `2px dashed ${portraitPanelOpen === npc.id ? '#b48edd' : 'var(--border)'}` }}>{tc.icon}</span>
+                      )}
+                      <div style={{ textAlign: 'center', fontSize: '0.55rem', color: '#b48edd', marginTop: '0.15rem' }}>
+                        {portraitPanelOpen === npc.id ? '▲ fermer' : '▼ portrait'}
                       </div>
                     </div>
 
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <h3 style={{ margin: 0, fontSize: '1.1rem', color: 'var(--foreground)' }}>{npc.name}</h3>
                       <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.55rem', borderRadius: '20px', background: tc.color + '22', color: tc.color, fontWeight: 'bold' }}>
                         {tc.label}
                       </span>
-                      <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                        <textarea
-                          value={npcPortraitPrompts[npc.id] ?? npc.appearance ?? npc.description ?? ''}
-                          onChange={e => setNpcPortraitPrompts(p => ({ ...p, [npc.id]: e.target.value }))}
-                          placeholder="Prompt portrait (FR ou EN)…"
-                          rows={2}
-                          style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.5rem', color: 'var(--foreground)', fontSize: '0.72rem', resize: 'vertical', outline: 'none' }}
-                        />
-                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                          <button
-                            disabled={translatingNpc === npc.id}
-                            onClick={async () => {
-                              const text = npcPortraitPrompts[npc.id] ?? npc.appearance ?? npc.description ?? ''
-                              if (!text.trim()) return
-                              setTranslatingNpc(npc.id)
-                              try {
-                                const res = await fetch('/api/translate-prompt', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ prompt_fr: text, has_ipadapter: false }),
-                                })
-                                const d = await res.json()
-                                if (d.prompt_en) setNpcPortraitPrompts(p => ({ ...p, [npc.id]: d.prompt_en }))
-                              } catch { /* ignore */ }
-                              finally { setTranslatingNpc(null) }
-                            }}
-                            style={{ background: 'rgba(76,175,125,0.1)', border: '1px solid rgba(76,175,125,0.3)', borderRadius: '4px', color: translatingNpc === npc.id ? 'var(--muted)' : '#4caf7d', cursor: translatingNpc === npc.id ? 'default' : 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem', whiteSpace: 'nowrap' }}
-                          >
-                            {translatingNpc === npc.id ? '…' : '🌐 FR → EN'}
-                          </button>
-                          <ImageGenButton
-                            type="npc"
-                            storagePath={`books/${bookId}/npcs/${npc.id}`}
-                            data={{ type: npc.type, appearance: npcPortraitPrompts[npc.id] ?? npc.appearance ?? '', description: npc.description ?? '', style: bookIllustrationStyle }}
-                            currentUrl={npc.image_url}
-                            label="Portrait IA"
-                            onSaved={url => {
-                              const displayUrl = url.split('?')[0] + '?t=' + Date.now()
-                              const cleanUrl = url.split('?')[0]
-                              setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: displayUrl } : n))
-                              fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: cleanUrl }) })
-                            }}
-                          />
-                        </div>
+                      {/* Miniatures background + portrait corps */}
+                      <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.3rem' }}>
+                        <label title="Background fiche" style={{ cursor: 'pointer' }}>
+                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadNpcFile(npc.id, 'background_image_url', f) }} />
+                          {npc.background_image_url ? (
+                            <img src={npc.background_image_url} alt="bg" style={{ width: '26px', height: '26px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--accent)55' }} />
+                          ) : (
+                            <span style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', borderRadius: '4px', border: '1px dashed var(--border)', fontSize: '0.65rem', color: 'var(--muted)' }}>🖼</span>
+                          )}
+                        </label>
+                        <label title="Portrait corps entier" style={{ cursor: 'pointer' }}>
+                          <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadNpcFile(npc.id, 'portrait_url', f) }} />
+                          {npc.portrait_url ? (
+                            <img src={npc.portrait_url} alt="portrait" style={{ width: '26px', height: '26px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--accent)55' }} />
+                          ) : (
+                            <span style={{ width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', borderRadius: '4px', border: '1px dashed var(--border)', fontSize: '0.65rem', color: 'var(--muted)' }}>🧍</span>
+                          )}
+                        </label>
                       </div>
                     </div>
                   </div>
@@ -16671,6 +16629,132 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                     </div>
                   </div>
                 </div>
+
+                {/* ── Panneau génération portrait ComfyUI ── */}
+                {portraitPanelOpen === npc.id && (
+                  <div style={{ background: 'var(--surface)', border: '1px solid #b48edd44', borderRadius: '8px', padding: '0.75rem', marginBottom: '0.75rem' }}>
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      {/* Grande preview */}
+                      <div style={{ flexShrink: 0 }}>
+                        {npc.image_url ? (
+                          <img src={npc.image_url} alt={npc.name} style={{ width: '200px', height: '200px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #b48edd44' }} />
+                        ) : (
+                          <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: tc.color + '11', borderRadius: '8px', border: '2px dashed var(--border)', color: 'var(--muted)', fontSize: '0.8rem' }}>Aucun portrait</div>
+                        )}
+                      </div>
+                      {/* Contrôles */}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#b48edd', fontWeight: 'bold' }}>Prompt portrait</div>
+                        <textarea
+                          value={npcPortraitPrompts[npc.id] ?? npc.appearance ?? npc.description ?? ''}
+                          onChange={e => setNpcPortraitPrompts(p => ({ ...p, [npc.id]: e.target.value }))}
+                          placeholder="Description visuelle du personnage (FR ou EN)…"
+                          rows={4}
+                          style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', lineHeight: 1.5 }}
+                        />
+                        <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontStyle: 'italic' }}>
+                          Format : fond gris neutre, buste serré centré, éclairage studio doux, 1024x1024
+                        </div>
+                        {/* Negative prompt */}
+                        <textarea
+                          value={npcPortraitParams[npc.id]?.negative ?? 'blurry, cropped face, off-center, dramatic lighting, harsh shadows, complex background, multiple people, side view, looking away'}
+                          onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '' }, negative: e.target.value } }))}
+                          placeholder="Negative prompt…"
+                          rows={2}
+                          style={{ width: '100%', background: '#c94c4c0a', border: '1px solid #c94c4c22', borderRadius: '6px', padding: '0.3rem 0.5rem', color: '#c94c4c99', fontSize: '0.68rem', resize: 'none', outline: 'none' }}
+                        />
+                        {/* Sliders */}
+                        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <label style={{ fontSize: '0.65rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            Steps
+                            <input type="number" min={10} max={50} value={npcPortraitParams[npc.id]?.steps ?? 35}
+                              onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '' }, steps: Number(e.target.value) } }))}
+                              style={{ width: '45px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.7rem', textAlign: 'center' }}
+                            />
+                          </label>
+                          <label style={{ fontSize: '0.65rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            CFG
+                            <input type="number" min={1} max={15} step={0.5} value={npcPortraitParams[npc.id]?.cfg ?? 7}
+                              onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '' }, cfg: Number(e.target.value) } }))}
+                              style={{ width: '45px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.7rem', textAlign: 'center' }}
+                            />
+                          </label>
+                          <label style={{ fontSize: '0.65rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            Seed
+                            <input type="number" min={-1} value={npcPortraitParams[npc.id]?.seed ?? -1}
+                              onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '' }, seed: Number(e.target.value) } }))}
+                              style={{ width: '75px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.7rem', textAlign: 'center' }}
+                            />
+                            <span style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>(-1 = aléatoire)</span>
+                          </label>
+                        </div>
+                        {/* Sélecteur checkpoint */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <label style={{ fontSize: '0.65rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Modele</label>
+                          <select
+                            value={npcPortraitParams[npc.id]?.checkpoint ?? 'juggernaut'}
+                            onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '', checkpoint: 'juggernaut' }, checkpoint: e.target.value } }))}
+                            style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.7rem', outline: 'none', cursor: 'pointer' }}
+                          >
+                            <option value="juggernaut">Juggernaut XL v9 — Polyvalent, textures, eclairage (recommande)</option>
+                            <option value="sdxl_base">SDXL 1.0 Base — Modele de base, plus neutre</option>
+                          </select>
+                        </div>
+                        {/* Boutons */}
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.2rem' }}>
+                          <button
+                            disabled={translatingNpc === npc.id}
+                            onClick={async () => {
+                              const text = npcPortraitPrompts[npc.id] ?? npc.appearance ?? npc.description ?? ''
+                              if (!text.trim()) return
+                              setTranslatingNpc(npc.id)
+                              try {
+                                const res = await fetch('/api/translate-prompt', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ prompt_fr: text, has_ipadapter: false }),
+                                })
+                                const d = await res.json()
+                                if (d.prompt_en) setNpcPortraitPrompts(p => ({ ...p, [npc.id]: d.prompt_en }))
+                              } catch { /* ignore */ }
+                              finally { setTranslatingNpc(null) }
+                            }}
+                            style={{ background: 'rgba(76,175,125,0.1)', border: '1px solid rgba(76,175,125,0.3)', borderRadius: '5px', color: translatingNpc === npc.id ? 'var(--muted)' : '#4caf7d', cursor: translatingNpc === npc.id ? 'default' : 'pointer', padding: '0.3rem 0.7rem', fontSize: '0.72rem', fontWeight: 'bold' }}
+                          >
+                            {translatingNpc === npc.id ? '…' : '🌐 FR → EN (SDXL)'}
+                          </button>
+                          <ImageGenButton
+                            type="npc"
+                            storagePath={`books/${bookId}/npcs/${npc.id}`}
+                            data={{ type: npc.type, appearance: npcPortraitPrompts[npc.id] ?? npc.appearance ?? '', description: npc.description ?? '', style: bookIllustrationStyle }}
+                            currentUrl={npc.image_url}
+                            label="Portrait IA"
+                            onSaved={url => {
+                              const displayUrl = url.split('?')[0] + '?t=' + Date.now()
+                              const cleanUrl = url.split('?')[0]
+                              setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: displayUrl } : n))
+                              fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: cleanUrl }) })
+                            }}
+                          />
+                          <label style={{ cursor: 'pointer' }} title="Charger depuis le PC">
+                            <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={async e => {
+                              const file = e.target.files?.[0]; if (!file) return
+                              const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${bookId}/npcs/${npc.id}`)
+                              const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                              const d = await res.json()
+                              if (d.url) {
+                                const displayUrl = d.url + '?t=' + Date.now()
+                                setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: displayUrl } : n))
+                                fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: d.url.split('?')[0] }) })
+                              }
+                              e.target.value = ''
+                            }} />
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.3rem 0.7rem', fontSize: '0.72rem', color: 'var(--muted)' }}>📁 Upload PC</span>
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {npc.description && (
                   <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.5rem', fontStyle: 'italic' }}>{npc.description}</p>
