@@ -16642,8 +16642,12 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                     const checkpoint = npcPortraitParams[npc.id]?.checkpoint ?? ps.checkpoint ?? 'juggernaut'
                     const style = (npcPortraitParams[npc.id] as any)?.style ?? ps.style ?? bookIllustrationStyle ?? 'realistic'
 
+                    const DEFAULT_NEG = 'full body, legs, feet, crouching, sitting, kneeling, wide shot, blurry, cropped face, off-center, harsh shadows, complex background, multiple people, looking away'
                     function updateParam(key: string, value: any) {
-                      setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '', checkpoint: 'juggernaut' }, [key]: value } as any }))
+                      setNpcPortraitParams(p => {
+                        const current = p[npc.id] ?? { steps: ps.steps ?? 35, cfg: ps.cfg ?? 7, seed: ps.seed ?? -1, negative: ps.negative ?? DEFAULT_NEG, checkpoint: ps.checkpoint ?? 'juggernaut' }
+                        return { ...p, [npc.id]: { ...current, [key]: value } as any }
+                      })
                     }
 
                     async function savePortraitSettings() {
