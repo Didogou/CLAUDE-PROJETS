@@ -29,25 +29,29 @@ Do NOT include any explanation, markdown, or extra text.`
 
 export async function POST(req: NextRequest) {
   try {
-    const { prompt_fr, has_ipadapter } = await req.json() as {
+    const { prompt_fr, has_ipadapter, is_portrait } = await req.json() as {
       prompt_fr: string
       has_ipadapter?: boolean
+      is_portrait?: boolean
     }
 
     if (!prompt_fr?.trim()) {
       return NextResponse.json({ error: 'prompt_fr requis' }, { status: 400 })
     }
 
-    const extraRule = has_ipadapter
-      ? '\n\nIMPORTANT: This prompt will be used with IPAdapter FaceID (character reference image). Do NOT describe facial features, eye color, skin tone, or ethnicity — the reference image handles all of that. Focus on pose, clothing, setting, lighting, and style.'
-      : ''
+    const extraRule = [
+      has_ipadapter ? 'This prompt will be used with IPAdapter FaceID (character reference image). Do NOT describe facial features, eye color, skin tone, or ethnicity — the reference image handles all of that. Focus on pose, clothing, setting, lighting, and style.' : '',
+      is_portrait ? 'This is a CHARACTER REFERENCE PORTRAIT for IPAdapter. The output MUST be: close-up bust portrait, head and shoulders ONLY, centered face looking at camera, plain neutral gray background, soft studio lighting. Do NOT include legs, feet, full body, sitting, crouching. Do NOT describe shoes/sneakers/pants in detail — only mention upper body clothing visible in a bust shot. The face must occupy 60-70% of the image.' : '',
+    ].filter(Boolean).join('\n\n')
+
+    const extraRuleBlock = extraRule ? `\n\nIMPORTANT:\n${extraRule}` : ''
 
     const msg = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 500,
       messages: [{
         role: 'user',
-        content: `${SDXL_PROMPT_RULES}${extraRule}\n\nFrench description to convert:\n${prompt_fr}`,
+        content: `${SDXL_PROMPT_RULES}${extraRuleBlock}\n\nFrench description to convert:\n${prompt_fr}`,
       }],
     })
 

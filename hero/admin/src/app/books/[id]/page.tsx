@@ -16657,7 +16657,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                         </div>
                         {/* Negative prompt */}
                         <textarea
-                          value={npcPortraitParams[npc.id]?.negative ?? 'blurry, cropped face, off-center, dramatic lighting, harsh shadows, complex background, multiple people, side view, looking away'}
+                          value={npcPortraitParams[npc.id]?.negative ?? 'full body, legs, feet, crouching, sitting, kneeling, wide shot, blurry, cropped face, off-center, harsh shadows, complex background, multiple people, looking away'}
                           onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '' }, negative: e.target.value } }))}
                           placeholder="Negative prompt…"
                           rows={2}
@@ -16735,7 +16735,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                               try {
                                 const res = await fetch('/api/translate-prompt', {
                                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ prompt_fr: text, has_ipadapter: false }),
+                                  body: JSON.stringify({ prompt_fr: text, has_ipadapter: false, is_portrait: true }),
                                 })
                                 const d = await res.json()
                                 if (d.prompt_en) setNpcPortraitPrompts(p => ({ ...p, [npc.id]: d.prompt_en }))
@@ -17389,7 +17389,7 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
       const desc = data.description?.trim() || ''
       // Prefer appearance (visual), fallback to description
       const visualDesc = appearance || desc
-      prompt = `Character portrait, ${npcType}. ${visualDesc}. Dramatic lighting, detailed face and upper body`
+      prompt = `Close-up bust portrait of ${npcType}, head and shoulders only. ${visualDesc}. Soft studio lighting, plain neutral gray background, centered face, looking at camera BREAK sharp focus, professional portrait photography`
     }
 
     return {
@@ -17416,7 +17416,7 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
         try {
           const trRes = await fetch('/api/translate-prompt', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt_fr: rawPrompt, has_ipadapter: false }),
+            body: JSON.stringify({ prompt_fr: rawPrompt, has_ipadapter: false, is_portrait: type === 'npc' }),
           })
           const trData = await trRes.json()
           if (trData.prompt_en) optimizedPrompt = trData.prompt_en
