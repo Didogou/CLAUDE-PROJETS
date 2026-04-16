@@ -16631,8 +16631,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                 </div>
 
                 {/* ── Panneau génération portrait ComfyUI ── */}
-                {portraitPanelOpen === npc.id && (
-                  {(() => {
+                {portraitPanelOpen === npc.id && (() => {
                     const ps = npc.portrait_settings ?? {}
                     const promptFr = npcPortraitPrompts[npc.id + '_fr'] ?? ps.prompt_fr ?? npc.appearance ?? npc.description ?? ''
                     const promptEn = npcPortraitPrompts[npc.id + '_en'] ?? ps.prompt_en ?? ''
@@ -16803,7 +16802,6 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                       </div>
                     )
                   })()}
-                )}
 
                 {npc.description && (
                   <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: '0.5rem', fontStyle: 'italic' }}>{npc.description}</p>
