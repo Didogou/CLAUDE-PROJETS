@@ -258,8 +258,7 @@ export default function BookPage() {
   const [editingReturn, setEditingReturn] = useState<string | null>(null) // choiceId
   const [returnDraft, setReturnDraft] = useState('')
   const [generatingReturn, setGeneratingReturn] = useState<string | null>(null) // choiceId
-  const [illustratingAll, setIllustratingAll] = useState(false)
-  const [illustrationProgress, setIllustrationProgress] = useState<{ current: number; total: number } | null>(null)
+  // illustratingAll/illustrationProgress removed — ComfyUI per-section
   const [writingAll, setWritingAll] = useState(false)
   const [resettingStructure, setResettingStructure] = useState(false)
   const [generatingReadTimes, setGeneratingReadTimes] = useState(false)
@@ -1391,19 +1390,13 @@ export default function BookPage() {
 
             <button
               onClick={() => writeAll(true)}
-              disabled={writingAll || illustratingAll}
+              disabled={writingAll}
               style={{ padding: '0.3rem 0.75rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: writingAll ? 'var(--muted)' : 'var(--foreground)', cursor: writingAll ? 'default' : 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
             >
               {writingAll ? `✍ ${writeProgress ? `${writeProgress.written}/${writeProgress.total}` : '…'}` : '✍ Rédiger'}
             </button>
 
-            <button
-              onClick={illustrateAll}
-              disabled={illustratingAll || writingAll}
-              style={{ padding: '0.3rem 0.75rem', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', color: illustratingAll ? 'var(--muted)' : 'var(--foreground)', cursor: illustratingAll ? 'default' : 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
-            >
-              {illustratingAll ? '🖼 Illustration…' : '🖼 Illustrer'}
-            </button>
+            {/* illustrateAll removed — use per-section ComfyUI generation */}
           </>)}
 
           {/* Overflow menu */}
@@ -3726,19 +3719,19 @@ export default function BookPage() {
             {/* Ligne 1 : Génération de texte */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.65rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 'bold', minWidth: '42px' }}>Texte</span>
-              <button onClick={() => writeAll(true)} disabled={writingAll || illustratingAll || resettingStructure} style={{
+              <button onClick={() => writeAll(true)} disabled={writingAll || resettingStructure} style={{
                 background: writingAll ? 'var(--surface-2)' : 'var(--surface)',
                 border: `1px solid ${writingAll ? 'var(--border)' : 'var(--success)55'}`, borderRadius: '7px',
-                padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (writingAll || illustratingAll || resettingStructure) ? 'default' : 'pointer',
+                padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (writingAll || resettingStructure) ? 'default' : 'pointer',
                 color: writingAll ? 'var(--muted)' : 'var(--success)', display: 'flex', alignItems: 'center', gap: '0.4rem',
               }}>
                 ✍️ {writingAll
                   ? writeProgress ? `${writeProgress.written}/${writeProgress.total} rédigées…` : 'Démarrage…'
                   : 'Rédiger (Mistral)'}
               </button>
-              <button onClick={() => { if (confirm('Tout réécrire ? Les textes existants seront remplacés.')) writeAll(true) }} disabled={writingAll || illustratingAll || resettingStructure} style={{
+              <button onClick={() => { if (confirm('Tout réécrire ? Les textes existants seront remplacés.')) writeAll(true) }} disabled={writingAll || resettingStructure} style={{
                 background: 'transparent', border: '1px solid var(--success)33', borderRadius: '7px',
-                padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (writingAll || illustratingAll || resettingStructure) ? 'default' : 'pointer',
+                padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (writingAll || resettingStructure) ? 'default' : 'pointer',
                 color: 'var(--success)88' as any, display: 'flex', alignItems: 'center', gap: '0.4rem',
               }}>
                 🔄 Tout réécrire
@@ -3779,38 +3772,19 @@ export default function BookPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.65rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 'bold', minWidth: '42px' }}>Image</span>
               {/* Provider: ComfyUI */}
-              <button onClick={illustrateAll} disabled={illustratingAll || writingAll} style={{
-                background: illustratingAll ? 'var(--surface-2)' : 'var(--surface)',
-                border: '1px solid var(--border)', borderRadius: '7px',
-                padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (illustratingAll || writingAll) ? 'default' : 'pointer',
-                color: illustratingAll ? 'var(--muted)' : 'var(--foreground)', display: 'flex', alignItems: 'center', gap: '0.4rem',
-              }}>
-                🖼 {illustratingAll ? 'Illustration en cours…' : 'Illustrer toutes les sections'}
-              </button>
+              {/* illustrateAll removed — use per-section ComfyUI generation */}
               {/* Zone danger */}
               <div style={{ marginLeft: 'auto' }}>
-                <button onClick={resetStructure} disabled={writingAll || illustratingAll || resettingStructure} style={{
+                <button onClick={resetStructure} disabled={writingAll || resettingStructure} style={{
                   background: 'transparent', border: '1px solid var(--danger)33', borderRadius: '7px',
-                  padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (writingAll || illustratingAll || resettingStructure) ? 'default' : 'pointer',
+                  padding: '0.4rem 0.85rem', fontSize: '0.78rem', cursor: (writingAll || resettingStructure) ? 'default' : 'pointer',
                   color: resettingStructure ? 'var(--muted)' : 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.4rem',
                 }}>
                   {resettingStructure ? '⏳ Réinitialisation…' : '🗑 Réinitialiser la structure'}
                 </button>
               </div>
             </div>
-            {illustrationProgress && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-                <div style={{ flex: 1, height: '6px', background: 'var(--surface-2)', borderRadius: '3px', overflow: 'hidden' }}>
-                  <div style={{
-                    width: `${(illustrationProgress.current / illustrationProgress.total) * 100}%`,
-                    height: '100%', background: 'var(--accent)', transition: 'width 0.5s',
-                  }} />
-                </div>
-                <span style={{ fontSize: '0.75rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                  {illustrationProgress.current} / {illustrationProgress.total}
-                </span>
-              </div>
-            )}
+            {/* illustrationProgress removed */}
             {writeProgress && !writingAll && null}
             {writingAll && writeProgress && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
