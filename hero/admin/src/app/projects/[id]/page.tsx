@@ -437,30 +437,17 @@ function BookRow({ book, projectValidated, onRefresh }: {
 
       setMessage(data.map_generated ? '🗺 Carte générée' : '✅ Structure validée')
 
-      // 2. Générer la carte image + portraits PNJ en parallèle
-      setBusy('illustrate-npcs')
-
+      // 2. Générer la carte image (NPC portraits now generated individually via ComfyUI)
       const mapPromise = book.map_style
         ? (setMapImageGenerating(true),
            fetch(`/api/books/${book.id}/generate-map-image`, {
              method: 'POST',
              headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ provider: process.env.NEXT_PUBLIC_IMAGE_PROVIDER ?? 'replicate' }),
+             body: JSON.stringify({}),
            }).finally(() => setMapImageGenerating(false)))
         : Promise.resolve()
 
-      const npcPromise = new Promise<void>((resolve) => {
-        const es = new EventSource(`/api/books/${book.id}/illustrate-npcs?provider=replicate`)
-        es.onmessage = (e) => {
-          const ev = JSON.parse(e.data)
-          if (ev.type === 'start') setNpcProgress({ current: 0, total: ev.total })
-          if (ev.type === 'progress' && ev.status === 'done') setNpcProgress(p => p ? { ...p, current: ev.current } : p)
-          if (ev.type === 'done' || ev.type === 'error') { es.close(); resolve() }
-        }
-        es.onerror = () => { es.close(); resolve() }
-      })
-
-      await Promise.all([mapPromise, npcPromise])
+      await mapPromise
 
       setMessage('✅ Structure validée · Carte + PNJ générés')
       onRefresh()
@@ -707,10 +694,8 @@ function BookRow({ book, projectValidated, onRefresh }: {
           {canValidateSect && (
             <button style={btnStyle(!busy)} disabled={!!busy} onClick={validateAndIllustrate}>
               {busy === 'validate-sect' ? '⏳ Validation…'
-                : busy === 'illustrate-npcs'
-                  ? mapImageGenerating ? '🗺 Carte…'
-                  : npcProgress ? `🎨 PNJ ${npcProgress.current}/${npcProgress.total}` : '🎨 PNJ…'
-                  : '✅ Valider'}
+                : mapImageGenerating ? '🗺 Carte…'
+                : '✅ Valider'}
             </button>
           )}
           {canReset && (

@@ -18,14 +18,29 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const source = section.content?.trim() || section.summary?.trim() || ''
   if (!source) return NextResponse.json({ error: 'Section sans contenu' }, { status: 400 })
 
-  // Résoudre le nom de la localisation
+  // Fetch book context for theme and illustration bible
+  let bookTheme = ''
+  let illustrationBible = ''
+  if (section.book_id) {
+    const { data: book } = await supabaseAdmin
+      .from('books')
+      .select('theme, illustration_bible, illustration_style')
+      .eq('id', section.book_id)
+      .single()
+    if (book) {
+      bookTheme = book.theme ?? ''
+      illustrationBible = book.illustration_bible ?? ''
+    }
+  }
+
+  // Resolve location name
   let locationName: string | null = null
   if (section.location_id) {
     const { data: loc } = await supabaseAdmin.from('locations').select('name').eq('id', section.location_id).single()
     locationName = loc?.name ?? null
   }
 
-  // Résoudre les noms des PNJ présents dans la section
+  // Resolve NPC names
   const npcIds: string[] = [
     ...((section.companion_npc_ids as string[]) ?? []),
     ...(section.trial?.npc_id ? [section.trial.npc_id] : []),
@@ -37,7 +52,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       .from('npcs')
       .select('id, name')
       .in('id', npcIds)
-    npcNames = (npcs ?? []).map((n: any) => n.name)
+    npcNames = (npcs ?? []).map((n: { id: string; name: string }) => n.name)
   }
 
   const charactersBlock = npcNames.length > 0
@@ -46,23 +61,37 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   const locationBlock = locationName
     ? `Location: ${locationName}\n`
     : ''
+  const themeBlock = bookTheme
+    ? `Story theme: ${bookTheme}\n`
+    : ''
+  const bibleBlock = illustrationBible
+    ? `Visual style guide: ${illustrationBible}\n`
+    : ''
 
   const message = await anthropic.messages.create({
     model: 'claude-haiku-4-5-20251001',
     max_tokens: 1200,
     messages: [{
       role: 'user',
-      content: `You are a storyboard director for a gamebook set in the Bronx, New York, summer 2000.
+      content: `You are a storyboard director for a gamebook illustration.
 Break this scene into 3 sequential storyboard shots.
 
-${locationBlock}${charactersBlock}
+${themeBlock}${bibleBlock}${locationBlock}${charactersBlock}
 For each shot provide:
-- "prompt": Shot Description in natural English for an AI image generator. Use character names directly (e.g. "Travis grabs Shawn's arm"). ALWAYS describe the environment/background — even on a close-up, mention what surrounds the character (neon light, concrete wall, tree shadow, etc.). Describe who is doing what, the atmosphere, and lighting. 2-3 sentences. No AI diffusion keywords (no "8k", "hyperrealistic", "masterpiece"). Never describe a character against a plain or black background.
-- "shot_size": framing — one of: "Extreme Wide Shot", "Wide Shot", "Medium Wide Shot", "Medium Shot", "Medium Close-Up", "Close-Up", "Extreme Close-Up"
-- "perspective": camera angle — one of: "Eye Level", "Low Angle", "High Angle", "Bird's Eye View", "Dutch Angle", "Over-the-Shoulder"
-- "fr": short description in French for the designer (1 sentence, what we see)
-
-Visual style context: gritty urban thriller, Bronx streets summer 2000, neon orange streetlights, elevated subway pillars, young gang members in streetwear. Cinematic, tense. Lighting must be strong enough to see all characters clearly — use streetlights, neon signs, car headlights, or ambient urban glow. No pitch-black scenes. Every shot must feel grounded in a real environment — no studio backdrops, no plain backgrounds.
+- "prompt": An optimized Stable Diffusion XL prompt in English following these STRICT rules:
+  * Write in NATURAL LANGUAGE (descriptive sentences), NOT comma-separated tag lists
+  * Keep it 30-75 tokens. The first 5-10 words are the most important
+  * Structure: Subject doing action → Setting/Environment → Lighting → Style
+  * Use character names directly (e.g. "Duke grabs the envelope")
+  * ALWAYS describe the environment/background, even on close-ups
+  * Use BREAK to separate character description from setting/atmosphere
+  * Quality boosters that work: cinematic lighting, volumetric lighting, rim light, 85mm lens, film grain
+  * DO NOT use: masterpiece, best quality, 8k, uhd, trending on artstation, hyperrealistic
+  * DO NOT describe facial features (handled by IPAdapter reference images)
+  * No plain/black/studio backgrounds — every shot must feel grounded in a real environment
+- "shot_size": one of: "Extreme Wide Shot", "Wide Shot", "Medium Wide Shot", "Medium Shot", "Medium Close-Up", "Close-Up", "Extreme Close-Up"
+- "perspective": one of: "Eye Level", "Low Angle", "High Angle", "Bird's Eye View", "Dutch Angle", "Over-the-Shoulder"
+- "fr": short description in French for the designer (1 sentence)
 
 Respond only in JSON:
 {
@@ -77,7 +106,7 @@ ${source.slice(0, 1500)}`,
   })
 
   try {
-    const raw = (message.content[0] as any).text?.trim() ?? ''
+    const raw = (message.content[0] as { type: string; text: string }).text?.trim() ?? ''
     const json = raw.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
     const parsed = JSON.parse(json)
     const prompts = [parsed.prompt1 ?? '', parsed.prompt2 ?? '', parsed.prompt3 ?? '']

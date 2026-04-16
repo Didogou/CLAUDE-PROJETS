@@ -283,7 +283,7 @@ export default function BookPage() {
 
   const [writeProgress, setWriteProgress] = useState<{ written: number; total: number } | null>(null)
   const [writeMessage, setWriteMessage] = useState<string | null>(null)
-  const [imageProvider, setImageProvider] = useState<'replicate' | 'leonardo'>('replicate')
+  // imageProvider removed — ComfyUI is the only provider
   const [generatingStructure, setGeneratingStructure] = useState(false)
   const [generatingStep, setGeneratingStep] = useState(0)
   const [twoPassMode, setTwoPassMode] = useState(false)
@@ -826,31 +826,7 @@ export default function BookPage() {
 
   // ── Agent illustrations ─────────────────────────────────────────────────────
 
-  function illustrateAll() {
-    if (illustratingAll) return
-    setIllustratingAll(true)
-    setIllustrationProgress(null)
-
-    const es = new EventSource(`/api/books/${id}/illustrate-all?provider=${imageProvider}`)
-    es.onmessage = (e) => {
-      const msg = JSON.parse(e.data)
-      if (msg.type === 'start') {
-        setIllustrationProgress({ current: 0, total: msg.total })
-      } else if (msg.type === 'progress') {
-        setIllustrationProgress({ current: msg.current, total: msg.total })
-        if (msg.status === 'done' && msg.imageUrl) {
-          setSections(prev => prev.map(s =>
-            s.number === msg.sectionNumber ? { ...s, image_url: msg.imageUrl } : s
-          ))
-        }
-      } else if (msg.type === 'done' || msg.type === 'error') {
-        es.close()
-        setIllustratingAll(false)
-        if (msg.type === 'done') setIllustrationProgress(null)
-      }
-    }
-    es.onerror = () => { es.close(); setIllustratingAll(false) }
-  }
+  // illustrateAll removed — use ComfyUI per-section generation instead
 
   // ── Rédaction Mistral ──────────────────────────────────────────────────────
 
@@ -1411,14 +1387,7 @@ export default function BookPage() {
 
           {/* Actions IA */}
           {sections.length > 0 && (<>
-            {/* Provider selector */}
-            <div style={{ display: 'flex', background: 'var(--surface-2)', borderRadius: '6px', border: '1px solid var(--border)', overflow: 'hidden' }}>
-              {(['replicate', 'leonardo'] as const).map(p => (
-                <button key={p} onClick={() => setImageProvider(p)} style={{ padding: '0.3rem 0.6rem', fontSize: '0.7rem', border: 'none', cursor: 'pointer', background: imageProvider === p ? 'var(--accent)' : 'transparent', color: imageProvider === p ? '#0f0f14' : 'var(--muted)', fontWeight: imageProvider === p ? 'bold' : 'normal' }}>
-                  {p === 'replicate' ? '⚡' : '🎨'} {p}
-                </button>
-              ))}
-            </div>
+            {/* Provider: ComfyUI */}
 
             <button
               onClick={() => writeAll(true)}
@@ -1617,13 +1586,7 @@ export default function BookPage() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={labelStyle}>Illustrations (3 plans)</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <div style={{ display: 'flex', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', overflow: 'hidden' }}>
-                      {(['replicate', 'leonardo'] as const).map(p => (
-                        <button key={p} onClick={() => setImageProvider(p)} style={{ padding: '0.2rem 0.55rem', fontSize: '0.65rem', border: 'none', cursor: 'pointer', background: imageProvider === p ? 'var(--accent)' : 'transparent', color: imageProvider === p ? '#0f0f14' : 'var(--muted)', fontWeight: imageProvider === p ? 'bold' : 'normal' }}>
-                          {p === 'replicate' ? '⚡' : '🎨'} {p}
-                        </button>
-                      ))}
-                    </div>
+                    {/* Provider: ComfyUI */}
                     <SectionImagePromptsButton
                       sectionId={detailSec.id}
                       onPrompts={(prompts, promptsFr, shotSizes, perspectives) => setEditImages(imgs => imgs.map((img, i) => ({ ...img, description: prompts[i] ?? img.description, description_fr: promptsFr[i] || img.description_fr, shot_size: shotSizes[i] || (img as any).shot_size, perspective: perspectives[i] || (img as any).perspective } as any)))}
@@ -1875,21 +1838,7 @@ export default function BookPage() {
                         <option value="dark_fantasy">🩸 Dark Fantasy</option>
                         <option value="pixel">👾 Pixel Art</option>
                       </select>
-                      <select
-                        value={editImages[i]?.model ?? 'auto'}
-                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, model: e.target.value === 'auto' ? undefined : e.target.value } : img))}
-                        style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.28rem 0.4rem', color: 'var(--foreground)', fontSize: '0.72rem', outline: 'none', cursor: 'pointer' }}
-                        title="Modèle de génération"
-                      >
-                        <option value="auto">🤖 Auto</option>
-                        <option value="flux-schnell">⚡ Schnell</option>
-                        <option value="flux-dev">🌟 Flux Dev</option>
-                        <option value="flux-kontext-dev">🔄 Kontext Dev</option>
-                        <option value="flux-kontext-pro">✨ Kontext Pro</option>
-                        <option value="ideogram-character">👤 Ideogram</option>
-                        <option value="gen4-image">🎬 Gen-4</option>
-                        <option value="gen4-image-turbo">🎬 Gen-4 Turbo</option>
-                      </select>
+                      <span style={{ fontSize: '0.6rem', background: '#4c9bf015', border: '1px solid #4c9bf033', borderRadius: '3px', padding: '0.15rem 0.4rem', color: '#4c9bf0', fontWeight: 'bold' }}>ComfyUI</span>
                       <select
                         value={editImages[i]?.aspect_ratio ?? '16:9'}
                         onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, aspect_ratio: e.target.value } : img))}
@@ -1903,13 +1852,7 @@ export default function BookPage() {
                         <option value="3:4">📄 3:4</option>
                         <option value="2:3">📖 2:3</option>
                       </select>
-                      {book.protagonist_description && (
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: 'pointer', fontSize: '0.72rem', color: 'var(--muted)' }} title={book.protagonist_description}>
-                          <input type="checkbox" checked={editImages[i]?.includeProtagonist ?? false} onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, includeProtagonist: e.target.checked } : img))} style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
-                          🧑 Perso.
-                        </label>
-                      )}
-                      {/* ── Références portrait (Kontext ou Gen-4) ── */}
+                      {/* ── ComfyUI : Sélection PNJs IPAdapter FaceID ── */}
                       {(() => {
                         const protagonistNpc = book.protagonist_npc_id ? npcs.find(n => n.id === book.protagonist_npc_id) : null
                         const companionNpcs = (detailSec.companion_npc_ids ?? []).map(nid => npcs.find(n => n.id === nid)).filter((n): n is Npc => !!n && !!(n.portrait_url || n.image_url))
@@ -1917,135 +1860,76 @@ export default function BookPage() {
                           ...(protagonistNpc && (protagonistNpc.portrait_url || protagonistNpc.image_url) ? [{ id: protagonistNpc.id, name: protagonistNpc.name, url: protagonistNpc.portrait_url || protagonistNpc.image_url! }] : []),
                           ...companionNpcs.filter(n => n.id !== protagonistNpc?.id).map(n => ({ id: n.id, name: n.name, url: n.portrait_url || n.image_url! })),
                         ]
-                        const prevImgUrl = i > 0 ? editImages[i - 1]?.url?.split('?')[0] : null
-                        const chainActive = editImages[i]?.chain_from_prev ?? false
-                        const isGen4 = editImages[i]?.model === 'gen4-image' || editImages[i]?.model === 'gen4-image-turbo'
-
-                        if (refCandidates.length === 0 && !prevImgUrl) return null
-
-                        // ── Gen-4 : chaînage + jusqu'à 3 refs NPC (2 si chaînage actif) ──
-                        if (isGen4) {
-                          const selectedIds = editImages[i]?.gen4_ref_npc_ids ?? []
-                          // Si chaînage actif → Ref 1 = plan précédent, NPC en slots 0 et 1 (2 max)
-                          const npcSlots = chainActive ? [0, 1] : [0, 1, 2]
-                          return (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '0.65rem', color: '#4c9bf0', whiteSpace: 'nowrap' }}>🎬</span>
-                              {/* Chaînage plan précédent */}
-                              {prevImgUrl && (
-                                <button
-                                  onClick={() => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, chain_from_prev: !chainActive } : img))}
-                                  title={chainActive ? 'Désactiver le chaînage' : `Utiliser l'image du plan ${i} comme Ref 1 (décor/ambiance)`}
-                                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.4rem', borderRadius: '4px', border: `1px solid ${chainActive ? '#4caf7d' : 'var(--border)'}`, background: chainActive ? 'rgba(76,175,77,0.15)' : 'var(--surface-2)', color: chainActive ? '#4caf7d' : 'var(--muted)', fontSize: '0.65rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                                >
-                                  🔗 Plan {i}
-                                  {chainActive && <img src={prevImgUrl} alt="" style={{ width: '18px', height: '18px', objectFit: 'cover', borderRadius: '2px', flexShrink: 0 }} />}
-                                </button>
-                              )}
-                              {/* Sélecteurs NPC */}
-                              {npcSlots.map(slot => {
-                                const selId = selectedIds[slot] ?? ''
-                                const selRef = selId ? refCandidates.find(r => r.id === selId) : null
-                                const refNum = chainActive ? slot + 2 : slot + 1
-                                return (
-                                  <div key={slot} style={{ display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                                    <select
-                                      value={selId}
-                                      onChange={e => {
-                                        const newIds = [...selectedIds]
-                                        newIds[slot] = e.target.value
-                                        setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, gen4_ref_npc_ids: newIds.filter(Boolean) } : img))
-                                      }}
-                                      style={{ background: selId ? 'rgba(76,155,240,0.12)' : 'var(--surface-2)', border: `1px solid ${selId ? '#4c9bf066' : 'var(--border)'}`, borderRadius: '4px', padding: '0.25rem 0.35rem', color: selId ? '#4c9bf0' : 'var(--muted)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer', maxWidth: '80px' }}
-                                    >
-                                      <option value="">Ref {refNum}</option>
-                                      {refCandidates.filter(r => !selectedIds.includes(r.id) || r.id === selId).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                    </select>
-                                    {selRef && <img src={selRef.url} alt={selRef.name} style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #4c9bf066', flexShrink: 0 }} />}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )
-                        }
-
-                        // ── Kontext : 1 ref + chaînage ──
-                        const currentRef = chainActive ? null : (editImages[i]?.kontext_ref_npc_id ?? null)
-                        const selectedRef = currentRef ? refCandidates.find(r => r.id === currentRef) : null
+                        if (refCandidates.length === 0) return null
+                        const selectedIds: string[] = (editImages[i] as any)?.comfyui_npc_ids ?? []
                         return (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                            <span style={{ fontSize: '0.65rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>🎭</span>
-                            {prevImgUrl && (
-                              <button
-                                onClick={() => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, chain_from_prev: !chainActive, kontext_ref_npc_id: undefined } : img))}
-                                title={chainActive ? 'Désactiver le chaînage' : `Utiliser l'image du plan ${i} comme référence Kontext`}
-                                style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', padding: '0.2rem 0.4rem', borderRadius: '4px', border: `1px solid ${chainActive ? '#4caf7d' : 'var(--border)'}`, background: chainActive ? 'rgba(76,175,77,0.15)' : 'var(--surface-2)', color: chainActive ? '#4caf7d' : 'var(--muted)', fontSize: '0.65rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                              >
-                                🔗 Plan {i}
-                                {chainActive && <img src={prevImgUrl} alt="" style={{ width: '18px', height: '18px', objectFit: 'cover', borderRadius: '2px', flexShrink: 0 }} />}
-                              </button>
-                            )}
-                            {refCandidates.length > 0 && !chainActive && (
-                              <>
-                                <select
-                                  value={currentRef ?? ''}
-                                  onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, kontext_ref_npc_id: e.target.value || undefined } : img))}
-                                  style={{ background: currentRef ? 'rgba(212,168,76,0.12)' : 'var(--surface-2)', border: `1px solid ${currentRef ? 'rgba(212,168,76,0.5)' : 'var(--border)'}`, borderRadius: '4px', padding: '0.28rem 0.4rem', color: currentRef ? 'var(--accent)' : 'var(--muted)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer', maxWidth: '90px' }}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.6rem', color: '#b48edd', whiteSpace: 'nowrap' }} title="PNJs pour IPAdapter FaceID (persistance visage)">🎭 IPAdapter :</span>
+                            {refCandidates.map(ref => {
+                              const selected = selectedIds.includes(ref.id)
+                              return (
+                                <button key={ref.id}
+                                  onClick={() => {
+                                    const newIds = selected ? selectedIds.filter(id => id !== ref.id) : [...selectedIds, ref.id]
+                                    setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_npc_ids: newIds } as any : img))
+                                  }}
+                                  title={`${ref.name} — ${selected ? 'Retirer' : 'Ajouter comme référence IPAdapter'}`}
+                                  style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', padding: '0.15rem 0.4rem', borderRadius: '4px', border: `1px solid ${selected ? '#b48edd66' : 'var(--border)'}`, background: selected ? 'rgba(180,142,221,0.15)' : 'var(--surface-2)', color: selected ? '#b48edd' : 'var(--muted)', fontSize: '0.65rem', cursor: 'pointer' }}
                                 >
-                                  <option value="">Portrait off</option>
-                                  {refCandidates.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
-                                </select>
-                                {selectedRef && <img src={selectedRef.url} alt={selectedRef.name} style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(212,168,76,0.5)', flexShrink: 0 }} />}
-                              </>
+                                  <img src={ref.url} alt={ref.name} style={{ width: '18px', height: '18px', borderRadius: '50%', objectFit: 'cover', border: `1px solid ${selected ? '#b48edd66' : 'var(--border)'}` }} />
+                                  {ref.name}
+                                </button>
+                              )
+                            })}
+                            {selectedIds.length > 0 && (
+                              <select
+                                value={(editImages[i] as any)?.comfyui_mask ?? 'auto'}
+                                onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_mask: e.target.value } as any : img))}
+                                title="Masque : zone de chaque personnage"
+                                style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--muted)', fontSize: '0.62rem', outline: 'none', cursor: 'pointer' }}
+                              >
+                                <option value="auto">{selectedIds.length === 1 ? 'Plein cadre' : 'Gauche/Droite'}</option>
+                                <option value="left_right">Gauche / Droite</option>
+                                <option value="thirds">Tiers (G/C/D)</option>
+                                <option value="full">Plein cadre (tous)</option>
+                              </select>
                             )}
                           </div>
                         )
                       })()}
+                      {/* ── Bouton Traduire prompt FR → EN SDXL ── */}
+                      <button
+                        onClick={async () => {
+                          const desc = editImages[i]?.description
+                          if (!desc?.trim()) return
+                          try {
+                            const hasIpa = ((editImages[i] as any)?.comfyui_npc_ids ?? []).length > 0
+                            const res = await fetch('/api/translate-prompt', {
+                              method: 'POST', headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ prompt_fr: desc, has_ipadapter: hasIpa }),
+                            })
+                            const d = await res.json()
+                            if (d.prompt_en) {
+                              setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, description: d.prompt_en, prompt_fr: desc, prompt_en: d.prompt_en } : img))
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        title="Traduire le prompt FR en prompt SDXL optimisé"
+                        style={{ background: 'rgba(76,175,125,0.1)', border: '1px solid rgba(76,175,125,0.3)', borderRadius: '4px', color: '#4caf7d', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem', whiteSpace: 'nowrap' }}
+                      >
+                        🌐 FR → EN (SDXL)
+                      </button>
                       <ImageGenButton
-                        type="section" provider={imageProvider}
-                        model={editImages[i]?.model}
+                        type="section"
                         storagePath={`books/${id}/sections/${detailSec.id}_${i}`}
-                        gen4_refs={(() => {
-                          const isGen4 = editImages[i]?.model === 'gen4-image' || editImages[i]?.model === 'gen4-image-turbo'
-                          if (!isGen4) return undefined
-                          const refs: Array<{ url: string; name: string }> = []
-                          // Ref 1 : image du plan précédent si chaînage actif
-                          if (editImages[i]?.chain_from_prev && i > 0) {
-                            const prevUrl = editImages[i - 1]?.url?.split('?')[0]
-                            if (prevUrl) refs.push({ url: prevUrl, name: 'scene' })
-                          }
-                          // Refs NPC suivantes
-                          for (const nid of (editImages[i]?.gen4_ref_npc_ids ?? [])) {
-                            const npc = npcs.find(n => n.id === nid)
-                            if (!npc) continue
-                            const url = npc.portrait_url || npc.image_url
-                            if (url) refs.push({ url, name: npc.name })
-                          }
-                          return refs.slice(0, 3)
-                        })()}
-                        input_image_url={(() => {
-                          const isGen4 = editImages[i]?.model === 'gen4-image' || editImages[i]?.model === 'gen4-image-turbo'
-                          if (isGen4) return undefined // Gen-4 uses gen4_refs instead
-                          if (editImages[i]?.chain_from_prev && i > 0) {
-                            return editImages[i - 1]?.url?.split('?')[0] || undefined
-                          }
-                          const refNpcId = editImages[i]?.kontext_ref_npc_id
-                          if (!refNpcId) return undefined
-                          const npc = npcs.find(n => n.id === refNpcId)
-                          return npc ? (npc.portrait_url || npc.image_url || undefined) : undefined
-                        })()}
-                        data={(() => {
-                          const descText = editImages[i]?.description || editSummary || editContent
-                          const refNpcId = editImages[i]?.kontext_ref_npc_id
-                          const refNpc = (!editImages[i]?.chain_from_prev && refNpcId) ? npcs.find(n => n.id === refNpcId) : null
-                          // Exclure le perso Kontext des NPC appearances (déjà dans l'image de référence)
-                          const npcApps = npcs
-                            .filter(n => n.name && descText.toLowerCase().includes(n.name.toLowerCase()) && (n.appearance || n.description))
-                            .filter(n => !refNpc || n.id !== refNpc.id)
-                            .map(n => (n.appearance || n.description || '').slice(0, 80))
-                            .join(' | ')
-                          return { summary: editImages[i]?.description || editSummary, content: editContent, theme: book.theme, style: editImages[i]?.style ?? book.illustration_style ?? 'realistic', protagonist: editImages[i]?.includeProtagonist ? (book.protagonist_description ?? '') : '', illustration_bible: book.illustration_bible ?? '', npc_appearances: npcApps, aspect_ratio: editImages[i]?.aspect_ratio ?? '16:9', kontext_ref_name: refNpc?.name ?? '' }
-                        })()}
+                        data={{
+                          summary: editImages[i]?.description || editSummary,
+                          content: editContent,
+                          theme: book.theme,
+                          style: editImages[i]?.style ?? book.illustration_style ?? 'realistic',
+                          aspect_ratio: editImages[i]?.aspect_ratio ?? '16:9',
+                          description: editImages[i]?.description || editSummary,
+                        }}
                         currentUrl={editImages[i]?.url}
                         onSaved={async (url, meta) => {
                           const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
@@ -2473,19 +2357,15 @@ export default function BookPage() {
                                   {choice.transition_image_url && (
                                     <img src={choice.transition_image_url} alt="" onClick={() => setZoomedImage(choice.transition_image_url!)} style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #b48edd55', cursor: 'zoom-in', flexShrink: 0 }} />
                                   )}
-                                  <ImageGenButton type="section" provider={imageProvider}
+                                  <ImageGenButton type="section"
                                     storagePath={`books/${id}/transitions/${choice.id}`}
-                                    data={(() => {
-                                      const descText = tSett.description || transitionDraft || choice.transition_text || choice.label
-                                      const npcApps = npcs
-                                        .filter(n => n.name && descText.toLowerCase().includes(n.name.toLowerCase()) && (n.appearance || n.description))
-                                        .map(n => (n.appearance || n.description || '').slice(0, 80))
-                                        .join(' | ')
-                                      return { summary: descText, content: tSett.description || transitionDraft || '', theme: book.theme, style: tSett.style, aspect_ratio: tSett.aspect_ratio, protagonist: book.protagonist_description ?? '', illustration_bible: book.illustration_bible ?? '', npc_appearances: npcApps }
-                                    })()}
-                                    model={tSett.model !== 'auto' ? tSett.model : undefined}
-                                    input_image_url={!isGen4 && refUrl ? refUrl : undefined}
-                                    gen4_refs={isGen4 && refUrl ? [{ url: refUrl, name: 'scene' }] : undefined}
+                                    data={{
+                                      summary: tSett.description || transitionDraft || choice.transition_text || choice.label,
+                                      description: tSett.description || transitionDraft || '',
+                                      theme: book.theme,
+                                      style: tSett.style,
+                                      aspect_ratio: tSett.aspect_ratio,
+                                    }}
                                     currentUrl={choice.transition_image_url} label="🖼 Illustrer"
                                     onSaved={async (url) => {
                                       const cleanUrl = url.split('?')[0]
@@ -2895,9 +2775,8 @@ export default function BookPage() {
                             <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
                               <ImageGenButton
                                 type="section"
-                                provider={imageProvider}
                                 storagePath={`books/${id}/sections/${detailSec.id}/combat`}
-                                data={{ summary: detailSec.summary ?? detailSec.content?.slice(0, 200) ?? '', style: book.illustration_style ?? 'realistic', illustration_bible: book.illustration_bible ?? '', protagonist: book.protagonist_description ?? '' }}
+                                data={{ summary: detailSec.summary ?? detailSec.content?.slice(0, 200) ?? '', description: detailSec.summary ?? '', style: book.illustration_style ?? 'realistic' }}
                                 currentUrl={secCombatImageUrl ?? undefined}
                                 label="✨ Générer"
                                 onSaved={async url => {
@@ -3899,19 +3778,7 @@ export default function BookPage() {
             {/* Ligne 2 : Illustrations */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.65rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 'bold', minWidth: '42px' }}>Image</span>
-              {/* Sélecteur provider */}
-              <div style={{ display: 'flex', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
-                {(['replicate', 'leonardo'] as const).map(p => (
-                  <button key={p} onClick={() => setImageProvider(p)} disabled={illustratingAll} style={{
-                    padding: '0.3rem 0.7rem', fontSize: '0.73rem', border: 'none', cursor: 'pointer',
-                    background: imageProvider === p ? 'var(--accent)' : 'transparent',
-                    color: imageProvider === p ? '#0f0f14' : 'var(--muted)',
-                    fontWeight: imageProvider === p ? 'bold' : 'normal',
-                  }}>
-                    {p === 'replicate' ? '⚡ Replicate' : '🎨 Leonardo'}
-                  </button>
-                ))}
-              </div>
+              {/* Provider: ComfyUI */}
               <button onClick={illustrateAll} disabled={illustratingAll || writingAll} style={{
                 background: illustratingAll ? 'var(--surface-2)' : 'var(--surface)',
                 border: '1px solid var(--border)', borderRadius: '7px',
@@ -4273,7 +4140,7 @@ export default function BookPage() {
             editImages={editImages}
             editMusicUrl={editMusicUrl}
             editMusicStartTime={editMusicStartTime}
-            imageProvider={imageProvider}
+            /* imageProvider removed */
             isSaving={sectionSaving === sectionModal}
             editingTransition={editingTransition}
             transitionDraft={transitionDraft}
@@ -4287,7 +4154,7 @@ export default function BookPage() {
             setEditImages={setEditImages}
             setEditMusicUrl={setEditMusicUrl}
             setEditMusicStartTime={setEditMusicStartTime}
-            setImageProvider={setImageProvider}
+            /* setImageProvider removed */
             setEditingTransition={setEditingTransition}
             setTransitionDraft={setTransitionDraft}
             setGeneratingTransition={setGeneratingTransition}
@@ -4518,7 +4385,7 @@ export default function BookPage() {
           description={coverDescription}
           style={coverStyle}
           includeProtagonist={coverIncludeProtagonist}
-          provider={imageProvider}
+          /* provider removed */
           onDescriptionChange={setCoverDescription}
           onStyleChange={setCoverStyle}
           onIncludeProtagonistChange={setCoverIncludeProtagonist}
@@ -4581,7 +4448,7 @@ export default function BookPage() {
           protagonistNpcId={book.protagonist_npc_id ?? null}
           npcs={npcs}
           setNpcs={setNpcs}
-          imageProvider={imageProvider}
+          /* imageProvider removed */
           bookTheme={book.theme}
           bookIllustrationStyle={book.illustration_style ?? 'realistic'}
           illustrationBible={book.illustration_bible ?? ''}
@@ -4650,7 +4517,7 @@ export default function BookPage() {
 
       {/* ── Onglet PNJ ──────────────────────────────────────────────────────── */}
       {tab === 'npcs' && (
-        <NpcTab bookId={id} bookTheme={book.theme} bookIllustrationStyle={book.illustration_style ?? 'realistic'} illustrationBible={book.illustration_bible ?? ''} imageProvider={imageProvider} npcs={npcs} setNpcs={setNpcs} sections={sections} combatTypes={combatTypes} onNavigate={(n) => { setTab('sections'); scrollToSection(n) }} protagonistNpcId={book.protagonist_npc_id ?? null} onSetProtagonist={async (npcId) => { await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ protagonist_npc_id: npcId }) }); setBook(b => b ? { ...b, protagonist_npc_id: npcId } : b) }} weaponTypes={weaponTypes} />
+        <NpcTab bookId={id} bookTheme={book.theme} bookIllustrationStyle={book.illustration_style ?? 'realistic'} illustrationBible={book.illustration_bible ?? ''} /* imageProvider removed */ npcs={npcs} setNpcs={setNpcs} sections={sections} combatTypes={combatTypes} onNavigate={(n) => { setTab('sections'); scrollToSection(n) }} protagonistNpcId={book.protagonist_npc_id ?? null} onSetProtagonist={async (npcId) => { await fetch(`/api/books/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ protagonist_npc_id: npcId }) }); setBook(b => b ? { ...b, protagonist_npc_id: npcId } : b) }} weaponTypes={weaponTypes} />
       )}
 
       {/* ── Onglet Carte ─────────────────────────────────────────────────────── */}
@@ -4830,9 +4697,8 @@ Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit 
                     <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.3rem' }}>
                       <ImageGenButton
                         type="item"
-                        provider={imageProvider}
                         storagePath={editingItem && editingItem !== 'new' ? `books/${id}/items/${editingItem}` : undefined}
-                        data={{ name: itemForm.name ?? '', description: itemForm.description ?? '', style: book.illustration_style ?? 'realistic', illustration_bible: book.illustration_bible ?? '' }}
+                        data={{ name: itemForm.name ?? '', description: itemForm.description ?? '', style: book.illustration_style ?? 'realistic' }}
                         currentUrl={itemForm.illustration_url}
                         label="✨ Générer"
                         onSaved={url => setItemForm(f => ({ ...f, illustration_url: url }))}
@@ -5108,23 +4974,28 @@ Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit 
         async function generateMoveIcon(moveId: string, moveName: string) {
           setGeneratingIconFor(moveId)
           try {
-            const r = await fetch('/api/generate-image', {
+            const r = await fetch('/api/comfyui', {
               method: 'POST', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                type: 'item',
-                provider: 'replicate',
-                data: { name: moveName, description: `Combat action move: ${moveName}`, style: book?.illustration_style ?? 'realistic' },
+                workflow_type: 'portrait',
+                prompt_positive: `Combat action move: ${moveName}`,
+                style: book?.illustration_style ?? 'realistic',
+                width: 1024, height: 1024,
               }),
             })
             const d = await r.json()
             if (d.error) throw new Error(d.error)
-            let imageUrl: string | null = d.image_url ?? null
-            if (!imageUrl && d.prediction_id) {
-              for (let i = 0; i < 30; i++) {
-                await new Promise(res => setTimeout(res, 2500))
-                const pr = await fetch(`/api/generate-image?id=${d.prediction_id}&provider=${d.provider ?? 'replicate'}`)
+            let imageUrl: string | null = null
+            if (d.prompt_id) {
+              for (let i = 0; i < 60; i++) {
+                await new Promise(res => setTimeout(res, 3000))
+                const pr = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
                 const pd = await pr.json()
-                if (pd.image_url) { imageUrl = pd.image_url; break }
+                if (pd.status === 'succeeded') {
+                  const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`combat-icons/${moveId}`)}`)
+                  const imgData = await imgRes.json()
+                  imageUrl = imgData.image_url; break
+                }
                 if (pd.status === 'failed') throw new Error(pd.error ?? 'Génération échouée')
               }
             }
@@ -5880,38 +5751,37 @@ Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit 
 
         // Helper : génère + poll + upload Supabase → retourne URL persistante
         async function generateOneFrameImage(frame: import('@/types').IntroFrame): Promise<string | null> {
-          // Récupérer l'image de référence si img2img
-          const refFrame = frame.ref_frame_id ? introFrames.find(f => f.id === frame.ref_frame_id) : null
-          const input_image_url = refFrame?.image_url ?? undefined
+          const promptText = frame.prompt_en || frame.prompt_fr || ''
 
-          const body: any = { type: 'intro', provider: imageProvider, data: { prompt_en: frame.prompt_en, prompt_fr: frame.prompt_fr, style: book?.illustration_style ?? 'realistic', illustration_bible: book?.illustration_bible ?? '' } }
-          if (input_image_url) body.input_image_url = input_image_url
-
-          const res = await fetch('/api/generate-image', {
+          const res = await fetch('/api/comfyui', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify({
+              workflow_type: 'background',
+              prompt_positive: promptText,
+              style: book?.illustration_style ?? 'realistic',
+              width: 1360, height: 768,
+            }),
           })
           const d = await res.json()
           if (!res.ok) throw new Error(d.error ?? 'Erreur génération')
 
-          let rawUrl: string | null = null
+          if (!d.prompt_id) return null
 
-          // Résultat immédiat
-          if (d.image_url) {
-            rawUrl = d.image_url
-          } else if (d.prediction_id) {
-            // Polling
-            const start = Date.now()
-            while (Date.now() - start < 300_000) {
-              await new Promise(r => setTimeout(r, 3000))
-              const poll = await fetch(`/api/generate-image?id=${d.prediction_id}&provider=${d.provider ?? imageProvider}`)
-              const pd = await poll.json()
-              if (pd.status === 'succeeded') { rawUrl = pd.image_url; break }
-              if (pd.status === 'failed' || pd.status === 'canceled') throw new Error(pd.error ?? pd.status)
+          // Polling ComfyUI
+          const start = Date.now()
+          while (Date.now() - start < 300_000) {
+            await new Promise(r => setTimeout(r, 3000))
+            const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+            const pd = await poll.json()
+            if (pd.status === 'succeeded') {
+              const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/intro/${frame.id}`)}`)
+              const imgData = await imgRes.json()
+              return imgData.image_url ?? null
             }
+            if (pd.status === 'failed') throw new Error(pd.error ?? 'Génération échouée')
           }
 
-          if (!rawUrl) return null
+          return null
 
           // Upload vers Supabase pour URL persistante
           const upload = await fetch('/api/upload-image', {
@@ -5991,7 +5861,7 @@ Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit 
             const frame = toGenerate[i]
             try {
               // Délai entre requêtes pour éviter le rate-limiting Replicate (6 req/min, burst=1)
-              if (i > 0 && imageProvider === 'replicate') {
+              if (i > 0) {
                 const DELAY_MS = 12000
                 const step = 500
                 let remaining = DELAY_MS
@@ -6067,7 +5937,7 @@ Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit 
                       ? seqAllProgress.waitSec
                         ? `⏳ ${seqAllProgress.done}/${seqAllProgress.total} — attente ${seqAllProgress.waitSec}s…`
                         : `⏳ ${seqAllProgress.done}/${seqAllProgress.total} images…`
-                      : `🖼 Générer toutes (${imageProvider === 'replicate' ? '⚡' : '🎨'})`}
+                      : '🖼 Générer toutes'}
                   </button>
                   {introFrames.some(f => f.image_url) && (
                     <button
@@ -14949,12 +14819,12 @@ function FBIAnimTab({ protagonistName, onComplete }: { protagonistName: string; 
 
 // ── Fiche Personnage ──────────────────────────────────────────────────────────
 
-function FichePersonnageTab({ bookId, protagonistNpcId, npcs, setNpcs, imageProvider, bookTheme, bookIllustrationStyle, illustrationBible, onGoToNpcs }: {
+function FichePersonnageTab({ bookId, protagonistNpcId, npcs, setNpcs, bookTheme, bookIllustrationStyle, illustrationBible, onGoToNpcs }: {
   bookId: string
   protagonistNpcId: string | null
   npcs: Npc[]
   setNpcs: (fn: (prev: Npc[]) => Npc[]) => void
-  imageProvider?: 'replicate' | 'leonardo'
+  // imageProvider removed
   bookTheme: string
   bookIllustrationStyle: string
   illustrationBible: string
@@ -15396,7 +15266,6 @@ function FichePersonnageTab({ bookId, protagonistNpcId, npcs, setNpcs, imageProv
                 <div style={{ flex: 1 }}>
                   <ImageGenButton
                     type="npc"
-                    provider={imageProvider ?? 'leonardo'}
                     storagePath={`books/${bookId}/npcs/${protagonist!.id}/${slot.field}${slot.slot !== undefined ? `_${slot.slot}` : ''}`}
                     data={genData}
                     currentUrl={slot.url}
@@ -16275,7 +16144,7 @@ const NPC_DEFAULTS = {
   voice_prompt: '',
 }
 
-function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = '', imageProvider, npcs, setNpcs, sections, combatTypes = [], onNavigate, protagonistNpcId, onSetProtagonist, voices = [], voicesLoaded = false, weaponTypes = [] }: { bookId: string; bookTheme: string; bookIllustrationStyle: string; illustrationBible?: string; imageProvider?: 'replicate' | 'leonardo'; npcs: Npc[]; setNpcs: (fn: (prev: Npc[]) => Npc[]) => void; sections: Section[]; combatTypes?: import('@/types').CombatType[]; onNavigate: (n: number) => void; protagonistNpcId: string | null; onSetProtagonist: (npcId: string | null) => Promise<void>; voices?: { voice_id: string; name: string; category?: string; labels: Record<string, string>; preview_url: string | null }[]; voicesLoaded?: boolean; weaponTypes?: string[] }) {
+function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = '', npcs, setNpcs, sections, combatTypes = [], onNavigate, protagonistNpcId, onSetProtagonist, voices = [], voicesLoaded = false, weaponTypes = [] }: { bookId: string; bookTheme: string; bookIllustrationStyle: string; illustrationBible?: string; npcs: Npc[]; setNpcs: (fn: (prev: Npc[]) => Npc[]) => void; sections: Section[]; combatTypes?: import('@/types').CombatType[]; onNavigate: (n: number) => void; protagonistNpcId: string | null; onSetProtagonist: (npcId: string | null) => Promise<void>; voices?: { voice_id: string; name: string; category?: string; labels: Record<string, string>; preview_url: string | null }[]; voicesLoaded?: boolean; weaponTypes?: string[] }) {
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ ...NPC_DEFAULTS })
@@ -16334,28 +16203,31 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
     const prompt = `${npc.name} : ${visualDesc}. ${actionDesc}. Plan américain, éclairage cinématique dramatique, sans texte ni interface.`
 
     try {
-      const res = await fetch('/api/generate-image', {
+      const res = await fetch('/api/comfyui', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'npc',
-          data: { custom_prompt: prompt, style: bookIllustrationStyle ?? 'realistic', illustration_bible: illustrationBible ?? '', framing: 'full action shot' },
-          ...(npc.image_url ? { input_image_url: npc.image_url } : {}),
+          workflow_type: 'portrait',
+          prompt_positive: prompt,
+          style: bookIllustrationStyle ?? 'realistic',
+          width: 1024, height: 1024,
         }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
 
       let imageUrl: string | null = null
-      if (d.image_url) {
-        imageUrl = d.image_url
-      } else if (d.prediction_id) {
+      if (d.prompt_id) {
         const start = Date.now()
         while (Date.now() - start < 300_000) {
           await new Promise(r => setTimeout(r, 3000))
-          const poll = await fetch(`/api/generate-image?id=${d.prediction_id}&provider=${d.provider ?? 'replicate'}`)
+          const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
           const pd = await poll.json()
-          if (pd.status === 'succeeded') { imageUrl = pd.image_url; break }
-          if (pd.status === 'failed' || pd.status === 'canceled') throw new Error(pd.error ?? pd.status)
+          if (pd.status === 'succeeded') {
+            const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${bookId}/npcs/${npc.id}/combat_v3/${slotKey}`)}`)
+            const imgData = await imgRes.json()
+            imageUrl = imgData.image_url; break
+          }
+          if (pd.status === 'failed') throw new Error(pd.error ?? 'Génération échouée')
         }
       }
 
@@ -16761,9 +16633,8 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                       <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                         <ImageGenButton
                           type="npc"
-                          provider={imageProvider}
                           storagePath={`books/${bookId}/npcs/${npc.id}`}
-                          data={{ type: npc.type, appearance: npc.appearance ?? '', origin: npc.origin ?? '', description: npc.description ?? '', theme: bookTheme, style: bookIllustrationStyle, illustration_bible: illustrationBible }}
+                          data={{ type: npc.type, appearance: npc.appearance ?? '', description: npc.description ?? '', style: bookIllustrationStyle }}
                           currentUrl={npc.image_url}
                           label="Portrait IA"
                           onSaved={url => {
@@ -17372,151 +17243,109 @@ function NarrationPanel({ sectionId, content, onApply, onClose }: {
   )
 }
 
-// ── Génération d'image (Replicate FLUX) ───────────────────────────────────────
+// ── Génération d'image (ComfyUI) ──────────────────────────────────────────────
 
 type GenMeta = { prompt_used?: string; model_used?: string; aspect_ratio_used?: string; style_used?: string }
 
-function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 'replicate', storagePath, input_image_url, model, gen4_refs }: {
+function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }: {
   type: 'cover' | 'section' | 'npc' | 'item'
   data: Record<string, string>
   currentUrl?: string
   onSaved: (url: string, meta?: GenMeta) => void
   label?: string
-  provider?: 'replicate' | 'leonardo'
   storagePath?: string
-  input_image_url?: string
-  model?: string
-  gen4_refs?: Array<{ url: string; name: string }>
 }) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
-  const [previewPrompt, setPreviewPrompt] = useState<{ prompt: string; aspect_ratio: string; model: string } | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [previewStale, setPreviewStale] = useState(false)
-  const previewDebounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [previewPrompt, setPreviewPrompt] = useState<string | null>(null)
 
-  // Auto-refresh preview quand data change (si preview ouvert)
-  React.useEffect(() => {
-    if (!previewPrompt) return
-    setPreviewStale(true)
-    if (previewDebounceRef.current) clearTimeout(previewDebounceRef.current)
-    previewDebounceRef.current = setTimeout(async () => {
-      setPreviewLoading(true)
-      try {
-        const res = await fetch('/api/generate-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type, data, provider, preview: true, ...(input_image_url ? { input_image_url } : {}), ...(model ? { model } : {}), ...(gen4_refs?.length ? { gen4_refs } : {}) }),
-        })
-        const d = await res.json()
-        if (d.prompt) { setPreviewPrompt(d); setPreviewStale(false) }
-      } catch { /* ignore */ }
-      finally { setPreviewLoading(false) }
-    }, 1000)
-  }, [data.summary, data.npc_appearances, data.aspect_ratio, data.style, data.kontext_ref_name, input_image_url])
-
-  async function saveImage(externalUrl: string): Promise<string> {
-    if (!storagePath) return externalUrl
-    setStatus('Sauvegarde…')
-    try {
-      const res = await fetch('/api/upload-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: externalUrl, path: storagePath }),
-      })
-      const d = await res.json()
-      return d.url ?? externalUrl
-    } catch {
-      return externalUrl
-    }
-  }
-
-  async function removeBg(imageUrl: string): Promise<string> {
-    setStatus('Suppression fond…')
-    try {
-      const res = await fetch('/api/remove-bg', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_url: imageUrl }),
-      })
-      const d = await res.json()
-      if (!res.ok || !d.image_url) return imageUrl // fallback : image originale
-      return d.image_url
-    } catch {
-      return imageUrl
+  // Map type+data to ComfyUI workflow params
+  function buildComfyParams() {
+    const style = data.style ?? 'realistic'
+    const prompt = data.summary || data.description || data.content?.slice(0, 300) || ''
+    const isPortrait = type === 'npc' || type === 'item' || type === 'cover'
+    return {
+      workflow_type: isPortrait ? 'portrait' as const : 'background' as const,
+      prompt_positive: prompt,
+      style,
+      width: isPortrait ? 1024 : (data.aspect_ratio === '1:1' ? 1024 : 1360),
+      height: isPortrait ? 1024 : (data.aspect_ratio === '1:1' ? 1024 : 768),
+      steps: 35,
+      cfg: 7,
+      seed: -1,
     }
   }
 
   async function generate() {
-    setLoading(true); setError(''); setStatus('Génération…')
+    setLoading(true); setError(''); setStatus('Envoi à ComfyUI…')
     try {
-      const res = await fetch('/api/generate-image', {
+      // 1. Queue workflow on ComfyUI
+      const params = buildComfyParams()
+      const res = await fetch('/api/comfyui', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, data, provider, ...(input_image_url ? { input_image_url } : {}), ...(model ? { model } : {}), ...(gen4_refs?.length ? { gen4_refs } : {}) }),
+        body: JSON.stringify(params),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
 
-      // Extraire les meta de génération (prompt, modèle, etc.)
+      const { prompt_id, meta } = d
+      if (!prompt_id) throw new Error('Aucun prompt_id reçu de ComfyUI')
+
       const genMeta: GenMeta = {
-        prompt_used: d.prompt_used,
-        model_used: d.model_used,
-        aspect_ratio_used: d.aspect_ratio_used,
-        style_used: d.style_used,
+        prompt_used: meta?.prompt_used,
+        model_used: 'comfyui',
+        aspect_ratio_used: `${params.width}x${params.height}`,
+        style_used: params.style,
       }
 
-      // Résultat immédiat (Replicate mode synchrone)
-      if (d.image_url) {
-        const rawUrl = type === 'item' ? await removeBg(d.image_url) : d.image_url
-        const url = await saveImage(rawUrl)
-        onSaved(url, genMeta)
-        setLoading(false); setStatus('')
-        return
-      }
-
-      // Polling (Leonardo toujours async, Replicate si > 55s)
-      const { prediction_id, provider: resProvider } = d
-      if (!prediction_id) throw new Error('Aucun identifiant de prédiction reçu')
-
+      // 2. Poll for completion
       const start = Date.now()
       while (Date.now() - start < 300_000) {
         await new Promise(r => setTimeout(r, 3000))
-        setStatus(`${Math.round((Date.now() - start) / 1000)}s…`)
-        const poll = await fetch(`/api/generate-image?id=${prediction_id}&provider=${resProvider ?? provider}`)
+        setStatus(`Génération… ${Math.round((Date.now() - start) / 1000)}s`)
+        const poll = await fetch(`/api/comfyui?prompt_id=${prompt_id}`)
         const pd = await poll.json()
+
         if (pd.status === 'succeeded') {
-          const rawUrl = type === 'item' ? await removeBg(pd.image_url) : pd.image_url
-          const url = await saveImage(rawUrl)
-          onSaved(url, genMeta)
+          // 3. Fetch image and upload to Supabase
+          setStatus('Upload…')
+          const imgRes = await fetch(`/api/comfyui?prompt_id=${prompt_id}&action=image&storage_path=${encodeURIComponent(storagePath || `generated/${Date.now()}`)}`)
+          const imgData = await imgRes.json()
+          if (!imgRes.ok) throw new Error(imgData.error)
+
+          onSaved(imgData.image_url, genMeta)
           setLoading(false); setStatus('')
           return
         }
-        if (pd.status === 'failed' || pd.status === 'canceled') {
-          throw new Error(pd.error ?? pd.status)
+        if (pd.status === 'failed') {
+          throw new Error(pd.error ?? 'Génération échouée')
         }
       }
       throw new Error('Délai dépassé (5 min)')
-    } catch (err: any) {
-      setError(err.message)
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
       setLoading(false); setStatus('')
     }
   }
 
-  async function showPreview() {
-    setPreviewLoading(true)
-    setPreviewPrompt(null)
-    try {
-      const res = await fetch('/api/generate-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, data, provider, preview: true, ...(input_image_url ? { input_image_url } : {}), ...(model ? { model } : {}), ...(gen4_refs?.length ? { gen4_refs } : {}) }),
-      })
-      const d = await res.json()
-      if (d.prompt) setPreviewPrompt(d)
-    } catch { /* ignore */ }
-    finally { setPreviewLoading(false) }
+  function showPreview() {
+    const params = buildComfyParams()
+    const styleSuffixes: Record<string, string> = {
+      realistic: 'cinematic lighting, rich colors, professional illustration',
+      photo: 'cinematic photography, 35mm film, dramatic lighting, film grain',
+      manga: 'manga art style, black and white screentones, expressive linework',
+      bnw: 'black and white ink illustration, crosshatching, high contrast',
+      watercolor: 'watercolor illustration, soft edges, transparent washes, painterly',
+      comic: 'franco-belgian comic book style, clear line, bold colors',
+      dark_fantasy: 'dark fantasy art, dramatic shadows, gritty, oil painting style',
+      pixel: 'pixel art, 16-bit retro game style, limited color palette',
+      sketch: 'pencil sketch, rough hand-drawn lines, graphite strokes',
+    }
+    const suffix = styleSuffixes[params.style] ?? styleSuffixes.realistic
+    setPreviewPrompt(`${params.prompt_positive} BREAK ${suffix}\n\n[${params.width}x${params.height}, ${params.steps} steps, CFG ${params.cfg}]`)
   }
 
   return (
@@ -17531,26 +17360,21 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, provider = 're
         </button>
         <button
           onClick={() => previewPrompt ? setPreviewPrompt(null) : showPreview()}
-          disabled={previewLoading}
-          title="Voir le prompt exact envoyé à Replicate"
-          style={{ background: previewPrompt ? 'rgba(76,155,240,0.15)' : 'none', border: `1px solid ${previewPrompt ? '#4c9bf066' : 'var(--border)'}`, borderRadius: '4px', color: previewLoading ? 'var(--muted)' : previewPrompt ? '#4c9bf0' : 'var(--muted)', cursor: previewLoading ? 'default' : 'pointer', padding: '0.25rem 0.4rem', fontSize: '0.68rem', lineHeight: 1 }}
+          title="Voir le prompt envoyé à ComfyUI"
+          style={{ background: previewPrompt ? 'rgba(76,155,240,0.15)' : 'none', border: `1px solid ${previewPrompt ? '#4c9bf066' : 'var(--border)'}`, borderRadius: '4px', color: previewPrompt ? '#4c9bf0' : 'var(--muted)', cursor: 'pointer', padding: '0.25rem 0.4rem', fontSize: '0.68rem', lineHeight: 1 }}
         >
-          {previewLoading ? '…' : '👁'}
+          👁
         </button>
       </div>
       {previewPrompt && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, marginTop: '0.3rem', background: 'var(--surface)', border: `1px solid ${previewStale ? '#4c9bf022' : '#4c9bf044'}`, borderRadius: '8px', padding: '0.75rem', width: '320px', boxShadow: '0 4px 24px rgba(0,0,0,0.6)', transition: 'opacity 0.2s', opacity: previewStale ? 0.6 : 1 }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 200, marginTop: '0.3rem', background: 'var(--surface)', border: '1px solid #4c9bf044', borderRadius: '8px', padding: '0.75rem', width: '320px', boxShadow: '0 4px 24px rgba(0,0,0,0.6)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
-            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.6rem', background: '#4c9bf022', border: '1px solid #4c9bf044', borderRadius: '3px', padding: '0.1rem 0.35rem', color: '#4c9bf0', fontWeight: 'bold' }}>{previewPrompt.model}</span>
-              <span style={{ fontSize: '0.6rem', color: 'var(--muted)' }}>{previewPrompt.aspect_ratio}</span>
-              {previewStale && <span style={{ fontSize: '0.6rem', color: 'var(--muted)', fontStyle: 'italic' }}>mise à jour…</span>}
-            </div>
+            <span style={{ fontSize: '0.6rem', background: '#4c9bf022', border: '1px solid #4c9bf044', borderRadius: '3px', padding: '0.1rem 0.35rem', color: '#4c9bf0', fontWeight: 'bold' }}>ComfyUI</span>
             <button onClick={() => setPreviewPrompt(null)} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: '0.8rem', lineHeight: 1, padding: '0 0.2rem' }}>✕</button>
           </div>
-          <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--foreground)', lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: '200px', overflow: 'auto' }}>{previewPrompt.prompt}</p>
+          <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--foreground)', lineHeight: 1.55, whiteSpace: 'pre-wrap', maxHeight: '200px', overflow: 'auto' }}>{previewPrompt}</p>
           <button
-            onClick={() => { navigator.clipboard.writeText(previewPrompt.prompt); setPreviewPrompt(null) }}
+            onClick={() => { navigator.clipboard.writeText(previewPrompt); setPreviewPrompt(null) }}
             style={{ marginTop: '0.5rem', fontSize: '0.65rem', padding: '0.2rem 0.5rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--muted)', cursor: 'pointer' }}
           >
             📋 Copier
@@ -17606,12 +17430,12 @@ const ILLUSTRATION_STYLE_OPTIONS = [
   { value: 'pixel',        label: '👾 Pixel Art' },
 ]
 
-function CoverModal({ book, description, style, includeProtagonist, provider: initialProvider, onDescriptionChange, onStyleChange, onIncludeProtagonistChange, onSaved, onClose }: {
+function CoverModal({ book, description, style, includeProtagonist, onDescriptionChange, onStyleChange, onIncludeProtagonistChange, onSaved, onClose }: {
   book: Book
   description: string
   style: string
   includeProtagonist: boolean
-  provider?: 'replicate' | 'leonardo'
+  // provider removed — ComfyUI only
   onDescriptionChange: (v: string) => void
   onStyleChange: (v: string) => void
   onIncludeProtagonistChange: (v: boolean) => void
@@ -17622,8 +17446,6 @@ function CoverModal({ book, description, style, includeProtagonist, provider: in
   const [genStatus, setGenStatus] = useState('')
   const [error, setError] = useState('')
   const [summarizing, setSummarizing] = useState(false)
-  const [provider, setProvider] = useState<'replicate' | 'leonardo'>(initialProvider ?? 'replicate')
-
   async function summarize() {
     setSummarizing(true)
     try {
@@ -17631,56 +17453,49 @@ function CoverModal({ book, description, style, includeProtagonist, provider: in
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
       onDescriptionChange(d.prompt)
-    } catch (err: any) {
-      alert('Erreur : ' + err.message)
+    } catch (err: unknown) {
+      alert('Erreur : ' + (err instanceof Error ? err.message : String(err)))
     }
     setSummarizing(false)
   }
 
   async function generate() {
-    setGenerating(true); setError(''); setGenStatus('Génération…')
+    setGenerating(true); setError(''); setGenStatus('Envoi à ComfyUI…')
     try {
-      const res = await fetch('/api/generate-image', {
+      const promptText = description.trim() || book.story_analysis || book.intro_text || book.description || ''
+      const res = await fetch('/api/comfyui', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'cover', provider: provider ?? 'replicate', data: {
-          title: book.title,
-          theme: book.theme,
+        body: JSON.stringify({
+          workflow_type: 'portrait',
+          prompt_positive: `${book.title} cover art. ${promptText}`,
           style,
-          description: description.trim() || book.story_analysis || book.intro_text || book.description || '',
-          protagonist: includeProtagonist ? (book.protagonist_description ?? '') : '',
-          illustration_bible: book.illustration_bible ?? '',
-        }}),
+          width: 1024, height: 1024,
+        }),
       })
       const d = await res.json()
       if (!res.ok) throw new Error(d.error)
 
-      async function saveCover(externalUrl: string) {
-        setGenStatus('Sauvegarde…')
-        try {
-          const up = await fetch('/api/upload-image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: externalUrl, path: `books/${book.id}/cover` }) })
-          const upd = await up.json()
-          onSaved(upd.url ?? externalUrl)
-        } catch { onSaved(externalUrl) }
-      }
-
-      if (d.image_url) { await saveCover(d.image_url); setGenerating(false); setGenStatus(''); return }
-
-      const { prediction_id, provider: resProvider } = d
-      if (!prediction_id) throw new Error(d.error ?? 'Aucun identifiant reçu')
+      if (!d.prompt_id) throw new Error('Aucun prompt_id reçu')
 
       const start = Date.now()
       while (Date.now() - start < 300_000) {
         await new Promise(r => setTimeout(r, 3000))
         setGenStatus(`${Math.round((Date.now() - start) / 1000)}s…`)
-        const poll = await fetch(`/api/generate-image?id=${prediction_id}&provider=${resProvider ?? provider ?? 'replicate'}`)
+        const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
         const pd = await poll.json()
-        if (pd.status === 'succeeded') { await saveCover(pd.image_url); setGenerating(false); setGenStatus(''); return }
-        if (pd.status === 'failed' || pd.status === 'canceled') throw new Error(pd.error ?? pd.status)
+        if (pd.status === 'succeeded') {
+          setGenStatus('Upload…')
+          const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${book.id}/cover`)}`)
+          const imgData = await imgRes.json()
+          if (imgData.image_url) onSaved(imgData.image_url)
+          setGenerating(false); setGenStatus(''); return
+        }
+        if (pd.status === 'failed') throw new Error(pd.error ?? 'Génération échouée')
       }
       throw new Error('Délai dépassé')
-    } catch (err: any) {
-      setError(err.message); setGenerating(false); setGenStatus('')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : String(err)); setGenerating(false); setGenStatus('')
     }
   }
 
@@ -17791,24 +17606,7 @@ function CoverModal({ book, description, style, includeProtagonist, provider: in
               </label>
             )}
 
-            {/* Sélecteur provider */}
-            <div>
-              <label style={{ fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.3rem' }}>
-                Modèle de génération
-              </label>
-              <div style={{ display: 'flex', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
-                {(['replicate', 'leonardo'] as const).map(p => (
-                  <button key={p} type="button" onClick={() => setProvider(p)} disabled={generating} style={{
-                    flex: 1, padding: '0.4rem 0.75rem', fontSize: '0.78rem', border: 'none', cursor: generating ? 'default' : 'pointer',
-                    background: provider === p ? 'var(--accent)' : 'transparent',
-                    color: provider === p ? '#0f0f14' : 'var(--muted)',
-                    fontWeight: provider === p ? 'bold' : 'normal', transition: 'all 0.15s',
-                  }}>
-                    {p === 'replicate' ? '⚡ Replicate' : '🎨 Leonardo'}
-                  </button>
-                ))}
-              </div>
-            </div>
+            {/* Provider: ComfyUI */}
 
             <button onClick={generate} disabled={generating} style={{
               background: generating ? 'var(--surface-2)' : 'var(--accent)',
@@ -18053,10 +17851,10 @@ type EditImage = { url?: string; description: string; description_fr?: string; p
 
 function SectionModal({
   section, choices, book, npcs, sections,
-  editContent, editSummary, editHint, editImages, editMusicUrl, editMusicStartTime, imageProvider,
+  editContent, editSummary, editHint, editImages, editMusicUrl, editMusicStartTime,
   isSaving, editingTransition, transitionDraft, generatingTransition,
   editingReturn, returnDraft, generatingReturn,
-  setEditContent, setEditSummary, setEditHint, setEditImages, setEditMusicUrl, setEditMusicStartTime, setImageProvider,
+  setEditContent, setEditSummary, setEditHint, setEditImages, setEditMusicUrl, setEditMusicStartTime,
   setEditingTransition, setTransitionDraft, setGeneratingTransition,
   setEditingReturn, setReturnDraft, setGeneratingReturn,
   setFreesoundModal, setSections, setChoices,
@@ -18074,7 +17872,7 @@ function SectionModal({
   editImages: EditImage[]
   editMusicUrl: string
   editMusicStartTime: number
-  imageProvider: 'replicate' | 'leonardo'
+  // imageProvider removed
   isSaving: boolean
   editingTransition: string | null
   transitionDraft: string
@@ -18088,7 +17886,7 @@ function SectionModal({
   setEditImages: React.Dispatch<React.SetStateAction<EditImage[]>>
   setEditMusicUrl: (v: string) => void
   setEditMusicStartTime: (v: number) => void
-  setImageProvider: (v: 'replicate' | 'leonardo') => void
+  // setImageProvider removed
   setEditingTransition: (v: string | null) => void
   setTransitionDraft: (v: string) => void
   setGeneratingTransition: (v: string | null) => void
@@ -18362,14 +18160,7 @@ function SectionModal({
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   {/* Provider toggle */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold' }}>IA :</span>
-                    <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', overflow: 'hidden' }}>
-                      {(['replicate', 'leonardo'] as const).map(p => (
-                        <button key={p} onClick={() => setImageProvider(p)} style={{ padding: '0.15rem 0.5rem', fontSize: '0.65rem', border: 'none', cursor: 'pointer', background: imageProvider === p ? 'var(--accent)' : 'transparent', color: imageProvider === p ? '#0f0f14' : 'var(--muted)', fontWeight: imageProvider === p ? 'bold' : 'normal' }}>
-                          {p === 'replicate' ? '⚡ Replicate' : '🎨 Leonardo'}
-                        </button>
-                      ))}
-                    </div>
+                    <span style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold' }}>ComfyUI</span>
                   </div>
                   <SectionImagePromptsButton
                     sectionId={section.id}
@@ -18449,16 +18240,15 @@ function SectionModal({
                         </label>
                       )}
                       <ImageGenButton
-                        type="section" provider={imageProvider}
+                        type="section"
                         storagePath={`books/${bookId}/sections/${section.id}_${i}`}
-                        data={(() => {
-                          const descText = editImages[i]?.description || editSummary || editContent
-                          const mentionedNpcAppearances = npcs
-                            .filter(n => n.name && descText.toLowerCase().includes(n.name.toLowerCase()) && (n.appearance || n.description))
-                            .map(n => [n.appearance || n.description, n.origin].filter(Boolean).join(' '))
-                            .join(' | ')
-                          return { summary: editImages[i]?.description || editSummary, content: editContent, theme: book.theme, style: editImages[i]?.style ?? book.illustration_style ?? 'realistic', protagonist: editImages[i]?.includeProtagonist ? (book.protagonist_description ?? '') : '', illustration_bible: book.illustration_bible ?? '', npc_appearances: mentionedNpcAppearances }
-                        })()}
+                        data={{
+                          summary: editImages[i]?.description || editSummary,
+                          description: editImages[i]?.description || editSummary,
+                          content: editContent,
+                          theme: book.theme,
+                          style: editImages[i]?.style ?? book.illustration_style ?? 'realistic',
+                        }}
                         currentUrl={editImages[i]?.url}
                         onSaved={async (url, meta) => {
                           const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
@@ -18721,9 +18511,8 @@ function SectionModal({
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                                 <ImageGenButton
                                   type="section"
-                                  provider={imageProvider}
                                   storagePath={`books/${bookId}/transitions/trial-${section.id}-${kind}`}
-                                  data={{ summary: trialTransitionDraft || currentText || '', content: trialTransitionDraft || currentText || '', theme: book.theme, style: book.illustration_style ?? 'realistic', protagonist: book.protagonist_description ?? '', illustration_bible: book.illustration_bible ?? '' }}
+                                  data={{ summary: trialTransitionDraft || currentText || '', description: trialTransitionDraft || currentText || '', style: book.illustration_style ?? 'realistic' }}
                                   currentUrl={currentImg ?? undefined}
                                   label="🖼 Illustrer"
                                   onSaved={async (url) => { await saveTrialField(imgField, url.split('?')[0]) }}
@@ -18999,19 +18788,14 @@ function SectionModal({
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                                       <ImageGenButton
                                         type="section"
-                                        provider={imageProvider}
                                         storagePath={`books/${bookId}/transitions/${choice.id}`}
-                                        data={(() => {
-                                          const descText = tSett.description || transitionDraft || choice.transition_text || choice.label
-                                          const npcApps = npcs
-                                            .filter(n => n.name && descText.toLowerCase().includes(n.name.toLowerCase()) && (n.appearance || n.description))
-                                            .map(n => (n.appearance || n.description || '').slice(0, 80))
-                                            .join(' | ')
-                                          return { summary: descText, content: tSett.description || transitionDraft || choice.transition_text || '', theme: book.theme, style: tSett.style, aspect_ratio: tSett.aspect_ratio, protagonist: book.protagonist_description ?? '', illustration_bible: book.illustration_bible ?? '', npc_appearances: npcApps }
-                                        })()}
-                                        model={tSett.model !== 'auto' ? tSett.model : undefined}
-                                        input_image_url={!isGen4 && refUrl ? refUrl : undefined}
-                                        gen4_refs={isGen4 && refUrl ? [{ url: refUrl, name: 'scene' }] : undefined}
+                                        data={{
+                                          summary: tSett.description || transitionDraft || choice.transition_text || choice.label,
+                                          description: tSett.description || transitionDraft || '',
+                                          theme: book.theme,
+                                          style: tSett.style,
+                                          aspect_ratio: tSett.aspect_ratio,
+                                        }}
                                         currentUrl={choice.transition_image_url}
                                         label="🖼 Illustrer"
                                         onSaved={async (url) => {
