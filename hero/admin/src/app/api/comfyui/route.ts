@@ -122,7 +122,7 @@ export async function GET(req: NextRequest) {
       const fullPath = `${storagePath}.${ext}`
 
       const { error: uploadError } = await supabase.storage
-        .from('book-images')
+        .from('images')
         .upload(fullPath, imageBuffer, {
           contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
           upsert: true,
@@ -131,7 +131,7 @@ export async function GET(req: NextRequest) {
       if (uploadError) throw new Error(`Upload Supabase échoué: ${uploadError.message}`)
 
       const { data: { publicUrl } } = supabase.storage
-        .from('book-images')
+        .from('images')
         .getPublicUrl(fullPath)
 
       return NextResponse.json({ status: 'succeeded', image_url: publicUrl })
