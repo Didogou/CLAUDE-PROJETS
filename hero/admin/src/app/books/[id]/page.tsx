@@ -16128,6 +16128,8 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
   const [combatV3Open, setCombatV3Open] = useState<string | null>(null) // npc.id ouvert
   const [combatV3Generating, setCombatV3Generating] = useState<string | null>(null) // slotKey en cours
   const [newAttackName, setNewAttackName] = useState<string>('') // nom du move pour attack_urls
+  const [npcPortraitPrompts, setNpcPortraitPrompts] = useState<Record<string, string>>({}) // custom portrait prompts per NPC
+  const [translatingNpc, setTranslatingNpc] = useState<string | null>(null)
 
   async function saveCombatV3(npcId: string, patch: Partial<import('@/types').NpcCombatV3>) {
     const npc = npcs.find(n => n.id === npcId)
@@ -16604,18 +16606,47 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                       <span style={{ fontSize: '0.72rem', padding: '0.15rem 0.55rem', borderRadius: '20px', background: tc.color + '22', color: tc.color, fontWeight: 'bold' }}>
                         {tc.label}
                       </span>
-                      <div style={{ marginTop: '0.3rem', display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <ImageGenButton
-                          type="npc"
-                          storagePath={`books/${bookId}/npcs/${npc.id}`}
-                          data={{ type: npc.type, appearance: npc.appearance ?? '', description: npc.description ?? '', style: bookIllustrationStyle }}
-                          currentUrl={npc.image_url}
-                          label="Portrait IA"
-                          onSaved={url => {
-                            setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: url } : n))
-                            fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: url }) })
-                          }}
+                      <div style={{ marginTop: '0.3rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <textarea
+                          value={npcPortraitPrompts[npc.id] ?? npc.appearance ?? npc.description ?? ''}
+                          onChange={e => setNpcPortraitPrompts(p => ({ ...p, [npc.id]: e.target.value }))}
+                          placeholder="Prompt portrait (FR ou EN)…"
+                          rows={2}
+                          style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.5rem', color: 'var(--foreground)', fontSize: '0.72rem', resize: 'vertical', outline: 'none' }}
                         />
+                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                          <button
+                            disabled={translatingNpc === npc.id}
+                            onClick={async () => {
+                              const text = npcPortraitPrompts[npc.id] ?? npc.appearance ?? npc.description ?? ''
+                              if (!text.trim()) return
+                              setTranslatingNpc(npc.id)
+                              try {
+                                const res = await fetch('/api/translate-prompt', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ prompt_fr: text, has_ipadapter: false }),
+                                })
+                                const d = await res.json()
+                                if (d.prompt_en) setNpcPortraitPrompts(p => ({ ...p, [npc.id]: d.prompt_en }))
+                              } catch { /* ignore */ }
+                              finally { setTranslatingNpc(null) }
+                            }}
+                            style={{ background: 'rgba(76,175,125,0.1)', border: '1px solid rgba(76,175,125,0.3)', borderRadius: '4px', color: translatingNpc === npc.id ? 'var(--muted)' : '#4caf7d', cursor: translatingNpc === npc.id ? 'default' : 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem', whiteSpace: 'nowrap' }}
+                          >
+                            {translatingNpc === npc.id ? '…' : '🌐 FR → EN'}
+                          </button>
+                          <ImageGenButton
+                            type="npc"
+                            storagePath={`books/${bookId}/npcs/${npc.id}`}
+                            data={{ type: npc.type, appearance: npcPortraitPrompts[npc.id] ?? npc.appearance ?? '', description: npc.description ?? '', style: bookIllustrationStyle }}
+                            currentUrl={npc.image_url}
+                            label="Portrait IA"
+                            onSaved={url => {
+                              setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: url } : n))
+                              fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: url }) })
+                            }}
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>
