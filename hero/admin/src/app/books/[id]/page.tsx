@@ -16688,17 +16688,41 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                             <span style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>(-1 = aléatoire)</span>
                           </label>
                         </div>
-                        {/* Sélecteur checkpoint */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <label style={{ fontSize: '0.65rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Modele</label>
-                          <select
-                            value={npcPortraitParams[npc.id]?.checkpoint ?? 'juggernaut'}
-                            onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '', checkpoint: 'juggernaut' }, checkpoint: e.target.value } }))}
-                            style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.7rem', outline: 'none', cursor: 'pointer' }}
-                          >
-                            <option value="juggernaut">Juggernaut XL v9 — Polyvalent, textures, eclairage (recommande)</option>
-                            <option value="sdxl_base">SDXL 1.0 Base — Modele de base, plus neutre</option>
-                          </select>
+                        {/* Sélecteur checkpoint + style */}
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flex: 1, minWidth: '200px' }}>
+                            <label style={{ fontSize: '0.65rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Modele</label>
+                            <select
+                              value={npcPortraitParams[npc.id]?.checkpoint ?? 'juggernaut'}
+                              onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '', checkpoint: 'juggernaut' }, checkpoint: e.target.value } }))}
+                              style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer' }}
+                            >
+                              <option value="juggernaut">Juggernaut XL v9 — Realiste, textures, eclairage</option>
+                              <option value="sdxl_base">SDXL 1.0 Base — Neutre, polyvalent</option>
+                              <option value="juggernaut+anime">Juggernaut + LoRA Anime — Style anime/manga</option>
+                              <option value="juggernaut+concept">Juggernaut + LoRA Concept Art — Illustration conceptuelle</option>
+                              <option value="sdxl_base+anime">SDXL Base + LoRA Anime</option>
+                              <option value="sdxl_base+concept">SDXL Base + LoRA Concept Art</option>
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                            <label style={{ fontSize: '0.65rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>Style</label>
+                            <select
+                              value={(npcPortraitParams[npc.id] as any)?.style ?? bookIllustrationStyle ?? 'realistic'}
+                              onChange={e => setNpcPortraitParams(p => ({ ...p, [npc.id]: { ...p[npc.id] ?? { steps: 35, cfg: 7, seed: -1, negative: '', checkpoint: 'juggernaut' }, style: e.target.value } as any }))}
+                              style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer' }}
+                            >
+                              <option value="realistic">Realiste</option>
+                              <option value="photo">Photo cinema</option>
+                              <option value="manga">Manga</option>
+                              <option value="comic">BD franco-belge</option>
+                              <option value="bnw">Noir et Blanc</option>
+                              <option value="watercolor">Aquarelle</option>
+                              <option value="dark_fantasy">Dark Fantasy</option>
+                              <option value="pixel">Pixel Art</option>
+                              <option value="sketch">Esquisse</option>
+                            </select>
+                          </div>
                         </div>
                         {/* Boutons */}
                         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.2rem' }}>
