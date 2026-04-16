@@ -16775,7 +16775,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                               <ImageGenButton
                                 type="npc"
                                 storagePath={`books/${bookId}/npcs/${npc.id}`}
-                                data={{ type: npc.type, appearance: promptEn || promptFr, description: npc.description ?? '', style }}
+                                data={{ type: npc.type, appearance: promptEn || promptFr, description: npc.description ?? '', style, steps: String(steps), cfg: String(cfg), seed: String(seed), checkpoint, negative: neg }}
                                 currentUrl={npc.image_url}
                                 label="Portrait IA"
                                 onSaved={url => {
@@ -17414,20 +17414,38 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
       const appearance = data.appearance?.trim() || ''
       const npcType = data.type?.trim() || ''
       const desc = data.description?.trim() || ''
-      // Prefer appearance (visual), fallback to description
       const visualDesc = appearance || desc
       prompt = `Close-up bust portrait of ${npcType}, head and shoulders only. ${visualDesc}. Soft studio lighting, plain neutral gray background, centered face, looking at camera BREAK sharp focus, professional portrait photography`
+    }
+
+    // Use params from portrait panel if provided via data, otherwise defaults
+    const steps = data.steps ? Number(data.steps) : 35
+    const cfg = data.cfg ? Number(data.cfg) : 7
+    const seed = data.seed ? Number(data.seed) : -1
+    const checkpoint = data.checkpoint || undefined
+    const negative = data.negative || undefined
+
+    // Map checkpoint key to actual filename
+    const CHECKPOINT_MAP: Record<string, string> = {
+      juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
+      sdxl_base: 'sd_xl_base_1.0.safetensors',
+      'juggernaut+anime': 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
+      'juggernaut+concept': 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
+      'sdxl_base+anime': 'sd_xl_base_1.0.safetensors',
+      'sdxl_base+concept': 'sd_xl_base_1.0.safetensors',
     }
 
     return {
       workflow_type: isPortrait ? 'portrait' as const : 'background' as const,
       prompt_positive: prompt,
+      prompt_negative: negative,
       style,
       width: isPortrait ? 1024 : (data.aspect_ratio === '1:1' ? 1024 : 1360),
       height: isPortrait ? 1024 : (data.aspect_ratio === '1:1' ? 1024 : 768),
-      steps: 35,
-      cfg: 7,
-      seed: -1,
+      steps,
+      cfg,
+      seed,
+      checkpoint: checkpoint ? CHECKPOINT_MAP[checkpoint] : undefined,
     }
   }
 
@@ -17516,7 +17534,8 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
       sketch: 'pencil sketch, rough hand-drawn lines, graphite strokes',
     }
     const suffix = styleSuffixes[params.style] ?? styleSuffixes.realistic
-    setPreviewPrompt(`${params.prompt_positive} BREAK ${suffix}\n\n[${params.width}x${params.height}, ${params.steps} steps, CFG ${params.cfg}]`)
+    const ckptLabel = params.checkpoint?.replace('.safetensors', '').slice(0, 30) ?? 'default'
+    setPreviewPrompt(`${params.prompt_positive} BREAK ${suffix}\n\n[${params.width}x${params.height}, ${params.steps} steps, CFG ${params.cfg}, ${ckptLabel}]${params.prompt_negative ? `\n\nNEGATIVE: ${params.prompt_negative}` : ''}`)
   }
 
   return (
