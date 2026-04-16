@@ -17235,10 +17235,22 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
   const [previewPrompt, setPreviewPrompt] = useState<string | null>(null)
 
   // Map type+data to ComfyUI workflow params
-  function buildComfyParams() {
+  function buildComfyParams(optimizedPrompt?: string) {
     const style = data.style ?? 'realistic'
-    const prompt = data.summary || data.description || data.content?.slice(0, 300) || ''
+    const rawPrompt = data.summary || data.description || data.content?.slice(0, 300) || ''
     const isPortrait = type === 'npc' || type === 'item' || type === 'cover'
+
+    // For NPC: build a visual portrait prompt from appearance data
+    let prompt = optimizedPrompt || rawPrompt
+    if (!optimizedPrompt && type === 'npc') {
+      const appearance = data.appearance?.trim() || ''
+      const npcType = data.type?.trim() || ''
+      const desc = data.description?.trim() || ''
+      // Prefer appearance (visual), fallback to description
+      const visualDesc = appearance || desc
+      prompt = `Character portrait, ${npcType}. ${visualDesc}. Dramatic lighting, detailed face and upper body`
+    }
+
     return {
       workflow_type: isPortrait ? 'portrait' as const : 'background' as const,
       prompt_positive: prompt,
@@ -17252,10 +17264,26 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
   }
 
   async function generate() {
-    setLoading(true); setError(''); setStatus('Envoi à ComfyUI…')
+    setLoading(true); setError(''); setStatus('Traduction du prompt…')
     try {
+      // 0. Auto-translate FR prompt to optimized SDXL EN
+      const rawPrompt = data.summary || data.description || data.appearance || data.content?.slice(0, 300) || ''
+      let optimizedPrompt: string | undefined
+      const frenchMarkers = /\b(le|la|les|un|une|des|et|est|dans|avec|pour|sur|qui|que)\b/i
+      if (frenchMarkers.test(rawPrompt)) {
+        try {
+          const trRes = await fetch('/api/translate-prompt', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt_fr: rawPrompt, has_ipadapter: false }),
+          })
+          const trData = await trRes.json()
+          if (trData.prompt_en) optimizedPrompt = trData.prompt_en
+        } catch { /* fallback to raw */ }
+      }
+
       // 1. Queue workflow on ComfyUI
-      const params = buildComfyParams()
+      setStatus('Envoi à ComfyUI…')
+      const params = buildComfyParams(optimizedPrompt)
       const res = await fetch('/api/comfyui', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
