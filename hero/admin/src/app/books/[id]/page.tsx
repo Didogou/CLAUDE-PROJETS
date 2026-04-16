@@ -16642,8 +16642,10 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                             currentUrl={npc.image_url}
                             label="Portrait IA"
                             onSaved={url => {
-                              setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: url } : n))
-                              fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: url }) })
+                              const displayUrl = url.split('?')[0] + '?t=' + Date.now()
+                              const cleanUrl = url.split('?')[0]
+                              setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: displayUrl } : n))
+                              fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: cleanUrl }) })
                             }}
                           />
                         </div>
@@ -17295,13 +17297,14 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
   }
 
   async function generate() {
-    setLoading(true); setError(''); setStatus('Traduction du prompt…')
+    setLoading(true); setError(''); setStatus('Préparation…')
     try {
-      // 0. Auto-translate FR prompt to optimized SDXL EN
-      const rawPrompt = data.summary || data.description || data.appearance || data.content?.slice(0, 300) || ''
+      // 0. Auto-translate FR prompt to optimized SDXL EN (only if text is French)
+      const rawPrompt = data.appearance || data.summary || data.description || data.content?.slice(0, 300) || ''
       let optimizedPrompt: string | undefined
       const frenchMarkers = /\b(le|la|les|un|une|des|et|est|dans|avec|pour|sur|qui|que)\b/i
       if (frenchMarkers.test(rawPrompt)) {
+        setStatus('Traduction SDXL…')
         try {
           const trRes = await fetch('/api/translate-prompt', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
