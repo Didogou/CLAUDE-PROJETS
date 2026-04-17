@@ -88,19 +88,22 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // ── Get GIF info without uploading (GIFs are too large for Supabase) ──
-    if (action === 'gif_info') {
+    // ── Get video/GIF info without uploading (too large for Supabase) ──
+    if (action === 'gif_info' || action === 'video_info') {
       const history = await getHistory(promptId)
       if (!history) return NextResponse.json({ error: 'Prompt non trouvé' }, { status: 404 })
 
+      const comfyUrl = process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188'
       for (const output of Object.values(history.outputs)) {
-        if (output.gifs && output.gifs.length > 0) {
-          const gif = output.gifs[0]
-          const gifUrl = `${process.env.COMFYUI_URL ?? 'http://127.0.0.1:8188'}/api/view?filename=${encodeURIComponent(gif.filename)}&subfolder=${encodeURIComponent(gif.subfolder)}&type=${gif.type}`
-          return NextResponse.json({ filename: gif.filename, gif_url: gifUrl })
+        // Check gifs first, then images (VHS_VideoCombine outputs to gifs)
+        const mediaList = output.gifs ?? output.images ?? []
+        if (mediaList.length > 0) {
+          const media = mediaList[0]
+          const mediaUrl = `${comfyUrl}/api/view?filename=${encodeURIComponent(media.filename)}&subfolder=${encodeURIComponent(media.subfolder)}&type=${media.type}`
+          return NextResponse.json({ filename: media.filename, gif_url: mediaUrl, video_url: mediaUrl })
         }
       }
-      return NextResponse.json({ error: 'Aucun GIF trouvé' }, { status: 404 })
+      return NextResponse.json({ error: 'Aucun média trouvé' }, { status: 404 })
     }
 
     // ── Fetch generated image and upload to Supabase ──

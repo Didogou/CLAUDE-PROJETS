@@ -2137,31 +2137,28 @@ export default function BookPage() {
                       </div>
                     </details>
 
-                    {/* ── GIF Animation ── */}
+                    {/* ── Animation Scène (Wan 2.2) ── */}
                     <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
-                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#e8a84c', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Animation GIF {animationUrl ? '✓' : ''}</summary>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#e8a84c', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Animation Scène (Wan 2.2) {animationUrl ? '✓' : ''}</summary>
                       <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        {/* Prompt mouvement */}
+                        <textarea value={cs.anim_prompt ?? ''} onChange={e => updateCs({ anim_prompt: e.target.value })} onBlur={saveImages} placeholder="Prompt mouvement (EN) : gentle wind, flickering lights, crowd moving..." rows={1} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #e8a84c22', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical', outline: 'none' }} />
                         <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexWrap: 'wrap' }}>
                           <button disabled={cs._animating || !editImages[i]?.url} onClick={async () => {
                             updateCs({ _animating: true })
                             try {
                               const imgUrl = editImages[i]?.url?.split('?')[0]; if (!imgUrl) return
-                              const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: imgUrl, name: `anim_src_${Date.now()}` }) })
+                              const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: imgUrl, name: `wan_src_${Date.now()}` }) })
                               const upData = await upRes.json(); if (!upRes.ok) throw new Error(upData.error)
-                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'animate', source_image: upData.filename, prompt_positive: editImages[i]?.prompt_en || 'subtle motion, gentle wind', prompt_negative: 'static, frozen, morphing', steps: cs.anim_steps ?? 20, cfg: cs.anim_cfg ?? 6, seed: -1, denoise: cs.anim_denoise ?? 0.4, frames: cs.anim_frames ?? 16, fps: cs.anim_fps ?? 8 }) })
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'wan_animate', source_image: upData.filename, prompt_positive: cs.anim_prompt || 'subtle ambient motion, gentle wind', prompt_negative: 'static, blurred, worst quality', steps: cs.anim_steps ?? 30, cfg: cs.anim_cfg ?? 5, seed: -1, frames: cs.anim_frames ?? 16, fps: cs.anim_fps ?? 8, width: 512, height: 288 }) })
                               const d = await res.json(); if (!d.prompt_id) throw new Error(d.error || 'Erreur')
                               const start = Date.now()
-                              while (Date.now() - start < 300_000) {
-                                await new Promise(r => setTimeout(r, 4000)); updateCs({ _animating: `${Math.round((Date.now() - start) / 1000)}s` })
+                              while (Date.now() - start < 600_000) {
+                                await new Promise(r => setTimeout(r, 5000)); updateCs({ _animating: `${Math.round((Date.now() - start) / 1000)}s` })
                                 const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`); const pd = await poll.json()
                                 if (pd.status === 'succeeded') {
-                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=gif_info`); const histData = await histRes.json()
-                                  console.log('[GIF] gif_info response:', histData)
-                                  const animUrl = histData.gif_url || ''
-                                  console.log('[GIF] animUrl:', animUrl)
-                                  if (animUrl) {
-                                    setCsAndSave({ animation_url: animUrl, _animating: false })
-                                  }
+                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=video_info`); const histData = await histRes.json()
+                                  if (histData.video_url) setCsAndSave({ animation_url: histData.video_url, _animating: false })
                                   break
                                 }
                                 if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
@@ -2169,18 +2166,18 @@ export default function BookPage() {
                             } catch (err: unknown) { alert('Erreur : ' + (err instanceof Error ? err.message : String(err))) }
                             finally { updateCs({ _animating: false }) }
                           }} style={{ fontSize: '0.65rem', background: '#e8a84c15', border: '1px solid #e8a84c33', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._animating ? 'var(--muted)' : '#e8a84c', cursor: cs._animating ? 'default' : 'pointer', fontWeight: 'bold' }}>
-                            {cs._animating ? `⏳ ${cs._animating}` : '🎬 Animer'}
+                            {cs._animating ? `⏳ Wan ${cs._animating}` : '🎬 Animer (Wan 2.2)'}
                           </button>
-                          {animationUrl && <a href={animationUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline', fontWeight: 'bold' }}>Voir le GIF</a>}
-                          {/* Fallback: check if animation was generated but URL not saved */}
+                          {animationUrl && <a href={animationUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline', fontWeight: 'bold' }}>Voir la vidéo</a>}
                           {!animationUrl && ((editImages[i] as any)?.comfyui_settings?.animation_url) && (
-                            <a href={(editImages[i] as any).comfyui_settings.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline', fontWeight: 'bold' }}>Voir le GIF (live)</a>
+                            <a href={(editImages[i] as any).comfyui_settings.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline' }}>Voir (live)</a>
                           )}
                         </div>
-                        {/* Params animation */}
+                        {/* Params */}
                         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.55rem', color: 'var(--muted)' }}>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>Frames <input type="number" min={8} max={32} value={cs.anim_frames ?? 16} onChange={e => updateCs({ anim_frames: Number(e.target.value) })} onBlur={saveImages} style={{ width: '32px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
-                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.anim_denoise ?? 0.4} onChange={e => updateCs({ anim_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>Steps <input type="number" min={10} max={50} value={cs.anim_steps ?? 30} onChange={e => updateCs({ anim_steps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '32px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>CFG <input type="number" min={1} max={10} step={0.5} value={cs.anim_cfg ?? 5} onChange={e => updateCs({ anim_cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '32px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>FPS <input type="number" min={4} max={24} value={cs.anim_fps ?? 8} onChange={e => updateCs({ anim_fps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '28px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
                         </div>
                       </div>

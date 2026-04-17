@@ -36,7 +36,7 @@ export interface ComfyUIHistoryEntry {
   outputs: Record<string, ComfyUINodeOutput>
 }
 
-export type WorkflowType = 'portrait' | 'scene_composition' | 'transition' | 'background' | 'animate'
+export type WorkflowType = 'portrait' | 'scene_composition' | 'transition' | 'background' | 'animate' | 'wan_animate' | 'liveportrait'
 
 export interface MaskPreset {
   type: 'left' | 'right' | 'left_third' | 'center_third' | 'right_third' | 'full' | 'custom'
@@ -665,6 +665,208 @@ export function buildAnimateWorkflow(params: ComfyUIGenerateParams): Record<stri
   }
 }
 
+// ── Wan 2.2 TI2V-5B animate workflow (image → video) ────────────────────────
+
+export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
+  if (!params.source_image) throw new Error('wan_animate requires source_image')
+
+  const positivePrompt = params.prompt_positive || 'gentle ambient motion, subtle wind, flickering light'
+  const negativePrompt = params.prompt_negative ?? 'static, blurred, worst quality, low quality, subtitles'
+  const frames = params.frames ?? 16
+  const steps = params.steps ?? 30
+  const cfg = params.cfg ?? 5
+
+  return {
+    // Text encoder
+    '11': {
+      class_type: 'LoadWanVideoT5TextEncoder',
+      inputs: {
+        model: 'umt5-xxl-enc-fp8_e4m3fn.safetensors',
+        dtype: 'fp8_e4m3fn',
+        load_device: 'offload_device',
+        compile: 'disabled',
+      },
+    },
+    // CLIP Vision encoder
+    '48': {
+      class_type: 'CLIPLoader',
+      inputs: {
+        clip_name: 'open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors',
+        type: 'wan',
+      },
+    },
+    // Text encode
+    '16': {
+      class_type: 'WanVideoTextEncode',
+      inputs: {
+        prompt: positivePrompt,
+        negative_prompt: negativePrompt,
+        force_offload: true,
+        force_t5_offload: false,
+        t5_encoder: ['11', 0],
+        clip: ['48', 0],
+      },
+    },
+    // Model loader
+    '22': {
+      class_type: 'WanVideoModelLoader',
+      inputs: {
+        model: 'Wan2_2-TI2V-5B_fp8_e4m3fn_scaled_KJ.safetensors',
+        base_precision: 'fp8_e4m3fn',
+        compile: 'disabled',
+        load_device: 'offload_device',
+        attention: 'sageattn',
+      },
+    },
+    // VAE
+    '38': {
+      class_type: 'WanVideoVAELoader',
+      inputs: {
+        vae: 'Wan2_2_VAE_bf16.safetensors',
+        precision: 'bf16',
+      },
+    },
+    // Load source image
+    '58': {
+      class_type: 'LoadImage',
+      inputs: { image: params.source_image },
+    },
+    // Encode image for I2V
+    '70': {
+      class_type: 'WanVideoImageToVideoEncode',
+      inputs: {
+        image: ['58', 0],
+        vae: ['38', 0],
+        clip_vision: ['48', 0],
+        enable_tiling: false,
+        width: params.width ?? 512,
+        height: params.height ?? 288,
+        num_frames: frames,
+        noise_aug_strength: 0,
+        block_swap: 0,
+        steps: 1,
+      },
+    },
+    // Sampler
+    '27': {
+      class_type: 'WanVideoSampler',
+      inputs: {
+        model: ['22', 0],
+        positive: ['16', 0],
+        negative: ['16', 1],
+        wan_encoded: ['70', 0],
+        steps,
+        cfg,
+        seed: params.seed ?? -1,
+        scheduler: 'flowmatch_pusa',
+        shift: 0,
+        block_swap: 1,
+        denoise_strength: params.denoise ?? 1.0,
+        stg_mode: 'comfy',
+        stg_block_idx: 0,
+        stg_scale: -1,
+        context: '',
+      },
+    },
+    // Decode
+    '28': {
+      class_type: 'WanVideoDecode',
+      inputs: {
+        samples: ['27', 0],
+        vae: ['38', 0],
+        enable_tiling: true,
+      },
+    },
+    // Export video
+    '92': {
+      class_type: 'VHS_VideoCombine',
+      inputs: {
+        images: ['28', 0],
+        frame_rate: params.fps ?? 8,
+        loop_count: 0,
+        filename_prefix: 'hero_wan_animate',
+        format: 'video/h264-mp4',
+        pingpong: false,
+        save_output: true,
+      },
+    },
+  }
+}
+
+// ── LivePortrait animate workflow (portrait face animation) ──────────────────
+
+export function buildLivePortraitWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
+  if (!params.source_image) throw new Error('liveportrait requires source_image')
+
+  return {
+    // Load source portrait
+    '1': {
+      class_type: 'LoadImage',
+      inputs: { image: params.source_image },
+    },
+    // LivePortrait
+    '2': {
+      class_type: 'LivePortraitProcess',
+      inputs: {
+        source_image: ['1', 0],
+        driving_video: null, // auto-animate mode
+        dsize: 512,
+        scale: 2.3,
+        vx_ratio: 0,
+        vy_ratio: -0.125,
+        lip_zero: true,
+        eye_retargeting: false,
+        eyes_retargeting_multiplier: 1.0,
+        lip_retargeting: false,
+        lip_retargeting_multiplier: 1.0,
+        stitching: true,
+        relative: true,
+        rotate_pitch: ['3', 0],
+        rotate_yaw: ['4', 0],
+        rotate_roll: ['5', 0],
+      },
+    },
+    // Subtle head motion keyframes
+    '3': {
+      class_type: 'LivePortraitLoadExpCSV',
+      inputs: {
+        csv_text: '0,0\n8,-3\n16,2\n24,-1\n32,0',
+        column: 'pitch',
+        smoothing_factor: 0.8,
+      },
+    },
+    '4': {
+      class_type: 'LivePortraitLoadExpCSV',
+      inputs: {
+        csv_text: '0,0\n8,4\n16,-2\n24,3\n32,0',
+        column: 'yaw',
+        smoothing_factor: 0.8,
+      },
+    },
+    '5': {
+      class_type: 'LivePortraitLoadExpCSV',
+      inputs: {
+        csv_text: '0,0\n16,1\n32,0',
+        column: 'roll',
+        smoothing_factor: 0.9,
+      },
+    },
+    // Export
+    '6': {
+      class_type: 'VHS_VideoCombine',
+      inputs: {
+        images: ['2', 0],
+        frame_rate: params.fps ?? 12,
+        loop_count: 0,
+        filename_prefix: 'hero_liveportrait',
+        format: 'video/h264-mp4',
+        pingpong: true,
+        save_output: true,
+      },
+    },
+  }
+}
+
 export function buildWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
   switch (params.workflow_type) {
     case 'portrait':
@@ -677,5 +879,9 @@ export function buildWorkflow(params: ComfyUIGenerateParams): Record<string, unk
       return buildTransitionWorkflow(params)
     case 'animate':
       return buildAnimateWorkflow(params)
+    case 'wan_animate':
+      return buildWanAnimateWorkflow(params)
+    case 'liveportrait':
+      return buildLivePortraitWorkflow(params)
   }
 }
