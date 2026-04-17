@@ -1717,6 +1717,63 @@ export default function BookPage() {
                             }}
                           />
                         )}
+                        {/* Vignettes variantes */}
+                        {(() => {
+                          const variants: string[] = (editImages[i] as any)?.comfyui_settings?.variants ?? []
+                          // Also collect variants from other plans for cross-plan selection
+                          const otherPlanVariants = editImages.map((img, idx) => ({
+                            planIdx: idx,
+                            url: img.url,
+                            variants: ((img as any)?.comfyui_settings?.variants ?? []) as string[],
+                          })).filter(p => p.planIdx !== i)
+
+                          return (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                              {/* Current plan variants */}
+                              {variants.length > 0 && (
+                                <div>
+                                  <div style={{ fontSize: '0.55rem', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Variantes ({variants.length})</div>
+                                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                                    {variants.map((vUrl, vi) => (
+                                      <div key={vi} style={{ position: 'relative' }}>
+                                        <img src={vUrl} alt={`var ${vi + 1}`} onClick={() => {
+                                          // Set as main image for this plan
+                                          const oldUrl = editImages[i]?.url?.split('?')[0]
+                                          const newVariants = [...variants]
+                                          if (oldUrl) newVariants[vi] = oldUrl // swap: old main goes to variants
+                                          else newVariants.splice(vi, 1) // no old main, just remove from variants
+                                          updateImg({ url: vUrl + '?t=' + Date.now() })
+                                          updateCs({ variants: newVariants })
+                                          setTimeout(saveImages, 50)
+                                        }} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = utiliser comme principale" />
+                                        <button onClick={e => { e.stopPropagation(); updateCs({ variants: variants.filter((_, vii) => vii !== vi) }); setTimeout(saveImages, 50) }} style={{ position: 'absolute', top: '-3px', right: '-3px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {/* Variants from other plans — allow reuse */}
+                              {otherPlanVariants.some(p => p.url || p.variants.length > 0) && (
+                                <details style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>
+                                  <summary style={{ cursor: 'pointer', textTransform: 'uppercase' }}>Images des autres plans</summary>
+                                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                                    {otherPlanVariants.flatMap(p => {
+                                      const imgs: Array<{ url: string; label: string }> = []
+                                      if (p.url) imgs.push({ url: p.url.split('?')[0], label: `Plan ${p.planIdx + 1}` })
+                                      p.variants.forEach((v, vi) => imgs.push({ url: v, label: `P${p.planIdx + 1} var${vi + 1}` }))
+                                      return imgs
+                                    }).map((item, oi) => (
+                                      <img key={oi} src={item.url} alt={item.label} title={`${item.label} — Clic = utiliser dans ce plan`} onClick={() => {
+                                        updateImg({ url: item.url + '?t=' + Date.now() })
+                                        setTimeout(saveImages, 50)
+                                      }} style={{ width: '50px', height: '28px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer', opacity: 0.7 }} />
+                                    ))}
+                                  </div>
+                                </details>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </div>
 
                       {/* Colonne droite : Prompts + Contrôles */}
@@ -1904,6 +1961,53 @@ export default function BookPage() {
                           </label>
                           <button onClick={() => updateCs({ _paramsOpen: !cs._paramsOpen })} style={{ fontSize: '0.6rem', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.18rem 0.4rem', color: 'var(--muted)', cursor: 'pointer' }}>
                             {cs._paramsOpen ? '▲ Params' : '▼ Params'}
+                          </button>
+                          {/* Bouton Variantes — génère 4 images avec seeds différentes */}
+                          <button
+                            disabled={cs._generatingVariants || !(editImages[i]?.prompt_en || '').trim()}
+                            onClick={async () => {
+                              updateCs({ _generatingVariants: true })
+                              try {
+                                const prompt = editImages[i]?.prompt_en || ''
+                                if (!prompt.trim()) return
+                                const newVariants: string[] = [...((cs.variants as string[]) ?? [])]
+                                for (let v = 0; v < 4; v++) {
+                                  updateCs({ _generatingVariants: `${v + 1}/4` })
+                                  // Queue with random seed
+                                  const res = await fetch('/api/comfyui', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      workflow_type: 'background', prompt_positive: prompt, prompt_negative: imgNeg,
+                                      style: imgStyle, width: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 768 : 1360,
+                                      height: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 1360 : 768,
+                                      steps: imgSteps, cfg: imgCfg, seed: -1,
+                                      checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] ?? undefined : undefined,
+                                    }),
+                                  })
+                                  const d = await res.json()
+                                  if (!d.prompt_id) continue
+                                  // Poll
+                                  const start = Date.now()
+                                  while (Date.now() - start < 180_000) {
+                                    await new Promise(r => setTimeout(r, 3000))
+                                    const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                    const pd = await poll.json()
+                                    if (pd.status === 'succeeded') {
+                                      const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}_var${Date.now()}`)}`)
+                                      const imgData = await imgRes.json()
+                                      if (imgData.image_url) newVariants.push(imgData.image_url.split('?')[0])
+                                      break
+                                    }
+                                    if (pd.status === 'failed') break
+                                  }
+                                }
+                                updateCs({ variants: newVariants, _generatingVariants: false })
+                                setTimeout(saveImages, 50)
+                              } catch { updateCs({ _generatingVariants: false }) }
+                            }}
+                            style={{ fontSize: '0.6rem', background: cs._generatingVariants ? 'rgba(180,142,221,0.1)' : 'none', border: '1px solid #b48edd44', borderRadius: '4px', padding: '0.18rem 0.4rem', color: cs._generatingVariants ? 'var(--muted)' : '#b48edd', cursor: cs._generatingVariants ? 'default' : 'pointer' }}
+                          >
+                            {cs._generatingVariants ? `⏳ ${cs._generatingVariants}` : '🎲 Variantes (×4)'}
                           </button>
                         </div>
 
