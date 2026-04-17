@@ -1719,27 +1719,24 @@ export default function BookPage() {
                     persistToDB(editImagesRef.current)
                   }
 
-                  // Update image fields + save
+                  // Update image fields + save — build result, set state, persist result directly
                   function setImgAndSave(patch: Record<string, unknown>) {
-                    setEditImages(prev => {
-                      const updated = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
-                      // Use setTimeout(0) to let React commit the state, then save from ref
-                      setTimeout(() => persistToDB(editImagesRef.current), 0)
-                      return updated
-                    })
+                    const updated = editImagesRef.current.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
+                    setEditImages(updated)
+                    editImagesRef.current = updated // sync ref immediately
+                    persistToDB(updated)
                   }
 
                   // Update comfyui_settings fields + save
                   function setCsAndSave(csPatch: Record<string, unknown>) {
-                    setEditImages(prev => {
-                      const updated = prev.map((img, idx) => {
-                        if (idx !== i) return img
-                        const currentCs = (img as any).comfyui_settings ?? {}
-                        return { ...img, comfyui_settings: { ...currentCs, ...csPatch } } as any
-                      })
-                      setTimeout(() => persistToDB(editImagesRef.current), 0)
-                      return updated
+                    const updated = editImagesRef.current.map((img, idx) => {
+                      if (idx !== i) return img
+                      const currentCs = (img as any).comfyui_settings ?? {}
+                      return { ...img, comfyui_settings: { ...currentCs, ...csPatch } } as any
                     })
+                    setEditImages(updated)
+                    editImagesRef.current = updated // sync ref immediately
+                    persistToDB(updated)
                   }
 
                   // Collect all images from other plans for cross-plan selection
@@ -2195,8 +2192,8 @@ export default function BookPage() {
 
                     {/* Bouton Save explicite */}
                     <button onClick={async () => {
-                      // Direct save — don't rely on saveImages(), build clean from current editImages
-                      const clean = buildClean(editImages)
+                      // Direct save — use ref for latest state
+                      const clean = buildClean(editImagesRef.current)
                       console.log('[SAVE BUTTON] saving', clean.length, 'images for section', detailSec.id)
                       try {
                         const r = await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
