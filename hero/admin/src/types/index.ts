@@ -163,6 +163,21 @@ export interface SectionImage {
   thought?: string                  // legacy — fallback si text_sequence absent
   text_sequence?: TextSequenceItem[] // narratif + pensées alternés
   bubble_positions?: Record<string, { x: number; y: number }> // speaker → position % sur l'image
+  // ComfyUI generation settings
+  comfyui_settings?: {
+    negative?: string
+    background_url?: string          // URL du décor pour ControlNet Depth
+    characters?: Array<{
+      npc_id: string
+      mask: 'left' | 'right' | 'left_third' | 'center_third' | 'right_third' | 'full'
+      weight: number
+    }>
+    steps?: number
+    cfg?: number
+    seed?: number
+    checkpoint?: string
+    aspect_ratio?: string
+  }
 }
 
 // ── Scène de discussion (dernière image) ──────────────────────────────────────
