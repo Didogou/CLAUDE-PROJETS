@@ -682,8 +682,8 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
     '11': {
       class_type: 'LoadWanVideoT5TextEncoder',
       inputs: {
-        model: 'umt5-xxl-enc-fp8_e4m3fn.safetensors',
-        dtype: 'fp8_e4m3fn',
+        model_name: 'umt5-xxl-enc-fp8_e4m3fn.safetensors',
+        precision: 'bf16',
         load_device: 'offload_device',
         compile: 'disabled',
       },
@@ -781,6 +781,10 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
         vae: ['38', 0],
         samples: ['27', 0],
         enable_vae_tiling: true,
+        tile_x: 272,
+        tile_y: 272,
+        tile_stride_x: 144,
+        tile_stride_y: 128,
       },
     },
     // Export video
