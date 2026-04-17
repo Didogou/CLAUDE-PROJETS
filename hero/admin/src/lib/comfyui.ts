@@ -525,9 +525,11 @@ export function buildSceneCompositionWorkflow(params: ComfyUIGenerateParams): Re
           image: [loadImgId, 0],
           weight: char.weight ?? 0.8,
           weight_type: 'linear',
+          combine_embeds: 'average',
+          embeds_scaling: 'V only',
           start_at: 0.0,
           end_at: 0.8,
-          attn_mask: [maskImgId, 0],
+          attn_mask: [maskImgId, 1], // LoadImage output 1 = MASK (not 0 = IMAGE)
         },
       }
       currentModelRef = [ipaId, 0]
