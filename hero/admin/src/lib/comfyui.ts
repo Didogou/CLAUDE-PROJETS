@@ -690,22 +690,19 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
     },
     // CLIP Vision
     '48': {
-      class_type: 'CLIPLoader',
+      class_type: 'CLIPVisionLoader',
       inputs: {
         clip_name: 'open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors',
-        type: 'wan',
       },
     },
     // Text encode
     '16': {
       class_type: 'WanVideoTextEncode',
       inputs: {
-        prompt: positivePrompt,
+        positive_prompt: positivePrompt,
         negative_prompt: negativePrompt,
         force_offload: true,
-        force_t5_offload: false,
-        t5_encoder: ['11', 0],
-        clip: ['48', 0],
+        t5: ['11', 0],
       },
     },
     // Model loader — fp8_scaled model uses bf16 base + fp8_e4m3fn_scaled quantization
@@ -735,8 +732,13 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
     '61': {
       class_type: 'WanVideoClipVisionEncode',
       inputs: {
-        clip: ['48', 0],
-        image: ['58', 0],
+        clip_vision: ['48', 0],
+        image_1: ['58', 0],
+        strength_1: 1.0,
+        strength_2: 1.0,
+        crop: 'center',
+        combine_embeds: 'average',
+        force_offload: true,
       },
     },
     // Encode image for I2V
@@ -776,9 +778,9 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
     '28': {
       class_type: 'WanVideoDecode',
       inputs: {
-        samples: ['27', 0],
         vae: ['38', 0],
-        enable_tiling: true,
+        samples: ['27', 0],
+        enable_vae_tiling: true,
       },
     },
     // Export video
