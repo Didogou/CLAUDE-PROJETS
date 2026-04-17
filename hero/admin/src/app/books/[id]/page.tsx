@@ -2058,11 +2058,15 @@ export default function BookPage() {
                             try {
                               const srcUrl = editImages[i]?.url?.split('?')[0]; if (!srcUrl) return
                               const newDerivations = [...derivations]
+                              // Upload source image once
+                              const upRes0 = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: srcUrl, name: `derive_${Date.now()}` }) })
+                              const upData0 = await upRes0.json(); if (!upRes0.ok) throw new Error(upData0.error)
+                              const angleVariations = ['slight left angle view', 'slight right angle view', 'low angle dramatic view', 'high angle overview']
                               for (let v = 0; v < 4; v++) {
                                 updateCs({ _deriving: `${v + 1}/4` })
-                                const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: srcUrl, name: `derive_${Date.now()}` }) })
-                                const upData = await upRes.json(); if (!upRes.ok) continue
-                                const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'transition', source_image: upData.filename, prompt_positive: editImages[i]?.prompt_en || '', prompt_negative: imgNeg, style: imgStyle, steps: imgSteps, cfg: imgCfg, seed: -1, denoise: cs.derive_denoise ?? 0.4, checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] : undefined }) })
+                                const basePrompt = editImages[i]?.prompt_en || ''
+                                const variedPrompt = `${basePrompt}, ${angleVariations[v]}`
+                                const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'transition', source_image: upData0.filename, prompt_positive: variedPrompt, prompt_negative: imgNeg, style: imgStyle, steps: imgSteps, cfg: imgCfg, seed: -1, denoise: cs.derive_denoise ?? 0.45, checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] : undefined }) })
                                 const d = await res.json(); if (!d.prompt_id) continue
                                 const start = Date.now()
                                 while (Date.now() - start < 180_000) {
