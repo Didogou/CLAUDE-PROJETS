@@ -1669,143 +1669,31 @@ export default function BookPage() {
                   </div>
                 </div>
                 {editImages.map((_, i) => (
-                  <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                      <div style={{ fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold' }}>Plan {i + 1}</div>
-                      {(editImages[i] as any)?.shot_size && <span style={{ fontSize: '0.6rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.35rem', color: 'var(--accent)' }}>{(editImages[i] as any).shot_size}</span>}
-                      {(editImages[i] as any)?.perspective && <span style={{ fontSize: '0.6rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.35rem', color: 'var(--muted)' }}>{(editImages[i] as any).perspective}</span>}
-                      <button onClick={() => setEditImages(imgs => imgs.filter((_, idx) => idx !== i))} title="Supprimer ce plan" style={{ marginLeft: 'auto', fontSize: '0.6rem', padding: '0.12rem 0.4rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕ Plan</button>
+                  <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {/* Header */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 'bold' }}>Plan {i + 1}</div>
+                      {(editImages[i] as any)?.shot_size && <span style={{ fontSize: '0.58rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem 0.3rem', color: 'var(--accent)' }}>{(editImages[i] as any).shot_size}</span>}
+                      {(editImages[i] as any)?.perspective && <span style={{ fontSize: '0.58rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem 0.3rem', color: 'var(--muted)' }}>{(editImages[i] as any).perspective}</span>}
+                      <button onClick={() => setEditImages(imgs => imgs.filter((_, idx) => idx !== i))} title="Supprimer ce plan" style={{ marginLeft: 'auto', fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>
                     </div>
-                    {editImages[i]?.url && (
-                      <div style={{ position: 'relative' }}>
-                        <img src={editImages[i].url} onClick={() => editImages[i].url && setZoomedImage(editImages[i].url!)} style={{ width: '100%', maxHeight: '280px', objectFit: 'contain', borderRadius: '6px', border: '1px solid var(--border)', background: '#000', cursor: 'zoom-in', display: 'block' }} />
-                        <button onClick={() => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, url: undefined } : img))} style={{ position: 'absolute', top: '6px', right: '6px', background: '#c94c4ccc', border: 'none', borderRadius: '4px', color: '#fff', cursor: 'pointer', padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}>✕</button>
+
+                    {/* ── Layout principal : Image à gauche | Contrôles à droite ── */}
+                    <div style={{ display: 'flex', gap: '0.75rem' }}>
+                      {/* Colonne gauche : Image */}
+                      <div style={{ width: '45%', flexShrink: 0 }}>
+                        {editImages[i]?.url ? (
+                          <div style={{ position: 'relative' }}>
+                            <img src={editImages[i].url} onClick={() => setZoomedImage(editImages[i].url!)} style={{ width: '100%', aspectRatio: (editImages[i] as any)?.aspect_ratio === '1:1' ? '1' : '16/9', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)', cursor: 'zoom-in', display: 'block' }} />
+                            <button onClick={() => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, url: undefined } : img))} style={{ position: 'absolute', top: '4px', right: '4px', background: '#c94c4ccc', border: 'none', borderRadius: '3px', color: '#fff', cursor: 'pointer', padding: '0.1rem 0.3rem', fontSize: '0.6rem' }}>✕</button>
+                          </div>
+                        ) : (
+                          <div style={{ width: '100%', aspectRatio: '16/9', background: 'var(--surface-2)', borderRadius: '6px', border: '1px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: '0.75rem' }}>Pas d'image</div>
+                        )}
                       </div>
-                    )}
-                    {editImages[i]?.url && (
-                      <BubblePositioner
-                        imgUrl={editImages[i].url!}
-                        phrases={editPhraseDistribution[i] ?? []}
-                        positions={(editImages[i] as any).bubble_positions ?? {}}
-                        textPosition={(editImages[i] as any).text_position ?? null}
-                        onChange={pos => {
-                          setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, bubble_positions: pos } as any : img))
-                          const clean = editImages.map((img, idx) => idx === i ? { ...img, bubble_positions: pos } : img)
-                            .filter(img => img.url || img.description?.trim())
-                            .map(img => ({ ...(img as any), url: img.url?.split('?')[0] }))
-                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                        }}
-                        onTextPositionChange={pos => {
-                          setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, text_position: pos } as any : img))
-                          const clean = editImages.map((img, idx) => idx === i ? { ...img, text_position: pos } : img)
-                            .filter(img => img.url || img.description?.trim())
-                            .map(img => ({ ...(img as any), url: img.url?.split('?')[0] }))
-                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                        }}
-                      />
-                    )}
-                    {/* Phrases assignées à ce plan — EN PREMIER */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                          📜 Texte assigné à ce plan
-                          {editPhraseDistribution[i]?.length > 0 && (
-                            <span style={{ marginLeft: '0.4rem', color: '#7ab8d8' }}>({editPhraseDistribution[i].length} phrase{editPhraseDistribution[i].length > 1 ? 's' : ''})</span>
-                          )}
-                        </div>
-                        <CorrectButton
-                          size="sm"
-                          text={(editPhraseDistribution[i] ?? []).join('\n')}
-                          onCorrected={corrected => {
-                            const lines = corrected.split('\n').filter(Boolean)
-                            setEditPhraseDistribution(prev => { const next = [...prev]; next[i] = lines; return next })
-                          }}
-                        />
-                      </div>
-                      <TaggablePhraseEditor
-                        planIdx={i}
-                        phrases={editPhraseDistribution[i] ?? []}
-                        npcs={npcs}
-                        onChange={lines => {
-                          setEditPhraseDistribution(prev => {
-                            const next = [...prev]
-                            while (next.length <= i) next.push([])
-                            next[i] = lines
-                            return next
-                          })
-                        }}
-                        onBlur={() => {
-                          const clean = editPhraseDistribution.length > 0 && editPhraseDistribution.some(arr => arr.length > 0) ? editPhraseDistribution : null
-                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phrase_distribution: clean }) })
-                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, phrase_distribution: clean ?? undefined } : s))
-                        }}
-                      />
-                    </div>
-                    {/* Description EN */}
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
-                      <textarea
-                        value={editImages[i]?.description ?? ''}
-                        onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, description: e.target.value } : img))}
-                        placeholder={`Shot description (EN ou FR) — plan ${i + 1}…`}
-                        rows={2}
-                        style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--foreground)', fontSize: '0.8rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                      />
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginTop: '0.1rem' }}>
-                        <button
-                          title="Traduire EN → FR"
-                          disabled={!!translatingPlanIdx}
-                          onClick={async () => {
-                            const enText = editImages[i]?.description ?? ''
-                            if (!enText.trim()) return
-                            setTranslatingPlanIdx({ idx: i, dir: 'en2fr' })
-                            try {
-                              const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: enText }) })
-                              const data = await res.json()
-                              if (data.translated) setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: data.translated } : img))
-                            } finally { setTranslatingPlanIdx(null) }
-                          }}
-                          style={{ flexShrink: 0, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: translatingPlanIdx?.idx === i && translatingPlanIdx.dir === 'en2fr' ? 'var(--muted)' : '#d4a84c', cursor: translatingPlanIdx ? 'default' : 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.65rem', opacity: translatingPlanIdx ? 0.5 : 1, whiteSpace: 'nowrap' }}
-                        >{translatingPlanIdx?.idx === i && translatingPlanIdx.dir === 'en2fr' ? '…' : '→ FR'}</button>
-                        <button
-                          title="Traduire FR → EN (depuis la description FR)"
-                          disabled={!!translatingPlanIdx}
-                          onClick={async () => {
-                            const frText = editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''
-                            if (!frText.trim()) return
-                            setTranslatingPlanIdx({ idx: i, dir: 'fr2en' })
-                            try {
-                              const res = await fetch('/api/translate-to-french', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: frText, target: 'en' }) })
-                              const data = await res.json()
-                              if (data.translated) setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, description: data.translated } : img))
-                            } finally { setTranslatingPlanIdx(null) }
-                          }}
-                          style={{ flexShrink: 0, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', color: translatingPlanIdx?.idx === i && translatingPlanIdx.dir === 'fr2en' ? 'var(--muted)' : '#7ab8d8', cursor: translatingPlanIdx ? 'default' : 'pointer', padding: '0.2rem 0.4rem', fontSize: '0.65rem', opacity: translatingPlanIdx ? 0.5 : 1, whiteSpace: 'nowrap' }}
-                        >{translatingPlanIdx?.idx === i && translatingPlanIdx.dir === 'fr2en' ? '…' : '← EN'}</button>
-                      </div>
-                    </div>
-                    {/* Description FR */}
-                    <textarea
-                      value={editImages[i]?.prompt_fr ?? editImages[i]?.description_fr ?? ''}
-                      onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, prompt_fr: e.target.value } : img))}
-                      placeholder="Description FR (pour le designer)…"
-                      rows={2}
-                      style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.4rem 0.6rem', color: 'var(--muted)', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
-                    />
-                    <textarea
-                      value={editImages[i]?.thought ?? ''}
-                      onChange={e => setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, thought: e.target.value } : img))}
-                      onBlur={() => {
-                        const cleanImgs = editImages.filter(img => img.url || img.description.trim() || img.thought?.trim()).map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
-                        fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
-                        setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
-                      }}
-                      placeholder="💭 Pensée du protagoniste pour ce plan…"
-                      rows={2}
-                      style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #a084c822', borderRadius: '5px', padding: '0.4rem 0.6rem', color: '#c8a0e8', fontSize: '0.75rem', resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', fontStyle: 'italic' }}
-                    />
-                    {/* ── Panneau génération ComfyUI ── */}
+
+                      {/* Colonne droite : Prompts + Contrôles */}
+                      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
                     {(() => {
                       const cs = (editImages[i] as any)?.comfyui_settings ?? {}
                       const imgStyle = editImages[i]?.style ?? book.illustration_style ?? 'realistic'
@@ -1817,194 +1705,163 @@ export default function BookPage() {
                       const imgCheckpoint = cs.checkpoint ?? 'juggernaut'
                       const imgBgUrl: string = cs.background_url ?? ''
                       const imgChars: Array<{ npc_id: string; mask: string; weight: number }> = cs.characters ?? []
-
                       const protagonistNpc = book.protagonist_npc_id ? npcs.find(n => n.id === book.protagonist_npc_id) : null
                       const companionNpcs = (detailSec.companion_npc_ids ?? []).map(nid => npcs.find(n => n.id === nid)).filter((n): n is Npc => !!n && !!(n.portrait_url || n.image_url))
                       const allNpcCandidates = [
                         ...(protagonistNpc && (protagonistNpc.portrait_url || protagonistNpc.image_url) ? [{ id: protagonistNpc.id, name: protagonistNpc.name, url: protagonistNpc.portrait_url || protagonistNpc.image_url! }] : []),
                         ...companionNpcs.filter(n => n.id !== protagonistNpc?.id).map(n => ({ id: n.id, name: n.name, url: n.portrait_url || n.image_url! })),
                       ]
-
-                      function updateImg(patch: Record<string, unknown>) {
-                        setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, ...patch } as any : img))
-                      }
-                      function updateCs(patch: Record<string, unknown>) {
-                        setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...cs, ...patch } } as any : img))
-                      }
+                      function updateImg(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)) }
+                      function updateCs(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...cs, ...patch } } as any : img)) }
                       function saveImages() {
                         const cleanImgs = editImages.filter(img => img.url || img.description?.trim()).map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, comfyui_settings: (img as any).comfyui_settings || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
                         fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
                         setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
                       }
+                      return (<>
+                        {/* Prompt FR */}
+                        <div style={{ fontSize: '0.58rem', color: '#4caf7d', fontWeight: 'bold', textTransform: 'uppercase' }}>Prompt FR</div>
+                        <textarea value={editImages[i]?.prompt_fr ?? ''} onChange={e => updateImg({ prompt_fr: e.target.value })} onBlur={saveImages} placeholder="Décrivez la scène en français…" rows={2} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #4caf7d22', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.7rem', resize: 'vertical', outline: 'none', lineHeight: 1.5 }} />
+                        <button onClick={async () => {
+                          const text = editImages[i]?.prompt_fr ?? ''; if (!text.trim()) return
+                          try {
+                            const res = await fetch('/api/translate-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt_fr: text, has_ipadapter: imgChars.length > 0 }) })
+                            const d = await res.json()
+                            if (d.prompt_en) { updateImg({ prompt_en: d.prompt_en, description: d.prompt_en }); setTimeout(saveImages, 50) }
+                          } catch { /* ignore */ }
+                        }} style={{ alignSelf: 'flex-start', background: 'rgba(76,175,125,0.12)', border: '1px solid rgba(76,175,125,0.35)', borderRadius: '4px', color: '#4caf7d', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem', fontWeight: 'bold' }}>
+                          🌐 Traduire FR → EN
+                        </button>
 
-                      return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'var(--surface)', border: '1px solid #4c9bf022', borderRadius: '8px', padding: '0.6rem' }}>
-                          {/* Effet d'apparition */}
-                          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <select value={(editImages[i] as any)?.appearance_effect ?? 'none'} onChange={e => { updateImg({ appearance_effect: e.target.value === 'none' ? undefined : e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid #e0383844', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--muted)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer' }}>
-                              <option value="none">— Effet</option>
-                              <option value="shake">📳 Tremblement</option>
-                              <option value="flash_rouge">🔴 Flash rouge</option>
-                              <option value="flash_blanc">⚡ Flash blanc</option>
-                              <option value="impact">💥 Impact</option>
-                            </select>
-                            <select value={imgAr} onChange={e => { updateImg({ aspect_ratio: e.target.value }); updateCs({ aspect_ratio: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer' }}>
-                              <option value="16:9">16:9</option>
-                              <option value="9:16">9:16</option>
-                              <option value="1:1">1:1</option>
-                              <option value="4:3">4:3</option>
-                            </select>
-                            <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer' }}>
-                              <option value="realistic">Realiste</option>
-                              <option value="photo">Photo</option>
-                              <option value="manga">Manga</option>
-                              <option value="comic">BD</option>
-                              <option value="bnw">N&B</option>
-                              <option value="watercolor">Aquarelle</option>
-                              <option value="dark_fantasy">Dark Fantasy</option>
-                              <option value="pixel">Pixel</option>
-                              <option value="sketch">Esquisse</option>
-                            </select>
-                            <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.68rem', outline: 'none', cursor: 'pointer' }}>
-                              <option value="juggernaut">Juggernaut XL v9</option>
-                              <option value="sdxl_base">SDXL Base</option>
-                              <option value="juggernaut+anime">Juggernaut+Anime</option>
-                              <option value="juggernaut+concept">Juggernaut+Concept</option>
-                            </select>
-                          </div>
+                        {/* Prompt EN */}
+                        <div style={{ fontSize: '0.58rem', color: '#4c9bf0', fontWeight: 'bold', textTransform: 'uppercase' }}>Prompt EN (SDXL)</div>
+                        <textarea value={editImages[i]?.prompt_en ?? editImages[i]?.description ?? ''} onChange={e => updateImg({ prompt_en: e.target.value, description: e.target.value })} onBlur={saveImages} placeholder="Prompt anglais SDXL…" rows={2} style={{ width: '100%', background: '#4c9bf008', border: '1px solid #4c9bf022', borderRadius: '4px', padding: '0.3rem 0.45rem', color: '#c8d8f0', fontSize: '0.7rem', resize: 'vertical', outline: 'none', lineHeight: 1.5 }} />
 
-                          {/* Description FR */}
-                          <div style={{ fontSize: '0.6rem', color: '#4caf7d', fontWeight: 'bold', textTransform: 'uppercase' }}>Description FR</div>
-                          <textarea value={editImages[i]?.prompt_fr ?? editImages[i]?.description ?? ''} onChange={e => updateImg({ prompt_fr: e.target.value })} onBlur={saveImages} placeholder="Décrivez la scène en français…" rows={2} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #4caf7d22', borderRadius: '5px', padding: '0.35rem 0.5rem', color: 'var(--foreground)', fontSize: '0.72rem', resize: 'vertical', outline: 'none', lineHeight: 1.5 }} />
-                          <button onClick={async () => {
-                            const text = editImages[i]?.prompt_fr ?? editImages[i]?.description ?? ''
-                            if (!text.trim()) return
-                            try {
-                              const hasIpa = imgChars.length > 0
-                              const res = await fetch('/api/translate-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt_fr: text, has_ipadapter: hasIpa }) })
+                        {/* Negative */}
+                        <div style={{ fontSize: '0.55rem', color: '#c94c4c88', fontWeight: 'bold', textTransform: 'uppercase' }}>Negative</div>
+                        <textarea value={imgNeg} onChange={e => updateCs({ negative: e.target.value })} onBlur={saveImages} rows={1} style={{ width: '100%', background: '#c94c4c06', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.2rem 0.4rem', color: '#c94c4c88', fontSize: '0.62rem', resize: 'none', outline: 'none' }} />
+
+                        {/* Background */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.55rem', color: '#e0a742', fontWeight: 'bold', textTransform: 'uppercase' }}>Background</span>
+                          {imgBgUrl && <img src={imgBgUrl} alt="bg" style={{ width: '36px', height: '22px', objectFit: 'cover', borderRadius: '3px', border: '1px solid #e0a74244' }} />}
+                          <label style={{ cursor: 'pointer' }}>
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
+                              const file = e.target.files?.[0]; if (!file) return
+                              const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_bg_${i}`)
+                              const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
                               const d = await res.json()
-                              if (d.prompt_en) { updateImg({ prompt_en: d.prompt_en, description: d.prompt_en }); setTimeout(saveImages, 50) }
-                            } catch { /* ignore */ }
-                          }} style={{ alignSelf: 'flex-start', background: 'rgba(76,175,125,0.12)', border: '1px solid rgba(76,175,125,0.35)', borderRadius: '5px', color: '#4caf7d', cursor: 'pointer', padding: '0.25rem 0.6rem', fontSize: '0.68rem', fontWeight: 'bold' }}>
-                            🌐 Traduire FR → EN (SDXL)
-                          </button>
-
-                          {/* Prompt EN */}
-                          <div style={{ fontSize: '0.6rem', color: '#4c9bf0', fontWeight: 'bold', textTransform: 'uppercase' }}>Prompt EN (SDXL) — envoyé a ComfyUI</div>
-                          <textarea value={editImages[i]?.prompt_en ?? editImages[i]?.description ?? ''} onChange={e => updateImg({ prompt_en: e.target.value, description: e.target.value })} onBlur={saveImages} placeholder="Le prompt anglais SDXL…" rows={2} style={{ width: '100%', background: '#4c9bf008', border: '1px solid #4c9bf022', borderRadius: '5px', padding: '0.35rem 0.5rem', color: '#c8d8f0', fontSize: '0.72rem', resize: 'vertical', outline: 'none', lineHeight: 1.5 }} />
-
-                          {/* Negative */}
-                          <div style={{ fontSize: '0.55rem', color: '#c94c4c88', fontWeight: 'bold', textTransform: 'uppercase' }}>Negative</div>
-                          <textarea value={imgNeg} onChange={e => updateCs({ negative: e.target.value })} onBlur={saveImages} rows={1} style={{ width: '100%', background: '#c94c4c08', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.25rem 0.4rem', color: '#c94c4c88', fontSize: '0.65rem', resize: 'none', outline: 'none' }} />
-
-                          {/* Background (ControlNet Depth) */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.6rem', color: '#e0a742', fontWeight: 'bold', textTransform: 'uppercase' }}>Background</span>
-                            {imgBgUrl && <img src={imgBgUrl} alt="bg" style={{ width: '40px', height: '25px', objectFit: 'cover', borderRadius: '3px', border: '1px solid #e0a74244' }} />}
-                            <label style={{ cursor: 'pointer' }}>
-                              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
-                                const file = e.target.files?.[0]; if (!file) return
-                                const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_bg_${i}`)
-                                const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
-                                const d = await res.json()
-                                if (d.url) { updateCs({ background_url: d.url.split('?')[0] }); setTimeout(saveImages, 50) }
-                                e.target.value = ''
-                              }} />
-                              <span style={{ fontSize: '0.62rem', background: '#e0a74215', border: '1px solid #e0a74233', borderRadius: '4px', padding: '0.2rem 0.45rem', color: '#e0a742', cursor: 'pointer' }}>📁 {imgBgUrl ? 'Changer' : 'Upload décor'}</span>
-                            </label>
-                            {imgBgUrl && <button onClick={() => { updateCs({ background_url: '' }); setTimeout(saveImages, 50) }} style={{ fontSize: '0.55rem', background: 'none', border: '1px solid #c94c4c33', borderRadius: '3px', padding: '0.1rem 0.3rem', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>}
-                            <span style={{ fontSize: '0.55rem', color: 'var(--muted)', fontStyle: 'italic' }}>ControlNet Depth — structure spatiale</span>
-                          </div>
-
-                          {/* Personnages (IPAdapter) */}
-                          {allNpcCandidates.length > 0 && (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                              <span style={{ fontSize: '0.6rem', color: '#b48edd', fontWeight: 'bold', textTransform: 'uppercase' }}>Personnages (IPAdapter FaceID)</span>
-                              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                                {allNpcCandidates.map(ref => {
-                                  const charIdx = imgChars.findIndex(c => c.npc_id === ref.id)
-                                  const isSelected = charIdx >= 0
-                                  const MASK_OPTIONS = ['left', 'right', 'left_third', 'center_third', 'right_third', 'full']
-                                  const MASK_LABELS: Record<string, string> = { left: 'Gauche', right: 'Droite', left_third: 'G 1/3', center_third: 'Centre', right_third: 'D 1/3', full: 'Plein' }
-                                  return (
-                                    <div key={ref.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.2rem', padding: '0.3rem', borderRadius: '6px', border: `1px solid ${isSelected ? '#b48edd55' : 'var(--border)'}`, background: isSelected ? '#b48edd0a' : 'transparent', minWidth: '70px' }}>
-                                      <button onClick={() => {
-                                        if (isSelected) { updateCs({ characters: imgChars.filter(c => c.npc_id !== ref.id) }) }
-                                        else { updateCs({ characters: [...imgChars, { npc_id: ref.id, mask: imgChars.length === 0 ? 'left' : 'right', weight: 0.8 }] }) }
-                                        setTimeout(saveImages, 50)
-                                      }} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                                        <img src={ref.url} alt={ref.name} style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', border: `2px solid ${isSelected ? '#b48edd' : 'var(--border)'}`, opacity: isSelected ? 1 : 0.5 }} />
-                                      </button>
-                                      <span style={{ fontSize: '0.55rem', color: isSelected ? '#b48edd' : 'var(--muted)', fontWeight: isSelected ? 'bold' : 'normal' }}>{ref.name}</span>
-                                      {isSelected && (
-                                        <>
-                                          <select value={imgChars[charIdx].mask} onChange={e => { const updated = [...imgChars]; updated[charIdx] = { ...updated[charIdx], mask: e.target.value }; updateCs({ characters: updated }); setTimeout(saveImages, 50) }} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem', fontSize: '0.55rem', color: 'var(--foreground)', outline: 'none', cursor: 'pointer' }}>
-                                            {MASK_OPTIONS.map(m => <option key={m} value={m}>{MASK_LABELS[m]}</option>)}
-                                          </select>
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', width: '100%' }}>
-                                            <input type="range" min={0.3} max={1.0} step={0.05} value={imgChars[charIdx].weight} onChange={e => { const updated = [...imgChars]; updated[charIdx] = { ...updated[charIdx], weight: Number(e.target.value) }; updateCs({ characters: updated }); setTimeout(saveImages, 50) }} style={{ flex: 1, height: '4px', accentColor: '#b48edd' }} />
-                                            <span style={{ fontSize: '0.5rem', color: 'var(--muted)', minWidth: '22px' }}>{imgChars[charIdx].weight}</span>
-                                          </div>
-                                        </>
-                                      )}
-                                    </div>
-                                  )
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Params */}
-                          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                            <label style={{ fontSize: '0.6rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>Steps <input type="number" min={10} max={50} value={imgSteps} onChange={e => updateCs({ steps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '38px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
-                            <label style={{ fontSize: '0.6rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>CFG <input type="number" min={1} max={15} step={0.5} value={imgCfg} onChange={e => updateCs({ cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '38px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
-                            <label style={{ fontSize: '0.6rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>Seed <input type="number" min={-1} value={imgSeed} onChange={e => updateCs({ seed: Number(e.target.value) })} onBlur={saveImages} style={{ width: '60px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
-                          </div>
-
-                          {/* Actions */}
-                          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', paddingTop: '0.3rem', borderTop: '1px solid var(--border)' }}>
-                            <ImageGenButton
-                              type="section"
-                              storagePath={`books/${id}/sections/${detailSec.id}_${i}`}
-                              data={{
-                                summary: editImages[i]?.prompt_en ?? editImages[i]?.description ?? editSummary,
-                                description: editImages[i]?.prompt_en ?? editImages[i]?.description ?? editSummary,
-                                style: imgStyle,
-                                aspect_ratio: imgAr,
-                                steps: String(imgSteps), cfg: String(imgCfg), seed: String(imgSeed),
-                                checkpoint: imgCheckpoint, negative: imgNeg,
-                              }}
-                              sceneBackgroundUrl={imgBgUrl || undefined}
-                              sceneCharacters={imgChars.length > 0 ? imgChars.map(c => {
-                                const npc = allNpcCandidates.find(n => n.id === c.npc_id)
-                                return npc ? { portrait_url: npc.url, mask: c.mask, weight: c.weight } : null
-                              }).filter((c): c is { portrait_url: string; mask: string; weight: number } => !!c) : undefined}
-                              currentUrl={editImages[i]?.url}
-                              onSaved={async (url, meta) => {
-                                const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
-                                const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl, ...(meta ?? {}) } as any : img)
-                                setEditImages(() => newImgs)
-                                const cleanImgs = newImgs.filter(img => img.url || img.description?.trim()).map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, comfyui_settings: img.comfyui_settings || undefined, text_position: img.text_position || undefined, bubble_positions: img.bubble_positions || undefined, appearance_effect: img.appearance_effect || undefined }))
-                                const res = await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
-                                if (!res.ok) console.error('[onSaved] PATCH failed')
-                                setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
-                              }}
-                            />
-                            <label style={{ cursor: 'pointer' }}>
-                              <input type="file" accept="image/png,image/jpeg,image/webp" style={{ display: 'none' }} onChange={async e => {
-                                const file = e.target.files?.[0]; if (!file) return
-                                const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_${i}`)
-                                const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
-                                const d = await res.json()
-                                if (d.url) { updateImg({ url: d.url + '?t=' + Date.now() }); setTimeout(saveImages, 50) }
-                                e.target.value = ''
-                              }} />
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.25rem 0.5rem', fontSize: '0.68rem', color: 'var(--muted)' }}>📁 PC</span>
-                            </label>
-                          </div>
+                              if (d.url) { updateCs({ background_url: d.url.split('?')[0] }); setTimeout(saveImages, 50) }
+                              e.target.value = ''
+                            }} />
+                            <span style={{ fontSize: '0.58rem', background: '#e0a74212', border: '1px solid #e0a74230', borderRadius: '3px', padding: '0.15rem 0.4rem', color: '#e0a742', cursor: 'pointer' }}>📁 {imgBgUrl ? 'Changer' : 'Upload'}</span>
+                          </label>
+                          {imgBgUrl && <button onClick={() => { updateCs({ background_url: '' }); setTimeout(saveImages, 50) }} style={{ fontSize: '0.5rem', background: 'none', border: '1px solid #c94c4c33', borderRadius: '3px', padding: '0.08rem 0.25rem', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>}
                         </div>
-                      )
+
+                        {/* Personnages */}
+                        {allNpcCandidates.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.55rem', color: '#b48edd', fontWeight: 'bold', textTransform: 'uppercase' }}>PNJ</span>
+                            {allNpcCandidates.map(ref => {
+                              const charIdx = imgChars.findIndex(c => c.npc_id === ref.id)
+                              const sel = charIdx >= 0
+                              return (
+                                <button key={ref.id} onClick={() => {
+                                  if (sel) updateCs({ characters: imgChars.filter(c => c.npc_id !== ref.id) })
+                                  else updateCs({ characters: [...imgChars, { npc_id: ref.id, mask: imgChars.length === 0 ? 'left' : 'right', weight: 0.8 }] })
+                                  setTimeout(saveImages, 50)
+                                }} title={ref.name} style={{ background: 'none', border: `2px solid ${sel ? '#b48edd' : 'var(--border)'}`, borderRadius: '50%', padding: 0, cursor: 'pointer' }}>
+                                  <img src={ref.url} alt={ref.name} style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', opacity: sel ? 1 : 0.4 }} />
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* Actions : Générer + Upload + Params dépliable */}
+                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center', paddingTop: '0.25rem', borderTop: '1px solid var(--border)' }}>
+                          <ImageGenButton type="section" storagePath={`books/${id}/sections/${detailSec.id}_${i}`}
+                            data={{ summary: editImages[i]?.prompt_en ?? editImages[i]?.description ?? editSummary, description: editImages[i]?.prompt_en ?? editImages[i]?.description ?? editSummary, style: imgStyle, aspect_ratio: imgAr, steps: String(imgSteps), cfg: String(imgCfg), seed: String(imgSeed), checkpoint: imgCheckpoint, negative: imgNeg }}
+                            sceneBackgroundUrl={imgBgUrl || undefined}
+                            sceneCharacters={imgChars.length > 0 ? imgChars.map(c => { const npc = allNpcCandidates.find(n => n.id === c.npc_id); return npc ? { portrait_url: npc.url, mask: c.mask, weight: c.weight } : null }).filter((c): c is { portrait_url: string; mask: string; weight: number } => !!c) : undefined}
+                            currentUrl={editImages[i]?.url}
+                            onSaved={async (url, meta) => {
+                              const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
+                              updateImg({ url: displayUrl, ...(meta ?? {}) }); setTimeout(saveImages, 100)
+                            }}
+                          />
+                          <label style={{ cursor: 'pointer' }}>
+                            <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
+                              const file = e.target.files?.[0]; if (!file) return
+                              const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_${i}`)
+                              const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                              const d = await res.json()
+                              if (d.url) { updateImg({ url: d.url + '?t=' + Date.now() }); setTimeout(saveImages, 50) }
+                              e.target.value = ''
+                            }} />
+                            <span style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.45rem', color: 'var(--muted)', cursor: 'pointer' }}>📁</span>
+                          </label>
+                          <button onClick={() => updateCs({ _paramsOpen: !cs._paramsOpen })} style={{ fontSize: '0.6rem', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.18rem 0.4rem', color: 'var(--muted)', cursor: 'pointer' }}>
+                            {cs._paramsOpen ? '▲ Params' : '▼ Params'}
+                          </button>
+                        </div>
+
+                        {/* Params dépliable */}
+                        {cs._paramsOpen && (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', background: 'var(--surface-2)', borderRadius: '5px', padding: '0.4rem', border: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Steps <input type="number" min={10} max={50} value={imgSteps} onChange={e => updateCs({ steps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                              <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>CFG <input type="number" min={1} max={15} step={0.5} value={imgCfg} onChange={e => updateCs({ cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                              <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Seed <input type="number" min={-1} value={imgSeed} onChange={e => updateCs({ seed: Number(e.target.value) })} onBlur={saveImages} style={{ width: '55px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                              <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
+                                <option value="juggernaut">Juggernaut XL v9</option>
+                                <option value="sdxl_base">SDXL Base</option>
+                                <option value="juggernaut+anime">Juggernaut+Anime</option>
+                                <option value="juggernaut+concept">Juggernaut+Concept</option>
+                              </select>
+                              <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
+                                <option value="realistic">Realiste</option><option value="photo">Photo</option><option value="manga">Manga</option><option value="comic">BD</option><option value="bnw">N&B</option><option value="watercolor">Aquarelle</option><option value="dark_fantasy">Dark Fantasy</option><option value="pixel">Pixel</option><option value="sketch">Esquisse</option>
+                              </select>
+                              <select value={imgAr} onChange={e => { updateImg({ aspect_ratio: e.target.value }); updateCs({ aspect_ratio: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
+                                <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option>
+                              </select>
+                              <select value={(editImages[i] as any)?.appearance_effect ?? 'none'} onChange={e => { updateImg({ appearance_effect: e.target.value === 'none' ? undefined : e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--muted)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
+                                <option value="none">— Effet</option><option value="shake">Tremblement</option><option value="flash_rouge">Flash rouge</option><option value="flash_blanc">Flash blanc</option><option value="impact">Impact</option>
+                              </select>
+                            </div>
+                          </div>
+                        )}
+                      </>)
                     })()}
+                    </div>{/* fin colonne droite */}
+                    </div>{/* fin layout gauche/droite */}
+
+                    {/* Texte assigné au plan + tags */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', borderTop: '1px solid var(--border)', paddingTop: '0.4rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                          📜 Texte assigné au plan
+                          {editPhraseDistribution[i]?.length > 0 && (
+                            <span style={{ marginLeft: '0.4rem', color: '#7ab8d8' }}>({editPhraseDistribution[i].length} phrase{editPhraseDistribution[i].length > 1 ? 's' : ''})</span>
+                          )}
+                        </div>
+                        <CorrectButton size="sm" text={(editPhraseDistribution[i] ?? []).join('\n')} onCorrected={corrected => {
+                          const lines = corrected.split('\n').filter(Boolean)
+                          setEditPhraseDistribution(prev => { const next = [...prev]; next[i] = lines; return next })
+                        }} />
+                      </div>
+                      <TaggablePhraseEditor planIdx={i} phrases={editPhraseDistribution[i] ?? []} npcs={npcs}
+                        onChange={lines => { setEditPhraseDistribution(prev => { const next = [...prev]; while (next.length <= i) next.push([]); next[i] = lines; return next }) }}
+                        onBlur={() => {
+                          const clean = editPhraseDistribution.length > 0 && editPhraseDistribution.some(arr => arr.length > 0) ? editPhraseDistribution : null
+                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phrase_distribution: clean }) })
+                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, phrase_distribution: clean ?? undefined } : s))
+                        }}
+                      />
+                    </div>
                   </div>
                 ))}
                 {editImages.length < 3 && (
