@@ -1693,20 +1693,32 @@ export default function BookPage() {
                   ]
 
                   function updateImg(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)) }
-                  function updateCs(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...cs, ...patch } } as any : img)) }
+                  function updateCs(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...(img as any).comfyui_settings, ...patch } } as any : img)) }
+                  // Build clean images for DB save
+                  function buildClean(imgs: typeof editImages) {
+                    return imgs
+                      .filter(img => img.url || img.description?.trim() || img.prompt_fr?.trim() || img.prompt_en?.trim() || (img as any).comfyui_settings)
+                      .map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: (img as any).comfyui_settings, text_position: (img as any).text_position, bubble_positions: (img as any).bubble_positions, appearance_effect: (img as any).appearance_effect }))
+                  }
+                  // Save current editImages to DB
                   function saveImages() {
                     setEditImages(currentImgs => {
-                      const cleanImgs = currentImgs.filter(img => img.url || img.description?.trim()).map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: (img as any).comfyui_settings, text_position: (img as any).text_position, bubble_positions: (img as any).bubble_positions, appearance_effect: (img as any).appearance_effect }))
-                      fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
-                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
+                      const clean = buildClean(currentImgs)
+                      console.log(`[save] section=${detailSec.id} plan=${i + 1} images=${clean.length}`)
+                      fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                        .then(r => { if (!r.ok) console.error('[save] PATCH failed:', r.status) })
+                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
                       return currentImgs
                     })
                   }
+                  // Update state + save in one call
                   function setImgAndSave(patch: Record<string, unknown>) {
                     setEditImages(prev => {
                       const updated = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
-                      const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                      const clean = buildClean(updated)
+                      console.log(`[setImgAndSave] section=${detailSec.id} plan=${i + 1} keys=${Object.keys(patch).join(',')}`)
                       fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                        .then(r => { if (!r.ok) console.error('[setImgAndSave] PATCH failed:', r.status) })
                       setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
                       return updated
                     })
