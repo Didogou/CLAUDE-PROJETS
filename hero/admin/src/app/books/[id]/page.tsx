@@ -2012,10 +2012,20 @@ export default function BookPage() {
                                     if (pd.status === 'succeeded') {
                                       const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}_anim`)}`)
                                       const imgData = await imgRes.json()
+                                      console.log('[animate] imgData:', imgData)
                                       if (imgData.image_url) {
-                                        // Save animation URL alongside the image
-                                        updateCs({ animation_url: imgData.image_url.split('?')[0] })
-                                        setTimeout(() => saveImages(), 100)
+                                        const animUrl = imgData.image_url.split('?')[0]
+                                        console.log('[animate] saving animation_url:', animUrl)
+                                        // Save using setEditImages callback for reliability
+                                        setEditImages(prev => {
+                                          const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...(img as any).comfyui_settings, animation_url: animUrl, _animating: false } } as any : img)
+                                          const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                                          return updated
+                                        })
+                                      } else {
+                                        console.log('[animate] no image_url in response:', imgData)
                                       }
                                       break
                                     }
@@ -2031,8 +2041,8 @@ export default function BookPage() {
                             </button>
                           )}
                           {/* Aperçu animation */}
-                          {cs.animation_url && (
-                            <a href={cs.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.55rem', color: '#e8a84c', textDecoration: 'underline' }}>GIF</a>
+                          {((editImages[i] as any)?.comfyui_settings?.animation_url) && (
+                            <a href={(editImages[i] as any).comfyui_settings.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.55rem', color: '#e8a84c', textDecoration: 'underline' }}>GIF</a>
                           )}
                           {/* Bouton Dériver du plan précédent — img2img transition */}
                           {i > 0 && editImages[i - 1]?.url && (editImages[i]?.prompt_en || '').trim() && (
