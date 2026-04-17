@@ -710,7 +710,7 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
     '38': {
       class_type: 'CLIPLoader',
       inputs: {
-        clip_name: 'umt5-xxl-enc-fp8_e4m3fn.safetensors',
+        clip_name: 'umt5_xxl_fp8_e4m3fn_scaled.safetensors',
         type: 'wan',
       },
     },
