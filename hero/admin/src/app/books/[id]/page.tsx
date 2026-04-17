@@ -16578,7 +16578,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                           {/* Grande preview */}
                           <div style={{ flexShrink: 0 }}>
                             {npc.image_url ? (
-                              <img src={npc.image_url} alt={npc.name} onClick={() => setZoomedImage?.(npc.image_url!)} style={{ width: '200px', height: '200px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #b48edd44', cursor: 'zoom-in' }} />
+                              <img src={npc.image_url} alt={npc.name} onClick={() => window.open(npc.image_url!, '_blank')} style={{ width: '200px', height: '200px', objectFit: 'cover', borderRadius: '8px', border: '2px solid #b48edd44', cursor: 'zoom-in' }} />
                             ) : (
                               <div style={{ width: '200px', height: '200px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: tc.color + '11', borderRadius: '8px', border: '2px dashed var(--border)', color: 'var(--muted)', fontSize: '0.8rem' }}>Aucun portrait</div>
                             )}
