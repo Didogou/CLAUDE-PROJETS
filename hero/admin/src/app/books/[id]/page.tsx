@@ -2145,7 +2145,9 @@ export default function BookPage() {
                                 const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`); const pd = await poll.json()
                                 if (pd.status === 'succeeded') {
                                   const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=gif_info`); const histData = await histRes.json()
+                                  console.log('[GIF] gif_info response:', histData)
                                   const animUrl = histData.gif_url || ''
+                                  console.log('[GIF] animUrl:', animUrl)
                                   if (animUrl) {
                                     setEditImages(prev => {
                                       const currentCs = (prev[i] as any)?.comfyui_settings ?? {}
@@ -2166,6 +2168,10 @@ export default function BookPage() {
                             {cs._animating ? `⏳ ${cs._animating}` : '🎬 Animer'}
                           </button>
                           {animationUrl && <a href={animationUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline', fontWeight: 'bold' }}>Voir le GIF</a>}
+                          {/* Fallback: check if animation was generated but URL not saved */}
+                          {!animationUrl && ((editImages[i] as any)?.comfyui_settings?.animation_url) && (
+                            <a href={(editImages[i] as any).comfyui_settings.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline', fontWeight: 'bold' }}>Voir le GIF (live)</a>
+                          )}
                         </div>
                         {/* Params animation */}
                         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.55rem', color: 'var(--muted)' }}>
