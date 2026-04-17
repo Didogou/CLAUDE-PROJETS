@@ -1744,9 +1744,10 @@ export default function BookPage() {
                                           else newVariants.splice(vi, 1) // no old main, just remove from variants
                                           updateImg({ url: vUrl + '?t=' + Date.now() })
                                           updateCs({ variants: newVariants })
-                                          setTimeout(saveImages, 50)
+                                          // Save with delay to let React batch both updates
+                                          setTimeout(() => saveImages(), 100)
                                         }} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = utiliser comme principale" />
-                                        <button onClick={e => { e.stopPropagation(); updateCs({ variants: variants.filter((_, vii) => vii !== vi) }); setTimeout(saveImages, 50) }} style={{ position: 'absolute', top: '-3px', right: '-3px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
+                                        <button onClick={e => { e.stopPropagation(); updateCs({ variants: variants.filter((_, vii) => vii !== vi) }); setTimeout(() => saveImages(), 100) }} style={{ position: 'absolute', top: '-3px', right: '-3px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
                                       </div>
                                     ))}
                                   </div>
@@ -1765,7 +1766,7 @@ export default function BookPage() {
                                     }).map((item, oi) => (
                                       <img key={oi} src={item.url} alt={item.label} title={`${item.label} — Clic = utiliser dans ce plan`} onClick={() => {
                                         updateImg({ url: item.url + '?t=' + Date.now() })
-                                        setTimeout(saveImages, 50)
+                                        setTimeout(() => saveImages(), 100)
                                       }} style={{ width: '50px', height: '28px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer', opacity: 0.7 }} />
                                     ))}
                                   </div>
@@ -1898,12 +1899,12 @@ export default function BookPage() {
                               const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_bg_${i}`)
                               const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
                               const d = await res.json()
-                              if (d.url) { updateCs({ background_url: d.url.split('?')[0] }); setTimeout(saveImages, 50) }
+                              if (d.url) { updateCs({ background_url: d.url.split('?')[0] }); setTimeout(() => saveImages(), 100) }
                               e.target.value = ''
                             }} />
                             <span style={{ fontSize: '0.58rem', background: '#e0a74212', border: '1px solid #e0a74230', borderRadius: '3px', padding: '0.15rem 0.4rem', color: '#e0a742', cursor: 'pointer' }}>📁 {imgBgUrl ? 'Changer' : 'Upload'}</span>
                           </label>
-                          {imgBgUrl && <button onClick={() => { updateCs({ background_url: '' }); setTimeout(saveImages, 50) }} style={{ fontSize: '0.5rem', background: 'none', border: '1px solid #c94c4c33', borderRadius: '3px', padding: '0.08rem 0.25rem', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>}
+                          {imgBgUrl && <button onClick={() => { updateCs({ background_url: '' }); setTimeout(() => saveImages(), 100) }} style={{ fontSize: '0.5rem', background: 'none', border: '1px solid #c94c4c33', borderRadius: '3px', padding: '0.08rem 0.25rem', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>}
                         </div>
 
                         {/* Personnages */}
@@ -1917,7 +1918,7 @@ export default function BookPage() {
                                 <button key={ref.id} onClick={() => {
                                   if (sel) updateCs({ characters: imgChars.filter(c => c.npc_id !== ref.id) })
                                   else updateCs({ characters: [...imgChars, { npc_id: ref.id, mask: imgChars.length === 0 ? 'left' : 'right', weight: 0.8 }] })
-                                  setTimeout(saveImages, 50)
+                                  setTimeout(() => saveImages(), 100)
                                 }} title={ref.name} style={{ background: 'none', border: `2px solid ${sel ? '#b48edd' : 'var(--border)'}`, borderRadius: '50%', padding: 0, cursor: 'pointer' }}>
                                   <img src={ref.url} alt={ref.name} style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', opacity: sel ? 1 : 0.4 }} />
                                 </button>
@@ -1954,7 +1955,7 @@ export default function BookPage() {
                               const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_${i}`)
                               const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
                               const d = await res.json()
-                              if (d.url) { updateImg({ url: d.url + '?t=' + Date.now() }); setTimeout(saveImages, 50) }
+                              if (d.url) { updateImg({ url: d.url + '?t=' + Date.now() }); setTimeout(() => saveImages(), 100) }
                               e.target.value = ''
                             }} />
                             <span style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.45rem', color: 'var(--muted)', cursor: 'pointer' }}>📁</span>
@@ -2004,7 +2005,7 @@ export default function BookPage() {
                                       if (imgData.image_url) {
                                         // Save animation URL alongside the image
                                         updateCs({ animation_url: imgData.image_url.split('?')[0] })
-                                        setTimeout(saveImages, 50)
+                                        setTimeout(() => saveImages(), 100)
                                       }
                                       break
                                     }
@@ -2063,7 +2064,7 @@ export default function BookPage() {
                                   }
                                 }
                                 updateCs({ variants: newVariants, _generatingVariants: false })
-                                setTimeout(saveImages, 50)
+                                setTimeout(() => saveImages(), 100)
                               } catch { updateCs({ _generatingVariants: false }) }
                             }}
                             style={{ fontSize: '0.6rem', background: cs._generatingVariants ? 'rgba(180,142,221,0.1)' : 'none', border: '1px solid #b48edd44', borderRadius: '4px', padding: '0.18rem 0.4rem', color: cs._generatingVariants ? 'var(--muted)' : '#b48edd', cursor: cs._generatingVariants ? 'default' : 'pointer' }}
@@ -2081,19 +2082,19 @@ export default function BookPage() {
                               <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Seed <input type="number" min={-1} value={imgSeed} onChange={e => updateCs({ seed: Number(e.target.value) })} onBlur={saveImages} style={{ width: '55px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
                             </div>
                             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                              <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
+                              <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
                                 <option value="juggernaut">Juggernaut XL v9</option>
                                 <option value="sdxl_base">SDXL Base</option>
                                 <option value="juggernaut+anime">Juggernaut+Anime</option>
                                 <option value="juggernaut+concept">Juggernaut+Concept</option>
                               </select>
-                              <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
+                              <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
                                 <option value="realistic">Realiste</option><option value="photo">Photo</option><option value="manga">Manga</option><option value="comic">BD</option><option value="bnw">N&B</option><option value="watercolor">Aquarelle</option><option value="dark_fantasy">Dark Fantasy</option><option value="pixel">Pixel</option><option value="sketch">Esquisse</option>
                               </select>
-                              <select value={imgAr} onChange={e => { updateImg({ aspect_ratio: e.target.value }); updateCs({ aspect_ratio: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
+                              <select value={imgAr} onChange={e => { updateImg({ aspect_ratio: e.target.value }); updateCs({ aspect_ratio: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
                                 <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option>
                               </select>
-                              <select value={(editImages[i] as any)?.appearance_effect ?? 'none'} onChange={e => { updateImg({ appearance_effect: e.target.value === 'none' ? undefined : e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--muted)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
+                              <select value={(editImages[i] as any)?.appearance_effect ?? 'none'} onChange={e => { updateImg({ appearance_effect: e.target.value === 'none' ? undefined : e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--muted)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
                                 <option value="none">— Effet</option><option value="shake">Tremblement</option><option value="flash_rouge">Flash rouge</option><option value="flash_blanc">Flash blanc</option><option value="impact">Impact</option>
                               </select>
                             </div>
