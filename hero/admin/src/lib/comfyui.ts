@@ -717,11 +717,11 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
         load_device: 'offload_device',
       },
     },
-    // VAE — uses model_name (not vae)
+    // VAE — TI2V-5B uses Wan 2.1 VAE (48 channels, not 96)
     '38': {
       class_type: 'WanVideoVAELoader',
       inputs: {
-        model_name: 'Wan2_2_VAE_bf16.safetensors',
+        model_name: 'Wan2_1_VAE_bf16.safetensors',
         precision: 'bf16',
       },
     },
