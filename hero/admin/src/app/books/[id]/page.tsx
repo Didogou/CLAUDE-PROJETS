@@ -1729,9 +1729,9 @@ export default function BookPage() {
                       <button onClick={() => setEditImages(imgs => imgs.filter((_, idx) => idx !== i))} title="Supprimer ce plan" style={{ marginLeft: 'auto', fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>
                     </div>
 
-                    {/* ── Image principale ── */}
+                    {/* ── Image principale + Prompts côte à côte ── */}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      {/* Colonne gauche : Image + BubblePositioner */}
+                      {/* Colonne gauche : Image */}
                       <div style={{ width: '45%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {editImages[i]?.url ? (
                           <div style={{ position: 'relative' }}>
@@ -1833,40 +1833,8 @@ export default function BookPage() {
                         })()}
                       </div>
 
-                      {/* Colonne droite : Prompts + Contrôles */}
+                      {/* Colonne droite : Prompts */}
                       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.35rem', minWidth: 0 }}>
-                    {(() => {
-                      const cs = (editImages[i] as any)?.comfyui_settings ?? {}
-                      const imgStyle = editImages[i]?.style ?? book.illustration_style ?? 'realistic'
-                      const imgAr = (editImages[i] as any)?.aspect_ratio ?? '16:9'
-                      const imgNeg = cs.negative || 'blurry, distorted, watermark, text, deformed hands, low quality'
-                      const imgSteps = cs.steps ?? 35
-                      const imgCfg = cs.cfg ?? 7
-                      const imgSeed = cs.seed ?? -1
-                      const imgCheckpoint = cs.checkpoint ?? 'juggernaut'
-                      const imgBgUrl: string = cs.background_url ?? ''
-                      const imgChars: Array<{ npc_id: string; mask: string; weight: number }> = cs.characters ?? []
-                      const protagonistNpc = book.protagonist_npc_id ? npcs.find(n => n.id === book.protagonist_npc_id) : null
-                      const companionNpcs = (detailSec.companion_npc_ids ?? []).map(nid => npcs.find(n => n.id === nid)).filter((n): n is Npc => !!n && !!(n.portrait_url || n.image_url))
-                      const allNpcCandidates = [
-                        ...(protagonistNpc && (protagonistNpc.portrait_url || protagonistNpc.image_url) ? [{ id: protagonistNpc.id, name: protagonistNpc.name, url: protagonistNpc.portrait_url || protagonistNpc.image_url! }] : []),
-                        ...companionNpcs.filter(n => n.id !== protagonistNpc?.id).map(n => ({ id: n.id, name: n.name, url: n.portrait_url || n.image_url! })),
-                      ]
-                      function updateImg(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)) }
-                      function updateCs(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...cs, ...patch } } as any : img)) }
-                      function saveImages() {
-                        // Use callback form to read latest state
-                        setEditImages(currentImgs => {
-                          const cleanImgs = currentImgs.filter(img => img.url || img.description?.trim()).map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio || undefined, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, comfyui_settings: (img as any).comfyui_settings || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
-                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
-                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
-                          return currentImgs // don't modify state, just read it
-                        })
-                      }
-                      // Save after updateImg with a short delay to let React batch the state update
-                      function updateImgAndSave(patch: Record<string, unknown>) { updateImg(patch); setTimeout(saveImages, 20) }
-                      function updateCsAndSave(patch: Record<string, unknown>) { updateCs(patch); setTimeout(saveImages, 20) }
-                      return (<>
                         {/* Prompt FR */}
                         <div style={{ fontSize: '0.58rem', color: '#4caf7d', fontWeight: 'bold', textTransform: 'uppercase' }}>Prompt FR</div>
                         <textarea value={editImages[i]?.prompt_fr ?? ''} onChange={e => updateImg({ prompt_fr: e.target.value })} onBlur={saveImages} placeholder="Décrivez la scène en français…" rows={2} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #4caf7d22', borderRadius: '4px', padding: '0.3rem 0.45rem', color: 'var(--foreground)', fontSize: '0.7rem', resize: 'vertical', outline: 'none', lineHeight: 1.5 }} />
@@ -1875,7 +1843,7 @@ export default function BookPage() {
                           try {
                             const res = await fetch('/api/translate-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt_fr: text, has_ipadapter: imgChars.length > 0 }) })
                             const d = await res.json()
-                            if (d.prompt_en) { updateImgAndSave({ prompt_en: d.prompt_en, description: d.prompt_en }) }
+                            if (d.prompt_en) { updateImg({ prompt_en: d.prompt_en, description: d.prompt_en }); setTimeout(() => saveImages(), 100) }
                           } catch { /* ignore */ }
                         }} style={{ alignSelf: 'flex-start', background: 'rgba(76,175,125,0.12)', border: '1px solid rgba(76,175,125,0.35)', borderRadius: '4px', color: '#4caf7d', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem', fontWeight: 'bold' }}>
                           🌐 Traduire FR → EN
@@ -1945,10 +1913,19 @@ export default function BookPage() {
                         <div style={{ fontSize: '0.55rem', color: '#c94c4c88', fontWeight: 'bold', textTransform: 'uppercase' }}>Negative</div>
                         <textarea value={imgNeg} onChange={e => updateCs({ negative: e.target.value })} onBlur={saveImages} rows={1} style={{ width: '100%', background: '#c94c4c06', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.2rem 0.4rem', color: '#c94c4c88', fontSize: '0.62rem', resize: 'none', outline: 'none' }} />
 
+                      </div>{/* fin colonne droite */}
+                    </div>{/* fin layout image+prompts */}
+
+                    {/* ══ SECTIONS DÉPLIABLES ══ */}
+
+                    {/* ── Background + PNJ ── */}
+                    <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#e0a742', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Background + Personnages</summary>
+                      <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                         {/* Background */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          <span style={{ fontSize: '0.55rem', color: '#e0a742', fontWeight: 'bold', textTransform: 'uppercase' }}>Background</span>
-                          {imgBgUrl && <img src={imgBgUrl} alt="bg" style={{ width: '36px', height: '22px', objectFit: 'cover', borderRadius: '3px', border: '1px solid #e0a74244' }} />}
+                          <span style={{ fontSize: '0.55rem', color: '#e0a742', fontWeight: 'bold' }}>Background</span>
+                          {imgBgUrl && <img src={imgBgUrl} alt="bg" style={{ width: '40px', height: '25px', objectFit: 'cover', borderRadius: '3px', border: '1px solid #e0a74244' }} />}
                           <label style={{ cursor: 'pointer' }}>
                             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
                               const file = e.target.files?.[0]; if (!file) return
@@ -1958,15 +1935,14 @@ export default function BookPage() {
                               if (d.url) { updateCs({ background_url: d.url.split('?')[0] }); setTimeout(() => saveImages(), 100) }
                               e.target.value = ''
                             }} />
-                            <span style={{ fontSize: '0.58rem', background: '#e0a74212', border: '1px solid #e0a74230', borderRadius: '3px', padding: '0.15rem 0.4rem', color: '#e0a742', cursor: 'pointer' }}>📁 {imgBgUrl ? 'Changer' : 'Upload'}</span>
+                            <span style={{ fontSize: '0.6rem', background: '#e0a74215', border: '1px solid #e0a74233', borderRadius: '4px', padding: '0.2rem 0.45rem', color: '#e0a742', cursor: 'pointer' }}>📁 {imgBgUrl ? 'Changer' : 'Upload'}</span>
                           </label>
-                          {imgBgUrl && <button onClick={() => { updateCs({ background_url: '' }); setTimeout(() => saveImages(), 100) }} style={{ fontSize: '0.5rem', background: 'none', border: '1px solid #c94c4c33', borderRadius: '3px', padding: '0.08rem 0.25rem', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>}
+                          {imgBgUrl && <button onClick={() => { updateCs({ background_url: '' }); setTimeout(() => saveImages(), 100) }} style={{ fontSize: '0.5rem', background: 'none', border: '1px solid #c94c4c33', borderRadius: '3px', padding: '0.1rem 0.3rem', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>}
                         </div>
-
-                        {/* Personnages */}
+                        {/* PNJ */}
                         {allNpcCandidates.length > 0 && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.55rem', color: '#b48edd', fontWeight: 'bold', textTransform: 'uppercase' }}>PNJ</span>
+                            <span style={{ fontSize: '0.55rem', color: '#b48edd', fontWeight: 'bold' }}>PNJ</span>
                             {allNpcCandidates.map(ref => {
                               const charIdx = imgChars.findIndex(c => c.npc_id === ref.id)
                               const sel = charIdx >= 0
@@ -1976,33 +1952,28 @@ export default function BookPage() {
                                   else updateCs({ characters: [...imgChars, { npc_id: ref.id, mask: imgChars.length === 0 ? 'left' : 'right', weight: 0.8 }] })
                                   setTimeout(() => saveImages(), 100)
                                 }} title={ref.name} style={{ background: 'none', border: `2px solid ${sel ? '#b48edd' : 'var(--border)'}`, borderRadius: '50%', padding: 0, cursor: 'pointer' }}>
-                                  <img src={ref.url} alt={ref.name} style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', opacity: sel ? 1 : 0.4 }} />
+                                  <img src={ref.url} alt={ref.name} style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', opacity: sel ? 1 : 0.4 }} />
                                 </button>
                               )
                             })}
                           </div>
                         )}
+                      </div>
+                    </details>
 
-                        {/* Actions : Générer + Upload + Params dépliable */}
-                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center', paddingTop: '0.25rem', borderTop: '1px solid var(--border)' }}>
+                    {/* ── Génération image ── */}
+                    <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#4c9bf0', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Génération image</summary>
+                      <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           <ImageGenButton type="section" storagePath={`books/${id}/sections/${detailSec.id}_${i}`}
                             data={{ summary: editImages[i]?.prompt_en || '', description: editImages[i]?.prompt_en || '', style: imgStyle, aspect_ratio: imgAr, steps: String(imgSteps), cfg: String(imgCfg), seed: String(imgSeed), checkpoint: imgCheckpoint, negative: imgNeg }}
                             sceneBackgroundUrl={imgBgUrl || undefined}
                             sceneCharacters={imgChars.length > 0 ? imgChars.map(c => { const npc = allNpcCandidates.find(n => n.id === c.npc_id); return npc ? { portrait_url: npc.url, mask: c.mask, weight: c.weight } : null }).filter((c): c is { portrait_url: string; mask: string; weight: number } => !!c) : undefined}
                             currentUrl={editImages[i]?.url}
-                            onSaved={async (url, meta) => {
-                              const cleanUrl = url.split('?')[0]
-                              const displayUrl = cleanUrl + '?t=' + Date.now()
-                              // Update state
-                              setEditImages(prev => prev.map((img, idx) => idx === i ? { ...img, url: displayUrl, ...(meta ?? {}) } as any : img))
-                              // Build clean images from current state + new url (don't rely on setEditImages callback for side effects)
-                              const currentImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl, ...(meta ?? {}) } as any : img)
-                              const cleanImgs = currentImgs.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio || undefined, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, comfyui_settings: img.comfyui_settings || undefined, text_position: img.text_position || undefined, bubble_positions: img.bubble_positions || undefined, appearance_effect: img.appearance_effect || undefined }))
-                              console.log('[illustration save]', { cleanUrl, count: cleanImgs.length })
-                              const res = await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
-                              if (!res.ok) console.error('[illustration save FAILED]', await res.json().catch(() => ({})))
-                              else console.log('[illustration save OK]')
-                              setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
+                            onSaved={async (url) => {
+                              const displayUrl = url.split('?')[0] + '?t=' + Date.now()
+                              setImgAndSave({ url: displayUrl })
                             }}
                           />
                           <label style={{ cursor: 'pointer' }}>
@@ -2011,260 +1982,179 @@ export default function BookPage() {
                               const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_${i}`)
                               const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
                               const d = await res.json()
-                              if (d.url) { updateImg({ url: d.url + '?t=' + Date.now() }); setTimeout(() => saveImages(), 100) }
+                              if (d.url) setImgAndSave({ url: d.url + '?t=' + Date.now() })
                               e.target.value = ''
                             }} />
-                            <span style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.45rem', color: 'var(--muted)', cursor: 'pointer' }}>📁</span>
+                            <span style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.45rem', color: 'var(--muted)', cursor: 'pointer' }}>📁 Upload</span>
                           </label>
-                          <button onClick={() => updateCs({ _paramsOpen: !cs._paramsOpen })} style={{ fontSize: '0.6rem', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.18rem 0.4rem', color: 'var(--muted)', cursor: 'pointer' }}>
-                            {cs._paramsOpen ? '▲ Params' : '▼ Params'}
-                          </button>
-                          {/* Bouton Animer — AnimateDiff img2vid */}
-                          {editImages[i]?.url && (
-                            <button
-                              disabled={cs._animating}
-                              onClick={async () => {
-                                updateCs({ _animating: true })
-                                try {
-                                  const imgUrl = editImages[i]?.url?.split('?')[0]
-                                  if (!imgUrl) return
-                                  // Upload source image to ComfyUI
-                                  const upRes = await fetch('/api/comfyui/upload', {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ type: 'url', url: imgUrl, name: `anim_src_${Date.now()}` }),
-                                  })
-                                  const upData = await upRes.json()
-                                  if (!upRes.ok) throw new Error(upData.error)
-                                  // Send animate workflow
-                                  const res = await fetch('/api/comfyui', {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      workflow_type: 'animate',
-                                      source_image: upData.filename,
-                                      prompt_positive: editImages[i]?.prompt_en || 'subtle motion, gentle wind, ambient lighting movement',
-                                      prompt_negative: 'static, frozen, morphing, distorted',
-                                      steps: cs.anim_steps ?? 20,
-                                      cfg: cs.anim_cfg ?? 6,
-                                      seed: -1,
-                                      denoise: cs.anim_denoise ?? 0.4,
-                                      frames: cs.anim_frames ?? 16,
-                                      fps: cs.anim_fps ?? 8,
-                                    }),
-                                  })
-                                  const d = await res.json()
-                                  if (!d.prompt_id) throw new Error(d.error || 'Pas de prompt_id')
-                                  // Poll
-                                  const start = Date.now()
-                                  while (Date.now() - start < 300_000) {
-                                    await new Promise(r => setTimeout(r, 4000))
-                                    updateCs({ _animating: `${Math.round((Date.now() - start) / 1000)}s` })
-                                    const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
-                                    const pd = await poll.json()
-                                    if (pd.status === 'succeeded') {
-                                      // Get GIF info from history (don't upload to Supabase — GIFs are too large)
-                                      const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=gif_info`)
-                                      const histData = await histRes.json()
-                                      const animUrl = histData.gif_url || `http://127.0.0.1:8188/api/view?filename=${encodeURIComponent(histData.filename || 'hero_animate_00001.gif')}&subfolder=&type=output`
-                                      console.log('[animate] GIF URL:', animUrl)
-                                      // Save animation URL
-                                      setEditImages(prev => {
-                                        const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...(img as any).comfyui_settings, animation_url: animUrl, _animating: false } } as any : img)
-                                        const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
-                                        fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                                        setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                                        return updated
-                                      })
-                                      break
-                                    }
-                                    if (pd.status === 'failed') throw new Error(pd.error || 'Animation échouée')
-                                  }
-                                } catch (err: unknown) {
-                                  alert('Erreur animation : ' + (err instanceof Error ? err.message : String(err)))
-                                } finally { updateCs({ _animating: false }) }
-                              }}
-                              style={{ fontSize: '0.6rem', background: cs._animating ? 'rgba(232,168,76,0.1)' : 'none', border: '1px solid #e8a84c44', borderRadius: '4px', padding: '0.18rem 0.4rem', color: cs._animating ? 'var(--muted)' : '#e8a84c', cursor: cs._animating ? 'default' : 'pointer' }}
-                            >
-                              {cs._animating ? `⏳ Anim ${cs._animating}` : '🎬 Animer'}
-                            </button>
-                          )}
-                          {/* Aperçu animation */}
-                          {((editImages[i] as any)?.comfyui_settings?.animation_url) && (
-                            <a href={(editImages[i] as any).comfyui_settings.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.55rem', color: '#e8a84c', textDecoration: 'underline' }}>GIF</a>
-                          )}
-                          {/* Bouton Dériver du plan précédent — img2img transition */}
-                          {i > 0 && editImages[i - 1]?.url && (editImages[i]?.prompt_en || '').trim() && (
-                            <button
-                              disabled={cs._deriving}
-                              onClick={async () => {
-                                updateCs({ _deriving: true })
-                                try {
-                                  const prevUrl = editImages[i - 1]?.url?.split('?')[0]
-                                  if (!prevUrl) return
-                                  // Upload previous plan image to ComfyUI
-                                  updateCs({ _deriving: 'Upload…' })
-                                  const upRes = await fetch('/api/comfyui/upload', {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ type: 'url', url: prevUrl, name: `derive_${Date.now()}` }),
-                                  })
-                                  const upData = await upRes.json()
-                                  if (!upRes.ok) throw new Error(upData.error)
-                                  // Send transition workflow (img2img with low denoise)
-                                  updateCs({ _deriving: 'Génération…' })
-                                  const deriveDenoise = cs.derive_denoise ?? 0.4
-                                  const res = await fetch('/api/comfyui', {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      workflow_type: 'transition',
-                                      source_image: upData.filename,
-                                      prompt_positive: editImages[i]?.prompt_en || '',
-                                      prompt_negative: imgNeg,
-                                      style: imgStyle, steps: imgSteps, cfg: imgCfg, seed: -1,
-                                      denoise: deriveDenoise,
-                                      checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] : undefined,
-                                    }),
-                                  })
-                                  const d = await res.json()
-                                  if (!d.prompt_id) throw new Error(d.error || 'Pas de prompt_id')
-                                  // Poll
-                                  const start = Date.now()
-                                  while (Date.now() - start < 300_000) {
-                                    await new Promise(r => setTimeout(r, 3000))
-                                    updateCs({ _deriving: `${Math.round((Date.now() - start) / 1000)}s` })
-                                    const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
-                                    const pd = await poll.json()
-                                    if (pd.status === 'succeeded') {
-                                      const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}`)}`)
-                                      const imgData = await imgRes.json()
-                                      if (imgData.image_url) {
-                                        const displayUrl = imgData.image_url.split('?')[0] + '?t=' + Date.now()
-                                        setEditImages(prev => {
-                                          const updated = prev.map((img, idx) => idx === i ? { ...img, url: displayUrl } as any : img)
-                                          const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
-                                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                                          return updated
-                                        })
-                                      }
-                                      break
-                                    }
-                                    if (pd.status === 'failed') throw new Error(pd.error || 'Génération échouée')
-                                  }
-                                } catch (err: unknown) {
-                                  alert('Erreur : ' + (err instanceof Error ? err.message : String(err)))
-                                } finally { updateCs({ _deriving: false }) }
-                              }}
-                              title={`Img2img depuis le Plan ${i} avec denoise ${cs.derive_denoise ?? 0.4} — change l'angle/composition`}
-                              style={{ fontSize: '0.6rem', background: cs._deriving ? 'rgba(100,181,246,0.1)' : 'none', border: '1px solid #64b5f644', borderRadius: '4px', padding: '0.18rem 0.4rem', color: cs._deriving ? 'var(--muted)' : '#64b5f6', cursor: cs._deriving ? 'default' : 'pointer' }}
-                            >
-                              {cs._deriving ? `⏳ ${cs._deriving}` : `🔄 Dériver Plan ${i}`}
-                            </button>
-                          )}
-                          {/* Bouton Variantes — génère 4 images avec seeds différentes */}
-                          <button
-                            disabled={cs._generatingVariants || !(editImages[i]?.prompt_en || '').trim()}
-                            onClick={async () => {
-                              updateCs({ _generatingVariants: true })
-                              try {
-                                const prompt = editImages[i]?.prompt_en || ''
-                                if (!prompt.trim()) return
-                                const newVariants: string[] = [...((cs.variants as string[]) ?? [])]
-                                for (let v = 0; v < 4; v++) {
-                                  updateCs({ _generatingVariants: `${v + 1}/4` })
-                                  // Queue with random seed
-                                  const res = await fetch('/api/comfyui', {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({
-                                      workflow_type: 'background', prompt_positive: prompt, prompt_negative: imgNeg,
-                                      style: imgStyle, width: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 768 : 1360,
-                                      height: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 1360 : 768,
-                                      steps: imgSteps, cfg: imgCfg, seed: -1,
-                                      checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] ?? undefined : undefined,
-                                    }),
-                                  })
-                                  const d = await res.json()
-                                  if (!d.prompt_id) continue
-                                  // Poll
-                                  const start = Date.now()
-                                  while (Date.now() - start < 180_000) {
-                                    await new Promise(r => setTimeout(r, 3000))
-                                    const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
-                                    const pd = await poll.json()
-                                    if (pd.status === 'succeeded') {
-                                      const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}_var${Date.now()}`)}`)
-                                      const imgData = await imgRes.json()
-                                      if (imgData.image_url) newVariants.push(imgData.image_url.split('?')[0])
-                                      break
-                                    }
-                                    if (pd.status === 'failed') break
-                                  }
-                                }
-                                // Save variants reliably using setEditImages callback
-                                setEditImages(prev => {
-                                  const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...(img as any).comfyui_settings, variants: newVariants, _generatingVariants: false } } as any : img)
-                                  const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
-                                  fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                                  setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                                  return updated
-                                })
-                              } catch { updateCs({ _generatingVariants: false }) }
-                            }}
-                            style={{ fontSize: '0.6rem', background: cs._generatingVariants ? 'rgba(180,142,221,0.1)' : 'none', border: '1px solid #b48edd44', borderRadius: '4px', padding: '0.18rem 0.4rem', color: cs._generatingVariants ? 'var(--muted)' : '#b48edd', cursor: cs._generatingVariants ? 'default' : 'pointer' }}
-                          >
-                            {cs._generatingVariants ? `⏳ ${cs._generatingVariants}` : '🎲 Variantes (×4)'}
-                          </button>
                         </div>
+                        {/* Params */}
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Steps <input type="number" min={10} max={50} value={imgSteps} onChange={e => updateCs({ steps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.6rem', textAlign: 'center' }} /></label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>CFG <input type="number" min={1} max={15} step={0.5} value={imgCfg} onChange={e => updateCs({ cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.6rem', textAlign: 'center' }} /></label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Seed <input type="number" min={-1} value={imgSeed} onChange={e => updateCs({ seed: Number(e.target.value) })} onBlur={saveImages} style={{ width: '55px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.6rem', textAlign: 'center' }} /></label>
+                          <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
+                            <option value="juggernaut">Juggernaut XL v9</option><option value="sdxl_base">SDXL Base</option><option value="juggernaut+anime">+Anime</option><option value="juggernaut+concept">+Concept</option>
+                          </select>
+                          <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
+                            <option value="realistic">Réaliste</option><option value="photo">Photo</option><option value="manga">Manga</option><option value="comic">BD</option><option value="bnw">N&B</option><option value="dark_fantasy">Dark Fantasy</option><option value="sketch">Esquisse</option>
+                          </select>
+                          <select value={imgAr} onChange={e => { updateImg({ aspect_ratio: e.target.value }); updateCs({ aspect_ratio: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
+                            <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option>
+                          </select>
+                        </div>
+                      </div>
+                    </details>
 
-                        {/* Params dépliable */}
-                        {cs._paramsOpen && (
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', background: 'var(--surface-2)', borderRadius: '5px', padding: '0.4rem', border: '1px solid var(--border)' }}>
-                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                              <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Steps <input type="number" min={10} max={50} value={imgSteps} onChange={e => updateCs({ steps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                              <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>CFG <input type="number" min={1} max={15} step={0.5} value={imgCfg} onChange={e => updateCs({ cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                              <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Seed <input type="number" min={-1} value={imgSeed} onChange={e => updateCs({ seed: Number(e.target.value) })} onBlur={saveImages} style={{ width: '55px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                              <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
-                                <option value="juggernaut">Juggernaut XL v9</option>
-                                <option value="sdxl_base">SDXL Base</option>
-                                <option value="juggernaut+anime">Juggernaut+Anime</option>
-                                <option value="juggernaut+concept">Juggernaut+Concept</option>
-                              </select>
-                              <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
-                                <option value="realistic">Realiste</option><option value="photo">Photo</option><option value="manga">Manga</option><option value="comic">BD</option><option value="bnw">N&B</option><option value="watercolor">Aquarelle</option><option value="dark_fantasy">Dark Fantasy</option><option value="pixel">Pixel</option><option value="sketch">Esquisse</option>
-                              </select>
-                              <select value={imgAr} onChange={e => { updateImg({ aspect_ratio: e.target.value }); updateCs({ aspect_ratio: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
-                                <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option>
-                              </select>
-                              <select value={(editImages[i] as any)?.appearance_effect ?? 'none'} onChange={e => { updateImg({ appearance_effect: e.target.value === 'none' ? undefined : e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--muted)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
-                                <option value="none">— Effet</option><option value="shake">Tremblement</option><option value="flash_rouge">Flash rouge</option><option value="flash_blanc">Flash blanc</option><option value="impact">Impact</option>
-                              </select>
-                            </div>
-                            {/* Paramètres Animation */}
-                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.3rem', marginTop: '0.2rem' }}>
-                              {/* Paramètres Dérivation */}
-                              <div style={{ fontSize: '0.55rem', color: '#64b5f6', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Dérivation (img2img plan précédent)</div>
-                              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.3rem' }}>
-                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.derive_denoise ?? 0.4} onChange={e => updateCs({ derive_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                                <span style={{ fontSize: '0.5rem', color: 'var(--muted)', fontStyle: 'italic' }}>0.2=très proche | 0.4=angle différent | 0.6=scène différente</span>
+                    {/* ── Variantes ── */}
+                    <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#b48edd', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Variantes {variants.length > 0 ? `(${variants.length})` : ''}</summary>
+                      <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <button disabled={cs._generatingVariants || !(editImages[i]?.prompt_en || '').trim()} onClick={async () => {
+                          updateCs({ _generatingVariants: true })
+                          try {
+                            const prompt = editImages[i]?.prompt_en || ''; if (!prompt.trim()) return
+                            const newVariants = [...variants]
+                            for (let v = 0; v < 4; v++) {
+                              updateCs({ _generatingVariants: `${v + 1}/4` })
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'background', prompt_positive: prompt, prompt_negative: imgNeg, style: imgStyle, width: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 768 : 1360, height: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 1360 : 768, steps: imgSteps, cfg: imgCfg, seed: -1, checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] : undefined }) })
+                              const d = await res.json(); if (!d.prompt_id) continue
+                              const start = Date.now()
+                              while (Date.now() - start < 180_000) {
+                                await new Promise(r => setTimeout(r, 3000))
+                                const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`); const pd = await poll.json()
+                                if (pd.status === 'succeeded') { const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}_var${Date.now()}`)}`); const imgData = await imgRes.json(); if (imgData.image_url) newVariants.push(imgData.image_url.split('?')[0]); break }
+                                if (pd.status === 'failed') break
+                              }
+                            }
+                            setImgAndSave({ comfyui_settings: { ...cs, variants: newVariants, _generatingVariants: false } })
+                          } catch { updateCs({ _generatingVariants: false }) }
+                        }} style={{ alignSelf: 'flex-start', fontSize: '0.65rem', background: '#b48edd15', border: '1px solid #b48edd33', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._generatingVariants ? 'var(--muted)' : '#b48edd', cursor: cs._generatingVariants ? 'default' : 'pointer', fontWeight: 'bold' }}>
+                          {cs._generatingVariants ? `⏳ ${cs._generatingVariants}` : '🎲 Générer 4 variantes'}
+                        </button>
+                        {variants.length > 0 && (
+                          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                            {variants.map((vUrl, vi) => (
+                              <div key={vi} style={{ position: 'relative' }}>
+                                <img src={vUrl} alt={`var ${vi + 1}`} onClick={() => {
+                                  const oldUrl = editImages[i]?.url?.split('?')[0]; const nv = [...variants]; if (oldUrl) nv[vi] = oldUrl; else nv.splice(vi, 1)
+                                  setImgAndSave({ url: vUrl + '?t=' + Date.now(), comfyui_settings: { ...cs, variants: nv } })
+                                }} style={{ width: '70px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = image principale" />
+                                <button onClick={e => { e.stopPropagation(); setImgAndSave({ comfyui_settings: { ...cs, variants: variants.filter((_, vii) => vii !== vi) } }) }} style={{ position: 'absolute', top: '-4px', right: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                               </div>
-                              <div style={{ fontSize: '0.55rem', color: '#e8a84c', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Animation (AnimateDiff)</div>
-                              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Frames <input type="number" min={8} max={32} value={cs.anim_frames ?? 16} onChange={e => updateCs({ anim_frames: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Steps <input type="number" min={10} max={30} value={cs.anim_steps ?? 20} onChange={e => updateCs({ anim_steps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.anim_denoise ?? 0.4} onChange={e => updateCs({ anim_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>CFG <input type="number" min={1} max={10} step={0.5} value={cs.anim_cfg ?? 6} onChange={e => updateCs({ anim_cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>FPS <input type="number" min={4} max={24} value={cs.anim_fps ?? 8} onChange={e => updateCs({ anim_fps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '30px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
-                              </div>
-                              <div style={{ fontSize: '0.5rem', color: 'var(--muted)', marginTop: '0.15rem', fontStyle: 'italic' }}>
-                                Frames: nbr d'images (16=2s) | Denoise: intensite du mouvement (0.3=subtil, 0.6=fort) | FPS: vitesse lecture
-                              </div>
-                            </div>
+                            ))}
                           </div>
                         )}
-                      </>)
-                    })()}
-                    </div>{/* fin colonne droite */}
-                    </div>{/* fin layout gauche/droite */}
+                      </div>
+                    </details>
+
+                    {/* ── Dérivations ── */}
+                    <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#64b5f6', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Dérivations {derivations.length > 0 ? `(${derivations.length})` : ''}</summary>
+                      <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                          <button disabled={cs._deriving || !editImages[i]?.url || !(editImages[i]?.prompt_en || '').trim()} onClick={async () => {
+                            updateCs({ _deriving: true })
+                            try {
+                              const srcUrl = editImages[i]?.url?.split('?')[0]; if (!srcUrl) return
+                              const newDerivations = [...derivations]
+                              for (let v = 0; v < 4; v++) {
+                                updateCs({ _deriving: `${v + 1}/4` })
+                                const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: srcUrl, name: `derive_${Date.now()}` }) })
+                                const upData = await upRes.json(); if (!upRes.ok) continue
+                                const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'transition', source_image: upData.filename, prompt_positive: editImages[i]?.prompt_en || '', prompt_negative: imgNeg, style: imgStyle, steps: imgSteps, cfg: imgCfg, seed: -1, denoise: cs.derive_denoise ?? 0.4, checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] : undefined }) })
+                                const d = await res.json(); if (!d.prompt_id) continue
+                                const start = Date.now()
+                                while (Date.now() - start < 180_000) {
+                                  await new Promise(r => setTimeout(r, 3000))
+                                  const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`); const pd = await poll.json()
+                                  if (pd.status === 'succeeded') { const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}_der${Date.now()}`)}`); const imgData = await imgRes.json(); if (imgData.image_url) newDerivations.push(imgData.image_url.split('?')[0]); break }
+                                  if (pd.status === 'failed') break
+                                }
+                              }
+                              setImgAndSave({ comfyui_settings: { ...cs, derivations: newDerivations, _deriving: false } })
+                            } catch { updateCs({ _deriving: false }) }
+                          }} style={{ fontSize: '0.65rem', background: '#64b5f615', border: '1px solid #64b5f633', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._deriving ? 'var(--muted)' : '#64b5f6', cursor: cs._deriving ? 'default' : 'pointer', fontWeight: 'bold' }}>
+                            {cs._deriving ? `⏳ ${cs._deriving}` : '🔄 Générer 4 dérivations'}
+                          </button>
+                          <label style={{ fontSize: '0.55rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.derive_denoise ?? 0.4} onChange={e => updateCs({ derive_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.58rem', textAlign: 'center' }} /></label>
+                          <span style={{ fontSize: '0.5rem', color: 'var(--muted)' }}>0.2=proche | 0.4=angle diff | 0.6=scène diff</span>
+                        </div>
+                        {derivations.length > 0 && (
+                          <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                            {derivations.map((dUrl, di) => (
+                              <div key={di} style={{ position: 'relative' }}>
+                                <img src={dUrl} alt={`der ${di + 1}`} onClick={() => {
+                                  const oldUrl = editImages[i]?.url?.split('?')[0]; const nd = [...derivations]; if (oldUrl) nd[di] = oldUrl; else nd.splice(di, 1)
+                                  setImgAndSave({ url: dUrl + '?t=' + Date.now(), comfyui_settings: { ...cs, derivations: nd } })
+                                }} style={{ width: '70px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = image principale" />
+                                <button onClick={e => { e.stopPropagation(); setImgAndSave({ comfyui_settings: { ...cs, derivations: derivations.filter((_, dii) => dii !== di) } }) }} style={{ position: 'absolute', top: '-4px', right: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+
+                    {/* ── GIF Animation ── */}
+                    <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#e8a84c', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Animation GIF {animationUrl ? '✓' : ''}</summary>
+                      <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <button disabled={cs._animating || !editImages[i]?.url} onClick={async () => {
+                            updateCs({ _animating: true })
+                            try {
+                              const imgUrl = editImages[i]?.url?.split('?')[0]; if (!imgUrl) return
+                              const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: imgUrl, name: `anim_src_${Date.now()}` }) })
+                              const upData = await upRes.json(); if (!upRes.ok) throw new Error(upData.error)
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'animate', source_image: upData.filename, prompt_positive: editImages[i]?.prompt_en || 'subtle motion, gentle wind', prompt_negative: 'static, frozen, morphing', steps: cs.anim_steps ?? 20, cfg: cs.anim_cfg ?? 6, seed: -1, denoise: cs.anim_denoise ?? 0.4, frames: cs.anim_frames ?? 16, fps: cs.anim_fps ?? 8 }) })
+                              const d = await res.json(); if (!d.prompt_id) throw new Error(d.error || 'Erreur')
+                              const start = Date.now()
+                              while (Date.now() - start < 300_000) {
+                                await new Promise(r => setTimeout(r, 4000)); updateCs({ _animating: `${Math.round((Date.now() - start) / 1000)}s` })
+                                const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`); const pd = await poll.json()
+                                if (pd.status === 'succeeded') {
+                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=gif_info`); const histData = await histRes.json()
+                                  const animUrl = histData.gif_url || ''
+                                  if (animUrl) setImgAndSave({ comfyui_settings: { ...cs, animation_url: animUrl, _animating: false } })
+                                  break
+                                }
+                                if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                              }
+                            } catch (err: unknown) { alert('Erreur : ' + (err instanceof Error ? err.message : String(err))) }
+                            finally { updateCs({ _animating: false }) }
+                          }} style={{ fontSize: '0.65rem', background: '#e8a84c15', border: '1px solid #e8a84c33', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._animating ? 'var(--muted)' : '#e8a84c', cursor: cs._animating ? 'default' : 'pointer', fontWeight: 'bold' }}>
+                            {cs._animating ? `⏳ ${cs._animating}` : '🎬 Animer'}
+                          </button>
+                          {animationUrl && <a href={animationUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline', fontWeight: 'bold' }}>Voir le GIF</a>}
+                        </div>
+                        {/* Params animation */}
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.55rem', color: 'var(--muted)' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>Frames <input type="number" min={8} max={32} value={cs.anim_frames ?? 16} onChange={e => updateCs({ anim_frames: Number(e.target.value) })} onBlur={saveImages} style={{ width: '32px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.anim_denoise ?? 0.4} onChange={e => updateCs({ anim_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>FPS <input type="number" min={4} max={24} value={cs.anim_fps ?? 8} onChange={e => updateCs({ anim_fps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '28px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
+                        </div>
+                      </div>
+                    </details>
+
+                    {/* ── Images des autres plans ── */}
+                    {otherPlanImages.some(p => p.url || p.variants.length > 0 || p.derivations.length > 0 || p.animationUrl) && (
+                      <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                        <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Images des autres plans</summary>
+                        <div style={{ padding: '0.5rem 0.6rem', display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                          {otherPlanImages.flatMap(p => {
+                            const imgs: Array<{ url: string; label: string }> = []
+                            if (p.url) imgs.push({ url: p.url.split('?')[0], label: `Plan ${p.planIdx + 1}` })
+                            p.variants.forEach((v, vi) => imgs.push({ url: v, label: `P${p.planIdx + 1} var${vi + 1}` }))
+                            p.derivations.forEach((d, di) => imgs.push({ url: d, label: `P${p.planIdx + 1} der${di + 1}` }))
+                            if (p.animationUrl) imgs.push({ url: p.animationUrl, label: `P${p.planIdx + 1} GIF` })
+                            return imgs
+                          }).map((item, oi) => (
+                            <img key={oi} src={item.url} alt={item.label} title={`${item.label} — Clic = utiliser`} onClick={() => setImgAndSave({ url: item.url + '?t=' + Date.now() })} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer', opacity: 0.7 }} />
+                          ))}
+                        </div>
+                      </details>
+                    )}
 
                     {/* Texte assigné au plan + tags */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', borderTop: '1px solid var(--border)', paddingTop: '0.4rem' }}>
@@ -2290,7 +2180,8 @@ export default function BookPage() {
                       />
                     </div>
                   </div>
-                ))}
+                  )
+                })}
                 {editImages.length < 3 && (
                   <button onClick={() => setEditImages(imgs => [...imgs, { description: '', style: book?.illustration_style ?? 'realistic', includeProtagonist: false }])}
                     style={{ alignSelf: 'flex-start', fontSize: '0.72rem', padding: '0.3rem 0.75rem', borderRadius: '6px', border: '1px dashed var(--border)', background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}>
