@@ -481,12 +481,12 @@ export function buildSceneCompositionWorkflow(params: ComfyUIGenerateParams): Re
 
   // ── IPAdapter FaceID chain (if characters provided) ──
   if (params.characters && params.characters.length > 0) {
-    // Use IPAdapter Plus (not FaceID) — works without InsightFace, supports non-human characters too
+    // Use IPAdapter Plus Face — works without InsightFace
     workflow['8'] = {
       class_type: 'IPAdapterUnifiedLoader',
       inputs: {
         model: currentModelRef,
-        preset: 'PLUS (high strength)',
+        preset: 'PLUS FACE (portraits)',
       },
     }
     currentModelRef = ['8', 0]
