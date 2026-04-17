@@ -1700,37 +1700,49 @@ export default function BookPage() {
                       .filter(img => img.url || img.description?.trim() || img.prompt_fr?.trim() || img.prompt_en?.trim() || (img as any).comfyui_settings)
                       .map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: (img as any).comfyui_settings, text_position: (img as any).text_position, bubble_positions: (img as any).bubble_positions, appearance_effect: (img as any).appearance_effect }))
                   }
-                  // Persist images to DB
-                  function persistToDB(imgs: typeof editImages) {
+                  // Persist images to DB — called OUTSIDE setState, receives final images array
+                  async function persistToDB(imgs: typeof editImages) {
                     const clean = buildClean(imgs)
-                    console.log(`[persist] section=${detailSec.id} plan=${i + 1} images=${clean.length}`)
-                    fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                      .then(r => { if (!r.ok) console.error('[persist] PATCH failed:', r.status); else console.log('[persist] OK') })
+                    console.log(`[persist] section=${detailSec.id} plan=${i + 1} images=${clean.length} comfyui_settings=${!!(clean[i] as any)?.comfyui_settings}`)
+                    try {
+                      const r = await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                      if (!r.ok) { const e = await r.json().catch(() => ({})); console.error('[persist] PATCH failed:', r.status, e) }
+                      else console.log('[persist] OK')
+                    } catch (err) { console.error('[persist] fetch error:', err) }
                     setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
                   }
-                  // Save current editImages to DB (reads latest state)
+
+                  // Save: read latest state via ref trick, then persist outside setState
                   function saveImages() {
-                    setEditImages(currentImgs => { persistToDB(currentImgs); return currentImgs })
+                    // React guarantees the callback gets the latest state
+                    let latestImgs: typeof editImages = editImages
+                    setEditImages(curr => { latestImgs = curr; return curr })
+                    // Use queueMicrotask to run after React processes the setState
+                    queueMicrotask(() => persistToDB(latestImgs))
                   }
+
                   // Update image fields + save
                   function setImgAndSave(patch: Record<string, unknown>) {
+                    let result: typeof editImages = editImages
                     setEditImages(prev => {
-                      const updated = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
-                      persistToDB(updated)
-                      return updated
+                      result = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
+                      return result
                     })
+                    queueMicrotask(() => persistToDB(result))
                   }
-                  // Update comfyui_settings fields + save (merges with existing settings, no stale closure)
+
+                  // Update comfyui_settings fields + save
                   function setCsAndSave(csPatch: Record<string, unknown>) {
+                    let result: typeof editImages = editImages
                     setEditImages(prev => {
-                      const updated = prev.map((img, idx) => {
+                      result = prev.map((img, idx) => {
                         if (idx !== i) return img
                         const currentCs = (img as any).comfyui_settings ?? {}
                         return { ...img, comfyui_settings: { ...currentCs, ...csPatch } } as any
                       })
-                      persistToDB(updated)
-                      return updated
+                      return result
                     })
+                    queueMicrotask(() => persistToDB(result))
                   }
 
                   // Collect all images from other plans for cross-plan selection
@@ -2203,7 +2215,17 @@ export default function BookPage() {
                     )}
 
                     {/* Bouton Save explicite */}
-                    <button onClick={() => { saveImages(); alert('Sauvegardé !') }} style={{ alignSelf: 'flex-end', background: 'var(--accent)', border: 'none', borderRadius: '5px', padding: '0.35rem 1rem', color: '#0f0f14', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                    <button onClick={async () => {
+                      // Direct save — don't rely on saveImages(), build clean from current editImages
+                      const clean = buildClean(editImages)
+                      console.log('[SAVE BUTTON] saving', clean.length, 'images for section', detailSec.id)
+                      try {
+                        const r = await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                        if (r.ok) { console.log('[SAVE BUTTON] OK'); alert('Sauvegardé !') }
+                        else { const e = await r.json().catch(() => ({})); console.error('[SAVE BUTTON] FAILED', r.status, e); alert('Erreur : ' + (e.error || r.status)) }
+                      } catch (err) { console.error('[SAVE BUTTON] error', err); alert('Erreur réseau') }
+                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                    }} style={{ alignSelf: 'flex-end', background: 'var(--accent)', border: 'none', borderRadius: '5px', padding: '0.35rem 1rem', color: '#0f0f14', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer' }}>
                       💾 Sauvegarder
                     </button>
 
