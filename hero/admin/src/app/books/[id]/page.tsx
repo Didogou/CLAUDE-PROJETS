@@ -1822,11 +1822,14 @@ export default function BookPage() {
                             currentUrl={editImages[i]?.url}
                             onSaved={async (url, meta) => {
                               const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
-                              const newImgs = editImages.map((img, idx) => idx === i ? { ...img, url: displayUrl, ...(meta ?? {}) } as any : img)
-                              setEditImages(newImgs)
-                              const cleanImgs = newImgs.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: img.url?.split('?')[0], description: img.description, style: img.style, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, comfyui_settings: img.comfyui_settings || undefined, text_position: img.text_position || undefined, bubble_positions: img.bubble_positions || undefined, appearance_effect: img.appearance_effect || undefined }))
-                              fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
-                              setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
+                              // Use callback form to read latest state (avoid stale closure after polling)
+                              setEditImages(currentImgs => {
+                                const newImgs = currentImgs.map((img, idx) => idx === i ? { ...img, url: displayUrl, ...(meta ?? {}) } as any : img)
+                                const cleanImgs = newImgs.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: img.url?.split('?')[0], description: img.description, style: img.style, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, comfyui_settings: img.comfyui_settings || undefined, text_position: img.text_position || undefined, bubble_positions: img.bubble_positions || undefined, appearance_effect: img.appearance_effect || undefined }))
+                                fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                                setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
+                                return newImgs
+                              })
                             }}
                           />
                           <label style={{ cursor: 'pointer' }}>
