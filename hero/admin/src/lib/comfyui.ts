@@ -69,6 +69,10 @@ export interface ComfyUIGenerateParams {
   style?: string
   /** Checkpoint override */
   checkpoint?: string
+  /** Optional LoRA to apply (filename in models/loras/) */
+  lora?: string
+  /** LoRA strength (default 0.7) */
+  lora_strength?: number
 }
 
 // ── SDXL Prompt rules ────────────────────────────────────────────────────────
@@ -330,23 +334,49 @@ function buildSaveImage(imagesRef: [string, number], prefix: string) {
 
 export function buildPortraitWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
   const styleSuffix = STYLE_SUFFIXES[params.style ?? 'realistic'] ?? STYLE_SUFFIXES.realistic
-  const positivePrompt = `${params.prompt_positive} ${styleSuffix}`
+  const positivePrompt = `${params.prompt_positive} BREAK ${styleSuffix}`
   const negativePrompt = params.prompt_negative ?? DEFAULT_NEGATIVE_PROMPT
 
-  return {
-    '1': buildCheckpointNode(params.checkpoint),
-    '2': buildClipTextEncode(positivePrompt, ['1', 1]),
-    '3': buildClipTextEncode(negativePrompt, ['1', 1]),
-    '4': buildEmptyLatent(params.width ?? 1024, params.height ?? 1024),
-    '5': buildKSampler(['1', 0], ['2', 0], ['3', 0], ['4', 0], {
-      steps: params.steps ?? 35,
-      cfg: params.cfg ?? 7,
-      seed: params.seed ?? -1,
-      denoise: params.denoise ?? 1.0,
-    }),
-    '6': buildVAEDecode(['5', 0], ['1', 2]),
-    '7': buildSaveImage(['6', 0], 'hero_portrait'),
+  const workflow: Record<string, unknown> = {}
+
+  // Checkpoint
+  workflow['1'] = buildCheckpointNode(params.checkpoint)
+
+  // Track model ref — changes if LoRA is applied
+  let modelRef: [string, number] = ['1', 0]
+  let clipRef: [string, number] = ['1', 1]
+
+  // Optional LoRA
+  if (params.lora) {
+    workflow['8'] = {
+      class_type: 'LoraLoader',
+      inputs: {
+        model: ['1', 0],
+        clip: ['1', 1],
+        lora_name: params.lora,
+        strength_model: params.lora_strength ?? 0.7,
+        strength_clip: params.lora_strength ?? 0.7,
+      },
+    }
+    modelRef = ['8', 0]
+    clipRef = ['8', 1]
   }
+
+  // CLIP encode (use clip from LoRA if loaded)
+  workflow['2'] = buildClipTextEncode(positivePrompt, clipRef)
+  workflow['3'] = buildClipTextEncode(negativePrompt, clipRef)
+
+  workflow['4'] = buildEmptyLatent(params.width ?? 1024, params.height ?? 1024)
+  workflow['5'] = buildKSampler(modelRef, ['2', 0], ['3', 0], ['4', 0], {
+    steps: params.steps ?? 35,
+    cfg: params.cfg ?? 7,
+    seed: params.seed ?? -1,
+    denoise: params.denoise ?? 1.0,
+  })
+  workflow['6'] = buildVAEDecode(['5', 0], ['1', 2])
+  workflow['7'] = buildSaveImage(['6', 0], 'hero_portrait')
+
+  return workflow
 }
 
 // ── Background workflow (text-to-image, no characters) ──────────────────────

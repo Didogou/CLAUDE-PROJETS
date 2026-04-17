@@ -16748,7 +16748,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flex: 1, minWidth: '180px' }}>
                                 <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Modele</span>
-                                <select value={checkpoint} onChange={e => updateParam('checkpoint', e.target.value)} onBlur={savePortraitSettings} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
+                                <select value={checkpoint} onChange={e => { updateParam('checkpoint', e.target.value); setTimeout(savePortraitSettings, 50) }} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
                                   <option value="juggernaut">Juggernaut XL v9 — Realiste</option>
                                   <option value="sdxl_base">SDXL 1.0 Base</option>
                                   <option value="juggernaut+anime">Juggernaut + LoRA Anime</option>
@@ -16757,7 +16757,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                               </div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                 <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Style</span>
-                                <select value={style} onChange={e => updateParam('style', e.target.value)} onBlur={savePortraitSettings} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
+                                <select value={style} onChange={e => { updateParam('style', e.target.value); setTimeout(savePortraitSettings, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
                                   <option value="realistic">Realiste</option>
                                   <option value="photo">Photo cinema</option>
                                   <option value="manga">Manga</option>
@@ -16781,8 +16781,13 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                                 onSaved={url => {
                                   const displayUrl = url.split('?')[0] + '?t=' + Date.now()
                                   const cleanUrl = url.split('?')[0]
-                                  setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: displayUrl } : n))
-                                  fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: cleanUrl }) })
+                                  const settings = {
+                                    prompt_fr: npcPortraitPrompts[npc.id + '_fr'] ?? ps.prompt_fr,
+                                    prompt_en: npcPortraitPrompts[npc.id + '_en'] ?? ps.prompt_en,
+                                    negative: neg, steps, cfg, seed, checkpoint, style,
+                                  }
+                                  setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: displayUrl, portrait_settings: settings } : n))
+                                  fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: cleanUrl, portrait_settings: settings }) })
                                 }}
                               />
                               <label style={{ cursor: 'pointer' }} title="Charger depuis le PC">
@@ -17403,19 +17408,18 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
   const [previewPrompt, setPreviewPrompt] = useState<string | null>(null)
 
   // Map type+data to ComfyUI workflow params
-  function buildComfyParams(optimizedPrompt?: string) {
+  function buildComfyParams() {
     const style = data.style ?? 'realistic'
-    const rawPrompt = data.summary || data.description || data.content?.slice(0, 300) || ''
     const isPortrait = type === 'npc' || type === 'item' || type === 'cover'
 
-    // For NPC: build a visual portrait prompt from appearance data
-    let prompt = optimizedPrompt || rawPrompt
-    if (!optimizedPrompt && type === 'npc') {
-      const appearance = data.appearance?.trim() || ''
-      const npcType = data.type?.trim() || ''
-      const desc = data.description?.trim() || ''
-      const visualDesc = appearance || desc
-      prompt = `Close-up bust portrait of ${npcType}, head and shoulders only. ${visualDesc}. Soft studio lighting, plain neutral gray background, centered face, looking at camera BREAK sharp focus, professional portrait photography`
+    // For NPC portraits: use appearance directly (already translated via FR→EN button)
+    // For other types: use summary/description
+    let prompt: string
+    if (type === 'npc') {
+      const appearance = data.appearance?.trim() || data.description?.trim() || ''
+      prompt = appearance
+    } else {
+      prompt = data.summary || data.description || data.content?.slice(0, 300) || ''
     }
 
     // Use params from portrait panel if provided via data, otherwise defaults
@@ -17425,7 +17429,7 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
     const checkpoint = data.checkpoint || undefined
     const negative = data.negative || undefined
 
-    // Map checkpoint key to actual filename
+    // Map checkpoint key to actual filenames
     const CHECKPOINT_MAP: Record<string, string> = {
       juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
       sdxl_base: 'sd_xl_base_1.0.safetensors',
@@ -17433,6 +17437,12 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
       'juggernaut+concept': 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
       'sdxl_base+anime': 'sd_xl_base_1.0.safetensors',
       'sdxl_base+concept': 'sd_xl_base_1.0.safetensors',
+    }
+    const LORA_MAP: Record<string, string> = {
+      'juggernaut+anime': 'anime_sdxl.safetensors',
+      'juggernaut+concept': 'concept_art_sdxl.safetensors',
+      'sdxl_base+anime': 'anime_sdxl.safetensors',
+      'sdxl_base+concept': 'concept_art_sdxl.safetensors',
     }
 
     return {
@@ -17446,31 +17456,16 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
       cfg,
       seed,
       checkpoint: checkpoint ? CHECKPOINT_MAP[checkpoint] : undefined,
+      lora: checkpoint ? LORA_MAP[checkpoint] : undefined,
     }
   }
 
   async function generate() {
-    setLoading(true); setError(''); setStatus('Préparation…')
+    setLoading(true); setError(''); setStatus('Envoi à ComfyUI…')
     try {
-      // 0. Auto-translate FR prompt to optimized SDXL EN (only if text is French)
-      const rawPrompt = data.appearance || data.summary || data.description || data.content?.slice(0, 300) || ''
-      let optimizedPrompt: string | undefined
-      const frenchMarkers = /\b(le|la|les|un|une|des|et|est|dans|avec|pour|sur|qui|que)\b/i
-      if (frenchMarkers.test(rawPrompt)) {
-        setStatus('Traduction SDXL…')
-        try {
-          const trRes = await fetch('/api/translate-prompt', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt_fr: rawPrompt, has_ipadapter: false, is_portrait: type === 'npc' }),
-          })
-          const trData = await trRes.json()
-          if (trData.prompt_en) optimizedPrompt = trData.prompt_en
-        } catch { /* fallback to raw */ }
-      }
-
-      // 1. Queue workflow on ComfyUI
-      setStatus('Envoi à ComfyUI…')
-      const params = buildComfyParams(optimizedPrompt)
+      // Build params directly — no auto-translate here
+      // Translation is done explicitly via the "FR → EN" button in the panel
+      const params = buildComfyParams()
       const res = await fetch('/api/comfyui', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
