@@ -1974,6 +1974,11 @@ export default function BookPage() {
                                 steps: String(imgSteps), cfg: String(imgCfg), seed: String(imgSeed),
                                 checkpoint: imgCheckpoint, negative: imgNeg,
                               }}
+                              sceneBackgroundUrl={imgBgUrl || undefined}
+                              sceneCharacters={imgChars.length > 0 ? imgChars.map(c => {
+                                const npc = allNpcCandidates.find(n => n.id === c.npc_id)
+                                return npc ? { portrait_url: npc.url, mask: c.mask, weight: c.weight } : null
+                              }).filter((c): c is { portrait_url: string; mask: string; weight: number } => !!c) : undefined}
                               currentUrl={editImages[i]?.url}
                               onSaved={async (url, meta) => {
                                 const displayUrl = url + (url.includes('?') ? '&' : '?') + 't=' + Date.now()
@@ -17498,13 +17503,17 @@ function NarrationPanel({ sectionId, content, onApply, onClose }: {
 
 type GenMeta = { prompt_used?: string; model_used?: string; aspect_ratio_used?: string; style_used?: string }
 
-function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }: {
+function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath, sceneCharacters, sceneBackgroundUrl }: {
   type: 'cover' | 'section' | 'npc' | 'item'
   data: Record<string, string>
   currentUrl?: string
   onSaved: (url: string, meta?: GenMeta) => void
   label?: string
   storagePath?: string
+  /** For scene_composition: characters with portrait URLs and masks */
+  sceneCharacters?: Array<{ portrait_url: string; mask: string; weight: number }>
+  /** For scene_composition: background image URL for ControlNet Depth */
+  sceneBackgroundUrl?: string
 }) {
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState('')
@@ -17572,11 +17581,61 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
   }
 
   async function generate() {
-    setLoading(true); setError(''); setStatus('Envoi à ComfyUI…')
+    setLoading(true); setError(''); setStatus('Préparation…')
     try {
-      // Build params directly — no auto-translate here
-      // Translation is done explicitly via the "FR → EN" button in the panel
       const params = buildComfyParams()
+      const isSceneMode = sceneCharacters && sceneCharacters.length > 0
+
+      // For scene_composition: upload portraits + background + masks to ComfyUI first
+      if (isSceneMode) {
+        setStatus('Upload portraits vers ComfyUI…')
+        const uploadedChars: Array<{ portrait_filename: string; mask: { type: string }; weight: number }> = []
+
+        for (const char of sceneCharacters) {
+          // Upload portrait to ComfyUI input folder
+          const upRes = await fetch('/api/comfyui/upload', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'url', url: char.portrait_url, name: `char_${Date.now()}` }),
+          })
+          const upData = await upRes.json()
+          if (!upRes.ok) throw new Error(upData.error || 'Upload portrait échoué')
+
+          // Upload mask
+          const maskRes = await fetch('/api/comfyui/upload', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'mask', preset: char.mask, width: params.width, height: params.height }),
+          })
+          const maskData = await maskRes.json()
+          if (!maskRes.ok) throw new Error(maskData.error || 'Upload masque échoué')
+
+          uploadedChars.push({
+            portrait_filename: upData.filename,
+            mask: { type: 'custom', custom_filename: maskData.filename },
+            weight: char.weight,
+          })
+        }
+
+        // Upload background if provided
+        let bgFilename: string | undefined
+        if (sceneBackgroundUrl) {
+          setStatus('Upload background…')
+          const bgRes = await fetch('/api/comfyui/upload', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'url', url: sceneBackgroundUrl, name: `bg_${Date.now()}` }),
+          })
+          const bgData = await bgRes.json()
+          if (bgRes.ok) bgFilename = bgData.filename
+        }
+
+        // Override params for scene_composition
+        Object.assign(params, {
+          workflow_type: 'scene_composition',
+          characters: uploadedChars,
+          background_image: bgFilename,
+        })
+      }
+
+      setStatus('Envoi à ComfyUI…')
       const res = await fetch('/api/comfyui', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
