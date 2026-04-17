@@ -1962,6 +1962,67 @@ export default function BookPage() {
                           <button onClick={() => updateCs({ _paramsOpen: !cs._paramsOpen })} style={{ fontSize: '0.6rem', background: 'none', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.18rem 0.4rem', color: 'var(--muted)', cursor: 'pointer' }}>
                             {cs._paramsOpen ? '▲ Params' : '▼ Params'}
                           </button>
+                          {/* Bouton Animer — AnimateDiff img2vid */}
+                          {editImages[i]?.url && (
+                            <button
+                              disabled={cs._animating}
+                              onClick={async () => {
+                                updateCs({ _animating: true })
+                                try {
+                                  const imgUrl = editImages[i]?.url?.split('?')[0]
+                                  if (!imgUrl) return
+                                  // Upload source image to ComfyUI
+                                  const upRes = await fetch('/api/comfyui/upload', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ type: 'url', url: imgUrl, name: `anim_src_${Date.now()}` }),
+                                  })
+                                  const upData = await upRes.json()
+                                  if (!upRes.ok) throw new Error(upData.error)
+                                  // Send animate workflow
+                                  const res = await fetch('/api/comfyui', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      workflow_type: 'animate',
+                                      source_image: upData.filename,
+                                      prompt_positive: editImages[i]?.prompt_en || 'subtle motion, gentle wind, ambient lighting movement',
+                                      prompt_negative: 'static, frozen, morphing, distorted',
+                                      steps: 20, cfg: 6, seed: -1, denoise: 0.4,
+                                    }),
+                                  })
+                                  const d = await res.json()
+                                  if (!d.prompt_id) throw new Error(d.error || 'Pas de prompt_id')
+                                  // Poll
+                                  const start = Date.now()
+                                  while (Date.now() - start < 300_000) {
+                                    await new Promise(r => setTimeout(r, 4000))
+                                    updateCs({ _animating: `${Math.round((Date.now() - start) / 1000)}s` })
+                                    const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                    const pd = await poll.json()
+                                    if (pd.status === 'succeeded') {
+                                      const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}_anim`)}`)
+                                      const imgData = await imgRes.json()
+                                      if (imgData.image_url) {
+                                        // Save animation URL alongside the image
+                                        updateCs({ animation_url: imgData.image_url.split('?')[0] })
+                                        setTimeout(saveImages, 50)
+                                      }
+                                      break
+                                    }
+                                    if (pd.status === 'failed') throw new Error(pd.error || 'Animation échouée')
+                                  }
+                                } catch (err: unknown) {
+                                  alert('Erreur animation : ' + (err instanceof Error ? err.message : String(err)))
+                                } finally { updateCs({ _animating: false }) }
+                              }}
+                              style={{ fontSize: '0.6rem', background: cs._animating ? 'rgba(232,168,76,0.1)' : 'none', border: '1px solid #e8a84c44', borderRadius: '4px', padding: '0.18rem 0.4rem', color: cs._animating ? 'var(--muted)' : '#e8a84c', cursor: cs._animating ? 'default' : 'pointer' }}
+                            >
+                              {cs._animating ? `⏳ Anim ${cs._animating}` : '🎬 Animer'}
+                            </button>
+                          )}
+                          {/* Aperçu animation */}
+                          {cs.animation_url && (
+                            <a href={cs.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.55rem', color: '#e8a84c', textDecoration: 'underline' }}>GIF</a>
+                          )}
                           {/* Bouton Variantes — génère 4 images avec seeds différentes */}
                           <button
                             disabled={cs._generatingVariants || !(editImages[i]?.prompt_en || '').trim()}

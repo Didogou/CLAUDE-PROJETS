@@ -35,7 +35,7 @@ export interface ComfyUIHistoryEntry {
   outputs: Record<string, ComfyUINodeOutput>
 }
 
-export type WorkflowType = 'portrait' | 'scene_composition' | 'transition' | 'background'
+export type WorkflowType = 'portrait' | 'scene_composition' | 'transition' | 'background' | 'animate'
 
 export interface MaskPreset {
   type: 'left' | 'right' | 'left_third' | 'center_third' | 'right_third' | 'full' | 'custom'
@@ -73,6 +73,10 @@ export interface ComfyUIGenerateParams {
   lora?: string
   /** LoRA strength (default 0.7) */
   lora_strength?: number
+  /** For animate: number of frames (default 16) */
+  frames?: number
+  /** For animate: motion strength (default 0.7) */
+  motion_strength?: number
 }
 
 // ── SDXL Prompt rules ────────────────────────────────────────────────────────
@@ -587,6 +591,83 @@ export function buildTransitionWorkflow(params: ComfyUIGenerateParams): Record<s
 
 // ── Workflow dispatcher ─────────────────────────────────────────────────────
 
+// ── Animate workflow (img2vid via AnimateDiff) ──────────────────────────────
+//
+// Takes a source image and animates it with subtle motion.
+// Uses AnimateDiff Evolved + SDXL checkpoint.
+//
+// Node IDs:
+//   1: CheckpointLoader
+//   2: CLIPTextEncode (positive — motion description)
+//   3: CLIPTextEncode (negative)
+//   4: LoadImage (source image to animate)
+//   5: VAEEncode (encode source image to latent)
+//   6: ADE_AnimateDiffLoaderGen1 (load AnimateDiff motion model)
+//   7: ADE_UseEvolvedSampling (apply AnimateDiff to model)
+//   8: KSampler (generate animated latents)
+//   9: VAEDecode (decode to images)
+//  10: VHS_VideoCombine (combine to GIF/video)
+
+export function buildAnimateWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
+  if (!params.source_image) throw new Error('animate workflow requires source_image')
+
+  const positivePrompt = params.prompt_positive || 'subtle motion, gentle wind, ambient movement'
+  const negativePrompt = params.prompt_negative ?? 'static, still, frozen, blurry, morphing, distorted'
+  const frames = params.frames ?? 16
+  const denoise = params.denoise ?? 0.45
+
+  return {
+    '1': buildCheckpointNode(params.checkpoint),
+    '2': buildClipTextEncode(positivePrompt, ['1', 1]),
+    '3': buildClipTextEncode(negativePrompt, ['1', 1]),
+    '4': {
+      class_type: 'LoadImage',
+      inputs: { image: params.source_image },
+    },
+    '5': {
+      class_type: 'VAEEncode',
+      inputs: { pixels: ['4', 0], vae: ['1', 2] },
+    },
+    '11': {
+      class_type: 'RepeatLatentBatch',
+      inputs: { samples: ['5', 0], amount: frames },
+    },
+    '6': {
+      class_type: 'ADE_AnimateDiffLoaderGen1',
+      inputs: {
+        model_name: 'mm_sdxl_v10_beta.ckpt',
+        beta_schedule: 'autoselect',
+      },
+    },
+    '7': {
+      class_type: 'ADE_UseEvolvedSampling',
+      inputs: {
+        model: ['1', 0],
+        m_models: ['6', 0],
+        beta_schedule: 'autoselect',
+      },
+    },
+    '8': buildKSampler(['7', 0], ['2', 0], ['3', 0], ['11', 0], {
+      steps: params.steps ?? 20,
+      cfg: params.cfg ?? 6,
+      seed: params.seed ?? -1,
+      denoise,
+    }),
+    '9': buildVAEDecode(['8', 0], ['1', 2]),
+    '10': {
+      class_type: 'VHS_VideoCombine',
+      inputs: {
+        images: ['9', 0],
+        frame_rate: 8,
+        loop_count: 0,
+        filename_prefix: 'hero_animate',
+        format: 'image/gif',
+        save_output: true,
+      },
+    },
+  }
+}
+
 export function buildWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
   switch (params.workflow_type) {
     case 'portrait':
@@ -597,5 +678,7 @@ export function buildWorkflow(params: ComfyUIGenerateParams): Record<string, unk
       return buildSceneCompositionWorkflow(params)
     case 'transition':
       return buildTransitionWorkflow(params)
+    case 'animate':
+      return buildAnimateWorkflow(params)
   }
 }
