@@ -2127,7 +2127,7 @@ export default function BookPage() {
 
                     {/* ── Animation Scène (Wan 2.2) ── */}
                     <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
-                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#e8a84c', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Animation Scène (Wan 2.2) {animationUrl ? '✓' : ''}</summary>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#e8a84c', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Animation Scène {animationUrl ? '✓' : ''}</summary>
                       <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                         {/* Prompt mouvement */}
                         <textarea value={cs.anim_prompt ?? ''} onChange={e => updateCs({ anim_prompt: e.target.value })} onBlur={saveImages} placeholder="Prompt mouvement (EN) : gentle wind, flickering lights, crowd moving..." rows={1} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #e8a84c22', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical', outline: 'none' }} />
@@ -2138,7 +2138,7 @@ export default function BookPage() {
                               const imgUrl = editImages[i]?.url?.split('?')[0]; if (!imgUrl) return
                               const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: imgUrl, name: `wan_src_${Date.now()}` }) })
                               const upData = await upRes.json(); if (!upRes.ok) throw new Error(upData.error)
-                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'wan_animate', source_image: upData.filename, prompt_positive: cs.anim_prompt || 'subtle ambient motion, gentle wind', prompt_negative: 'static, blurred, worst quality', steps: cs.anim_steps ?? 30, cfg: cs.anim_cfg ?? 5, seed: -1, frames: cs.anim_frames ?? 16, fps: cs.anim_fps ?? 8, width: 512, height: 288 }) })
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'wan_animate', source_image: upData.filename, prompt_positive: cs.anim_prompt || 'subtle ambient motion, gentle wind', prompt_negative: 'static, blurred, worst quality', steps: cs.anim_steps ?? 30, cfg: cs.anim_cfg ?? 5, seed: -1, frames: cs.anim_frames ?? 17, fps: cs.anim_fps ?? 12, width: 640, height: 352 }) })
                               const d = await res.json(); if (!d.prompt_id) throw new Error(d.error || 'Erreur')
                               const start = Date.now()
                               while (Date.now() - start < 600_000) {
@@ -2154,7 +2154,7 @@ export default function BookPage() {
                             } catch (err: unknown) { alert('Erreur : ' + (err instanceof Error ? err.message : String(err))) }
                             finally { updateCs({ _animating: false }) }
                           }} style={{ fontSize: '0.65rem', background: '#e8a84c15', border: '1px solid #e8a84c33', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._animating ? 'var(--muted)' : '#e8a84c', cursor: cs._animating ? 'default' : 'pointer', fontWeight: 'bold' }}>
-                            {cs._animating ? `⏳ Wan ${cs._animating}` : '🎬 Animer (Wan 2.2)'}
+                            {cs._animating ? `⏳ ${cs._animating}` : '🎬 Animer'}
                           </button>
                           {animationUrl && <a href={animationUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline', fontWeight: 'bold' }}>Voir la vidéo</a>}
                           {!animationUrl && ((editImages[i] as any)?.comfyui_settings?.animation_url) && (

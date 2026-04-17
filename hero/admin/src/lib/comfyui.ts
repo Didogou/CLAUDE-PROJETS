@@ -667,134 +667,116 @@ export function buildAnimateWorkflow(params: ComfyUIGenerateParams): Record<stri
 
 // ── Wan 2.2 TI2V-5B animate workflow (image → video) ────────────────────────
 
+// ── Wan 2.2 TI2V-5B animate workflow using NATIVE ComfyUI nodes ─────────────
+//
+// Based on official ComfyUI example: comfyanonymous.github.io/ComfyUI_examples/wan22/
+// Uses standard nodes: UNETLoader, CLIPLoader, VAELoader, Wan22ImageToVideoLatent, KSampler
+//
+// Node IDs:
+//   37: UNETLoader (diffusion model)
+//   38: CLIPLoader (text encoder, type=wan)
+//   39: VAELoader (wan2.2 vae)
+//   48: ModelSamplingSD3 (shift parameter)
+//   6:  CLIPTextEncode (positive)
+//   7:  CLIPTextEncode (negative)
+//   57: LoadImage (source image)
+//   55: Wan22ImageToVideoLatent (image + vae → latent)
+//   3:  KSampler
+//   8:  VAEDecode
+//   92: VHS_VideoCombine (export)
+
 export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
   if (!params.source_image) throw new Error('wan_animate requires source_image')
 
   const positivePrompt = params.prompt_positive || 'gentle ambient motion, subtle wind, flickering light'
-  const negativePrompt = params.prompt_negative ?? 'static, blurred, worst quality, low quality, subtitles'
-  // Wan requires (num_frames - 1) % 4 == 0, so valid: 5, 9, 13, 17, 21, 25...
+  const negativePrompt = params.prompt_negative ?? 'static, blurred, worst quality, low quality'
   const rawFrames = params.frames ?? 17
+  // Wan frame count should be valid for the model
   const frames = Math.max(5, Math.round((rawFrames - 1) / 4) * 4 + 1)
   const steps = params.steps ?? 30
   const cfg = params.cfg ?? 5
   const seed = params.seed === -1 || params.seed == null ? Math.floor(Math.random() * 2 ** 32) : params.seed
 
   return {
-    // Text encoder (T5)
-    '11': {
-      class_type: 'LoadWanVideoT5TextEncoder',
+    // Load diffusion model
+    '37': {
+      class_type: 'UNETLoader',
       inputs: {
-        model_name: 'umt5-xxl-enc-fp8_e4m3fn.safetensors',
-        precision: 'bf16',
-        load_device: 'offload_device',
-        compile: 'disabled',
+        unet_name: 'Wan2_2-TI2V-5B_fp8_e4m3fn_scaled_KJ.safetensors',
+        weight_dtype: 'default',
       },
     },
-    // CLIP Vision — use the standard ViT-H model (compatible with WanVideoClipVisionEncode)
-    '48': {
-      class_type: 'CLIPVisionLoader',
-      inputs: {
-        clip_name: 'CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors',
-      },
-    },
-    // Text encode
-    '16': {
-      class_type: 'WanVideoTextEncode',
-      inputs: {
-        positive_prompt: positivePrompt,
-        negative_prompt: negativePrompt,
-        force_offload: true,
-        t5: ['11', 0],
-      },
-    },
-    // Model loader — fp8_scaled model uses bf16 base + fp8_e4m3fn_scaled quantization
-    '22': {
-      class_type: 'WanVideoModelLoader',
-      inputs: {
-        model: 'Wan2_2-TI2V-5B_fp8_e4m3fn_scaled_KJ.safetensors',
-        base_precision: 'bf16',
-        quantization: 'fp8_e4m3fn_scaled',
-        load_device: 'offload_device',
-      },
-    },
-    // VAE — TI2V-5B uses Wan 2.1 VAE (48 channels, not 96)
+    // Load CLIP (text encoder) — type=wan loads T5 for Wan
     '38': {
-      class_type: 'WanVideoVAELoader',
+      class_type: 'CLIPLoader',
       inputs: {
-        model_name: 'Wan2_1_VAE_bf16.safetensors',
-        precision: 'bf16',
+        clip_name: 'umt5-xxl-enc-fp8_e4m3fn.safetensors',
+        type: 'wan',
+      },
+    },
+    // Load VAE
+    '39': {
+      class_type: 'VAELoader',
+      inputs: {
+        vae_name: 'wan2.2_vae.safetensors',
+      },
+    },
+    // ModelSamplingSD3 — sets the shift parameter
+    '48': {
+      class_type: 'ModelSamplingSD3',
+      inputs: {
+        model: ['37', 0],
+        shift: 8.0,
+      },
+    },
+    // Positive prompt
+    '6': {
+      class_type: 'CLIPTextEncode',
+      inputs: {
+        text: positivePrompt,
+        clip: ['38', 0],
+      },
+    },
+    // Negative prompt
+    '7': {
+      class_type: 'CLIPTextEncode',
+      inputs: {
+        text: negativePrompt,
+        clip: ['38', 0],
       },
     },
     // Load source image
-    '58': {
+    '57': {
       class_type: 'LoadImage',
       inputs: { image: params.source_image },
     },
-    // CLIP Vision encode the source image
-    '61': {
-      class_type: 'WanVideoClipVisionEncode',
+    // Wan 2.2 Image to Video Latent
+    '55': {
+      class_type: 'Wan22ImageToVideoLatent',
       inputs: {
-        clip_vision: ['48', 0],
-        image_1: ['58', 0],
-        strength_1: 1.0,
-        strength_2: 1.0,
-        crop: 'center',
-        combine_embeds: 'average',
-        force_offload: true,
+        vae: ['39', 0],
+        image: ['57', 0],
+        width: params.width ?? 640,
+        height: params.height ?? 352,
+        length: frames,
+        batch_size: 1,
       },
     },
-    // Encode image for I2V
-    '70': {
-      class_type: 'WanVideoImageToVideoEncode',
-      inputs: {
-        width: params.width ?? 480,
-        height: params.height ?? 272,
-        num_frames: frames,
-        noise_aug_strength: 0.0,
-        start_latent_strength: 1.0,
-        end_latent_strength: 1.0,
-        force_offload: true,
-        vae: ['38', 0],
-        clip_embeds: ['61', 0],
-        start_image: ['58', 0],
-      },
-    },
-    // Sampler
-    '27': {
-      class_type: 'WanVideoSampler',
-      inputs: {
-        model: ['22', 0],
-        image_embeds: ['70', 0],
-        steps,
-        cfg,
-        shift: 5.0,
-        seed,
-        force_offload: true,
-        scheduler: 'unipc',
-        riflex_freq_index: 0,
-        text_embeds: ['16', 0],
-        denoise_strength: params.denoise ?? 1.0,
-      },
-    },
-    // Decode
-    '28': {
-      class_type: 'WanVideoDecode',
-      inputs: {
-        vae: ['38', 0],
-        samples: ['27', 0],
-        enable_vae_tiling: true,
-        tile_x: 272,
-        tile_y: 272,
-        tile_stride_x: 144,
-        tile_stride_y: 128,
-      },
-    },
+    // KSampler
+    '3': buildKSampler(['48', 0], ['6', 0], ['7', 0], ['55', 0], {
+      steps,
+      cfg,
+      seed,
+      denoise: params.denoise ?? 1.0,
+    }),
+    // VAE Decode
+    '8': buildVAEDecode(['3', 0], ['39', 0]),
     // Export video
     '92': {
       class_type: 'VHS_VideoCombine',
       inputs: {
-        images: ['28', 0],
-        frame_rate: params.fps ?? 8,
+        images: ['8', 0],
+        frame_rate: params.fps ?? 12,
         loop_count: 0,
         filename_prefix: 'hero_wan_animate',
         format: 'video/h264-mp4',
