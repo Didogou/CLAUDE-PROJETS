@@ -17549,13 +17549,20 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath }:
       'sdxl_base+concept': 'concept_art_sdxl.safetensors',
     }
 
+    // Determine dimensions from aspect ratio
+    const AR_DIMS: Record<string, [number, number]> = {
+      '16:9': [1360, 768], '9:16': [768, 1360], '1:1': [1024, 1024],
+      '4:3': [1152, 896], '3:4': [896, 1152], '2:3': [832, 1216],
+    }
+    const [w, h] = isPortrait ? [1024, 1024] : (AR_DIMS[data.aspect_ratio ?? '16:9'] ?? [1360, 768])
+
     return {
       workflow_type: isPortrait ? 'portrait' as const : 'background' as const,
       prompt_positive: prompt,
       prompt_negative: negative,
       style,
-      width: isPortrait ? 1024 : (data.aspect_ratio === '1:1' ? 1024 : 1360),
-      height: isPortrait ? 1024 : (data.aspect_ratio === '1:1' ? 1024 : 768),
+      width: w,
+      height: h,
       steps,
       cfg,
       seed,
