@@ -220,6 +220,7 @@ export default function BookPage() {
   const [cardImageIndex, setCardImageIndex] = useState<Record<string, number>>({})
   const [frameVideoGenerating, setFrameVideoGenerating] = useState<Record<string, boolean>>({})
   const [zoomedImage, setZoomedImage] = useState<string | null>(null)
+  const [galleryViewer, setGalleryViewer] = useState<{ images: Array<{ url: string; label: string }>; index: number } | null>(null)
   const [introViewer, setIntroViewer] = useState(false)
   const [items, setItems] = useState<import('@/types').Item[]>([])
   const [itemsLoaded, setItemsLoaded] = useState(false)
@@ -2037,9 +2038,13 @@ export default function BookPage() {
                             {variants.map((vUrl, vi) => (
                               <div key={vi} style={{ position: 'relative' }}>
                                 <img src={vUrl} alt={`var ${vi + 1}`} onClick={() => {
-                                  const oldUrl = editImages[i]?.url?.split('?')[0]; const nv = [...variants]; if (oldUrl) nv[vi] = oldUrl; else nv.splice(vi, 1)
-                                  setImgAndSave({ url: vUrl + '?t=' + Date.now(), comfyui_settings: { ...cs, variants: nv } })
-                                }} style={{ width: '70px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = image principale" />
+                                  const allImgs = [
+                                    ...(editImages[i]?.url ? [{ url: editImages[i].url!.split('?')[0], label: 'Principale' }] : []),
+                                    ...variants.map((v, j) => ({ url: v, label: `Variante ${j + 1}` })),
+                                    ...derivations.map((d, j) => ({ url: d, label: `Dérivation ${j + 1}` })),
+                                  ]
+                                  setGalleryViewer({ images: allImgs, index: allImgs.findIndex(img => img.url === vUrl) })
+                                }} style={{ width: '70px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = agrandir + naviguer" />
                                 <button onClick={e => { e.stopPropagation(); setImgAndSave({ comfyui_settings: { ...cs, variants: variants.filter((_, vii) => vii !== vi) } }) }} style={{ position: 'absolute', top: '-4px', right: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                               </div>
                             ))}
@@ -2089,9 +2094,13 @@ export default function BookPage() {
                             {derivations.map((dUrl, di) => (
                               <div key={di} style={{ position: 'relative' }}>
                                 <img src={dUrl} alt={`der ${di + 1}`} onClick={() => {
-                                  const oldUrl = editImages[i]?.url?.split('?')[0]; const nd = [...derivations]; if (oldUrl) nd[di] = oldUrl; else nd.splice(di, 1)
-                                  setImgAndSave({ url: dUrl + '?t=' + Date.now(), comfyui_settings: { ...cs, derivations: nd } })
-                                }} style={{ width: '70px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = image principale" />
+                                  const allImgs = [
+                                    ...(editImages[i]?.url ? [{ url: editImages[i].url!.split('?')[0], label: 'Principale' }] : []),
+                                    ...variants.map((v, j) => ({ url: v, label: `Variante ${j + 1}` })),
+                                    ...derivations.map((d, j) => ({ url: d, label: `Dérivation ${j + 1}` })),
+                                  ]
+                                  setGalleryViewer({ images: allImgs, index: allImgs.findIndex(img => img.url === dUrl) })
+                                }} style={{ width: '70px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = agrandir + naviguer" />
                                 <button onClick={e => { e.stopPropagation(); setImgAndSave({ comfyui_settings: { ...cs, derivations: derivations.filter((_, dii) => dii !== di) } }) }} style={{ position: 'absolute', top: '-4px', right: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                               </div>
                             ))}
@@ -6433,6 +6442,37 @@ Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit 
     {zoomedImage && (
       <div onClick={() => setZoomedImage(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: '#000000cc', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
         <img src={zoomedImage} alt="" style={{ maxWidth: '92vw', maxHeight: '92vh', borderRadius: '8px', boxShadow: '0 8px 40px #000' }} />
+      </div>
+    )}
+
+    {/* ── Gallery viewer (variantes/dérivations) ── */}
+    {galleryViewer && (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 3001, background: '#000000dd', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} onClick={() => setGalleryViewer(null)}>
+        {/* Close */}
+        <button onClick={() => setGalleryViewer(null)} style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', zIndex: 1 }}>✕</button>
+        {/* Label */}
+        <div style={{ color: '#fff', fontSize: '0.85rem', marginBottom: '0.75rem', opacity: 0.8 }}>
+          {galleryViewer.images[galleryViewer.index]?.label} ({galleryViewer.index + 1}/{galleryViewer.images.length})
+        </div>
+        {/* Image */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }} onClick={e => e.stopPropagation()}>
+          {/* Left arrow */}
+          <button onClick={() => setGalleryViewer(g => g ? { ...g, index: (g.index - 1 + g.images.length) % g.images.length } : null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '48px', height: '48px', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>◀</button>
+          {/* Image */}
+          <img src={galleryViewer.images[galleryViewer.index]?.url} alt="" style={{ maxWidth: '80vw', maxHeight: '75vh', borderRadius: '8px', boxShadow: '0 8px 40px #000' }} />
+          {/* Right arrow */}
+          <button onClick={() => setGalleryViewer(g => g ? { ...g, index: (g.index + 1) % g.images.length } : null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '48px', height: '48px', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>▶</button>
+        </div>
+        {/* Thumbnails strip */}
+        <div style={{ display: 'flex', gap: '0.4rem', marginTop: '1rem' }} onClick={e => e.stopPropagation()}>
+          {galleryViewer.images.map((img, gi) => (
+            <img key={gi} src={img.url} alt={img.label} onClick={() => setGalleryViewer(g => g ? { ...g, index: gi } : null)} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '4px', border: `2px solid ${gi === galleryViewer.index ? '#d4a84c' : 'transparent'}`, cursor: 'pointer', opacity: gi === galleryViewer.index ? 1 : 0.5 }} />
+          ))}
+        </div>
+        {/* Info */}
+        <div style={{ marginTop: '0.75rem', color: '#fff8', fontSize: '0.75rem' }}>
+          Cliquez sur les flèches pour naviguer. Fermez pour revenir.
+        </div>
       </div>
     )}
 
