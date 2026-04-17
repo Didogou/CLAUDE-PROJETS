@@ -16744,32 +16744,62 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                                 <span style={{ fontSize: '0.55rem' }}>(-1=alea)</span>
                               </label>
                             </div>
-                            {/* Modele + Style */}
-                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flex: 1, minWidth: '180px' }}>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Modele</span>
-                                <select value={checkpoint} onChange={e => { updateParam('checkpoint', e.target.value); setTimeout(savePortraitSettings, 50) }} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
-                                  <option value="juggernaut">Juggernaut XL v9 — Realiste</option>
-                                  <option value="sdxl_base">SDXL 1.0 Base</option>
-                                  <option value="juggernaut+anime">Juggernaut + LoRA Anime</option>
-                                  <option value="juggernaut+concept">Juggernaut + LoRA Concept Art</option>
-                                </select>
-                              </div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Style</span>
-                                <select value={style} onChange={e => { updateParam('style', e.target.value); setTimeout(savePortraitSettings, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
-                                  <option value="realistic">Realiste</option>
-                                  <option value="photo">Photo cinema</option>
-                                  <option value="manga">Manga</option>
-                                  <option value="comic">BD franco-belge</option>
-                                  <option value="bnw">Noir et Blanc</option>
-                                  <option value="watercolor">Aquarelle</option>
-                                  <option value="dark_fantasy">Dark Fantasy</option>
-                                  <option value="pixel">Pixel Art</option>
-                                  <option value="sketch">Esquisse</option>
-                                </select>
-                              </div>
-                            </div>
+                            {/* Modele + Style (avec restrictions de compatibilite) */}
+                            {(() => {
+                              const STYLE_OPTIONS: Record<string, Array<{ value: string; label: string }>> = {
+                                juggernaut: [
+                                  { value: 'realistic', label: 'Realiste' }, { value: 'photo', label: 'Photo cinema' },
+                                  { value: 'bnw', label: 'Noir et Blanc' }, { value: 'watercolor', label: 'Aquarelle' },
+                                  { value: 'dark_fantasy', label: 'Dark Fantasy' }, { value: 'sketch', label: 'Esquisse' },
+                                  { value: 'manga', label: 'Manga' }, { value: 'comic', label: 'BD' }, { value: 'pixel', label: 'Pixel Art' },
+                                ],
+                                sdxl_base: [
+                                  { value: 'realistic', label: 'Realiste' }, { value: 'photo', label: 'Photo cinema' },
+                                  { value: 'bnw', label: 'Noir et Blanc' }, { value: 'watercolor', label: 'Aquarelle' },
+                                  { value: 'dark_fantasy', label: 'Dark Fantasy' }, { value: 'sketch', label: 'Esquisse' },
+                                  { value: 'manga', label: 'Manga' }, { value: 'comic', label: 'BD' }, { value: 'pixel', label: 'Pixel Art' },
+                                ],
+                                'juggernaut+anime': [
+                                  { value: 'manga', label: 'Manga' }, { value: 'comic', label: 'BD' }, { value: 'pixel', label: 'Pixel Art' },
+                                ],
+                                'juggernaut+concept': [
+                                  { value: 'realistic', label: 'Realiste' }, { value: 'dark_fantasy', label: 'Dark Fantasy' },
+                                  { value: 'watercolor', label: 'Aquarelle' }, { value: 'sketch', label: 'Esquisse' },
+                                ],
+                                'sdxl_base+anime': [
+                                  { value: 'manga', label: 'Manga' }, { value: 'comic', label: 'BD' }, { value: 'pixel', label: 'Pixel Art' },
+                                ],
+                                'sdxl_base+concept': [
+                                  { value: 'realistic', label: 'Realiste' }, { value: 'dark_fantasy', label: 'Dark Fantasy' },
+                                  { value: 'watercolor', label: 'Aquarelle' }, { value: 'sketch', label: 'Esquisse' },
+                                ],
+                              }
+                              const availableStyles = STYLE_OPTIONS[checkpoint] ?? STYLE_OPTIONS.juggernaut
+                              // Auto-correct style if current style is incompatible with new checkpoint
+                              const currentStyleValid = availableStyles.some(s => s.value === style)
+                              if (!currentStyleValid && availableStyles.length > 0) {
+                                setTimeout(() => { updateParam('style', availableStyles[0].value); setTimeout(savePortraitSettings, 50) }, 0)
+                              }
+                              return (
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flex: 1, minWidth: '180px' }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Modele</span>
+                                    <select value={checkpoint} onChange={e => { updateParam('checkpoint', e.target.value); setTimeout(savePortraitSettings, 50) }} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
+                                      <option value="juggernaut">Juggernaut XL v9 — Realiste, polyvalent</option>
+                                      <option value="sdxl_base">SDXL 1.0 Base — Neutre</option>
+                                      <option value="juggernaut+anime">Juggernaut + LoRA Anime — Manga/Comic</option>
+                                      <option value="juggernaut+concept">Juggernaut + LoRA Concept Art — Illustration</option>
+                                    </select>
+                                  </div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Style</span>
+                                    <select value={currentStyleValid ? style : availableStyles[0]?.value ?? 'realistic'} onChange={e => { updateParam('style', e.target.value); setTimeout(savePortraitSettings, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
+                                      {availableStyles.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                                    </select>
+                                  </div>
+                                </div>
+                              )
+                            })()}
                             {/* Actions */}
                             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.3rem', paddingTop: '0.3rem', borderTop: '1px solid var(--border)' }}>
                               <ImageGenButton
@@ -16805,6 +16835,42 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                                 }} />
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '5px', padding: '0.3rem 0.7rem', fontSize: '0.72rem', color: 'var(--muted)' }}>📁 Upload</span>
                               </label>
+                              {/* Détourage + fond gris */}
+                              {npc.image_url && (
+                                <button
+                                  onClick={async () => {
+                                    updateParam('detourage', 'loading')
+                                    try {
+                                      // 1. Remove background via rembg
+                                      const res = await fetch('/api/remove-bg', {
+                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ image_url: npc.image_url?.split('?')[0] }),
+                                      })
+                                      const d = await res.json()
+                                      if (!d.image_url) throw new Error('Détourage échoué')
+                                      // 2. Upload the cutout image (already composited by remove-bg)
+                                      const upRes = await fetch('/api/upload-image', {
+                                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ url: d.image_url, path: `books/${bookId}/npcs/${npc.id}` }),
+                                      })
+                                      const upData = await upRes.json()
+                                      const finalUrl = upData.url ?? d.image_url
+                                      const displayUrl = finalUrl.split('?')[0] + '?t=' + Date.now()
+                                      setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, image_url: displayUrl } : n))
+                                      fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image_url: finalUrl.split('?')[0] }) })
+                                    } catch (err: unknown) {
+                                      alert('Erreur détourage : ' + (err instanceof Error ? err.message : String(err)))
+                                    } finally {
+                                      updateParam('detourage', '')
+                                    }
+                                  }}
+                                  disabled={(npcPortraitParams[npc.id] as any)?.detourage === 'loading'}
+                                  title="Supprimer le fond et recomposer sur gris neutre (optimal pour IPAdapter)"
+                                  style={{ background: 'rgba(128,128,128,0.15)', border: '1px solid rgba(128,128,128,0.4)', borderRadius: '5px', color: (npcPortraitParams[npc.id] as any)?.detourage === 'loading' ? 'var(--muted)' : '#aaa', cursor: (npcPortraitParams[npc.id] as any)?.detourage === 'loading' ? 'default' : 'pointer', padding: '0.3rem 0.7rem', fontSize: '0.72rem' }}
+                                >
+                                  {(npcPortraitParams[npc.id] as any)?.detourage === 'loading' ? '⏳ Détourage…' : '✂️ Détourer + fond gris'}
+                                </button>
+                              )}
                             </div>
                           </div>
                         </div>
