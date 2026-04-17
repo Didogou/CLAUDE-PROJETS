@@ -1680,8 +1680,8 @@ export default function BookPage() {
 
                     {/* ── Layout principal : Image à gauche | Contrôles à droite ── */}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
-                      {/* Colonne gauche : Image */}
-                      <div style={{ width: '45%', flexShrink: 0 }}>
+                      {/* Colonne gauche : Image + BubblePositioner */}
+                      <div style={{ width: '45%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {editImages[i]?.url ? (
                           <div style={{ position: 'relative' }}>
                             <img src={editImages[i].url} onClick={() => setZoomedImage(editImages[i].url!)} style={{ width: '100%', aspectRatio: (editImages[i] as any)?.aspect_ratio === '1:1' ? '1' : '16/9', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border)', cursor: 'zoom-in', display: 'block' }} />
@@ -1689,6 +1689,33 @@ export default function BookPage() {
                           </div>
                         ) : (
                           <div style={{ width: '100%', aspectRatio: '16/9', background: 'var(--surface-2)', borderRadius: '6px', border: '1px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--muted)', fontSize: '0.75rem' }}>Pas d'image</div>
+                        )}
+                        {/* BubblePositioner — positionnement des discours sur l'image */}
+                        {editImages[i]?.url && (
+                          <BubblePositioner
+                            imgUrl={editImages[i].url!}
+                            phrases={editPhraseDistribution[i] ?? []}
+                            positions={(editImages[i] as any).bubble_positions ?? {}}
+                            textPosition={(editImages[i] as any).text_position ?? null}
+                            onChange={pos => {
+                              setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, bubble_positions: pos } as any : img))
+                              setEditImages(current => {
+                                const clean = current.filter(img => img.url || img.description?.trim()).map(img => ({ ...(img as any), url: (img.url as string)?.split('?')[0] }))
+                                fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                                setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                                return current
+                              })
+                            }}
+                            onTextPositionChange={pos => {
+                              setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, text_position: pos } as any : img))
+                              setEditImages(current => {
+                                const clean = current.filter(img => img.url || img.description?.trim()).map(img => ({ ...(img as any), url: (img.url as string)?.split('?')[0] }))
+                                fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                                setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                                return current
+                              })
+                            }}
+                          />
                         )}
                       </div>
 
