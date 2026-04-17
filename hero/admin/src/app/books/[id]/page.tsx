@@ -1700,26 +1700,35 @@ export default function BookPage() {
                       .filter(img => img.url || img.description?.trim() || img.prompt_fr?.trim() || img.prompt_en?.trim() || (img as any).comfyui_settings)
                       .map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: (img as any).comfyui_settings, text_position: (img as any).text_position, bubble_positions: (img as any).bubble_positions, appearance_effect: (img as any).appearance_effect }))
                   }
-                  // Save current editImages to DB
-                  function saveImages() {
-                    setEditImages(currentImgs => {
-                      const clean = buildClean(currentImgs)
-                      console.log(`[save] section=${detailSec.id} plan=${i + 1} images=${clean.length}`)
-                      fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                        .then(r => { if (!r.ok) console.error('[save] PATCH failed:', r.status) })
-                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                      return currentImgs
-                    })
+                  // Persist images to DB
+                  function persistToDB(imgs: typeof editImages) {
+                    const clean = buildClean(imgs)
+                    console.log(`[persist] section=${detailSec.id} plan=${i + 1} images=${clean.length}`)
+                    fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                      .then(r => { if (!r.ok) console.error('[persist] PATCH failed:', r.status); else console.log('[persist] OK') })
+                    setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
                   }
-                  // Update state + save in one call
+                  // Save current editImages to DB (reads latest state)
+                  function saveImages() {
+                    setEditImages(currentImgs => { persistToDB(currentImgs); return currentImgs })
+                  }
+                  // Update image fields + save
                   function setImgAndSave(patch: Record<string, unknown>) {
                     setEditImages(prev => {
                       const updated = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
-                      const clean = buildClean(updated)
-                      console.log(`[setImgAndSave] section=${detailSec.id} plan=${i + 1} keys=${Object.keys(patch).join(',')}`)
-                      fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                        .then(r => { if (!r.ok) console.error('[setImgAndSave] PATCH failed:', r.status) })
-                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                      persistToDB(updated)
+                      return updated
+                    })
+                  }
+                  // Update comfyui_settings fields + save (merges with existing settings, no stale closure)
+                  function setCsAndSave(csPatch: Record<string, unknown>) {
+                    setEditImages(prev => {
+                      const updated = prev.map((img, idx) => {
+                        if (idx !== i) return img
+                        const currentCs = (img as any).comfyui_settings ?? {}
+                        return { ...img, comfyui_settings: { ...currentCs, ...csPatch } } as any
+                      })
+                      persistToDB(updated)
                       return updated
                     })
                   }
@@ -1813,11 +1822,16 @@ export default function BookPage() {
                                           const newVariants = [...variants]
                                           if (oldUrl) newVariants[vi] = oldUrl
                                           else newVariants.splice(vi, 1)
-                                          setImgAndSave({ url: vUrl + '?t=' + Date.now(), comfyui_settings: { ...cs_, variants: newVariants } })
+                                          setEditImages(prev => {
+                                            const currentCs2 = (prev[i] as any)?.comfyui_settings ?? {}
+                                            const updated2 = prev.map((img2, idx2) => idx2 === i ? { ...img2, url: vUrl + '?t=' + Date.now(), comfyui_settings: { ...currentCs2, variants: newVariants } } as any : img2)
+                                            persistToDB(updated2)
+                                            return updated2
+                                          })
                                         }} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = utiliser comme principale" />
                                         <button onClick={e => {
                                           e.stopPropagation()
-                                          setImgAndSave({ comfyui_settings: { ...cs_, variants: variants.filter((_, vii) => vii !== vi) } })
+                                          setCsAndSave({ variants: variants.filter((_, vii) => vii !== vi) })
                                         }} style={{ position: 'absolute', top: '-3px', right: '-3px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
                                       </div>
                                     ))}
@@ -2040,15 +2054,7 @@ export default function BookPage() {
                                 if (pd.status === 'failed') break
                               }
                             }
-                            // Save variants using callback to read latest comfyui_settings
-                            setEditImages(prev => {
-                              const currentCs = (prev[i] as any)?.comfyui_settings ?? {}
-                              const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...currentCs, variants: newVariants, _generatingVariants: false } } as any : img)
-                              const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
-                              fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                              setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                              return updated
-                            })
+                            setCsAndSave({ variants: newVariants, _generatingVariants: false })
                           } catch { updateCs({ _generatingVariants: false }) }
                         }} style={{ alignSelf: 'flex-start', fontSize: '0.65rem', background: '#b48edd15', border: '1px solid #b48edd33', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._generatingVariants ? 'var(--muted)' : '#b48edd', cursor: cs._generatingVariants ? 'default' : 'pointer', fontWeight: 'bold' }}>
                           {cs._generatingVariants ? `⏳ ${cs._generatingVariants}` : '🎲 Générer 4 variantes'}
@@ -2065,7 +2071,7 @@ export default function BookPage() {
                                   ]
                                   setGalleryViewer({ images: allImgs, index: allImgs.findIndex(img => img.url === vUrl) })
                                 }} style={{ width: '70px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = agrandir + naviguer" />
-                                <button onClick={e => { e.stopPropagation(); setImgAndSave({ comfyui_settings: { ...cs, variants: variants.filter((_, vii) => vii !== vi) } }) }} style={{ position: 'absolute', top: '-4px', right: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                                <button onClick={e => { e.stopPropagation(); setCsAndSave({ variants: variants.filter((_, vii) => vii !== vi) }) }} style={{ position: 'absolute', top: '-4px', right: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                               </div>
                             ))}
                           </div>
@@ -2103,14 +2109,7 @@ export default function BookPage() {
                                 }
                               }
                               // Save derivations using callback to read latest comfyui_settings
-                              setEditImages(prev => {
-                                const currentCs = (prev[i] as any)?.comfyui_settings ?? {}
-                                const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...currentCs, derivations: newDerivations, _deriving: false } } as any : img)
-                                const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
-                                fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                                setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                                return updated
-                              })
+                              setCsAndSave({ derivations: newDerivations, _deriving: false })
                             } catch { updateCs({ _deriving: false }) }
                           }} style={{ fontSize: '0.65rem', background: '#64b5f615', border: '1px solid #64b5f633', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._deriving ? 'var(--muted)' : '#64b5f6', cursor: cs._deriving ? 'default' : 'pointer', fontWeight: 'bold' }}>
                             {cs._deriving ? `⏳ ${cs._deriving}` : '🔄 Générer 4 dérivations'}
@@ -2130,7 +2129,7 @@ export default function BookPage() {
                                   ]
                                   setGalleryViewer({ images: allImgs, index: allImgs.findIndex(img => img.url === dUrl) })
                                 }} style={{ width: '70px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = agrandir + naviguer" />
-                                <button onClick={e => { e.stopPropagation(); setImgAndSave({ comfyui_settings: { ...cs, derivations: derivations.filter((_, dii) => dii !== di) } }) }} style={{ position: 'absolute', top: '-4px', right: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                                <button onClick={e => { e.stopPropagation(); setCsAndSave({ derivations: derivations.filter((_, dii) => dii !== di) }) }} style={{ position: 'absolute', top: '-4px', right: '-4px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
                               </div>
                             ))}
                           </div>
@@ -2161,14 +2160,7 @@ export default function BookPage() {
                                   const animUrl = histData.gif_url || ''
                                   console.log('[GIF] animUrl:', animUrl)
                                   if (animUrl) {
-                                    setEditImages(prev => {
-                                      const currentCs = (prev[i] as any)?.comfyui_settings ?? {}
-                                      const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...currentCs, animation_url: animUrl, _animating: false } } as any : img)
-                                      const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
-                                      fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                                      return updated
-                                    })
+                                    setCsAndSave({ animation_url: animUrl, _animating: false })
                                   }
                                   break
                                 }
@@ -2212,6 +2204,11 @@ export default function BookPage() {
                         </div>
                       </details>
                     )}
+
+                    {/* Bouton Save explicite */}
+                    <button onClick={() => { saveImages(); alert('Sauvegardé !') }} style={{ alignSelf: 'flex-end', background: 'var(--accent)', border: 'none', borderRadius: '5px', padding: '0.35rem 1rem', color: '#0f0f14', fontSize: '0.72rem', fontWeight: 'bold', cursor: 'pointer' }}>
+                      💾 Sauvegarder
+                    </button>
 
                     {/* Texte assigné au plan + tags */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', borderTop: '1px solid var(--border)', paddingTop: '0.4rem' }}>
