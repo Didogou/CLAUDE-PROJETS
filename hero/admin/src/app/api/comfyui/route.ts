@@ -118,17 +118,21 @@ export async function GET(req: NextRequest) {
       }
 
       // Download from ComfyUI
+      console.log(`[comfyui] Fetching ${imageInfo.filename} (${imageInfo.type})`)
       const imageBuffer = await getImage(imageInfo.filename, imageInfo.subfolder, imageInfo.type)
+      console.log(`[comfyui] Downloaded ${imageBuffer.length} bytes`)
 
       // Upload to Supabase Storage
       const supabase = getSupabaseAdmin()
       const ext = imageInfo.filename.split('.').pop() ?? 'png'
+      const contentType = ext === 'gif' ? 'image/gif' : `image/${ext === 'jpg' ? 'jpeg' : ext}`
       const fullPath = `${storagePath}.${ext}`
 
+      console.log(`[comfyui] Uploading to Supabase: ${fullPath} (${contentType}, ${imageBuffer.length} bytes)`)
       const { error: uploadError } = await supabase.storage
         .from('images')
         .upload(fullPath, imageBuffer, {
-          contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+          contentType,
           upsert: true,
         })
 
