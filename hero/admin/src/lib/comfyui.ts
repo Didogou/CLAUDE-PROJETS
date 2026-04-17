@@ -672,7 +672,9 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
 
   const positivePrompt = params.prompt_positive || 'gentle ambient motion, subtle wind, flickering light'
   const negativePrompt = params.prompt_negative ?? 'static, blurred, worst quality, low quality, subtitles'
-  const frames = params.frames ?? 21
+  // Wan requires (num_frames - 1) % 4 == 0, so valid: 5, 9, 13, 17, 21, 25...
+  const rawFrames = params.frames ?? 17
+  const frames = Math.max(5, Math.round((rawFrames - 1) / 4) * 4 + 1)
   const steps = params.steps ?? 30
   const cfg = params.cfg ?? 5
   const seed = params.seed === -1 || params.seed == null ? Math.floor(Math.random() * 2 ** 32) : params.seed
@@ -745,8 +747,8 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
     '70': {
       class_type: 'WanVideoImageToVideoEncode',
       inputs: {
-        width: params.width ?? 512,
-        height: params.height ?? 288,
+        width: params.width ?? 480,
+        height: params.height ?? 272,
         num_frames: frames,
         noise_aug_strength: 0.0,
         start_latent_strength: 1.0,
