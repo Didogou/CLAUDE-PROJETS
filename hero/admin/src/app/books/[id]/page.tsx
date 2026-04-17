@@ -2034,6 +2034,74 @@ export default function BookPage() {
                           {cs.animation_url && (
                             <a href={cs.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.55rem', color: '#e8a84c', textDecoration: 'underline' }}>GIF</a>
                           )}
+                          {/* Bouton Dériver du plan précédent — img2img transition */}
+                          {i > 0 && editImages[i - 1]?.url && (editImages[i]?.prompt_en || '').trim() && (
+                            <button
+                              disabled={cs._deriving}
+                              onClick={async () => {
+                                updateCs({ _deriving: true })
+                                try {
+                                  const prevUrl = editImages[i - 1]?.url?.split('?')[0]
+                                  if (!prevUrl) return
+                                  // Upload previous plan image to ComfyUI
+                                  updateCs({ _deriving: 'Upload…' })
+                                  const upRes = await fetch('/api/comfyui/upload', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ type: 'url', url: prevUrl, name: `derive_${Date.now()}` }),
+                                  })
+                                  const upData = await upRes.json()
+                                  if (!upRes.ok) throw new Error(upData.error)
+                                  // Send transition workflow (img2img with low denoise)
+                                  updateCs({ _deriving: 'Génération…' })
+                                  const deriveDenoise = cs.derive_denoise ?? 0.4
+                                  const res = await fetch('/api/comfyui', {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({
+                                      workflow_type: 'transition',
+                                      source_image: upData.filename,
+                                      prompt_positive: editImages[i]?.prompt_en || '',
+                                      prompt_negative: imgNeg,
+                                      style: imgStyle, steps: imgSteps, cfg: imgCfg, seed: -1,
+                                      denoise: deriveDenoise,
+                                      checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] : undefined,
+                                    }),
+                                  })
+                                  const d = await res.json()
+                                  if (!d.prompt_id) throw new Error(d.error || 'Pas de prompt_id')
+                                  // Poll
+                                  const start = Date.now()
+                                  while (Date.now() - start < 300_000) {
+                                    await new Promise(r => setTimeout(r, 3000))
+                                    updateCs({ _deriving: `${Math.round((Date.now() - start) / 1000)}s` })
+                                    const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                    const pd = await poll.json()
+                                    if (pd.status === 'succeeded') {
+                                      const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}`)}`)
+                                      const imgData = await imgRes.json()
+                                      if (imgData.image_url) {
+                                        const displayUrl = imgData.image_url.split('?')[0] + '?t=' + Date.now()
+                                        setEditImages(prev => {
+                                          const updated = prev.map((img, idx) => idx === i ? { ...img, url: displayUrl } as any : img)
+                                          const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                                          return updated
+                                        })
+                                      }
+                                      break
+                                    }
+                                    if (pd.status === 'failed') throw new Error(pd.error || 'Génération échouée')
+                                  }
+                                } catch (err: unknown) {
+                                  alert('Erreur : ' + (err instanceof Error ? err.message : String(err)))
+                                } finally { updateCs({ _deriving: false }) }
+                              }}
+                              title={`Img2img depuis le Plan ${i} avec denoise ${cs.derive_denoise ?? 0.4} — change l'angle/composition`}
+                              style={{ fontSize: '0.6rem', background: cs._deriving ? 'rgba(100,181,246,0.1)' : 'none', border: '1px solid #64b5f644', borderRadius: '4px', padding: '0.18rem 0.4rem', color: cs._deriving ? 'var(--muted)' : '#64b5f6', cursor: cs._deriving ? 'default' : 'pointer' }}
+                            >
+                              {cs._deriving ? `⏳ ${cs._deriving}` : `🔄 Dériver Plan ${i}`}
+                            </button>
+                          )}
                           {/* Bouton Variantes — génère 4 images avec seeds différentes */}
                           <button
                             disabled={cs._generatingVariants || !(editImages[i]?.prompt_en || '').trim()}
@@ -2073,8 +2141,14 @@ export default function BookPage() {
                                     if (pd.status === 'failed') break
                                   }
                                 }
-                                updateCs({ variants: newVariants, _generatingVariants: false })
-                                setTimeout(() => saveImages(), 100)
+                                // Save variants reliably using setEditImages callback
+                                setEditImages(prev => {
+                                  const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...(img as any).comfyui_settings, variants: newVariants, _generatingVariants: false } } as any : img)
+                                  const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                                  fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                                  setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                                  return updated
+                                })
                               } catch { updateCs({ _generatingVariants: false }) }
                             }}
                             style={{ fontSize: '0.6rem', background: cs._generatingVariants ? 'rgba(180,142,221,0.1)' : 'none', border: '1px solid #b48edd44', borderRadius: '4px', padding: '0.18rem 0.4rem', color: cs._generatingVariants ? 'var(--muted)' : '#b48edd', cursor: cs._generatingVariants ? 'default' : 'pointer' }}
@@ -2110,6 +2184,12 @@ export default function BookPage() {
                             </div>
                             {/* Paramètres Animation */}
                             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.3rem', marginTop: '0.2rem' }}>
+                              {/* Paramètres Dérivation */}
+                              <div style={{ fontSize: '0.55rem', color: '#64b5f6', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Dérivation (img2img plan précédent)</div>
+                              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.3rem' }}>
+                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.derive_denoise ?? 0.4} onChange={e => updateCs({ derive_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                                <span style={{ fontSize: '0.5rem', color: 'var(--muted)', fontStyle: 'italic' }}>0.2=très proche | 0.4=angle différent | 0.6=scène différente</span>
+                              </div>
                               <div style={{ fontSize: '0.55rem', color: '#e8a84c', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Animation (AnimateDiff)</div>
                               <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
                                 <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Frames <input type="number" min={8} max={32} value={cs.anim_frames ?? 16} onChange={e => updateCs({ anim_frames: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
