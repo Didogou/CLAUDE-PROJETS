@@ -1789,7 +1789,7 @@ export default function BookPage() {
                         {/* Actions : Générer + Upload + Params dépliable */}
                         <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center', paddingTop: '0.25rem', borderTop: '1px solid var(--border)' }}>
                           <ImageGenButton type="section" storagePath={`books/${id}/sections/${detailSec.id}_${i}`}
-                            data={{ summary: editImages[i]?.prompt_en ?? editImages[i]?.description ?? editSummary, description: editImages[i]?.prompt_en ?? editImages[i]?.description ?? editSummary, style: imgStyle, aspect_ratio: imgAr, steps: String(imgSteps), cfg: String(imgCfg), seed: String(imgSeed), checkpoint: imgCheckpoint, negative: imgNeg }}
+                            data={{ summary: editImages[i]?.prompt_en || '', description: editImages[i]?.prompt_en || '', style: imgStyle, aspect_ratio: imgAr, steps: String(imgSteps), cfg: String(imgCfg), seed: String(imgSeed), checkpoint: imgCheckpoint, negative: imgNeg }}
                             sceneBackgroundUrl={imgBgUrl || undefined}
                             sceneCharacters={imgChars.length > 0 ? imgChars.map(c => { const npc = allNpcCandidates.find(n => n.id === c.npc_id); return npc ? { portrait_url: npc.url, mask: c.mask, weight: c.weight } : null }).filter((c): c is { portrait_url: string; mask: string; weight: number } => !!c) : undefined}
                             currentUrl={editImages[i]?.url}
