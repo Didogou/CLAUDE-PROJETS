@@ -2131,6 +2131,7 @@ export default function BookPage() {
                       <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                         {/* Prompt mouvement */}
                         <textarea value={cs.anim_prompt ?? ''} onChange={e => updateCs({ anim_prompt: e.target.value })} onBlur={saveImages} placeholder="Prompt mouvement (EN) : gentle wind, flickering lights, crowd moving..." rows={1} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #e8a84c22', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical', outline: 'none' }} />
+                        <textarea value={cs.anim_negative ?? ''} onChange={e => updateCs({ anim_negative: e.target.value })} onBlur={saveImages} placeholder="Negative : static, blurred, color bleeding, glitch, artifacts..." rows={1} style={{ width: '100%', background: '#c94c4c06', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.2rem 0.4rem', color: '#c94c4c88', fontSize: '0.6rem', resize: 'none', outline: 'none' }} />
                         <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexWrap: 'wrap' }}>
                           <button disabled={cs._animating || !editImages[i]?.url} onClick={async () => {
                             updateCs({ _animating: true })
@@ -2142,7 +2143,7 @@ export default function BookPage() {
                               const ar = imgAr ?? '16:9'
                               const wanDims: Record<string, [number, number]> = { '16:9': [640, 352], '9:16': [352, 640], '1:1': [480, 480], '4:3': [544, 416], '3:4': [416, 544] }
                               const [wanW, wanH] = wanDims[ar] ?? [640, 352]
-                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'wan_animate', source_image: upData.filename, prompt_positive: cs.anim_prompt || 'subtle ambient motion, gentle wind', prompt_negative: 'static, blurred, worst quality', steps: cs.anim_steps ?? 30, cfg: cs.anim_cfg ?? 5, seed: -1, frames: cs.anim_frames ?? 17, fps: cs.anim_fps ?? 12, width: wanW, height: wanH }) })
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'wan_animate', source_image: upData.filename, prompt_positive: cs.anim_prompt || 'subtle ambient motion, gentle wind', prompt_negative: cs.anim_negative || 'static, blurred, worst quality, color bleeding, glitch, artifacts', steps: cs.anim_steps ?? 30, cfg: cs.anim_cfg ?? 5, seed: -1, frames: cs.anim_frames ?? 17, fps: cs.anim_fps ?? 12, width: wanW, height: wanH }) })
                               const d = await res.json(); if (!d.prompt_id) throw new Error(d.error || 'Erreur')
                               const start = Date.now()
                               while (Date.now() - start < 600_000) {
