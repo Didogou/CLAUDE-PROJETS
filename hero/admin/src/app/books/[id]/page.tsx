@@ -2028,7 +2028,15 @@ export default function BookPage() {
                                 if (pd.status === 'failed') break
                               }
                             }
-                            setImgAndSave({ comfyui_settings: { ...cs, variants: newVariants, _generatingVariants: false } })
+                            // Save variants using callback to read latest comfyui_settings
+                            setEditImages(prev => {
+                              const currentCs = (prev[i] as any)?.comfyui_settings ?? {}
+                              const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...currentCs, variants: newVariants, _generatingVariants: false } } as any : img)
+                              const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                              fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                              setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                              return updated
+                            })
                           } catch { updateCs({ _generatingVariants: false }) }
                         }} style={{ alignSelf: 'flex-start', fontSize: '0.65rem', background: '#b48edd15', border: '1px solid #b48edd33', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._generatingVariants ? 'var(--muted)' : '#b48edd', cursor: cs._generatingVariants ? 'default' : 'pointer', fontWeight: 'bold' }}>
                           {cs._generatingVariants ? `⏳ ${cs._generatingVariants}` : '🎲 Générer 4 variantes'}
@@ -2081,7 +2089,15 @@ export default function BookPage() {
                                   if (pd.status === 'failed') break
                                 }
                               }
-                              setImgAndSave({ comfyui_settings: { ...cs, derivations: newDerivations, _deriving: false } })
+                              // Save derivations using callback to read latest comfyui_settings
+                              setEditImages(prev => {
+                                const currentCs = (prev[i] as any)?.comfyui_settings ?? {}
+                                const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...currentCs, derivations: newDerivations, _deriving: false } } as any : img)
+                                const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                                fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                                setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                                return updated
+                              })
                             } catch { updateCs({ _deriving: false }) }
                           }} style={{ fontSize: '0.65rem', background: '#64b5f615', border: '1px solid #64b5f633', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._deriving ? 'var(--muted)' : '#64b5f6', cursor: cs._deriving ? 'default' : 'pointer', fontWeight: 'bold' }}>
                             {cs._deriving ? `⏳ ${cs._deriving}` : '🔄 Générer 4 dérivations'}
@@ -2129,7 +2145,16 @@ export default function BookPage() {
                                 if (pd.status === 'succeeded') {
                                   const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=gif_info`); const histData = await histRes.json()
                                   const animUrl = histData.gif_url || ''
-                                  if (animUrl) setImgAndSave({ comfyui_settings: { ...cs, animation_url: animUrl, _animating: false } })
+                                  if (animUrl) {
+                                    setEditImages(prev => {
+                                      const currentCs = (prev[i] as any)?.comfyui_settings ?? {}
+                                      const updated = prev.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...currentCs, animation_url: animUrl, _animating: false } } as any : img)
+                                      const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                                      fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                                      return updated
+                                    })
+                                  }
                                   break
                                 }
                                 if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
