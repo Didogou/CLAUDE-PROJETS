@@ -1714,10 +1714,17 @@ export default function BookPage() {
                       function updateImg(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)) }
                       function updateCs(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...cs, ...patch } } as any : img)) }
                       function saveImages() {
-                        const cleanImgs = editImages.filter(img => img.url || img.description?.trim()).map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, comfyui_settings: (img as any).comfyui_settings || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
-                        fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
-                        setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
+                        // Use callback form to read latest state
+                        setEditImages(currentImgs => {
+                          const cleanImgs = currentImgs.filter(img => img.url || img.description?.trim()).map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, comfyui_settings: (img as any).comfyui_settings || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
+                          return currentImgs // don't modify state, just read it
+                        })
                       }
+                      // Save after updateImg with a short delay to let React batch the state update
+                      function updateImgAndSave(patch: Record<string, unknown>) { updateImg(patch); setTimeout(saveImages, 20) }
+                      function updateCsAndSave(patch: Record<string, unknown>) { updateCs(patch); setTimeout(saveImages, 20) }
                       return (<>
                         {/* Prompt FR */}
                         <div style={{ fontSize: '0.58rem', color: '#4caf7d', fontWeight: 'bold', textTransform: 'uppercase' }}>Prompt FR</div>
@@ -1727,7 +1734,7 @@ export default function BookPage() {
                           try {
                             const res = await fetch('/api/translate-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt_fr: text, has_ipadapter: imgChars.length > 0 }) })
                             const d = await res.json()
-                            if (d.prompt_en) { updateImg({ prompt_en: d.prompt_en, description: d.prompt_en }); setTimeout(saveImages, 50) }
+                            if (d.prompt_en) { updateImgAndSave({ prompt_en: d.prompt_en, description: d.prompt_en }) }
                           } catch { /* ignore */ }
                         }} style={{ alignSelf: 'flex-start', background: 'rgba(76,175,125,0.12)', border: '1px solid rgba(76,175,125,0.35)', borderRadius: '4px', color: '#4caf7d', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem', fontWeight: 'bold' }}>
                           🌐 Traduire FR → EN
@@ -16554,13 +16561,14 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                       })
                     }
 
-                    async function savePortraitSettings() {
+                    function savePortraitSettings(overrides?: Record<string, unknown>) {
                       const settings = {
                         prompt_fr: npcPortraitPrompts[npc.id + '_fr'] ?? ps.prompt_fr,
                         prompt_en: npcPortraitPrompts[npc.id + '_en'] ?? ps.prompt_en,
                         negative: neg, steps, cfg, seed, checkpoint, style,
+                        ...overrides,
                       }
-                      await fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ portrait_settings: settings }) })
+                      fetch(`/api/npcs/${npc.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ portrait_settings: settings }) })
                       setNpcs(prev => prev.map(n => n.id === npc.id ? { ...n, portrait_settings: settings } : n))
                     }
 
@@ -16682,13 +16690,13 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                               // Auto-correct style if current style is incompatible with new checkpoint
                               const currentStyleValid = availableStyles.some(s => s.value === style)
                               if (!currentStyleValid && availableStyles.length > 0) {
-                                setTimeout(() => { updateParam('style', availableStyles[0].value); setTimeout(savePortraitSettings, 50) }, 0)
+                                setTimeout(() => { updateParam('style', availableStyles[0].value); savePortraitSettings({ style: availableStyles[0].value }) }, 0)
                               }
                               return (
                                 <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flex: 1, minWidth: '180px' }}>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Modele</span>
-                                    <select value={checkpoint} onChange={e => { updateParam('checkpoint', e.target.value); setTimeout(savePortraitSettings, 50) }} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
+                                    <select value={checkpoint} onChange={e => { updateParam('checkpoint', e.target.value); savePortraitSettings({ checkpoint: e.target.value }) }} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
                                       <option value="juggernaut">Juggernaut XL v9 — Realiste, polyvalent</option>
                                       <option value="sdxl_base">SDXL 1.0 Base — Neutre</option>
                                       <option value="juggernaut+anime">Juggernaut + LoRA Anime — Manga/Comic</option>
@@ -16697,7 +16705,7 @@ function NpcTab({ bookId, bookTheme, bookIllustrationStyle, illustrationBible = 
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>Style</span>
-                                    <select value={currentStyleValid ? style : availableStyles[0]?.value ?? 'realistic'} onChange={e => { updateParam('style', e.target.value); setTimeout(savePortraitSettings, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
+                                    <select value={currentStyleValid ? style : availableStyles[0]?.value ?? 'realistic'} onChange={e => { updateParam('style', e.target.value); savePortraitSettings({ style: e.target.value }) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.2rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem', outline: 'none', cursor: 'pointer' }}>
                                       {availableStyles.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                                     </select>
                                   </div>
