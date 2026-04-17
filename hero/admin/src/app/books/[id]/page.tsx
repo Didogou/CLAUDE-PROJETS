@@ -1668,7 +1668,58 @@ export default function BookPage() {
                     </button>
                   </div>
                 </div>
-                {editImages.map((_, i) => (
+                {editImages.map((_, i) => {
+                  // ── Variables ComfyUI pour ce plan ──
+                  const cs = (editImages[i] as any)?.comfyui_settings ?? {}
+                  const imgStyle = editImages[i]?.style ?? book.illustration_style ?? 'realistic'
+                  const imgAr = (editImages[i] as any)?.aspect_ratio ?? '16:9'
+                  const imgNeg = cs.negative || 'blurry, distorted, watermark, text, deformed hands, low quality'
+                  const imgSteps = cs.steps ?? 35
+                  const imgCfg = cs.cfg ?? 7
+                  const imgSeed = cs.seed ?? -1
+                  const imgCheckpoint = cs.checkpoint ?? 'juggernaut'
+                  const imgBgUrl: string = cs.background_url ?? ''
+                  const imgChars: Array<{ npc_id: string; mask: string; weight: number }> = cs.characters ?? []
+                  const variants: string[] = cs.variants ?? []
+                  const derivations: string[] = cs.derivations ?? []
+                  const animationUrl: string = cs.animation_url ?? ''
+
+                  const protagonistNpc = book.protagonist_npc_id ? npcs.find(n => n.id === book.protagonist_npc_id) : null
+                  const companionNpcs = (detailSec.companion_npc_ids ?? []).map(nid => npcs.find(n => n.id === nid)).filter((n): n is Npc => !!n && !!(n.portrait_url || n.image_url))
+                  const allNpcCandidates = [
+                    ...(protagonistNpc && (protagonistNpc.portrait_url || protagonistNpc.image_url) ? [{ id: protagonistNpc.id, name: protagonistNpc.name, url: protagonistNpc.portrait_url || protagonistNpc.image_url! }] : []),
+                    ...companionNpcs.filter(n => n.id !== protagonistNpc?.id).map(n => ({ id: n.id, name: n.name, url: n.portrait_url || n.image_url! })),
+                  ]
+
+                  function updateImg(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)) }
+                  function updateCs(patch: Record<string, unknown>) { setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, comfyui_settings: { ...cs, ...patch } } as any : img)) }
+                  function saveImages() {
+                    setEditImages(currentImgs => {
+                      const cleanImgs = currentImgs.filter(img => img.url || img.description?.trim()).map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: (img as any).comfyui_settings, text_position: (img as any).text_position, bubble_positions: (img as any).bubble_positions, appearance_effect: (img as any).appearance_effect }))
+                      fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
+                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs as any } : s))
+                      return currentImgs
+                    })
+                  }
+                  function setImgAndSave(patch: Record<string, unknown>) {
+                    setEditImages(prev => {
+                      const updated = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
+                      const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                      fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                      setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                      return updated
+                    })
+                  }
+
+                  // Collect all images from other plans for cross-plan selection
+                  const otherPlanImages = editImages.map((img, idx) => ({
+                    planIdx: idx, url: img.url,
+                    variants: ((img as any)?.comfyui_settings?.variants ?? []) as string[],
+                    derivations: ((img as any)?.comfyui_settings?.derivations ?? []) as string[],
+                    animationUrl: ((img as any)?.comfyui_settings?.animation_url ?? '') as string,
+                  })).filter(p => p.planIdx !== i)
+
+                  return (
                   <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {/* Header */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -1678,7 +1729,7 @@ export default function BookPage() {
                       <button onClick={() => setEditImages(imgs => imgs.filter((_, idx) => idx !== i))} title="Supprimer ce plan" style={{ marginLeft: 'auto', fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>
                     </div>
 
-                    {/* ── Layout principal : Image à gauche | Contrôles à droite ── */}
+                    {/* ── Image principale ── */}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
                       {/* Colonne gauche : Image + BubblePositioner */}
                       <div style={{ width: '45%', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
