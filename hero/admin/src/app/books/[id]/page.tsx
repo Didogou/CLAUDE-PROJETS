@@ -1767,9 +1767,65 @@ export default function BookPage() {
                           🌐 Traduire FR → EN
                         </button>
 
-                        {/* Prompt EN */}
+                        {/* Prompt EN + Token counter + Evaluator */}
                         <div style={{ fontSize: '0.58rem', color: '#4c9bf0', fontWeight: 'bold', textTransform: 'uppercase' }}>Prompt EN (SDXL)</div>
                         <textarea value={editImages[i]?.prompt_en ?? editImages[i]?.description ?? ''} onChange={e => updateImg({ prompt_en: e.target.value, description: e.target.value })} onBlur={saveImages} placeholder="Prompt anglais SDXL…" rows={2} style={{ width: '100%', background: '#4c9bf008', border: '1px solid #4c9bf022', borderRadius: '4px', padding: '0.3rem 0.45rem', color: '#c8d8f0', fontSize: '0.7rem', resize: 'vertical', outline: 'none', lineHeight: 1.5 }} />
+                        {(() => {
+                          const promptText = editImages[i]?.prompt_en ?? editImages[i]?.description ?? ''
+                          const tokens = promptText.trim() ? promptText.trim().split(/\s+/).length : 0
+                          const hasBREAK = promptText.includes('BREAK')
+                          const BAD_BOOSTERS = ['masterpiece', 'best quality', '8k', 'uhd', 'trending on artstation', 'award winning', 'hyperrealistic']
+                          const foundBad = BAD_BOOSTERS.filter(b => promptText.toLowerCase().includes(b))
+                          const GOOD_BOOSTERS = ['cinematic lighting', 'film grain', 'volumetric lighting', 'rim light', '85mm lens', 'shallow depth of field']
+                          const foundGood = GOOD_BOOSTERS.filter(b => promptText.toLowerCase().includes(b))
+                          const hasFaceDesc = /\b(eyes|nose|mouth|skin tone|ethnicity|face shape|cheekbones|jawline)\b/i.test(promptText)
+                          const hasIpa = imgChars.length > 0
+
+                          // Token bar color
+                          const tokenColor = tokens === 0 ? 'var(--muted)' : tokens <= 30 ? '#e0a742' : tokens <= 75 ? '#4caf7d' : tokens <= 150 ? '#e0a742' : '#c94c4c'
+                          const tokenLabel = tokens === 0 ? '' : tokens <= 30 ? 'Court' : tokens <= 75 ? 'Optimal' : tokens <= 150 ? 'Long' : 'Trop long'
+                          const barWidth = Math.min((tokens / 75) * 100, 100)
+
+                          // Score
+                          let score = 0
+                          let tips: string[] = []
+                          if (tokens >= 30 && tokens <= 75) score += 3
+                          else if (tokens > 0 && tokens < 30) { score += 1; tips.push('Prompt court — ajoutez des details (decor, eclairage)') }
+                          else if (tokens > 75 && tokens <= 150) { score += 2; tips.push('Un peu long — les derniers mots comptent moins') }
+                          else if (tokens > 150) { tips.push('Trop long — simplifiez, gardez 30-75 tokens') }
+                          if (hasBREAK) score += 2; else if (tokens > 20) tips.push('Ajoutez BREAK pour separer sujet et decor')
+                          if (foundBad.length > 0) tips.push(`Inutile sur SDXL : ${foundBad.join(', ')}`)
+                          else if (tokens > 0) score += 2
+                          if (foundGood.length > 0) score += 1
+                          if (hasFaceDesc && hasIpa) tips.push('Ne decrivez pas le visage — IPAdapter gere')
+                          else if (hasIpa) score += 1
+                          if (tokens > 0 && !hasFaceDesc && !hasIpa) score += 1
+
+                          const maxScore = 9
+                          const pct = tokens === 0 ? 0 : Math.round((score / maxScore) * 100)
+                          const scoreColor = pct >= 80 ? '#4caf7d' : pct >= 50 ? '#e0a742' : '#c94c4c'
+                          const scoreEmoji = pct >= 80 ? '🟢' : pct >= 50 ? '🟡' : '🔴'
+
+                          return tokens > 0 ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                              {/* Token bar */}
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                <div style={{ flex: 1, height: '3px', background: 'var(--surface-2)', borderRadius: '2px', overflow: 'hidden' }}>
+                                  <div style={{ width: `${barWidth}%`, height: '100%', background: tokenColor, transition: 'width 0.2s' }} />
+                                </div>
+                                <span style={{ fontSize: '0.55rem', color: tokenColor, fontWeight: 'bold', whiteSpace: 'nowrap' }}>{tokens}/75 {tokenLabel}</span>
+                                <span style={{ fontSize: '0.55rem', color: scoreColor, fontWeight: 'bold' }}>{scoreEmoji} {pct}%</span>
+                              </div>
+                              {/* Tips */}
+                              {tips.length > 0 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.08rem' }}>
+                                  {tips.map((tip, ti) => <span key={ti} style={{ fontSize: '0.52rem', color: '#e0a74299' }}>⚠ {tip}</span>)}
+                                </div>
+                              )}
+                              {foundGood.length > 0 && <span style={{ fontSize: '0.52rem', color: '#4caf7d88' }}>✓ {foundGood.join(', ')}</span>}
+                            </div>
+                          ) : null
+                        })()}
 
                         {/* Negative */}
                         <div style={{ fontSize: '0.55rem', color: '#c94c4c88', fontWeight: 'bold', textTransform: 'uppercase' }}>Negative</div>
