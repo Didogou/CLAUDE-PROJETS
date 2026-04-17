@@ -100,11 +100,15 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: 'Prompt non trouvé' }, { status: 404 })
       }
 
-      // Find first output image
+      // Find first output image or gif
       let imageInfo: { filename: string; subfolder: string; type: string } | null = null
       for (const output of Object.values(history.outputs)) {
         if (output.images && output.images.length > 0) {
           imageInfo = output.images[0]
+          break
+        }
+        if (output.gifs && output.gifs.length > 0) {
+          imageInfo = output.gifs[0]
           break
         }
       }
@@ -145,10 +149,10 @@ export async function GET(req: NextRequest) {
     }
 
     if (history.status.completed) {
-      // Check if there are output images
+      // Check if there are output images or gifs
       let hasImages = false
       for (const output of Object.values(history.outputs)) {
-        if (output.images && output.images.length > 0) {
+        if ((output.images && output.images.length > 0) || (output.gifs && output.gifs.length > 0)) {
           hasImages = true
           break
         }

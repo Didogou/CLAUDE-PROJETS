@@ -28,6 +28,7 @@ export interface ComfyUIImageOutput {
 
 export interface ComfyUINodeOutput {
   images?: ComfyUIImageOutput[]
+  gifs?: ComfyUIImageOutput[]
 }
 
 export interface ComfyUIHistoryEntry {
