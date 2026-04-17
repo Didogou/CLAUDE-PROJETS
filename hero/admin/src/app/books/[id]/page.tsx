@@ -172,6 +172,8 @@ export default function BookPage() {
   const [editSummary, setEditSummary] = useState('')
   const [editHint, setEditHint] = useState('')
   const [editImages, setEditImages] = useState<Array<{ url?: string; description: string; description_fr?: string; prompt_fr?: string; prompt_en?: string; thought?: string; style: string; includeProtagonist: boolean; kontext_ref_npc_id?: string; aspect_ratio?: string; chain_from_prev?: boolean; model?: string; gen4_ref_npc_ids?: string[]; prompt_used?: string; model_used?: string; aspect_ratio_used?: string; style_used?: string }>>(Array.from({ length: 3 }, () => ({ description: '', style: 'realistic', includeProtagonist: false })))
+  const editImagesRef = React.useRef(editImages)
+  React.useEffect(() => { editImagesRef.current = editImages }, [editImages])
   const [translatingPlanIdx, setTranslatingPlanIdx] = useState<{ idx: number; dir: 'en2fr' | 'fr2en' } | null>(null)
   const [generatingThoughts, setGeneratingThoughts] = useState(false)
   const [distributingPhrases, setDistributingPhrases] = useState(false)
@@ -1700,49 +1702,44 @@ export default function BookPage() {
                       .filter(img => img.url || img.description?.trim() || img.prompt_fr?.trim() || img.prompt_en?.trim() || (img as any).comfyui_settings)
                       .map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: (img as any).comfyui_settings, text_position: (img as any).text_position, bubble_positions: (img as any).bubble_positions, appearance_effect: (img as any).appearance_effect }))
                   }
-                  // Persist images to DB — called OUTSIDE setState, receives final images array
+                  // Persist to DB — simple async fetch, no React state tricks
                   async function persistToDB(imgs: typeof editImages) {
                     const clean = buildClean(imgs)
-                    console.log(`[persist] section=${detailSec.id} plan=${i + 1} images=${clean.length} comfyui_settings=${!!(clean[i] as any)?.comfyui_settings}`)
+                    console.log(`[persist] section=${detailSec.id} images=${clean.length}`)
                     try {
                       const r = await fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                      if (!r.ok) { const e = await r.json().catch(() => ({})); console.error('[persist] PATCH failed:', r.status, e) }
+                      if (!r.ok) console.error('[persist] FAILED:', r.status)
                       else console.log('[persist] OK')
-                    } catch (err) { console.error('[persist] fetch error:', err) }
+                    } catch (err) { console.error('[persist] error:', err) }
                     setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
                   }
 
-                  // Save: read latest state via ref trick, then persist outside setState
+                  // Save current state to DB — uses ref (always up to date)
                   function saveImages() {
-                    // React guarantees the callback gets the latest state
-                    let latestImgs: typeof editImages = editImages
-                    setEditImages(curr => { latestImgs = curr; return curr })
-                    // Use queueMicrotask to run after React processes the setState
-                    queueMicrotask(() => persistToDB(latestImgs))
+                    persistToDB(editImagesRef.current)
                   }
 
                   // Update image fields + save
                   function setImgAndSave(patch: Record<string, unknown>) {
-                    let result: typeof editImages = editImages
                     setEditImages(prev => {
-                      result = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
-                      return result
+                      const updated = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
+                      // Use setTimeout(0) to let React commit the state, then save from ref
+                      setTimeout(() => persistToDB(editImagesRef.current), 0)
+                      return updated
                     })
-                    queueMicrotask(() => persistToDB(result))
                   }
 
                   // Update comfyui_settings fields + save
                   function setCsAndSave(csPatch: Record<string, unknown>) {
-                    let result: typeof editImages = editImages
                     setEditImages(prev => {
-                      result = prev.map((img, idx) => {
+                      const updated = prev.map((img, idx) => {
                         if (idx !== i) return img
                         const currentCs = (img as any).comfyui_settings ?? {}
                         return { ...img, comfyui_settings: { ...currentCs, ...csPatch } } as any
                       })
-                      return result
+                      setTimeout(() => persistToDB(editImagesRef.current), 0)
+                      return updated
                     })
-                    queueMicrotask(() => persistToDB(result))
                   }
 
                   // Collect all images from other plans for cross-plan selection
@@ -1783,22 +1780,12 @@ export default function BookPage() {
                             positions={(editImages[i] as any).bubble_positions ?? {}}
                             textPosition={(editImages[i] as any).text_position ?? null}
                             onChange={pos => {
-                              setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, bubble_positions: pos } as any : img))
-                              setEditImages(current => {
-                                const clean = current.filter(img => img.url || img.description?.trim()).map(img => ({ ...(img as any), url: (img.url as string)?.split('?')[0] }))
-                                fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                                setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                                return current
-                              })
+                              updateImg({ bubble_positions: pos })
+                              setTimeout(saveImages, 50)
                             }}
                             onTextPositionChange={pos => {
-                              setEditImages(imgs => imgs.map((img, idx) => idx === i ? { ...img, text_position: pos } as any : img))
-                              setEditImages(current => {
-                                const clean = current.filter(img => img.url || img.description?.trim()).map(img => ({ ...(img as any), url: (img.url as string)?.split('?')[0] }))
-                                fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                                setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                                return current
-                              })
+                              updateImg({ text_position: pos })
+                              setTimeout(saveImages, 50)
                             }}
                           />
                         )}
@@ -1811,15 +1798,7 @@ export default function BookPage() {
                             variants: ((img as any)?.comfyui_settings?.variants ?? []) as string[],
                           })).filter(p => p.planIdx !== i)
 
-                          function setImgAndSave(patch: Record<string, unknown>) {
-                            setEditImages(prev => {
-                              const updated = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
-                              const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
-                              fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
-                              setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
-                              return updated
-                            })
-                          }
+                          // Use the parent setImgAndSave (defined above, uses ref for persistence)
 
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
@@ -1882,7 +1861,7 @@ export default function BookPage() {
                           try {
                             const res = await fetch('/api/translate-prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt_fr: text, has_ipadapter: imgChars.length > 0 }) })
                             const d = await res.json()
-                            if (d.prompt_en) { updateImg({ prompt_en: d.prompt_en, description: d.prompt_en }); setTimeout(() => saveImages(), 100) }
+                            if (d.prompt_en) { updateImg({ prompt_en: d.prompt_en, description: d.prompt_en }); setTimeout(saveImages, 50) }
                           } catch { /* ignore */ }
                         }} style={{ alignSelf: 'flex-start', background: 'rgba(76,175,125,0.12)', border: '1px solid rgba(76,175,125,0.35)', borderRadius: '4px', color: '#4caf7d', cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.65rem', fontWeight: 'bold' }}>
                           🌐 Traduire FR → EN
@@ -1971,12 +1950,12 @@ export default function BookPage() {
                               const fd = new FormData(); fd.append('file', file); fd.append('path', `books/${id}/sections/${detailSec.id}_bg_${i}`)
                               const res = await fetch('/api/upload-file', { method: 'POST', body: fd })
                               const d = await res.json()
-                              if (d.url) { updateCs({ background_url: d.url.split('?')[0] }); setTimeout(() => saveImages(), 100) }
+                              if (d.url) { updateCs({ background_url: d.url.split('?')[0] }); setTimeout(saveImages, 50) }
                               e.target.value = ''
                             }} />
                             <span style={{ fontSize: '0.6rem', background: '#e0a74215', border: '1px solid #e0a74233', borderRadius: '4px', padding: '0.2rem 0.45rem', color: '#e0a742', cursor: 'pointer' }}>📁 {imgBgUrl ? 'Changer' : 'Upload'}</span>
                           </label>
-                          {imgBgUrl && <button onClick={() => { updateCs({ background_url: '' }); setTimeout(() => saveImages(), 100) }} style={{ fontSize: '0.5rem', background: 'none', border: '1px solid #c94c4c33', borderRadius: '3px', padding: '0.1rem 0.3rem', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>}
+                          {imgBgUrl && <button onClick={() => { updateCs({ background_url: '' }); setTimeout(saveImages, 50) }} style={{ fontSize: '0.5rem', background: 'none', border: '1px solid #c94c4c33', borderRadius: '3px', padding: '0.1rem 0.3rem', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>}
                         </div>
                         {/* PNJ */}
                         {allNpcCandidates.length > 0 && (
@@ -1989,7 +1968,7 @@ export default function BookPage() {
                                 <button key={ref.id} onClick={() => {
                                   if (sel) updateCs({ characters: imgChars.filter(c => c.npc_id !== ref.id) })
                                   else updateCs({ characters: [...imgChars, { npc_id: ref.id, mask: imgChars.length === 0 ? 'left' : 'right', weight: 0.8 }] })
-                                  setTimeout(() => saveImages(), 100)
+                                  setTimeout(saveImages, 50)
                                 }} title={ref.name} style={{ background: 'none', border: `2px solid ${sel ? '#b48edd' : 'var(--border)'}`, borderRadius: '50%', padding: 0, cursor: 'pointer' }}>
                                   <img src={ref.url} alt={ref.name} style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', opacity: sel ? 1 : 0.4 }} />
                                 </button>
@@ -2032,13 +2011,13 @@ export default function BookPage() {
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Steps <input type="number" min={10} max={50} value={imgSteps} onChange={e => updateCs({ steps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.6rem', textAlign: 'center' }} /></label>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>CFG <input type="number" min={1} max={15} step={0.5} value={imgCfg} onChange={e => updateCs({ cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.6rem', textAlign: 'center' }} /></label>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Seed <input type="number" min={-1} value={imgSeed} onChange={e => updateCs({ seed: Number(e.target.value) })} onBlur={saveImages} style={{ width: '55px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.6rem', textAlign: 'center' }} /></label>
-                          <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
+                          <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
                             <option value="juggernaut">Juggernaut XL v9</option><option value="sdxl_base">SDXL Base</option><option value="juggernaut+anime">+Anime</option><option value="juggernaut+concept">+Concept</option>
                           </select>
-                          <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
+                          <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
                             <option value="realistic">Réaliste</option><option value="photo">Photo</option><option value="manga">Manga</option><option value="comic">BD</option><option value="bnw">N&B</option><option value="dark_fantasy">Dark Fantasy</option><option value="sketch">Esquisse</option>
                           </select>
-                          <select value={imgAr} onChange={e => { updateImg({ aspect_ratio: e.target.value }); updateCs({ aspect_ratio: e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
+                          <select value={imgAr} onChange={e => { updateImg({ aspect_ratio: e.target.value }); updateCs({ aspect_ratio: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
                             <option value="16:9">16:9</option><option value="9:16">9:16</option><option value="1:1">1:1</option><option value="4:3">4:3</option>
                           </select>
                         </div>
