@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     if (!token) return NextResponse.json({ error: 'REPLICATE_API_TOKEN non configuré' }, { status: 500 })
 
     const prediction = await replicateRequest(
-      '/v1/models/lucataco/remove-bg/predictions',
+      '/v1/models/smoretalk/rembg-enhance/predictions',
       'POST',
       token,
       { input: { image: image_url } }
@@ -79,7 +79,9 @@ export async function POST(req: NextRequest) {
       }
     }
     throw new Error('Délai dépassé remove-bg')
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('[remove-bg] Error:', message)
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
