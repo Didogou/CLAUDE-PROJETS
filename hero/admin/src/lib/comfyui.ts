@@ -637,19 +637,12 @@ export function buildAnimateWorkflow(params: ComfyUIGenerateParams): Record<stri
     '6': {
       class_type: 'ADE_AnimateDiffLoaderGen1',
       inputs: {
+        model: ['1', 0],
         model_name: 'mm_sdxl_v10_beta.ckpt',
         beta_schedule: 'autoselect',
       },
     },
-    '7': {
-      class_type: 'ADE_UseEvolvedSampling',
-      inputs: {
-        model: ['1', 0],
-        m_models: ['6', 0],
-        beta_schedule: 'autoselect',
-      },
-    },
-    '8': buildKSampler(['7', 0], ['2', 0], ['3', 0], ['11', 0], {
+    '8': buildKSampler(['6', 0], ['2', 0], ['3', 0], ['11', 0], {
       steps: params.steps ?? 20,
       cfg: params.cfg ?? 6,
       seed: params.seed ?? -1,
@@ -664,6 +657,7 @@ export function buildAnimateWorkflow(params: ComfyUIGenerateParams): Record<stri
         loop_count: 0,
         filename_prefix: 'hero_animate',
         format: 'image/gif',
+        pingpong: false,
         save_output: true,
       },
     },
