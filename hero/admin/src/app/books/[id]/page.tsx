@@ -1719,17 +1719,25 @@ export default function BookPage() {
                         )}
                         {/* Vignettes variantes */}
                         {(() => {
-                          const variants: string[] = (editImages[i] as any)?.comfyui_settings?.variants ?? []
-                          // Also collect variants from other plans for cross-plan selection
+                          const cs_ = (editImages[i] as any)?.comfyui_settings ?? {}
+                          const variants: string[] = cs_.variants ?? []
                           const otherPlanVariants = editImages.map((img, idx) => ({
-                            planIdx: idx,
-                            url: img.url,
+                            planIdx: idx, url: img.url,
                             variants: ((img as any)?.comfyui_settings?.variants ?? []) as string[],
                           })).filter(p => p.planIdx !== i)
 
+                          function setImgAndSave(patch: Record<string, unknown>) {
+                            setEditImages(prev => {
+                              const updated = prev.map((img, idx) => idx === i ? { ...img, ...patch } as any : img)
+                              const clean = updated.filter((img: any) => img.url || img.description?.trim()).map((img: any) => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: img.aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: img.comfyui_settings, text_position: img.text_position, bubble_positions: img.bubble_positions, appearance_effect: img.appearance_effect }))
+                              fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+                              setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: clean as any } : s))
+                              return updated
+                            })
+                          }
+
                           return (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                              {/* Current plan variants */}
                               {variants.length > 0 && (
                                 <div>
                                   <div style={{ fontSize: '0.55rem', color: 'var(--muted)', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Variantes ({variants.length})</div>
@@ -1737,23 +1745,21 @@ export default function BookPage() {
                                     {variants.map((vUrl, vi) => (
                                       <div key={vi} style={{ position: 'relative' }}>
                                         <img src={vUrl} alt={`var ${vi + 1}`} onClick={() => {
-                                          // Set as main image for this plan
                                           const oldUrl = editImages[i]?.url?.split('?')[0]
                                           const newVariants = [...variants]
-                                          if (oldUrl) newVariants[vi] = oldUrl // swap: old main goes to variants
-                                          else newVariants.splice(vi, 1) // no old main, just remove from variants
-                                          updateImg({ url: vUrl + '?t=' + Date.now() })
-                                          updateCs({ variants: newVariants })
-                                          // Save with delay to let React batch both updates
-                                          setTimeout(() => saveImages(), 100)
+                                          if (oldUrl) newVariants[vi] = oldUrl
+                                          else newVariants.splice(vi, 1)
+                                          setImgAndSave({ url: vUrl + '?t=' + Date.now(), comfyui_settings: { ...cs_, variants: newVariants } })
                                         }} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer' }} title="Clic = utiliser comme principale" />
-                                        <button onClick={e => { e.stopPropagation(); updateCs({ variants: variants.filter((_, vii) => vii !== vi) }); setTimeout(() => saveImages(), 100) }} style={{ position: 'absolute', top: '-3px', right: '-3px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
+                                        <button onClick={e => {
+                                          e.stopPropagation()
+                                          setImgAndSave({ comfyui_settings: { ...cs_, variants: variants.filter((_, vii) => vii !== vi) } })
+                                        }} style={{ position: 'absolute', top: '-3px', right: '-3px', width: '14px', height: '14px', borderRadius: '50%', background: '#c94c4ccc', border: 'none', color: '#fff', fontSize: '0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>✕</button>
                                       </div>
                                     ))}
                                   </div>
                                 </div>
                               )}
-                              {/* Variants from other plans — allow reuse */}
                               {otherPlanVariants.some(p => p.url || p.variants.length > 0) && (
                                 <details style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>
                                   <summary style={{ cursor: 'pointer', textTransform: 'uppercase' }}>Images des autres plans</summary>
@@ -1765,8 +1771,7 @@ export default function BookPage() {
                                       return imgs
                                     }).map((item, oi) => (
                                       <img key={oi} src={item.url} alt={item.label} title={`${item.label} — Clic = utiliser dans ce plan`} onClick={() => {
-                                        updateImg({ url: item.url + '?t=' + Date.now() })
-                                        setTimeout(() => saveImages(), 100)
+                                        setImgAndSave({ url: item.url + '?t=' + Date.now() })
                                       }} style={{ width: '50px', height: '28px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer', opacity: 0.7 }} />
                                     ))}
                                   </div>
