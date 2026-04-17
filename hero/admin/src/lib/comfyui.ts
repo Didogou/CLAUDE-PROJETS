@@ -750,25 +750,34 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
       class_type: 'LoadImage',
       inputs: { image: params.source_image },
     },
-    // Wan 2.2 Image to Video Latent
+    // Wan 2.2 Image to Video Latent — start_image (not image)
     '55': {
       class_type: 'Wan22ImageToVideoLatent',
       inputs: {
         vae: ['39', 0],
-        image: ['57', 0],
+        start_image: ['57', 0],
         width: params.width ?? 640,
         height: params.height ?? 352,
         length: frames,
         batch_size: 1,
       },
     },
-    // KSampler
-    '3': buildKSampler(['48', 0], ['6', 0], ['7', 0], ['55', 0], {
-      steps,
-      cfg,
-      seed,
-      denoise: params.denoise ?? 1.0,
-    }),
+    // KSampler — uni_pc + simple scheduler for Wan 2.2
+    '3': {
+      class_type: 'KSampler',
+      inputs: {
+        model: ['48', 0],
+        positive: ['6', 0],
+        negative: ['7', 0],
+        latent_image: ['55', 0],
+        seed,
+        steps,
+        cfg,
+        sampler_name: 'uni_pc',
+        scheduler: 'simple',
+        denoise: params.denoise ?? 1.0,
+      },
+    },
     // VAE Decode
     '8': buildVAEDecode(['3', 0], ['39', 0]),
     // Export video
