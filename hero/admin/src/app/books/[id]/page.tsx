@@ -1987,7 +1987,12 @@ export default function BookPage() {
                                       source_image: upData.filename,
                                       prompt_positive: editImages[i]?.prompt_en || 'subtle motion, gentle wind, ambient lighting movement',
                                       prompt_negative: 'static, frozen, morphing, distorted',
-                                      steps: 20, cfg: 6, seed: -1, denoise: 0.4,
+                                      steps: cs.anim_steps ?? 20,
+                                      cfg: cs.anim_cfg ?? 6,
+                                      seed: -1,
+                                      denoise: cs.anim_denoise ?? 0.4,
+                                      frames: cs.anim_frames ?? 16,
+                                      fps: cs.anim_fps ?? 8,
                                     }),
                                   })
                                   const d = await res.json()
@@ -2097,6 +2102,20 @@ export default function BookPage() {
                               <select value={(editImages[i] as any)?.appearance_effect ?? 'none'} onChange={e => { updateImg({ appearance_effect: e.target.value === 'none' ? undefined : e.target.value }); setTimeout(() => saveImages(), 100) }} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--muted)', fontSize: '0.6rem', outline: 'none', cursor: 'pointer' }}>
                                 <option value="none">— Effet</option><option value="shake">Tremblement</option><option value="flash_rouge">Flash rouge</option><option value="flash_blanc">Flash blanc</option><option value="impact">Impact</option>
                               </select>
+                            </div>
+                            {/* Paramètres Animation */}
+                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.3rem', marginTop: '0.2rem' }}>
+                              <div style={{ fontSize: '0.55rem', color: '#e8a84c', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '0.2rem' }}>Animation (AnimateDiff)</div>
+                              <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Frames <input type="number" min={8} max={32} value={cs.anim_frames ?? 16} onChange={e => updateCs({ anim_frames: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Steps <input type="number" min={10} max={30} value={cs.anim_steps ?? 20} onChange={e => updateCs({ anim_steps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.anim_denoise ?? 0.4} onChange={e => updateCs({ anim_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>CFG <input type="number" min={1} max={10} step={0.5} value={cs.anim_cfg ?? 6} onChange={e => updateCs({ anim_cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                                <label style={{ fontSize: '0.58rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>FPS <input type="number" min={4} max={24} value={cs.anim_fps ?? 8} onChange={e => updateCs({ anim_fps: Number(e.target.value) })} onBlur={saveImages} style={{ width: '30px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.62rem', textAlign: 'center' }} /></label>
+                              </div>
+                              <div style={{ fontSize: '0.5rem', color: 'var(--muted)', marginTop: '0.15rem', fontStyle: 'italic' }}>
+                                Frames: nbr d'images (16=2s) | Denoise: intensite du mouvement (0.3=subtil, 0.6=fort) | FPS: vitesse lecture
+                              </div>
                             </div>
                           </div>
                         )}

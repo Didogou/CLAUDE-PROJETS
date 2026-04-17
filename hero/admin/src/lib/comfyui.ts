@@ -75,8 +75,10 @@ export interface ComfyUIGenerateParams {
   lora_strength?: number
   /** For animate: number of frames (default 16) */
   frames?: number
-  /** For animate: motion strength (default 0.7) */
+  /** For animate: motion strength / fps (default 8) */
   motion_strength?: number
+  /** For animate: frames per second for GIF (default 8) */
+  fps?: number
 }
 
 // ── SDXL Prompt rules ────────────────────────────────────────────────────────
@@ -658,7 +660,7 @@ export function buildAnimateWorkflow(params: ComfyUIGenerateParams): Record<stri
       class_type: 'VHS_VideoCombine',
       inputs: {
         images: ['9', 0],
-        frame_rate: 8,
+        frame_rate: params.fps ?? 8,
         loop_count: 0,
         filename_prefix: 'hero_animate',
         format: 'image/gif',
