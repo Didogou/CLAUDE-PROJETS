@@ -688,11 +688,11 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
         compile: 'disabled',
       },
     },
-    // CLIP Vision
+    // CLIP Vision — use the standard ViT-H model (compatible with WanVideoClipVisionEncode)
     '48': {
       class_type: 'CLIPVisionLoader',
       inputs: {
-        clip_name: 'open-clip-xlm-roberta-large-vit-huge-14_visual_fp16.safetensors',
+        clip_name: 'CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors',
       },
     },
     // Text encode
