@@ -2138,7 +2138,11 @@ export default function BookPage() {
                               const imgUrl = editImages[i]?.url?.split('?')[0]; if (!imgUrl) return
                               const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: imgUrl, name: `wan_src_${Date.now()}` }) })
                               const upData = await upRes.json(); if (!upRes.ok) throw new Error(upData.error)
-                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'wan_animate', source_image: upData.filename, prompt_positive: cs.anim_prompt || 'subtle ambient motion, gentle wind', prompt_negative: 'static, blurred, worst quality', steps: cs.anim_steps ?? 30, cfg: cs.anim_cfg ?? 5, seed: -1, frames: cs.anim_frames ?? 17, fps: cs.anim_fps ?? 12, width: 640, height: 352 }) })
+                              // Calculate resolution from aspect ratio (multiples of 32, max ~640px on longest side for 8GB VRAM)
+                              const ar = imgAr ?? '16:9'
+                              const wanDims: Record<string, [number, number]> = { '16:9': [640, 352], '9:16': [352, 640], '1:1': [480, 480], '4:3': [544, 416], '3:4': [416, 544] }
+                              const [wanW, wanH] = wanDims[ar] ?? [640, 352]
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'wan_animate', source_image: upData.filename, prompt_positive: cs.anim_prompt || 'subtle ambient motion, gentle wind', prompt_negative: 'static, blurred, worst quality', steps: cs.anim_steps ?? 30, cfg: cs.anim_cfg ?? 5, seed: -1, frames: cs.anim_frames ?? 17, fps: cs.anim_fps ?? 12, width: wanW, height: wanH }) })
                               const d = await res.json(); if (!d.prompt_id) throw new Error(d.error || 'Erreur')
                               const start = Date.now()
                               while (Date.now() - start < 600_000) {

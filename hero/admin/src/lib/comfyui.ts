@@ -750,14 +750,15 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
       class_type: 'LoadImage',
       inputs: { image: params.source_image },
     },
-    // Wan 2.2 Image to Video Latent — start_image (not image)
+    // Wan 2.2 Image to Video Latent — adapt resolution to source image aspect ratio
     '55': {
       class_type: 'Wan22ImageToVideoLatent',
       inputs: {
         vae: ['39', 0],
         start_image: ['57', 0],
+        // Width/height must be multiples of 32 and match source aspect ratio
         width: params.width ?? 640,
-        height: params.height ?? 352,
+        height: params.height ?? 640,
         length: frames,
         batch_size: 1,
       },
@@ -791,6 +792,10 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
         format: 'video/h264-mp4',
         pingpong: false,
         save_output: true,
+        pix_fmt: 'yuv420p',
+        crf: 19,
+        save_metadata: true,
+        trim_to_audio: false,
       },
     },
   }
