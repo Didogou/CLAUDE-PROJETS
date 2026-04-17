@@ -672,12 +672,13 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
 
   const positivePrompt = params.prompt_positive || 'gentle ambient motion, subtle wind, flickering light'
   const negativePrompt = params.prompt_negative ?? 'static, blurred, worst quality, low quality, subtitles'
-  const frames = params.frames ?? 16
+  const frames = params.frames ?? 21
   const steps = params.steps ?? 30
   const cfg = params.cfg ?? 5
+  const seed = params.seed === -1 || params.seed == null ? Math.floor(Math.random() * 2 ** 32) : params.seed
 
   return {
-    // Text encoder
+    // Text encoder (T5)
     '11': {
       class_type: 'LoadWanVideoT5TextEncoder',
       inputs: {
@@ -687,7 +688,7 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
         compile: 'disabled',
       },
     },
-    // CLIP Vision encoder
+    // CLIP Vision
     '48': {
       class_type: 'CLIPLoader',
       inputs: {
@@ -707,22 +708,21 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
         clip: ['48', 0],
       },
     },
-    // Model loader
+    // Model loader — fp8_scaled model uses bf16 base + fp8_e4m3fn_scaled quantization
     '22': {
       class_type: 'WanVideoModelLoader',
       inputs: {
         model: 'Wan2_2-TI2V-5B_fp8_e4m3fn_scaled_KJ.safetensors',
-        base_precision: 'fp8_e4m3fn',
-        compile: 'disabled',
+        base_precision: 'bf16',
+        quantization: 'fp8_e4m3fn_scaled',
         load_device: 'offload_device',
-        attention: 'sageattn',
       },
     },
-    // VAE
+    // VAE — uses model_name (not vae)
     '38': {
       class_type: 'WanVideoVAELoader',
       inputs: {
-        vae: 'Wan2_2_VAE_bf16.safetensors',
+        model_name: 'Wan2_2_VAE_bf16.safetensors',
         precision: 'bf16',
       },
     },
@@ -731,20 +731,28 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
       class_type: 'LoadImage',
       inputs: { image: params.source_image },
     },
+    // CLIP Vision encode the source image
+    '61': {
+      class_type: 'WanVideoClipVisionEncode',
+      inputs: {
+        clip: ['48', 0],
+        image: ['58', 0],
+      },
+    },
     // Encode image for I2V
     '70': {
       class_type: 'WanVideoImageToVideoEncode',
       inputs: {
-        image: ['58', 0],
-        vae: ['38', 0],
-        clip_vision: ['48', 0],
-        enable_tiling: false,
         width: params.width ?? 512,
         height: params.height ?? 288,
         num_frames: frames,
-        noise_aug_strength: 0,
-        block_swap: 0,
-        steps: 1,
+        noise_aug_strength: 0.0,
+        start_latent_strength: 1.0,
+        end_latent_strength: 1.0,
+        force_offload: true,
+        vae: ['38', 0],
+        clip_embeds: ['61', 0],
+        start_image: ['58', 0],
       },
     },
     // Sampler
@@ -752,20 +760,16 @@ export function buildWanAnimateWorkflow(params: ComfyUIGenerateParams): Record<s
       class_type: 'WanVideoSampler',
       inputs: {
         model: ['22', 0],
-        positive: ['16', 0],
-        negative: ['16', 1],
-        wan_encoded: ['70', 0],
+        image_embeds: ['70', 0],
         steps,
         cfg,
-        seed: params.seed ?? -1,
-        scheduler: 'flowmatch_pusa',
-        shift: 0,
-        block_swap: 1,
+        shift: 5.0,
+        seed,
+        force_offload: true,
+        scheduler: 'unipc',
+        riflex_freq_index: 0,
+        text_embeds: ['16', 0],
         denoise_strength: params.denoise ?? 1.0,
-        stg_mode: 'comfy',
-        stg_block_idx: 0,
-        stg_scale: -1,
-        context: '',
       },
     },
     // Decode
