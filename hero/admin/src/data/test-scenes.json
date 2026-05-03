@@ -1,0 +1,172 @@
+{
+  "version": "1.0",
+  "description": "Jeu de 10 scènes de fond génériques pour tester les animations et calques du ImageEditor. Images à générer via ComfyUI (Juggernaut XL v9). Les scènes sont volontairement 'éteintes' (bougies non allumées, lampes éteintes, pas de météo, pas de personnages au premier plan) pour que les calques animés superposés aient leur rôle visuel au test.",
+  "model": "Juggernaut XL v9",
+  "recommended_size": "1344x768",
+  "sampler": "DPM++ 2M Karras",
+  "steps_suggestion": 30,
+  "cfg_suggestion": 6.5,
+  "scenes": [
+    {
+      "id": "ext_city_day",
+      "name": "Extérieur ville jour",
+      "prompt": "(wide establishing shot:1.2) of a modern european shopping street at noon, brick buildings three stories tall, empty sidewalks and cobblestones, sunlight casting long shadows, BREAK autumn warm tones, storefronts with closed awnings, distant clock tower, BREAK cinematic lighting, 85mm lens, film grain, shallow depth of field",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, cars, rain",
+      "usage": [
+        "Famille 1: soleil, god rays, nuages, ombres portées",
+        "Famille 2: passants, pigeons, voitures qui passent, drapeau, enseigne",
+        "Famille 3: feuilles qui tombent, poussière",
+        "Famille 4: ambiance dorée, ombres du midi",
+        "Famille 6: hotspots sur vitrines"
+      ]
+    },
+    {
+      "id": "ext_city_night",
+      "name": "Extérieur ville nuit",
+      "prompt": "(dark narrow alley:1.2) between old brick tenements at night, wet cobblestone ground, distant streetlamp base visible but bulb dark, BREAK moody atmosphere, empty puddles, fire escape ladders, dumpsters, BREAK cinematic lighting, 85mm lens, film grain, noir tones",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, rain particles, bright lights, fog",
+      "usage": [
+        "Famille 1: pluie, brouillard, éclair, lune",
+        "Famille 2: rat qui file, voiture qui passe, fumée d'égout",
+        "Famille 3: gouttes qui tombent, suie",
+        "Famille 4: néon grésillant, halo lampadaire, phares, reflet flaque",
+        "Famille 6: hotspot sur porte, fenêtre, poubelle"
+      ]
+    },
+    {
+      "id": "ext_countryside_day",
+      "name": "Extérieur campagne jour",
+      "prompt": "dirt path winding through rolling green hills, lone oak tree on the left, wheat fields stretching to horizon, clear blue sky with scattered soft clouds, BREAK peaceful late morning, wooden fence along path, distant farmhouse barely visible, BREAK cinematic lighting, 85mm lens, golden hour",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, animals, vehicles",
+      "usage": [
+        "Famille 1: nuages qui défilent, oiseaux en V, papillons",
+        "Famille 2: herbe qui ondule, feuilles qui frémissent, insectes en rai",
+        "Famille 3: pétales, aigrettes de pissenlit, pollens",
+        "Famille 4: rayons à travers feuillage, ombre d'arbre",
+        "Famille 5: PNJ paysan au travail"
+      ]
+    },
+    {
+      "id": "ext_forest_night",
+      "name": "Extérieur forêt nuit",
+      "prompt": "(forest clearing at night:1.2), tall pine trees surrounding empty grass circle, full moon visible between branches, low ground mist, moss-covered rocks, BREAK dark mysterious atmosphere, moonlight filtering through canopy, BREAK cinematic lighting, 85mm lens, film grain, cool blue tones",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, creatures, fire, flowers",
+      "usage": [
+        "Famille 1: lune, étoiles, brume qui monte",
+        "Famille 2: hibou, chouette, lucioles, chauves-souris",
+        "Famille 3: feuilles qui tombent, gossamer",
+        "Famille 4: yeux dans le noir, feu de camp qu'on allume, torche portée",
+        "Famille 5: PNJ ermite, créature fantasy lointaine",
+        "Famille 6: passage secret entre arbres"
+      ]
+    },
+    {
+      "id": "int_victorian_parlor",
+      "name": "Intérieur salon bourgeois",
+      "prompt": "(victorian living room interior:1.2), dark stone fireplace with (no fire:1.3), two leather armchairs facing each other, tall bookshelves filled with books, persian carpet on wooden floor, window showing overcast sky, BREAK cozy dark wood furniture, brass lamp unlit on side table, painting above mantelpiece, BREAK cinematic lighting, 85mm lens, warm ambient tones",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, fire, lit lamp, modern objects",
+      "usage": [
+        "Famille 2: chat sur fauteuil, horloge pendule, rideau qui bouge",
+        "Famille 3: poussière en rai de lumière, bulle de pipe",
+        "Famille 4: feu de cheminée allumé, lampe allumée, ombre qui danse sur mur",
+        "Famille 5: PNJ dans fauteuil qui lit, qui fume",
+        "Famille 6: livre cliquable, tiroir à ouvrir, tableau qui bascule"
+      ]
+    },
+    {
+      "id": "int_medieval_tavern",
+      "name": "Intérieur taverne médiévale",
+      "prompt": "(medieval tavern interior:1.2), worn wooden bar counter on the right, round tables with empty benches scattered in the room, (unlit candles:1.3) on each table, exposed stone wall, wooden ceiling beams, BREAK warm daylight through small windows, barrels stacked in corner, herbs hanging from beams, BREAK cinematic lighting, 85mm lens, film grain",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, lit candles, fire, food on tables, plates",
+      "usage": [
+        "Famille 2: tavernier qui essuie verre, clients qui boivent, fumée de pipe",
+        "Famille 3: bulles, poussière, étincelles foyer",
+        "Famille 4: bougies flicker, feu cheminée, ombres qui dansent",
+        "Famille 5: PNJ tavernier avec dialogue, bagarre en fond, barde qui joue",
+        "Famille 6: bouteilles cliquables sur étagère, porte qui s'ouvre"
+      ]
+    },
+    {
+      "id": "int_detective_office",
+      "name": "Intérieur bureau d'enquête",
+      "prompt": "(1950s detective office interior:1.2), vintage wooden desk with typewriter, cork evidence board on wall covered with photos and red string, closed venetian blinds, unlit desk lamp, filing cabinet, BREAK dusty noir atmosphere, coffee cup on desk, papers scattered, BREAK cinematic lighting, 85mm lens, film grain, shallow depth of field",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, lit lamp, cigarette smoke, bright light",
+      "usage": [
+        "Famille 2: ventilateur plafond, horloge, rideau des stores",
+        "Famille 3: poussière en rai, fumée de cigarette",
+        "Famille 4: lampe de bureau allumée, néon tube qui clignote, reflets sur typewriter",
+        "Famille 5: détective au bureau, PNJ qui entre, dialogue",
+        "Famille 6: photos cliquables sur tableau, tiroir à fouiller, dossier à ouvrir"
+      ]
+    },
+    {
+      "id": "int_dungeon",
+      "name": "Intérieur donjon",
+      "prompt": "(stone dungeon interior:1.2), wet cobblestone floor, stone staircase descending on the left, iron-bound heavy wooden door, (unlit wall torches:1.3) in iron brackets, rusted chains hanging from ceiling, BREAK damp ancient atmosphere, puddles on ground, stone walls with moss, BREAK cinematic lighting, 85mm lens, film grain, cold tones",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, lit torches, fire, rats visible, skeletons",
+      "usage": [
+        "Famille 2: rats qui fuient, goutte du plafond, chaîne qui grince",
+        "Famille 3: poussière d'effondrement, toile d'araignée, gouttes qui tombent",
+        "Famille 4: torches murales flicker, ombres dansantes, yeux dans obscurité, vision limitée",
+        "Famille 5: PNJ prisonnier enchaîné, monstre tapi",
+        "Famille 6: porte verrouillée à crocheter, coffre à ouvrir, passage secret"
+      ]
+    },
+    {
+      "id": "int_scifi_cockpit",
+      "name": "Intérieur cockpit sci-fi",
+      "prompt": "(spaceship cockpit interior:1.2), pilot chair facing large panoramic window showing stars and distant planet, dark control consoles with screens off, metallic panels and exposed cables, BREAK clean futuristic design, minimal ambient lighting, holographic emitters inactive, BREAK cinematic lighting, 85mm lens",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, active holograms, lit screens, light panels on",
+      "usage": [
+        "Famille 1: vaisseau qui traverse fenêtre, nébuleuse, planète qui tourne",
+        "Famille 2: créature alien dans cryo, drone qui patrouille, poisson d'air",
+        "Famille 3: particules magiques/stardust, nano-machines",
+        "Famille 4: LEDs qui pulsent, hologramme qui apparaît, laser, flicker console",
+        "Famille 5: PNJ IA qui parle, pilote, alien qui interagit",
+        "Famille 6: consoles cliquables, sas qui s'ouvre, hologramme d'indice"
+      ]
+    },
+    {
+      "id": "ext_desert_dusk",
+      "name": "Biome extrême — désert crépuscule",
+      "prompt": "(endless sand dunes at dusk:1.2), orange gradient sky transitioning to deep violet at top, ripples carved by wind in sand, distant caravan silhouette, BREAK vast empty landscape, long shadows stretching, no vegetation, BREAK cinematic lighting, 85mm lens, film grain, epic wide shot",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people close up, vegetation, buildings, water",
+      "usage": [
+        "Famille 1: vent visible, tempête de sable, soleil couchant, étoiles qui apparaissent",
+        "Famille 2: chameau, scorpion, oiseau rapace, caravane qui avance",
+        "Famille 3: sable qui dérive, particules de vent, mirage",
+        "Famille 4: gradient ciel qui évolue, lens flare du soleil, ombres longues",
+        "Famille 5: PNJ voyageur silhouette, nomade",
+        "Famille 6: oasis cachée, piège de sables mouvants, objet enterré"
+      ]
+    },
+    {
+      "id": "int_living_bay_day",
+      "name": "Intérieur salon baie vitrée jour",
+      "prompt": "(modern living room interior:1.2), large floor-to-ceiling glass bay window centered, view of green garden with trees outside, comfortable beige sofa and armchair facing the window, light wood floor, potted plants near the glass, BREAK soft daylight streaming through, peaceful daytime atmosphere, perfectly clean dry glass, BREAK cinematic lighting, 85mm lens, film grain, shallow depth of field",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, rain on window, water droplets, condensation, fog on glass, raindrops, wet glass, weather effects",
+      "usage": [
+        "Famille 1: pluie ou neige derrière la baie (effet météo extérieur), brouillard, éclair flash dans le jardin",
+        "Famille 2: chat assis au bord de la baie, oiseau qui passe, plante qui bouge au vent",
+        "Famille 3: gouttes qui glissent sur la vitre (effet pluie sur verre), poussière dans rai de lumière",
+        "Famille 4: rai de soleil qui balaie le sol, reflets sur la vitre, ombre des plantes",
+        "Famille 5: PNJ assis dans le sofa qui lit",
+        "Famille 6: hotspot sur la baie pour l'ouvrir, objet caché derrière le rideau"
+      ]
+    },
+    {
+      "id": "int_living_bay_night",
+      "name": "Intérieur salon baie vitrée nuit",
+      "prompt": "(modern living room interior at night:1.2), large floor-to-ceiling glass bay window centered, dark garden visible outside with distant warm city lights on horizon, dimly lit room with one unlit table lamp on side table, sofa and armchair in soft shadow, dark wood floor, BREAK moody nocturnal atmosphere, deep contrast, perfectly clean dry glass, BREAK cinematic lighting, 85mm lens, film grain",
+      "negative": "low quality, blurry, distorted, watermark, text, deformed hands, people, rain on window, water droplets, condensation, fog on glass, lit lamps, bright daylight, weather effects on window",
+      "usage": [
+        "Famille 1: pluie battante derrière la baie, éclairs orageux dans le jardin sombre, lune visible",
+        "Famille 2: chat aux yeux brillants au bord de la baie, ombre qui passe dehors",
+        "Famille 3: gouttes qui glissent sur la vitre éclairées par les éclairs, condensation",
+        "Famille 4: lampe de salon allumée (halo chaud), reflets de la pluie sur la vitre, flash d'éclair qui éclaire la pièce, ombres dansantes",
+        "Famille 5: silhouette assise dans le sofa face à la fenêtre, contemplatif",
+        "Famille 6: hotspot sur la baie, sur la lampe à allumer, ombre menaçante derrière la vitre"
+      ]
+    }
+  ]
+}

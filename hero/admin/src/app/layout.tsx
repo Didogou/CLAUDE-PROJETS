@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import SystemServicesWidget from '@/components/SystemServicesWidget'
 
 export const metadata: Metadata = {
   title: 'HERO — Admin',
@@ -12,7 +13,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head />
       <body>
         <div style={{ display: 'flex', minHeight: '100vh', background: '#0d0d0d' }}>
-          {/* Icon rail */}
+          {/* Icon rail (caché temporairement — décommenter pour restaurer) */}
+          {/*
           <aside style={{
             width: '60px', background: '#111', borderRight: '1px solid #222',
             display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -24,10 +26,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <a href="/projects/new" title="Nouveau projet" style={railIcon}>✨</a>
             <div style={{ flex: 1 }} />
           </aside>
+          */}
           <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
             {children}
           </main>
         </div>
+        {/* Widget flottant pour démarrer/arrêter ComfyUI, rembg, Kohya */}
+        <SystemServicesWidget />
       </body>
     </html>
   )

@@ -1,0 +1,4721 @@
+/**
+ * Styles du nouveau Studio Designer (architecture 4 zones).
+ *
+ * Préfixés `dz-` pour ne pas entrer en conflit avec les classes existantes
+ * de l'image editor (`ie-*`). Réutilise les CSS variables `--ie-*` définies
+ * dans editor.css (palette, spacing, radii, fonts).
+ *
+ * Phase 1 : layout + skeleton visuel. Le polish viendra en Phase 6.
+ */
+
+/* ── Layout racine ──────────────────────────────────────────────────────── */
+.dz-root {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ie-bg);
+  color: var(--ie-text);
+  font-family: var(--ie-font);
+  font-size: var(--ie-text-base);   /* 13px (était sm=12px) */
+  overflow: hidden;
+  /* Override de l'ombre du wrapper d'image canvas dans le contexte Designer
+   * (cf. spec archi : ombre portée subtile et présente, plus marquée que la
+   * --ie-shadow-lg par défaut qui est trop discrète). Canvas.tsx utilise cette
+   * var → l'image se "détache" visuellement du fond.
+   * Reste valable en dark mode (RGB noir, contraste sur le fond gris foncé). */
+  --ie-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.25), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.dz-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.dz-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+  /* Fond par défaut. La couleur d'accent (halo + barre top) est définie
+   * par les sélecteurs data-active-layer ci-dessous → différencie clairement
+   * Base (rose, fondation) vs Calque (indigo, overlay), en cohérence avec
+   * la convention legacy de la sidebar. */
+  background: var(--ie-surface-2);
+  transition: background 240ms ease;
+}
+
+/* Calque Base actif (index 0) : halo rose qui descend du tab Base + barre
+ * top en accent → l'œil suit naturellement le tab vers la zone de travail. */
+.dz-root[data-active-layer="base"] .dz-center {
+  background:
+    radial-gradient(
+      ellipse 50% 40% at 50% 0%,
+      color-mix(in srgb, var(--ie-accent) 12%, transparent) 0%,
+      transparent 70%
+    ),
+    var(--ie-surface-2);
+  box-shadow: inset 0 2px 0 0 color-mix(in srgb, var(--ie-accent) 60%, transparent);
+}
+
+/* Calque overlay actif (index 1+) : halo indigo (cohérent avec la convention
+ * legacy de la sidebar) + barre top indigo → signal "tu es sur un overlay,
+ * pas sur la fondation". */
+.dz-root[data-active-layer="layer"] .dz-center {
+  background:
+    radial-gradient(
+      ellipse 50% 40% at 50% 0%,
+      rgba(129, 140, 248, 0.12) 0%,
+      transparent 70%
+    ),
+    var(--ie-surface-2);
+  box-shadow: inset 0 2px 0 0 rgba(129, 140, 248, 0.6);
+}
+
+/* ── Top bar ─────────────────────────────────────────────────────────────── */
+.dz-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  height: 3.5rem;
+  padding: 0 var(--ie-space-3);
+  background: var(--ie-surface);
+  border-bottom: 1px solid var(--ie-border);
+  gap: var(--ie-space-3);
+}
+
+.dz-topbar-breadcrumb {
+  flex-shrink: 0;
+  max-width: 24rem;
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ie-text-sm);
+  color: var(--ie-text);
+}
+
+.dz-topbar-context {
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text-faint);
+  margin-right: var(--ie-space-1);
+  flex-shrink: 0;
+}
+
+.dz-topbar-title {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.dz-topbar-sep {
+  color: var(--ie-text-faint);
+  flex-shrink: 0;
+}
+
+.dz-topbar-summary {
+  color: var(--ie-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.dz-topbar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.dz-topbar-actions {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;   /* gap inter-groupes (le séparateur ajoute son propre breathing room) */
+}
+
+/* Groupe d'actions logiques (boutons collés entre eux à 4px de gap) */
+.dz-topbar-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Séparateur vertical entre groupes */
+.dz-topbar-sep {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--ie-border-strong);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.dz-topbar-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  transition: all 120ms;
+}
+
+.dz-topbar-icon:hover:not(:disabled) {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+
+.dz-topbar-icon:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.dz-topbar-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ie-space-1);
+  padding: 0.25rem var(--ie-space-2);
+  height: 1.75rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: var(--ie-text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms;
+}
+
+.dz-topbar-action:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+
+.dz-topbar-return {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ie-space-1);
+  padding: 0.375rem var(--ie-space-3);
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border-strong);
+  border-radius: var(--ie-radius);
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: var(--ie-text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--ie-transition, 120ms);
+}
+
+.dz-topbar-return:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+
+/* ── AI command bar (centre top bar) ─────────────────────────────────────── */
+.dz-aibar {
+  width: 100%;
+  max-width: 35rem;
+  position: relative;
+}
+
+.dz-aibar-input {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  padding: 0.5rem var(--ie-space-3);
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius);
+  transition: border-color 120ms;
+  cursor: text;
+}
+
+.dz-aibar-input:hover,
+.dz-aibar-input:focus-within {
+  border-color: var(--ie-accent);
+}
+
+.dz-aibar-wand {
+  color: var(--ie-accent);
+  flex-shrink: 0;
+}
+
+.dz-aibar-input input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--ie-text);
+  font-size: var(--ie-text-sm);
+  font-family: inherit;
+}
+
+.dz-aibar-input input::placeholder {
+  color: var(--ie-text-faint);
+}
+
+.dz-aibar-kbd {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--ie-surface-2);
+  border: 1px solid var(--ie-border);
+  border-radius: 3px;
+  color: var(--ie-text-faint);
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.dz-aibar-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.dz-aibar-dropdown-section {
+  padding: var(--ie-space-2) var(--ie-space-3);
+  border-bottom: 1px solid var(--ie-border);
+}
+
+.dz-aibar-dropdown-section:last-child {
+  border-bottom: none;
+}
+
+.dz-aibar-dropdown-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ie-text-faint);
+  margin-bottom: 6px;
+}
+
+.dz-aibar-suggestion {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  padding: 6px var(--ie-space-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: var(--ie-text-xs);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dz-aibar-suggestion:hover {
+  background: var(--ie-surface-2);
+}
+
+.dz-aibar-suggestion-ico {
+  color: var(--ie-accent);
+  flex-shrink: 0;
+}
+
+/* ── Credits button + popover ────────────────────────────────────────────── */
+.dz-credits-wrapper {
+  position: relative;
+}
+
+.dz-credits-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ie-space-1);
+  height: 1.75rem;
+  padding: 0 var(--ie-space-2);
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text);
+  font-size: var(--ie-text-xs);
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+}
+
+.dz-credits-btn:hover {
+  border-color: var(--ie-accent);
+}
+
+.dz-credits-btn.low {
+  color: var(--ie-warning, #d4a84c);
+  border-color: var(--ie-warning, #d4a84c);
+}
+
+.dz-credits-btn.critical {
+  color: var(--ie-danger, #ef4444);
+  border-color: var(--ie-danger, #ef4444);
+  animation: dz-pulse-warn 2s ease-in-out infinite;
+}
+
+@keyframes dz-pulse-warn {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15); }
+}
+
+.dz-credits-num {
+  font-weight: 700;
+}
+
+.dz-credits-unit {
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--ie-text-faint);
+}
+
+.dz-credits-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 20rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 100;
+  overflow: hidden;
+}
+
+.dz-credits-header {
+  padding: var(--ie-space-3);
+  background: linear-gradient(135deg, var(--ie-accent) 0%, #6366f1 100%);
+  color: white;
+}
+
+.dz-credits-plan {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.dz-credits-balance {
+  font-size: 1.75rem;
+  font-weight: 700;
+  margin-top: 4px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.dz-credits-balance-unit {
+  font-size: var(--ie-text-sm);
+  opacity: 0.8;
+  font-weight: 500;
+}
+
+.dz-credits-section {
+  padding: var(--ie-space-3);
+  border-bottom: 1px solid var(--ie-border);
+  font-size: var(--ie-text-xs);
+}
+
+.dz-credits-section:last-of-type {
+  border-bottom: none;
+}
+
+.dz-credits-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  color: var(--ie-text);
+}
+
+.dz-credits-row-right {
+  color: var(--ie-text-muted);
+}
+
+.dz-credits-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--ie-surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0 8px;
+}
+
+.dz-credits-bar-fill {
+  height: 100%;
+  background: var(--ie-accent);
+  transition: width 200ms;
+}
+
+.dz-credits-bar-fill.warn {
+  background: var(--ie-warning, #d4a84c);
+}
+
+.dz-credits-bar-fill.critical {
+  background: var(--ie-danger, #ef4444);
+}
+
+.dz-credits-renewal {
+  margin-top: var(--ie-space-2);
+  padding-top: var(--ie-space-2);
+  border-top: 1px solid var(--ie-border);
+  font-size: 11px;
+  color: var(--ie-text-muted);
+}
+
+.dz-credits-plan-name {
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text);
+  font-weight: 500;
+}
+
+.dz-credits-plan-desc {
+  font-size: 11px;
+  color: var(--ie-text-muted);
+  margin-top: 2px;
+}
+
+.dz-credits-actions {
+  display: flex;
+  gap: var(--ie-space-1);
+  padding: var(--ie-space-2);
+  background: var(--ie-bg);
+}
+
+.dz-credits-action {
+  flex: 1;
+  padding: var(--ie-space-2);
+  border-radius: var(--ie-radius-sm);
+  font-size: var(--ie-text-xs);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 120ms;
+}
+
+.dz-credits-action.primary {
+  background: var(--ie-accent);
+  color: white;
+  border: none;
+}
+
+.dz-credits-action.primary:hover {
+  background: var(--ie-accent-dark);
+}
+
+.dz-credits-action.secondary {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+}
+
+.dz-credits-action.secondary:hover {
+  border-color: var(--ie-accent);
+}
+
+/* ── Left rail (48px) ────────────────────────────────────────────────────── */
+.dz-rail {
+  flex-shrink: 0;
+  width: 3rem;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  display: flex;
+  flex-direction: column;
+  padding: var(--ie-space-1) 0;
+  gap: 2px;
+}
+
+.dz-rail-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 auto;
+  background: transparent;
+  border: none;
+  border-radius: var(--ie-radius);
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  font-family: inherit;
+  transition: all 120ms;
+}
+
+.dz-rail-btn:hover {
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+}
+
+.dz-rail-btn.active {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+}
+
+.dz-rail-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 3px;
+  background: var(--ie-accent);
+  border-radius: 2px;
+}
+
+.dz-rail-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── Catalog (320px secondary panel) ─────────────────────────────────────── */
+/* Wrapper d'animation framer-motion autour du catalog.
+ * C'est LUI qui porte le position:absolute (ancrage), pas le catalog interne.
+ * L'animation enter/exit (slide x: -100% ↔ 0) est gérée en JS via AnimatePresence
+ * → bidirectionnelle, sans mount/unmount brutal. */
+/* Catalog : flex sibling (pas overlay).
+ * Décision UX 2026-04-26 : le catalog ne doit JAMAIS chevaucher l'image,
+ * peu importe la taille d'écran. Le canvas se redimensionne donc à l'ouverture.
+ * Les zones d'impact (rain, particles, weather) doivent stocker des coords
+ * normalisées 0-1 pour s'auto-adapter au resize.
+ *
+ * .dz-catalog-anim-wrapper porte l'animation width 0 ↔ 20rem (motion.div).
+ * .dz-catalog est juste le contenu interne. */
+.dz-catalog-anim-wrapper {
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+}
+
+.dz-catalog {
+  width: 20rem;
+  height: 100%;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dz-catalog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--ie-space-3);
+  border-bottom: 1px solid var(--ie-border);
+}
+
+.dz-catalog-title {
+  font-size: var(--ie-text-md);
+  font-weight: 600;
+  color: var(--ie-text);
+}
+
+.dz-catalog-close {
+  width: 1.5rem;
+  height: 1.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.dz-catalog-close:hover {
+  border-color: var(--ie-border-strong);
+  color: var(--ie-text);
+}
+
+.dz-catalog-search {
+  position: relative;
+  padding: var(--ie-space-2) var(--ie-space-3);
+  border-bottom: 1px solid var(--ie-border);
+}
+
+.dz-catalog-search-icon {
+  position: absolute;
+  left: 1.125rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ie-text-faint);
+}
+
+.dz-catalog-search input {
+  width: 100%;
+  padding: 0.375rem var(--ie-space-2) 0.375rem 1.75rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text);
+  font-size: var(--ie-text-xs);
+  font-family: inherit;
+}
+
+.dz-catalog-search input:focus {
+  outline: none;
+  border-color: var(--ie-accent);
+}
+
+.dz-catalog-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--ie-space-3);
+}
+
+.dz-catalog-empty {
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text-muted);
+  font-style: italic;
+  line-height: 1.5;
+  text-align: center;
+  padding: var(--ie-space-4);
+}
+
+.dz-catalog-section {
+  margin-bottom: var(--ie-space-4);
+}
+
+.dz-catalog-section-title {
+  font-size: var(--ie-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ie-text-faint);
+  margin-bottom: var(--ie-space-2);
+}
+
+.dz-catalog-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ie-space-2);
+}
+
+.dz-catalog-item {
+  padding: var(--ie-space-2) var(--ie-space-1);
+  background: var(--ie-surface-2);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-sm);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-family: inherit;
+  color: var(--ie-text);
+  transition: all 120ms;
+}
+
+.dz-catalog-item:hover {
+  border-color: var(--ie-accent);
+  background: var(--ie-surface);
+  transform: translateY(-1px);
+}
+
+.dz-catalog-item-ico {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.dz-catalog-item-label {
+  font-size: var(--ie-text-xs);
+  text-align: center;
+  line-height: 1.2;
+}
+
+.dz-catalog-note {
+  margin-top: var(--ie-space-3);
+  padding: var(--ie-space-2);
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text-faint);
+  font-style: italic;
+  text-align: center;
+  border: 1px dashed var(--ie-border);
+  border-radius: var(--ie-radius-sm);
+}
+
+.dz-catalog-placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ie-space-3);
+  padding: var(--ie-space-2) 0;
+}
+
+.dz-catalog-placeholder-desc {
+  font-size: var(--ie-text-sm);
+  color: var(--ie-text);
+  line-height: 1.5;
+}
+
+.dz-catalog-placeholder-upcoming ul {
+  list-style: none;
+  padding: 0;
+  margin: var(--ie-space-2) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dz-catalog-placeholder-upcoming li {
+  padding: 6px var(--ie-space-2);
+  background: var(--ie-surface-2);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-sm);
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text-muted);
+}
+
+.dz-catalog-placeholder-tag {
+  align-self: flex-start;
+  padding: 3px 8px;
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+  border-radius: var(--ie-radius-sm);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* ── Right inspector (320px collapsible) ─────────────────────────────────── */
+.dz-inspector {
+  flex-shrink: 0;
+  width: 20rem;
+  background: var(--ie-surface);
+  border-left: 1px solid var(--ie-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.dz-inspector.collapsed {
+  width: 2rem;
+}
+
+.dz-inspector-toggle {
+  position: absolute;
+  top: 0.375rem;
+  left: 0.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  z-index: 1;
+}
+
+.dz-inspector-toggle:hover {
+  border-color: var(--ie-border-strong);
+  color: var(--ie-text);
+}
+
+.dz-inspector-header {
+  padding: var(--ie-space-3) var(--ie-space-3) var(--ie-space-3) 2rem;
+  border-bottom: 1px solid var(--ie-border);
+  font-size: var(--ie-text-md);
+  font-weight: 600;
+  color: var(--ie-text);
+}
+
+.dz-inspector-empty {
+  color: var(--ie-text-muted);
+  font-weight: 500;
+}
+
+.dz-inspector-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;        /* défensif : empêche le contenu legacy de pousser */
+  padding: var(--ie-space-3);
+  min-width: 0;              /* autorise les enfants flex à shrink sous leur contenu */
+}
+
+/* Force tous les enfants directs du body inspector à respecter la largeur 320/256px.
+ * Indispensable pour le contenu legacy SidebarContent qui a parfois des minWidth implicites
+ * (boutons, inputs) qui causaient un scroll horizontal sur écrans étroits. */
+.dz-inspector-body > * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.dz-inspector-empty-body {
+  color: var(--ie-text-muted);
+  font-size: var(--ie-text-xs);
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* ── Center placeholder ──────────────────────────────────────────────────── */
+.dz-canvas-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ie-bg);
+  color: var(--ie-text-faint);
+  font-size: var(--ie-text-sm);
+  border: 1px dashed var(--ie-border);
+  margin: var(--ie-space-3);
+  border-radius: var(--ie-radius-md);
+}
+
+/* ── Modal Aperçu (device picker) ────────────────────────────────────────── */
+/* Layout : tout est groupé au centre du viewport — colonne device (toolbar pill
+ * + frame) à gauche, panneau info ancré à droite. La croix ✕ est dans le
+ * panneau, pas dans le coin du viewport. Tout reste dans le champ visuel central
+ * et scale ensemble en responsive. */
+
+.dz-preview-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(20, 20, 24);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: var(--ie-space-4);
+  animation: dz-fadein 280ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.image-editor-root[data-theme="dark"] .dz-preview-backdrop {
+  background: rgb(28, 28, 34);
+}
+.image-editor-root[data-theme="light"] .dz-preview-backdrop {
+  background: rgb(230, 232, 238);
+}
+
+@keyframes dz-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes dz-fadeout {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes dz-group-in {
+  from { opacity: 0; transform: scale(0.94) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes dz-group-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.94) translateY(8px); }
+}
+
+/* Ouverture en douceur : zoom-in + léger lift, easing "spring soft" */
+.dz-preview-group {
+  animation: dz-group-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Fermeture en douceur : fade-out backdrop + zoom-out group, synchronisés */
+.dz-preview-backdrop.closing {
+  animation: dz-fadeout 220ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+  pointer-events: none;
+}
+.dz-preview-backdrop.closing .dz-preview-group {
+  animation: dz-group-out 220ms cubic-bezier(0.4, 0, 0.6, 1) forwards;
+}
+
+/* Group : conteneur horizontal qui regroupe colonne device + panneau info.
+ * align-items: stretch (défaut) → le panneau s'étire à la hauteur de la
+ * colonne device. Comme la toolbar est absolu (hors flow), la colonne =
+ * exactement la hauteur du device → panneau aligné top + bottom au device. */
+.dz-preview-group {
+  display: flex;
+  align-items: stretch;
+  gap: var(--ie-space-4);
+  max-width: 100%;
+  max-height: 100%;
+}
+
+/* ── Colonne gauche : device frame (la toolbar est absolu au-dessus) ──── */
+.dz-preview-device-col {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+/* ── Picker de device (dropdown custom) ─────────────────────────────────── */
+/* Position absolute au-dessus du device pour ne pas augmenter la hauteur de
+ * la colonne (le panneau s'aligne ainsi parfaitement au top du device). */
+.dz-preview-picker {
+  position: absolute;
+  bottom: calc(100% + var(--ie-space-3));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+}
+
+.dz-preview-picker-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 160ms;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+.dz-preview-picker-trigger:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.dz-preview-picker-trigger.open {
+  background: var(--ie-accent);
+  border-color: transparent;
+  color: white;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--ie-accent) 45%, transparent);
+}
+
+.dz-preview-picker-name {
+  font-weight: 600;
+}
+
+.dz-preview-picker-dim {
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.dz-preview-picker-trigger.open .dz-preview-picker-dim {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.dz-preview-picker-chevron {
+  transition: transform 200ms;
+  opacity: 0.6;
+}
+
+.dz-preview-picker-trigger.open .dz-preview-picker-chevron {
+  transform: rotate(180deg);
+  opacity: 1;
+}
+
+/* Variante light : pill clair lisible */
+.image-editor-root[data-theme="light"] .dz-preview-picker-trigger {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: rgba(0, 0, 0, 0.95);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+.image-editor-root[data-theme="light"] .dz-preview-picker-trigger:hover {
+  background: white;
+  border-color: rgba(0, 0, 0, 0.12);
+}
+.image-editor-root[data-theme="light"] .dz-preview-picker-dim {
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.65);
+}
+
+/* Menu dropdown — popover sous le trigger, list groupée par catégorie */
+.dz-preview-picker-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 18rem;
+  max-height: 24rem;
+  overflow-y: auto;
+  padding: var(--ie-space-2);
+  background: rgba(20, 20, 24, 0.98);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--ie-radius-md, 10px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  z-index: 20;
+  animation: dz-preview-menu-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dz-preview-menu-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-picker-menu {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.02);
+}
+
+.dz-preview-picker-group + .dz-preview-picker-group {
+  margin-top: var(--ie-space-2);
+  padding-top: var(--ie-space-2);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-picker-group + .dz-preview-picker-group {
+  border-top-color: rgba(0, 0, 0, 0.06);
+}
+
+.dz-preview-picker-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-picker-group-title {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.dz-preview-picker-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  border-radius: var(--ie-radius);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 120ms;
+  text-align: left;
+}
+
+.dz-preview-picker-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.dz-preview-picker-item.active {
+  background: color-mix(in srgb, var(--ie-accent) 18%, transparent);
+  color: white;
+}
+
+.dz-preview-picker-item-name {
+  flex: 1;
+  font-weight: 500;
+}
+
+.dz-preview-picker-item-dim {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+  font-variant-numeric: tabular-nums;
+}
+
+.dz-preview-picker-item-check {
+  color: var(--ie-accent);
+  flex-shrink: 0;
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-picker-item {
+  color: rgba(0, 0, 0, 0.85);
+}
+.image-editor-root[data-theme="light"] .dz-preview-picker-item:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+.image-editor-root[data-theme="light"] .dz-preview-picker-item.active {
+  background: color-mix(in srgb, var(--ie-accent) 12%, transparent);
+}
+.image-editor-root[data-theme="light"] .dz-preview-picker-item-dim {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+/* ── Frame du device ────────────────────────────────────────────────────── */
+/* Dimensions depuis --frame-w / --frame-h passées en inline (preset device).
+ * Scale auto pour fit dans le viewport (height + width).
+ * Compensation de layout via margin négative pour que le frame n'occupe que
+ * son espace VISIBLE (scaled), pas son espace original. */
+.dz-preview-frame {
+  --max-h: calc(100vh - 6rem);
+  --max-w: calc(100vw - 24rem); /* place pour le panneau (18rem) + marges */
+  --scale: min(1, var(--max-h) / var(--frame-h, 692px), var(--max-w) / var(--frame-w, 320px));
+  position: relative;
+  width: var(--frame-w, 320px);
+  height: var(--frame-h, 692px);
+  background: #111;
+  padding: 12px;
+  border-radius: 36px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  flex-shrink: 0;
+  transform: scale(var(--scale));
+  transform-origin: top left;
+  /* Compense l'espace fantôme laissé par transform:scale */
+  margin-right: calc(var(--frame-w, 320px) * (var(--scale) - 1));
+  margin-bottom: calc(var(--frame-h, 692px) * (var(--scale) - 1));
+  transition: width 240ms cubic-bezier(0.16, 1, 0.3, 1),
+              height 240ms cubic-bezier(0.16, 1, 0.3, 1),
+              transform 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dz-preview-screen {
+  width: 100%;
+  height: 100%;
+  background-color: #0a0a0a;
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  border-radius: 24px;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  padding: var(--ie-space-3);
+}
+
+/* Overlay narratif (texte + choix) comme verra le lecteur */
+.dz-preview-narrative {
+  width: 100%;
+  padding: var(--ie-space-3);
+  background: rgba(0, 0, 0, 0.75);
+  border-radius: var(--ie-radius);
+  color: white;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ie-space-2);
+}
+
+.dz-preview-text {
+  font-size: var(--ie-text-sm);
+  line-height: 1.5;
+}
+
+.dz-preview-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dz-preview-choice {
+  padding: 4px 12px;
+  background: var(--ie-accent);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.dz-preview-choice:hover {
+  background: var(--ie-accent-dark);
+}
+
+/* ── Colonne droite : panneau info ─────────────────────────────────────── */
+/* Ancré à droite du device, contient la croix de fermeture (toujours dans
+ * le champ visuel central, jamais perdue dans le coin du viewport). */
+.dz-preview-panel {
+  --max-h: calc(100vh - 6rem);
+  --max-w: calc(100vw - 24rem);
+  --scale: min(1, var(--max-h) / var(--frame-h, 692px), var(--max-w) / var(--frame-w, 320px));
+  display: flex;
+  flex-direction: column;
+  width: 18rem;
+  /* Hauteur = device VISUAL height (scaled). Le panneau matche pile la
+   * hauteur visible du device, peu importe sa taille originale. */
+  height: calc(var(--frame-h, 692px) * var(--scale));
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--ie-radius-md, 8px);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-panel {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.02);
+}
+
+.dz-preview-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ie-space-3);
+  padding: var(--ie-space-3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-panel-header {
+  border-bottom-color: rgba(0, 0, 0, 0.06);
+}
+
+.dz-preview-panel-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dz-preview-panel-device {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.dz-preview-panel-dim {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+  font-variant-numeric: tabular-nums;
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-panel-device {
+  color: rgba(0, 0, 0, 0.95);
+}
+.image-editor-root[data-theme="light"] .dz-preview-panel-dim {
+  color: rgba(0, 0, 0, 0.55);
+}
+
+/* Bouton ✕ ancré dans le header du panneau (plus dans le coin du viewport) */
+.dz-preview-close {
+  width: 2rem;
+  height: 2rem;
+  background: var(--ie-accent);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ie-accent) 35%, transparent);
+  transition: transform 120ms, background 120ms;
+}
+
+.dz-preview-close:hover {
+  background: var(--ie-accent-dark);
+  transform: scale(1.05);
+}
+
+/* Body : sections placeholder (Calques / Objets) */
+.dz-preview-panel-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ie-space-4);
+  padding: var(--ie-space-3);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.dz-preview-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ie-space-2);
+}
+
+.dz-preview-panel-title {
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.02em;
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-panel-title {
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.dz-preview-panel-empty {
+  font-size: 11px;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.4);
+  padding: var(--ie-space-2) var(--ie-space-3);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: var(--ie-radius);
+  border: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-panel-empty {
+  color: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.03);
+  border-color: rgba(0, 0, 0, 0.08);
+}
+
+/* Footer : raccourci Esc */
+.dz-preview-panel-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  padding: var(--ie-space-2) var(--ie-space-3);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.dz-preview-panel-footer kbd {
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.image-editor-root[data-theme="light"] .dz-preview-panel-footer {
+  border-top-color: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.5);
+}
+.image-editor-root[data-theme="light"] .dz-preview-panel-footer kbd {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.1);
+  color: rgba(0, 0, 0, 0.85);
+}
+
+/* ── Responsive du modal preview ──────────────────────────────────────── */
+/* Le scale du device frame est calculé dynamiquement via CSS vars --scale
+ * (cf. .dz-preview-frame). Le panneau matche la hauteur visible du device.
+ * Reste à gérer la largeur compacte du panneau et le passage en colonne. */
+@media (max-width: 1100px) {
+  .dz-preview-panel { width: 15rem; }
+  .dz-preview-frame { --max-w: calc(100vw - 20rem); }
+}
+
+@media (max-width: 900px) {
+  .dz-preview-group { flex-direction: column; align-items: center; }
+  .dz-preview-panel {
+    width: 100%;
+    max-width: 22rem;
+    height: auto;
+    max-height: 16rem;
+  }
+  .dz-preview-frame { --max-w: calc(100vw - 4rem); }
+}
+
+/* ── Responsive : compact mode auto par breakpoints ──────────────────────── */
+
+/* ≥ 1600px : layout complet, pas de réduction (laissé tel quel) */
+
+/* 1366-1599px : inspecteur réduit par défaut (250px au lieu de 320px),
+   reste activable. Le canvas a un peu plus d'espace. */
+@media (max-width: 1599px) {
+  .dz-inspector { width: 16rem; }                    /* 256px */
+  .dz-catalog { width: 18rem; }                      /* 288px */
+}
+
+/* 1024-1365px : inspecteur passe aussi en OVERLAY (le catalog est déjà overlay
+   par défaut, cf. règle .dz-catalog ci-dessus). Évite que les 2 panneaux
+   compriment ensemble le canvas sur écrans étroits. */
+@media (max-width: 1365px) {
+  .dz-inspector {
+    position: absolute;
+    top: 0; bottom: 0; right: 0;
+    z-index: 10;
+    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.25);
+  }
+  .dz-inspector.collapsed {
+    width: 2rem;
+    box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* < 1024px (tablette portrait, mobile) : Designer non-optimisé.
+   Affiche un message + UI réduite (rail + canvas seulement). */
+@media (max-width: 1023px) {
+  .dz-catalog, .dz-inspector { display: none; }
+  .dz-root::after {
+    content: "⚠ Studio Designer optimisé pour desktop (≥ 1366px). Certaines fonctionnalités peuvent être limitées sur cet écran.";
+    position: fixed;
+    bottom: var(--ie-space-3);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: var(--ie-space-2) var(--ie-space-3);
+    background: rgba(245, 158, 11, 0.15);
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    border-radius: var(--ie-radius);
+    color: #fbbf24;
+    font-size: var(--ie-text-xs);
+    max-width: 90%;
+    z-index: 100;
+  }
+}
+
+
+/* ── Phase 6a : Micro-interactions polish ─────────────────────────────────
+ * Ajoute un layer cohérent de feedback subtil sur tous les éléments
+ * interactifs du Designer :
+ *  - focus-visible accessible (ring rose discret pour navigation clavier)
+ *  - active-press feedback (léger scale-down qui dit "je t'ai entendu")
+ *  - hover lift sur les cards du catalogue
+ * Réutilise --ie-accent pour rester cohérent avec le thème. */
+
+/* Focus-visible global pour les boutons interactifs du Designer.
+ * Apparaît UNIQUEMENT sur navigation clavier (pas au clic souris). */
+.dz-root button:focus-visible,
+.dz-root [role="button"]:focus-visible,
+.dz-root [role="option"]:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--ie-accent) 70%, transparent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* Inputs : focus-visible un peu plus présent (border colorée + ring soft) */
+.dz-root input:focus-visible,
+.dz-root textarea:focus-visible,
+.dz-root select:focus-visible {
+  outline: none;
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 18%, transparent);
+}
+
+/* Active press : scale-down subtil pour confirmer le clic. Appliqué à tous
+ * les boutons sauf ceux qui ont déjà un transform spécifique (close, etc.). */
+.dz-rail-btn:active,
+.dz-topbar-icon:active,
+.dz-topbar-action:active,
+.dz-topbar-return:active,
+.dz-credits-btn:active,
+.dz-credits-action:active,
+.dz-catalog-item:active,
+.dz-aibar-suggestion:active,
+.dz-preview-picker-trigger:active,
+.dz-preview-picker-item:active,
+.dz-preview-choice:active {
+  transform: scale(0.97);
+  transition: transform 80ms ease-out;
+}
+
+/* Hover lift sur les cards du catalogue : élévation légère + ombre douce */
+.dz-catalog-item {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              background 120ms;
+}
+.dz-catalog-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* Suggestion bar : transition douce sur les items */
+.dz-aibar-suggestion {
+  transition: background 120ms, transform 120ms;
+}
+
+/* Items du picker preview : léger slide horizontal au hover (engageant) */
+.dz-preview-picker-item:hover {
+  transform: translateX(2px);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Phase 6b refonte — Bottom drawer (variantes + form génération)
+ * Vit dans .dz-center sous le canvas en Phase A uniquement.
+ * Hauteur naturelle = strip variantes (~120px) + form (~180px) ≈ 300-360px.
+ * Phase B : max-height 0 + transition douce (cf. règle [data-phase="editing"]).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.dz-bottom-drawer {
+  flex-shrink: 0;
+  background: var(--ie-surface);
+  border-top: 1px solid var(--ie-border);
+  overflow: hidden;
+  max-height: 400px;
+  transition: max-height 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.dz-bottom-drawer-content {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Strip variantes : carrousel horizontal */
+.dz-variants-strip {
+  display: flex;
+  align-items: stretch;
+  gap: var(--ie-space-3);
+  padding: var(--ie-space-3);
+  border-bottom: 1px solid var(--ie-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.dz-variants-strip-header {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex-shrink: 0;
+  padding-right: var(--ie-space-2);
+  min-width: 110px;
+}
+.dz-variants-strip-title {
+  font-size: var(--ie-text-xs);
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.dz-variants-strip-sub {
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  margin-top: 2px;
+}
+.dz-variants-strip-list {
+  display: flex;
+  gap: var(--ie-space-2);
+  flex: 0 0 auto;
+}
+
+/* Tuile variante */
+.dz-variant {
+  flex-shrink: 0;
+  width: 144px;
+  height: 96px;
+  border-radius: var(--ie-radius);
+  border: 2px solid transparent;
+  background: var(--ie-surface-2);
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 120ms,
+              box-shadow 200ms;
+}
+.dz-variant.selected {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+.dz-variant.error {
+  border-color: var(--ie-danger, #ef4444);
+}
+.dz-variant:not(.busy):not(.error) { cursor: pointer; }
+.dz-variant:not(.busy):not(.error):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.dz-variant img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.dz-variant-skeleton {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg,
+    var(--ie-surface-2) 8%,
+    var(--ie-surface-3) 18%,
+    var(--ie-surface-2) 33%);
+  background-size: 200% 100%;
+  animation: dz-shimmer 1.4s linear infinite;
+}
+@keyframes dz-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.dz-variant-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--ie-text-muted);
+  text-align: center;
+  padding: var(--ie-space-2);
+  z-index: 1;
+}
+.dz-variant.error .dz-variant-state { color: var(--ie-danger, #ef4444); }
+.dz-variant-state-label {
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+.dz-variant-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  background: var(--ie-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+.dz-variant-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 4px 8px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Slot pour le formulaire de génération à l'intérieur du drawer.
+ * Le vrai GenerationPanel a déjà son propre padding/background/border.
+ * On rend ce wrapper transparent pour ne pas doubler les espacements.
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-gen-form-slot {
+  display: contents;
+}
+
+/* GenerationPanel rendu dans le drawer : suppress son border-top
+ * (sinon doubles avec le border-bottom de la variants-strip → ligne épaisse). */
+.dz-bottom-drawer .ie-gen-panel {
+  border-top: none;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Form de test (page /editor-test/new-layout uniquement)
+ * En prod, GenerationPanel sera passé directement → ce style ne s'applique pas.
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-mock-form-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: var(--ie-space-2);
+  align-items: end;
+}
+.dz-mock-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.dz-mock-form-field > span {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ie-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dz-mock-form-field input,
+.dz-mock-form-field select {
+  padding: 7px 10px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius);
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: var(--ie-text-xs);
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.dz-mock-form-field input:focus,
+.dz-mock-form-field select:focus {
+  outline: none;
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 18%, transparent);
+}
+.dz-mock-form-field select { min-width: 110px; }
+.dz-mock-form-submit {
+  padding: 8px 18px;
+  background: var(--ie-accent);
+  border: none;
+  border-radius: var(--ie-radius);
+  color: white;
+  font-family: inherit;
+  font-size: var(--ie-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--ie-accent) 40%, transparent);
+  transition: transform 120ms, box-shadow 200ms;
+}
+.dz-mock-form-submit:hover {
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ie-accent) 50%, transparent);
+}
+.dz-mock-form-submit:active { transform: scale(0.97); }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Demo controls (page de test uniquement) — top-right floating
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-demo-controls {
+  position: fixed;
+  top: 4.25rem;            /* sous la topbar */
+  right: var(--ie-space-3);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  font-size: 11px;
+}
+.dz-demo-label {
+  color: var(--ie-text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 10px;
+  margin-right: 6px;
+}
+.dz-demo-btn {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.dz-demo-btn:hover { background: var(--ie-surface-2); }
+.dz-demo-btn.active {
+  background: var(--ie-accent);
+  color: white;
+  font-weight: 600;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Phase 6b refonte — DesignerBankPanel (panel slide-open en Phase A)
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-bank-panel {
+  flex-shrink: 0;
+  width: 20rem;                 /* 320px */
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  /* Slide-in animation : géré par DesignerLayout via classe parent.
+   * Quand .dz-root[data-phase="editing"] → width: 0, opacity: 0 */
+  transition: width 320ms cubic-bezier(0.16, 1, 0.3, 1),
+              opacity 240ms ease;
+}
+.dz-root[data-phase="editing"] .dz-bank-panel {
+  width: 0;
+  opacity: 0;
+  border-right: none;
+  pointer-events: none;
+}
+
+.dz-bank-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  padding: var(--ie-space-3);
+  border-bottom: 1px solid var(--ie-border);
+}
+.dz-bank-title {
+  font-size: var(--ie-text-sm);
+  font-weight: 600;
+  color: var(--ie-text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dz-bank-count {
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.dz-bank-close {
+  width: 1.5rem;
+  height: 1.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 120ms;
+}
+.dz-bank-close:hover {
+  border-color: var(--ie-border-strong);
+  color: var(--ie-text);
+}
+
+.dz-bank-search {
+  flex-shrink: 0;
+  position: relative;
+  padding: var(--ie-space-2) var(--ie-space-3);
+  border-bottom: 1px solid var(--ie-border);
+}
+.dz-bank-search-icon {
+  position: absolute;
+  left: calc(var(--ie-space-3) + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ie-text-faint);
+  pointer-events: none;
+}
+.dz-bank-search input {
+  width: 100%;
+  padding: 6px 10px 6px 28px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius);
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: var(--ie-text-xs);
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.dz-bank-search input:focus {
+  outline: none;
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 18%, transparent);
+}
+
+.dz-bank-grid {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--ie-space-3);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ie-space-2);
+}
+
+.dz-bank-tile {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--ie-radius);
+  background: var(--ie-surface-2);
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  font-family: inherit;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 120ms,
+              box-shadow 200ms;
+}
+.dz-bank-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.dz-bank-tile:active {
+  transform: scale(0.97);
+}
+.dz-bank-tile.picked {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+.dz-bank-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dz-bank-tile-tag {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  font-size: 9px;
+  font-weight: 500;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.dz-bank-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ie-space-4);
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text-faint);
+  font-style: italic;
+  text-align: center;
+}
+
+/* Responsive : sur écrans étroits, le bank panel passe en overlay (pas en flex)
+ * pour laisser de la place au canvas. */
+@media (max-width: 1365px) {
+  .dz-root[data-phase="creation"] .dz-bank-panel {
+    position: absolute;
+    top: 0; bottom: 0; left: 3rem;       /* après le rail */
+    z-index: 10;
+    box-shadow: 4px 0 16px rgba(0, 0, 0, 0.15);
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Phase 6b refonte — Enrichissement VariantsStrip
+ * (Référence checkbox + source badge avec icônes + delete button)
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* Override du badge source pour le rendre plus riche (icône + label) */
+.dz-variant-source {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  font-size: 9px;
+  font-weight: 500;
+  border-radius: 3px;
+  z-index: 2;
+  pointer-events: none;
+  max-width: calc(100% - 32px);   /* laisse place pour le check à droite */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dz-variant-source.bank {
+  background: rgba(99, 102, 241, 0.85);  /* indigo : signal "depuis ta banque" */
+}
+.dz-variant-source.generated {
+  background: rgba(0, 0, 0, 0.65);
+}
+
+/* Coche sélection (top-right) — plus petite que la check du picker */
+.dz-variant-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  background: var(--ie-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 2;
+}
+
+/* Checkbox Référence (bottom-left) */
+.dz-variant-ref {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  font-size: 9px;
+  font-weight: 500;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  z-index: 2;
+  transition: background 120ms;
+}
+.dz-variant-ref:hover { background: rgba(0, 0, 0, 0.85); }
+.dz-variant-ref.checked {
+  background: var(--ie-accent);
+}
+.dz-variant-ref input {
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: white;
+}
+
+/* Bouton delete (bottom-right) — visible au hover de la tuile */
+.dz-variant-delete {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  width: 18px;
+  height: 18px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  z-index: 2;
+  transition: background 120ms;
+}
+.dz-variant-delete:hover {
+  background: var(--ie-danger, #ef4444);
+}
+.dz-variant:hover .dz-variant-delete { display: flex; }
+.dz-variant-delete:focus-visible { display: flex; }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Phase 6b refonte — Modèle 2 phases
+ * Comportement par data-phase sur .dz-root :
+ *  - 'creation' : bank panel visible, inspecteur caché, drawer visible
+ *  - 'editing'  : bank panel caché, inspecteur visible, drawer caché
+ * Toutes les transitions douces (320ms cubic-bezier ease-out spring soft).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* Inspecteur droit : visible UNIQUEMENT quand on édite un calque (overlay).
+ * Caché dans 2 cas :
+ *  - Phase A (creation) : pas de calque encore, on construit la base
+ *  - Phase B + calque Base actif : Base n'a pas de params à éditer
+ *    (params de la base = bouton "Nouvelle base" du top bar)
+ * → l'inspecteur n'apparaît qu'au clic sur un calque overlay (Pluie forte, etc.) */
+.dz-root[data-phase="creation"] .dz-inspector,
+.dz-root[data-active-layer="base"] .dz-inspector {
+  width: 0;
+  opacity: 0;
+  border-left: none;
+  pointer-events: none;
+}
+
+/* Bottom drawer : visible en Phase A, caché en Phase B */
+.dz-root[data-phase="editing"] .dz-bottom-drawer {
+  max-height: 0;
+  border-top: none;
+  pointer-events: none;
+}
+
+/* Layer tabs : cachés en Phase A (le parent peut les omettre des children, mais
+ * filet de sécurité CSS au cas où ils seraient toujours rendus). */
+.dz-root[data-phase="creation"] .layer-tabs,
+.dz-root[data-phase="creation"] .ie-layer-tabs {
+  display: none;
+}
+
+/* Rail : icônes dimmed en Phase A (sauf banque) */
+.dz-rail-btn.dimmed {
+  opacity: 0.3;
+  cursor: not-allowed;
+  pointer-events: auto; /* on garde le pointer pour le tooltip d'explication */
+}
+.dz-rail-btn.dimmed:hover {
+  opacity: 0.45;
+  background: transparent;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Bouton "Commencer l'édition" — flottant bottom-right du canvas en Phase A.
+ * Compose avec .ie-btn .ie-btn-primary (style standard du projet, identique
+ * au bouton Générer du form). On override UNIQUEMENT le positionnement et
+ * l'élévation flottante (shadow) pour signaler "action principale flottante".
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-commencer-btn.dz-commencer-btn {
+  /* Double sélecteur pour gagner en spécificité face à .ie-btn (qui définit
+   * padding/font-size par défaut). On match les overrides du bouton Générer. */
+  position: absolute;
+  bottom: var(--ie-space-4);
+  right: var(--ie-space-4);
+  height: 30px;                                  /* match Générer */
+  padding: 7px 16px;                             /* match Générer */
+  font-size: var(--ie-text-sm);                  /* match Générer (12px) */
+  font-weight: 600;                              /* match Générer */
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  z-index: 50;
+  /* Élévation discrète pour signaler "action flottante au-dessus du canvas" */
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--ie-accent) 35%, transparent);
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 200ms,
+              background 120ms,
+              opacity 200ms;
+  animation: dz-commencer-in 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.dz-commencer-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--ie-accent) 45%, transparent);
+}
+.dz-commencer-btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+}
+.dz-commencer-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+@keyframes dz-commencer-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)  scale(1); }
+}
+
+/* Halo de fond du center différent en Phase A (signal "tu es en création") :
+ * on garde le halo rose Base déjà en place — il indique aussi naturellement
+ * qu'on travaille sur la fondation. */
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Zone canvas (wrapper autour de LayerTabs + Canvas)
+ * Sert d'ancrage relatif pour le bouton "Commencer l'édition" qui reste
+ * AU-DESSUS du drawer (jamais en superposition avec Générer).
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-canvas-zone {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  position: relative;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * SceneTestPicker — entrée du banc de test (grille 12 scènes preset)
+ * Vit en dehors du Designer, comme splash avant d'entrer dans le Designer.
+ * Style : cohérent avec le thème Designer (dark/light), card-based.
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-scene-picker {
+  min-height: 100vh;
+  background: var(--ie-bg);
+  color: var(--ie-text);
+  font-family: var(--ie-font);
+  padding: 4rem 2rem;
+}
+.dz-scene-picker-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+}
+.dz-scene-picker-header {
+  margin-bottom: 3rem;
+}
+.dz-scene-picker-header h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+}
+.dz-scene-picker-header p {
+  color: var(--ie-text-muted);
+  line-height: 1.6;
+  margin: 0;
+}
+.dz-scene-picker-header strong {
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+
+.dz-scene-picker-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem;
+}
+.dz-scene-picker-sub {
+  color: var(--ie-text-muted);
+  font-size: var(--ie-text-xs);
+  line-height: 1.5;
+  margin: 0 0 1.25rem;
+}
+
+.dz-scene-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+
+/* Wrapper relatif autour de la card — sert d'ancrage absolute pour le bouton
+ * ✕ wipe (sortie de la card pour éviter <button> imbriqué dans <button>). */
+.dz-scene-card-wrap {
+  position: relative;
+}
+
+.dz-scene-card {
+  position: relative;
+  width: 100%;
+  padding: 1rem;
+  text-align: left;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-md);
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 120ms,
+              box-shadow 200ms;
+}
+.dz-scene-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--ie-accent);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.dz-scene-card.saved {
+  border-color: var(--ie-success, #10B981);
+  background: color-mix(in srgb, var(--ie-success, #10B981) 6%, var(--ie-surface));
+}
+.dz-scene-card.saved:hover {
+  border-color: var(--ie-success, #10B981);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ie-success, #10B981) 25%, transparent);
+}
+
+.dz-scene-card-name {
+  font-size: var(--ie-text-sm);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.dz-scene-card-id {
+  font-size: 11px;
+  color: var(--ie-text-faint);
+  font-family: monospace;
+  margin-bottom: 6px;
+}
+.dz-scene-card-meta {
+  font-size: 11px;
+  color: var(--ie-text-faint);
+}
+.dz-scene-card-meta.saved {
+  color: var(--ie-success, #10B981);
+  font-weight: 500;
+}
+
+.dz-scene-card-wipe {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.4);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms;
+}
+.dz-scene-card-wipe:hover {
+  background: var(--ie-danger, #ef4444);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * DesignerActionsToolbar — barre horizontale au-dessus du canvas
+ * Pattern "tool palette pro" : icônes seuls, centrés, liséré rose accent.
+ * Affichée Phase B uniquement (entre LayerTabs et l'image).
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-actions-toolbar {
+  flex-shrink: 0;
+  display: flex;
+  /* Toujours centrer verticalement les enfants, peu importe leurs hauteurs
+   * (icône ciseau 36px vs sub-tools verticaux ~50px). Le ciseau apparaît
+   * pile au milieu du bandeau. */
+  align-items: center;
+  /* Toujours centré horizontalement (fermé ET ouvert). Quand le drawer
+   * s'ouvre, le row grossit (sub-tools + secondary actions) et framer-motion
+   * `layout` anime la croissance — le ciseau glisse naturellement vers la
+   * gauche mais s'arrête à une position proportionnelle au row, pas au
+   * bord du canvas. UX plus douce à suivre que flex-start (slide moins
+   * brutal, ciseau ne se "perd" pas tout à gauche). */
+  justify-content: center;
+  gap: var(--ie-space-2);
+  padding: 8px var(--ie-space-3);
+  border-bottom: 1px solid var(--ie-border);
+  background: color-mix(in srgb, var(--ie-surface) 60%, transparent);
+  position: relative;
+  min-height: 76px;
+}
+
+/* Row qui contient stack icône + actions secondaires + sub-tools en ligne */
+.dz-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ── Drawer du ciseau ouvert : sub-tools + séparateur vertical + actions
+ * secondaires, tout sur une seule ligne. Les enfants apparaissent en cascade
+ * via les variants framer-motion. */
+.dz-actions-drawer {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+}
+
+/* Séparateur vertical fin entre sub-tools (outils de découpe) et secondary
+ * actions (opérations sur le résultat extrait). Visuellement marque la frontière
+ * "comment je découpe" vs "que faire de la découpe". */
+.dz-actions-vsep {
+  width: 1px;
+  height: 38px;
+  background: var(--ie-border);
+  margin: 0 4px;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+/* Actions secondaires (Copier / Supprimer / Calque / Personnage / Objet)
+ * rendues APRÈS les sub-tools dans le drawer.
+ *
+ * État ACTIF (par défaut, :not(:disabled)) : bouton normal légèrement surélevé
+ *   (border + ombre extérieure subtile), prêt à être cliqué.
+ * État INACTIF (disabled) : icône légèrement assombrie + effet "enfoncé"
+ *   (inset shadow + bg plus sombre, comme un bouton désactivé en relief
+ *   inversé) — clairement non-cliquable mais sans être fade. */
+.dz-actions-secondary-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 999px;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: background 140ms, border-color 140ms, color 140ms, box-shadow 140ms;
+  font-family: inherit;
+  /* Légère surélévation par défaut (état actif normal) */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+.dz-actions-secondary-btn:not(:disabled):hover {
+  background: color-mix(in srgb, var(--ie-accent) 8%, var(--ie-surface));
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--ie-accent) 14%, transparent);
+}
+.dz-actions-secondary-btn:not(:disabled):active {
+  transform: scale(0.94);
+  transition: transform 80ms;
+}
+.dz-actions-secondary-btn:disabled {
+  /* Bouton "enfoncé" : bg légèrement plus sombre + inset shadow + icône
+   * un cran plus discret. Pas de fade aggressif (opacity ~0.7) — l'utilisateur
+   * voit les icônes mais comprend immédiatement qu'elles ne sont pas
+   * cliquables grâce à l'effet relief inversé. */
+  background: color-mix(in srgb, var(--ie-text) 6%, var(--ie-surface));
+  border-color: color-mix(in srgb, var(--ie-text) 10%, transparent);
+  color: var(--ie-text-faint);
+  cursor: not-allowed;
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.13),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.05);
+  opacity: 0.85;
+}
+/* Dark mode : inset shadow plus prononcée pour rester lisible sur fond sombre */
+body.theme-dark .dz-actions-secondary-btn:disabled,
+.image-editor-root[data-theme="dark"] .dz-actions-secondary-btn:disabled {
+  background: color-mix(in srgb, #000 25%, var(--ie-surface));
+  box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 1px rgba(255, 255, 255, 0.03);
+}
+
+/* Caché en Phase A (creation) : pas d'image base committée → pas d'actions */
+.dz-root[data-phase="creation"] .dz-actions-toolbar {
+  display: none;
+}
+
+/* Stack vertical interne : action principale en haut + bouton Extraire dessous.
+ * Contient l'icône (action) + le bouton "Extraire" alignés en colonne, centrés.
+ * Permet à l'utilisateur de tracer une sélection puis cliquer Extraire en
+ * un seul mouvement vertical sans déplacer la souris. */
+.dz-actions-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Wrapper du bouton + son popover éventuel (popover ancré en absolute) */
+.dz-actions-btn-wrap {
+  position: relative;
+}
+
+/* Bouton "Extraire" icône-only (Check) sous l'icône Découper. Désactivé tant
+ * qu'aucune sélection n'existe, actif (rose accent rond) dès qu'une marque
+ * est tracée sur le canvas. Pas de texte : l'icône Découper au-dessus convey
+ * déjà l'action. */
+.dz-actions-extract {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1.5px solid var(--ie-border);
+  background: var(--ie-surface);
+  color: var(--ie-text-faint);
+  cursor: not-allowed;
+  transition: all 160ms;
+  font-family: inherit;
+}
+.dz-actions-extract.enabled {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 22%, transparent);
+}
+.dz-actions-extract.enabled:hover {
+  filter: brightness(1.08);
+  transform: scale(1.06);
+}
+.dz-actions-extract.enabled:active {
+  transform: scale(0.92);
+  transition: transform 80ms;
+}
+.dz-actions-extract:disabled {
+  opacity: 0.55;
+}
+.dz-actions-extract-spinner {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Bouton : icône-only, rond, liséré rose subtil */
+.dz-actions-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--ie-accent);
+  border-radius: 999px;
+  color: var(--ie-accent);
+  cursor: pointer;
+  transition: all 160ms;
+  box-shadow: 0 0 0 0 transparent;
+}
+.dz-actions-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 15%, transparent);
+}
+.dz-actions-btn.active {
+  background: var(--ie-accent);
+  color: white;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+.dz-actions-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  border-color: var(--ie-border);
+  color: var(--ie-text-faint);
+}
+.dz-actions-btn:active:not(:disabled) {
+  transform: scale(0.95);
+  transition: transform 80ms;
+}
+
+/* ── Drawer horizontal sub-tools (Smart visu / Baguette / Polygone / Lasso /
+ * Pinceau). Apparaît à droite de l'icône Découper quand .is-open. Chaque
+ * sub-tool = bouton vertical (icône au-dessus, label en dessous). */
+.dz-actions-subtools {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding-top: 2px;                    /* aligne visuellement avec l'icône principale */
+}
+
+.dz-actions-subtool {
+  /* Couleur signature par défaut (fallback) — chaque sub-tool peut overrider
+   * via la custom prop `--dz-tool-color` passée en style inline. */
+  --dz-tool-color: var(--ie-accent);
+
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  width: 64px;
+  padding: 6px 4px 5px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-md);
+  color: var(--ie-text);
+  cursor: pointer;
+  transition: background 140ms, border-color 140ms, box-shadow 140ms, transform 140ms;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.2;
+}
+.dz-actions-subtool:hover {
+  background: color-mix(in srgb, var(--dz-tool-color) 6%, var(--ie-surface));
+  border-color: color-mix(in srgb, var(--dz-tool-color) 35%, var(--ie-border));
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--dz-tool-color) 14%, transparent);
+}
+.dz-actions-subtool.active {
+  background: color-mix(in srgb, var(--dz-tool-color) 12%, var(--ie-surface));
+  border-color: var(--dz-tool-color);
+  color: var(--dz-tool-color);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--dz-tool-color) 28%, transparent);
+}
+/* Disabled : grisé, non cliquable. Utilisé quand une détection est sélectionnée
+ * (les sub-tools de découpe ne servent pas à manipuler une sélection existante). */
+.dz-actions-subtool:disabled,
+.dz-actions-subtool[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(0.6);
+}
+.dz-actions-subtool-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  /* Inactif : fond pastel teinté de la couleur du tool, icône en couleur pleine */
+  background: color-mix(in srgb, var(--dz-tool-color) 14%, transparent);
+  color: var(--dz-tool-color);
+  transition: background 140ms, color 140ms;
+}
+.dz-actions-subtool.active .dz-actions-subtool-icon {
+  /* Actif : fond plein de la couleur du tool, icône blanche */
+  background: var(--dz-tool-color);
+  color: white;
+}
+/* Le check d'activation (badge en haut-droite) prend aussi la couleur du tool */
+.dz-actions-subtool.active .dz-actions-subtool-check {
+  background: var(--dz-tool-color);
+}
+.dz-actions-subtool-label {
+  letter-spacing: 0.005em;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dz-actions-subtool-check {
+  position: absolute;
+  top: -4px; right: -4px;
+  width: 14px; height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ie-accent);
+  color: white;
+  border-radius: 999px;
+  border: 1.5px solid var(--ie-surface);
+  pointer-events: none;
+}
+
+/* ── Popover sub-menu (legacy — utilisé si plusieurs actions principales,
+ *    inutile pour Découper car remplacé par drawer horizontal ci-dessus) ── */
+.dz-actions-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  min-width: 180px;
+  animation: dz-popover-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dz-popover-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.dz-actions-popover-item {
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--ie-radius);
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: var(--ie-text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms;
+  text-align: left;
+}
+.dz-actions-popover-item:hover { background: var(--ie-surface-2); }
+.dz-actions-popover-item:active { transform: scale(0.98); transition: transform 80ms; }
+.dz-actions-popover-item.active {
+  background: color-mix(in srgb, var(--ie-accent) 12%, transparent);
+  color: var(--ie-text);
+}
+.dz-actions-popover-ico {
+  color: var(--ie-accent);
+  display: inline-flex;
+  align-items: center;
+}
+.dz-actions-popover-hint {
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--ie-text-faint);
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * CatalogEdit — workflow Découpe SAM (multi-select)
+ * Cf. designer-decoupe-workflow-mockup.html
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* Phase 'drawing' : message d'instruction avec icône pulsante */
+.dz-cut-drawing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 32px 12px;
+  gap: 12px;
+  color: var(--ie-text-muted);
+}
+.dz-cut-drawing-icon {
+  width: 56px;
+  height: 56px;
+  border: 2px dashed var(--ie-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-accent);
+  animation: dz-cut-pulse 1.6s ease-in-out infinite;
+}
+@keyframes dz-cut-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50%      { opacity: 1;   transform: scale(1.05); }
+}
+.dz-cut-drawing-label {
+  font-size: var(--ie-text-sm);
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.dz-cut-drawing-hint {
+  font-size: var(--ie-text-xs);
+  line-height: 1.5;
+}
+
+/* Phase 'results' : header + grid + actions */
+.dz-cut-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ie-space-3);
+}
+
+.dz-cut-results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--ie-space-2);
+  border-bottom: 1px solid var(--ie-border);
+}
+.dz-cut-results-count {
+  font-size: var(--ie-text-xs);
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.dz-cut-toggleall {
+  font-size: 10px;
+  color: var(--ie-accent);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 2px 4px;
+}
+.dz-cut-toggleall:hover { text-decoration: underline; }
+
+/* ── AI Cut Command panel (pré-validation découpe IA) ────────────────────
+ * Affiché en haut du catalog Découpe pendant le pipeline NLU + Grounded-SAM
+ * lancé depuis la command bar (Ctrl+K). Cohabite avec le composite cutResultUrl
+ * existant — l'utilisateur valide la découpe IA → elle rejoint wandMasks. */
+.dz-aicut-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ie-space-2);
+  padding: var(--ie-space-2);
+  margin-bottom: var(--ie-space-2);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, #a855f7 6%, var(--ie-surface)),
+    color-mix(in srgb, var(--ie-accent) 6%, var(--ie-surface)));
+  border: 1px solid color-mix(in srgb, #a855f7 30%, var(--ie-border));
+  border-radius: var(--ie-radius-md);
+  position: relative;
+  overflow: hidden;
+}
+.dz-aicut-header {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a855f7;
+}
+
+.dz-aicut-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px 6px;
+  color: var(--ie-text);
+}
+.dz-aicut-loading-label {
+  font-size: var(--ie-text-xs);
+  text-align: center;
+}
+.dz-aicut-loading-hint {
+  font-size: 9px;
+  color: var(--ie-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+@keyframes dz-aicut-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.dz-aicut-spin { animation: dz-aicut-spin 1s linear infinite; color: #a855f7; }
+
+.dz-aicut-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dz-aicut-preview-found {
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text);
+}
+.dz-aicut-preview-found strong { color: #a855f7; }
+.dz-aicut-preview-spatial { color: var(--ie-text-muted); font-style: italic; }
+
+/* Vignette preview — mask-image trick comme dz-cut-tile-content */
+.dz-aicut-preview-tile {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--ie-radius);
+  overflow: hidden;
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e2e2 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e2e2 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+  border: 1px solid var(--ie-border);
+}
+body.theme-dark .dz-aicut-preview-tile,
+.image-editor-root[data-theme="dark"] .dz-aicut-preview-tile {
+  background-color: #1a1a1a;
+  background-image:
+    linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
+    linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+}
+
+.dz-aicut-preview-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.dz-aicut-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius);
+  color: var(--ie-text);
+  font-size: 10px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 140ms;
+}
+.dz-aicut-btn:hover { background: var(--ie-surface-2); }
+.dz-aicut-btn-primary {
+  background: #a855f7;
+  border-color: #a855f7;
+  color: white;
+}
+.dz-aicut-btn-primary:hover {
+  filter: brightness(1.08);
+  background: #a855f7;
+}
+
+.dz-aicut-preview-source {
+  text-align: center;
+  font-size: 9px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+
+.dz-aicut-message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 4px 0;
+}
+.dz-aicut-message-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.dz-aicut-message-body {
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+}
+.dz-aicut-message-hint {
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  padding: 6px 8px;
+  background: var(--ie-surface);
+  border-radius: var(--ie-radius);
+  border: 1px dashed var(--ie-border);
+  white-space: pre-wrap;
+}
+.dz-aicut-error .dz-aicut-message-title { color: var(--ie-danger, #ef4444); }
+
+/* Spinner dans la AICommandBar (état busy) */
+.dz-aibar-spin { animation: dz-aicut-spin 1s linear infinite; }
+
+/* ── Bibliothèque de découpes extraites (cutResults) ─────────────────────
+ * Affichée en haut du catalog Découpe dès qu'au moins une extraction a
+ * abouti. Chaque tile = vraie image PNG transparente full-size (pas un mask
+ * noir/blanc). Background échiquier pour montrer la transparence. */
+.dz-cut-extracted {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ie-space-2);
+  padding: var(--ie-space-2);
+  margin-bottom: var(--ie-space-2);
+  background: color-mix(in srgb, var(--ie-accent) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ie-accent) 25%, transparent);
+  border-radius: var(--ie-radius);
+}
+.dz-cut-extracted-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ie-accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.dz-cut-extracted-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px; height: 22px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--ie-radius);
+  color: var(--ie-text-faint);
+  cursor: pointer;
+  transition: all 120ms;
+}
+.dz-cut-extracted-clear:hover {
+  color: var(--ie-danger, #ef4444);
+  border-color: color-mix(in srgb, var(--ie-danger, #ef4444) 30%, transparent);
+}
+/* Vignette unique de la découpe composite — pleine largeur du panel,
+ * aspect-ratio plus généreux pour bien voir le résultat cumulé. */
+.dz-cut-composite-tile {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--ie-radius);
+  overflow: hidden;
+  /* Damier de transparence pour montrer le canal alpha */
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e2e2 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e2e2 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+  border: 1px solid var(--ie-border);
+}
+body.theme-dark .dz-cut-composite-tile,
+.image-editor-root[data-theme="dark"] .dz-cut-composite-tile {
+  background-color: #1a1a1a;
+  background-image:
+    linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
+    linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+}
+.dz-cut-composite-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.dz-cut-composite-empty {
+  padding: 16px 12px;
+  text-align: center;
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text-faint);
+  line-height: 1.45;
+  border: 1px dashed var(--ie-border);
+  border-radius: var(--ie-radius);
+}
+.dz-cut-composite-empty strong {
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+
+/* Bouton "Effacer les sélections" — sous la vignette composite */
+.dz-cut-clear-selections {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px dashed var(--ie-border-strong);
+  border-radius: var(--ie-radius);
+  color: var(--ie-text-muted);
+  font-size: 10px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.dz-cut-clear-selections:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 5%, transparent);
+}
+
+/* Grid 2-cols des cut thumbnails */
+.dz-cut-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--ie-space-2);
+}
+.dz-cut-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: var(--ie-radius);
+  background: var(--ie-surface-2);
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  font-family: inherit;
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 120ms,
+              box-shadow 200ms;
+}
+.dz-cut-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+.dz-cut-tile.selected {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+.dz-cut-tile img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Inverse les couleurs pour rendre la mask visible (les masks SAM sont noir/blanc) */
+  filter: invert(1);
+  background: #fff;
+}
+body.theme-dark .dz-cut-tile img,
+.image-editor-root[data-theme="dark"] .dz-cut-tile img {
+  filter: none;
+  background: #000;
+}
+
+/* Tile composite : montre le CONTENU réel de la zone sélectionnée (pas la mask).
+ * Technique : background-image = source originale, mask-image = mask binaire
+ * (luminance par défaut → blanc opaque, noir transparent). Damier visible
+ * derrière pour signifier la transparence. */
+.dz-cut-tile {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(-45deg, #e2e2e2 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e2e2e2 75%),
+    linear-gradient(-45deg, transparent 75%, #e2e2e2 75%);
+  background-size: 10px 10px;
+  background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+}
+body.theme-dark .dz-cut-tile,
+.image-editor-root[data-theme="dark"] .dz-cut-tile {
+  background-color: #1a1a1a;
+  background-image:
+    linear-gradient(45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(-45deg, #2a2a2a 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #2a2a2a 75%),
+    linear-gradient(-45deg, transparent 75%, #2a2a2a 75%);
+}
+.dz-cut-tile-content {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  -webkit-mask-size: cover;
+          mask-size: cover;
+  -webkit-mask-position: center;
+          mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-mode: luminance;
+          mask-mode: luminance;
+  pointer-events: none;
+}
+.dz-cut-tile-pending {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: var(--ie-text-faint);
+  background: var(--ie-surface-2);
+}
+.dz-cut-tile-check {
+  position: absolute;
+  top: 4px; right: 4px;
+  width: 18px;
+  height: 18px;
+  background: white;
+  border: 1px solid var(--ie-border-strong);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  transition: all 120ms;
+}
+.dz-cut-tile.selected .dz-cut-tile-check {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+}
+.dz-cut-tile.selected .dz-cut-tile-check::after {
+  content: '✓';
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+}
+.dz-cut-tile-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 3px 6px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 9px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+/* Bouton Recommencer (entre grid et actions) */
+.dz-cut-restart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px dashed var(--ie-border-strong);
+  border-radius: var(--ie-radius);
+  color: var(--ie-text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.dz-cut-restart:hover:not(:disabled) {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.dz-cut-restart:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Actions */
+.dz-cut-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: var(--ie-space-2);
+  border-top: 1px solid var(--ie-border);
+}
+.dz-cut-action {
+  display: flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  padding: 8px 10px;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius);
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms;
+  text-align: left;
+}
+.dz-cut-action:hover:not(:disabled) {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.dz-cut-action.primary {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  color: white;
+}
+.dz-cut-action.primary:hover:not(:disabled) {
+  background: var(--ie-accent-dark);
+  border-color: var(--ie-accent-dark);
+  color: white;
+}
+.dz-cut-action.danger {
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #ef4444;
+}
+.dz-cut-action.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.08);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+.dz-cut-action:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.dz-cut-action:disabled:hover {
+  border-color: var(--ie-border);
+  color: var(--ie-text);
+  background: transparent;
+}
+.dz-cut-action-soon {
+  margin-left: auto;
+  padding: 1px 5px;
+  background: var(--ie-surface-2);
+  color: var(--ie-text-faint);
+  font-size: 9px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dz-cut-error {
+  margin-top: var(--ie-space-2);
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--ie-danger, #ef4444) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ie-danger, #ef4444) 30%, transparent);
+  border-radius: var(--ie-radius);
+  color: var(--ie-danger, #ef4444);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * CatalogEdit — phase 'pending-confirm' (Extraire cette zone ?)
+ * Apparaît après que l'user a tracé un rectangle (drag fini), avant de
+ * lancer SAM (action explicite, pas auto-trigger).
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-cut-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 24px 12px;
+  gap: 12px;
+}
+.dz-cut-confirm-icon {
+  width: 56px;
+  height: 56px;
+  border: 2px solid var(--ie-accent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-accent);
+  /* Petit "pop" au moment où la confirm apparaît */
+  animation: dz-confirm-pop 240ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes dz-confirm-pop {
+  from { opacity: 0; transform: scale(0.7); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.dz-cut-confirm-title {
+  font-size: var(--ie-text-md);
+  font-weight: 700;
+  color: var(--ie-text);
+  letter-spacing: -0.01em;
+}
+.dz-cut-confirm-hint {
+  font-size: var(--ie-text-xs);
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+}
+.dz-cut-confirm-actions {
+  display: flex;
+  gap: var(--ie-space-2);
+  width: 100%;
+  margin-top: var(--ie-space-2);
+}
+.dz-cut-confirm-actions .dz-cut-action {
+  flex: 1;
+  justify-content: center;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * ToleranceSlider — paramètre Magic Wand
+ * Visible en mode 'magic_wand' (drawing + results)
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-tolerance {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: var(--ie-surface-2);
+  border-radius: var(--ie-radius);
+  border: 1px solid var(--ie-border);
+  width: 100%;
+  margin-top: var(--ie-space-2);
+}
+.dz-tolerance.compact {
+  padding: 8px 10px;
+  margin-top: 0;
+  margin-bottom: var(--ie-space-2);
+}
+.dz-tolerance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.dz-tolerance-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.dz-tolerance-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ie-accent);
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--ie-accent) 12%, transparent);
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+.dz-tolerance-input {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--ie-border-strong);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+.dz-tolerance-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: var(--ie-accent);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--ie-accent) 40%, transparent);
+}
+.dz-tolerance-input::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: var(--ie-accent);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--ie-accent) 40%, transparent);
+}
+.dz-tolerance-hint {
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Sélecteur granularité SAM (Gros / Moyen / Fin) — dans le confirm panel
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-cut-granularity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--ie-surface-2);
+  border-radius: var(--ie-radius);
+  border: 1px solid var(--ie-border);
+  margin-top: var(--ie-space-2);
+}
+.dz-cut-granularity-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.dz-cut-granularity-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 4px;
+  width: 100%;
+}
+.dz-cut-granularity-btn {
+  padding: 6px 8px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: var(--ie-radius-sm);
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.dz-cut-granularity-btn:hover:not(.active) {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.dz-cut-granularity-btn.active {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  color: white;
+  font-weight: 600;
+}
+.dz-cut-granularity-hint {
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  line-height: 1.4;
+  text-align: center;
+  margin-top: 2px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Marching ants — bordure pointillée animée pour les masks Magic Wand
+ * Animation CSS pure : stroke-dashoffset défile en boucle, donne l'effet
+ * "fourmis qui marchent" classique de Photoshop.
+ * ────────────────────────────────────────────────────────────────────────── */
+@keyframes dz-marching-ants {
+  to { stroke-dashoffset: -10; }
+}
+
+.dz-marching-ants-overlay {
+  /* L'overlay couvre tout le canvas, pointer-events:none par défaut */
+  overflow: visible;
+}
+
+.dz-marching-ants-path {
+  animation: dz-marching-ants 0.6s linear infinite;
+  /* Drop shadow subtil pour faire ressortir le trait sur fond complexe */
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * CharacterCreatorModal — modale POC pour créer un personnage
+ * Préfix ccm-* (Character Creator Modal). Centré écran, backdrop semi-transparent.
+ * ────────────────────────────────────────────────────────────────────────── */
+.ccm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: color-mix(in srgb, #000 50%, transparent);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.ccm-modal {
+  width: min(560px, 100%);
+  max-height: calc(100vh - 48px);
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 8px 20px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--ie-font);
+  color: var(--ie-text);
+}
+.ccm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--ie-border);
+}
+.ccm-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+}
+.ccm-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.ccm-close:hover {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+.ccm-body {
+  padding: 16px 18px 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ccm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ccm-field label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ie-text-muted);
+}
+.ccm-input,
+.ccm-textarea,
+.ccm-select {
+  width: 100%;
+  padding: 9px 11px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 120ms;
+  box-sizing: border-box;
+}
+/* Chevron natif du select avec couleur cohérente avec le thème */
+.ccm-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  padding-right: 30px;
+  cursor: pointer;
+}
+.ccm-select:hover { border-color: color-mix(in srgb, var(--ie-accent) 40%, var(--ie-border)); }
+.ccm-select:focus { border-color: var(--ie-accent); }
+.ccm-textarea {
+  resize: vertical;
+  min-height: 64px;
+  line-height: 1.5;
+}
+.ccm-input:focus,
+.ccm-textarea:focus {
+  border-color: var(--ie-accent);
+}
+.ccm-radio-row {
+  display: flex;
+  gap: 8px;
+}
+.ccm-radio {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 12px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ie-text-muted);
+  transition: all 120ms;
+  user-select: none;
+}
+.ccm-radio:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 40%, var(--ie-border));
+  color: var(--ie-text);
+}
+.ccm-radio.active {
+  background: color-mix(in srgb, var(--ie-accent) 12%, var(--ie-surface));
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.ccm-radio input[type="radio"] {
+  display: none;
+}
+.ccm-slots {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+.ccm-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 8px;
+}
+.ccm-slot-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.ccm-slot-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ccm-slot-hint {
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+.ccm-slot-preview {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  background: color-mix(in srgb, var(--ie-text) 4%, var(--ie-bg));
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px dashed color-mix(in srgb, var(--ie-text) 12%, transparent);
+}
+.ccm-slot-img {
+  width: 100%;
+  height: 100%;
+  /* contain : préserve l'image entière (utile pour plein pied vertical 768×1360
+   * dans un slot carré — sinon la tête + pieds se font cropper).
+   * Le fond du slot (--ccm-slot bg) remplit les bandes neutres. */
+  object-fit: contain;
+}
+.ccm-slot-busy,
+.ccm-slot-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ie-text-faint);
+}
+.ccm-spin {
+  animation: ccm-spin 1s linear infinite;
+}
+@keyframes ccm-spin {
+  to { transform: rotate(360deg); }
+}
+.ccm-slot-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  background: var(--ie-accent);
+  color: #fff;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ccm-slot-warning {
+  font-size: 10px;
+  color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  padding: 4px 8px;
+  border-radius: 4px;
+  text-align: center;
+}
+.ccm-slot-btn {
+  padding: 7px 10px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.ccm-slot-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent) 8%, var(--ie-bg));
+  border-color: var(--ie-accent);
+}
+.ccm-slot-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ccm-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 14px;
+  border-top: 1px solid var(--ie-border);
+}
+.ccm-btn-ghost,
+.ccm-btn-primary {
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.ccm-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  color: var(--ie-text-muted);
+}
+.ccm-btn-ghost:hover {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+.ccm-btn-primary {
+  background: var(--ie-accent);
+  border: 1px solid var(--ie-accent);
+  color: #fff;
+}
+.ccm-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, #000 8%, var(--ie-accent));
+}
+.ccm-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Breadcrumb dans le titre des sub-catalogs (ex: "Banques › Personnages",
+ * futur "Banques › Objets"). Le parent est cliquable (style link), le
+ * séparateur est subtil, le current en accent.
+ * ────────────────────────────────────────────────────────────────────────── */
+.dz-catalog-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.dz-breadcrumb-parent {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: color 120ms;
+}
+.dz-breadcrumb-parent:hover:not(:disabled) {
+  color: var(--ie-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.dz-breadcrumb-parent:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.dz-breadcrumb-sep {
+  color: var(--ie-text-faint);
+  flex-shrink: 0;
+}
+.dz-breadcrumb-current {
+  color: var(--ie-text);
+  font-weight: 600;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * CatalogCharacters — panneau slide "Banque · Personnages"
+ * Préfix dzc-* (Designer Catalog Characters)
+ * ────────────────────────────────────────────────────────────────────────── */
+.dzc-prompt-area {
+  padding: 10px 12px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.dzc-prompt-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ie-text-muted);
+}
+.dzc-prompt-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 56px;
+  outline: none;
+  transition: border-color 120ms;
+  box-sizing: border-box;
+}
+.dzc-prompt-textarea:focus {
+  border-color: var(--ie-accent);
+}
+.dzc-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 0 8px;
+}
+.dzc-section-title-text {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ie-text-muted);
+}
+.dzc-new-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: all 120ms;
+}
+.dzc-new-btn:hover {
+  background: color-mix(in srgb, var(--ie-accent) 10%, var(--ie-bg));
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.dzc-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.dzc-card {
+  position: relative;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 120ms, transform 120ms;
+}
+.dzc-card:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 60%, var(--ie-border));
+  transform: translateY(-1px);
+}
+.dzc-card.selected {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 1px var(--ie-accent);
+}
+/* Bouton intérieur qui couvre toute la card pour la sélection (clic n'importe
+ * où sauf sur le bouton edit). Container <div .dzc-card> reste positionnable. */
+.dzc-card-select {
+  display: block;
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+/* Crayon edit en coin haut-gauche, n'interfère pas avec le check rose haut-droit */
+.dzc-card-edit {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, #000 60%, transparent);
+  color: #fff;
+  border: 1px solid color-mix(in srgb, #fff 30%, transparent);
+  border-radius: 999px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms, background 120ms, transform 80ms;
+}
+.dzc-card:hover .dzc-card-edit {
+  opacity: 1;
+}
+.dzc-card-edit:hover {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  transform: scale(1.1);
+}
+.dzc-card-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  background: color-mix(in srgb, var(--ie-text) 4%, var(--ie-bg));
+}
+.dzc-card-empty {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ie-text) 4%, var(--ie-bg));
+  color: var(--ie-text-faint);
+  font-size: 22px;
+}
+.dzc-card-name {
+  padding: 6px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ie-text);
+  text-align: center;
+  border-top: 1px solid var(--ie-border);
+}
+.dzc-card-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 18px;
+  height: 18px;
+  background: var(--ie-accent);
+  color: #fff;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+.dzc-empty-msg {
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--ie-text-muted);
+  background: var(--ie-surface);
+  border: 1px dashed var(--ie-border);
+  border-radius: 8px;
+}
+.dzc-add-bar {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--ie-border);
+  background: linear-gradient(to top, var(--ie-bg) 70%, transparent);
+}
+.dzc-add-btn {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--ie-accent);
+  border: 1px solid var(--ie-accent);
+  border-radius: 6px;
+  color: #fff;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, transform 80ms;
+}
+.dzc-add-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, #000 8%, var(--ie-accent));
+}
+.dzc-add-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+.dzc-add-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--ie-surface);
+  color: var(--ie-text-faint);
+  border-color: var(--ie-border);
+}
+.dzc-add-busy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.dzc-spin {
+  animation: dzc-spin 1s linear infinite;
+}
+@keyframes dzc-spin {
+  to { transform: rotate(360deg); }
+}
+.dzc-add-error {
+  font-size: 10px;
+  color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  padding: 6px 8px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * CatalogAnimation — panneau slide "Banques › Personnages › Animation"
+ * Préfix dza-* (Designer Catalog Animation)
+ * Storyboard horizontal multi-pellicules pour cinematographie LTX 2.3.
+ * ────────────────────────────────────────────────────────────────────────── */
+.dza-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.dza-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ie-text-muted);
+}
+.dza-hint {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--ie-text-faint);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.dza-empty {
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ie-text-muted);
+  background: var(--ie-surface);
+  border: 1px dashed var(--ie-border);
+  border-radius: 6px;
+}
+
+/* ── Sélecteur de personnages (max 2) ───────────────────────────────────── */
+.dza-char-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 6px;
+  scrollbar-width: thin;
+}
+.dza-char-card {
+  position: relative;
+  flex: 0 0 auto;
+  width: 64px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 120ms, transform 120ms;
+}
+.dza-char-card:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 60%, var(--ie-border));
+  transform: translateY(-1px);
+}
+.dza-char-card.selected {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 1px var(--ie-accent);
+}
+.dza-char-img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  display: block;
+  background: color-mix(in srgb, var(--ie-text) 4%, var(--ie-bg));
+}
+.dza-char-empty {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ie-text) 4%, var(--ie-bg));
+  color: var(--ie-text-faint);
+  font-size: 18px;
+}
+.dza-char-name {
+  padding: 4px 4px 5px;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--ie-text);
+  text-align: center;
+  border-top: 1px solid var(--ie-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dza-char-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 16px;
+  height: 16px;
+  background: var(--ie-accent);
+  color: #fff;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Storyboard horizontal ──────────────────────────────────────────────── */
+.dza-storyboard {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 0 10px;
+  scrollbar-width: thin;
+}
+.dza-storyboard::-webkit-scrollbar {
+  height: 8px;
+}
+.dza-storyboard::-webkit-scrollbar-thumb {
+  background: var(--ie-border);
+  border-radius: 4px;
+}
+.dza-storyboard-info {
+  font-size: 9px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+
+/* ── Pellicule (1 plan) ─────────────────────────────────────────────────── */
+.dza-pellicule {
+  flex: 0 0 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 8px;
+}
+.dza-pellicule-add {
+  flex: 0 0 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: transparent;
+  border: 2px dashed var(--ie-border);
+  border-radius: 8px;
+  color: var(--ie-text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 120ms, color 120ms, background 120ms;
+}
+.dza-pellicule-add:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 6%, transparent);
+}
+.dza-pellicule-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dza-pellicule-num {
+  flex: 1;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.dza-pellicule-duration {
+  font-size: 9px;
+  color: var(--ie-text-muted);
+  font-weight: 600;
+  background: var(--ie-bg);
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+.dza-pellicule-remove {
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 4px;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: all 120ms;
+}
+.dza-pellicule-remove:hover {
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+.dza-pellicule-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: color-mix(in srgb, var(--ie-text) 4%, var(--ie-bg));
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dza-pellicule-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dza-pellicule-busy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  color: var(--ie-text-muted);
+  font-size: 9px;
+}
+.dza-pellicule-empty {
+  font-size: 9px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+.dza-pellicule-empty-msg {
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  text-align: center;
+  padding: 8px 4px;
+  background: var(--ie-bg);
+  border-radius: 4px;
+  font-style: italic;
+}
+.dza-pellicule-row {
+  display: flex;
+  gap: 4px;
+}
+.dza-pellicule-select {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 4px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 120ms;
+}
+.dza-pellicule-select:focus {
+  border-color: var(--ie-accent);
+}
+.dza-pellicule-char {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 4px;
+}
+.dza-pellicule-char-name {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--ie-text-muted);
+  margin-bottom: 1px;
+}
+.dza-pellicule-textarea {
+  width: 100%;
+  padding: 4px 6px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 3px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.35;
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 120ms;
+}
+.dza-pellicule-textarea:focus {
+  border-color: var(--ie-accent);
+}
+.dza-pellicule-gen {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 4px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 2px;
+  transition: all 120ms;
+}
+.dza-pellicule-gen:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent) 14%, transparent);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.dza-pellicule-gen:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Sélecteur qualité ──────────────────────────────────────────────────── */
+.dza-quality-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+.dza-quality-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 4px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms;
+}
+.dza-quality-btn:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 60%, var(--ie-border));
+}
+.dza-quality-btn.active {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 8%, var(--ie-surface));
+  box-shadow: 0 0 0 1px var(--ie-accent);
+}
+.dza-quality-emoji {
+  font-size: 16px;
+}
+.dza-quality-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.dza-quality-time {
+  font-size: 8px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+
+/* ── Spinner partagé (réutilise dzc-spin si déjà chargé, sinon fallback) ── */
+.dza-spin {
+  animation: dzc-spin 1s linear infinite;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * PlanBankPanel — banque d'images/animations Studio Designer
+ * Préfix pbp-* (Plan Bank Panel)
+ * Cf project_plan_bank_order.md / project_plan_kind_data_model.md
+ * ────────────────────────────────────────────────────────────────────────── */
+.pbp-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--ie-bg);
+  color: var(--ie-text);
+  font-family: inherit;
+}
+
+/* Header */
+.pbp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ie-border);
+  flex-shrink: 0;
+}
+.pbp-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.pbp-close {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 4px;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: all 120ms;
+}
+.pbp-close:hover {
+  background: color-mix(in srgb, var(--ie-text) 6%, transparent);
+  color: var(--ie-text);
+}
+
+/* Actions de génération */
+.pbp-actions {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ie-border);
+  flex-shrink: 0;
+}
+.pbp-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 6px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.pbp-action:hover {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 8%, var(--ie-surface));
+  color: var(--ie-accent);
+}
+.pbp-action-anim:hover {
+  border-color: #a855f7;
+  background: color-mix(in srgb, #a855f7 10%, var(--ie-surface));
+  color: #a855f7;
+}
+.pbp-action-upload {
+  flex: 0 0 auto;
+}
+
+/* Recherche */
+.pbp-search {
+  position: relative;
+  padding: 10px 12px 4px;
+  flex-shrink: 0;
+}
+.pbp-search-icon {
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ie-text-faint);
+  pointer-events: none;
+}
+.pbp-search-input {
+  width: 100%;
+  padding: 6px 10px 6px 28px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 120ms;
+}
+.pbp-search-input:focus {
+  border-color: var(--ie-accent);
+}
+.pbp-search-input::placeholder {
+  color: var(--ie-text-faint);
+}
+
+/* Groupes */
+.pbp-groups {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 12px 12px;
+}
+.pbp-group {
+  margin-bottom: 14px;
+}
+.pbp-group-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  color: var(--ie-text-muted);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.pbp-group-label {
+  flex-shrink: 0;
+}
+.pbp-group-count {
+  background: var(--ie-surface);
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--ie-text);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.pbp-group-hint {
+  flex: 1;
+  font-size: 9px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Grid de cards */
+.pbp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+/* Carte */
+.pbp-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 120ms, transform 120ms;
+}
+.pbp-card:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 60%, var(--ie-border));
+  transform: translateY(-1px);
+}
+.pbp-card-main {
+  position: relative;
+  padding: 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  display: block;
+}
+.pbp-card-img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+  background: color-mix(in srgb, var(--ie-text) 4%, var(--ie-bg));
+}
+.pbp-card-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, #000 35%, transparent);
+  color: #fff;
+  pointer-events: none;
+  transition: background 120ms;
+}
+.pbp-card-main:hover .pbp-card-play-overlay {
+  background: color-mix(in srgb, #000 18%, transparent);
+}
+.pbp-card-badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  backdrop-filter: blur(4px);
+}
+.pbp-card-badge.img {
+  background: color-mix(in srgb, #000 60%, transparent);
+  color: #fff;
+}
+.pbp-card-badge.anim {
+  background: #a855f7;
+  color: #fff;
+}
+
+/* Mini-galerie pour animations */
+.pbp-card-gallery {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 0 4px 4px;
+}
+.pbp-card-gal-btn {
+  position: relative;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 120ms;
+}
+.pbp-card-gal-btn:hover {
+  border-color: var(--ie-accent);
+}
+.pbp-card-gal-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  display: block;
+}
+.pbp-card-gal-label {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, #000 70%, transparent);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  pointer-events: none;
+}
+
+/* Label */
+.pbp-card-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--ie-text-muted);
+  padding: 4px 8px 6px;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Empty state */
+.pbp-empty {
+  padding: 30px 20px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--ie-text-muted);
+  background: var(--ie-surface);
+  border: 1px dashed var(--ie-border);
+  border-radius: 8px;
+}
+

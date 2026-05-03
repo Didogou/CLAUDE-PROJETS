@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>ImageEditor — Preview palettes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0;
+    padding: 2rem;
+    background: #FAFAF9;
+    color: #1A1A1A;
+    min-height: 100vh;
+  }
+  h1 { font-size: 24px; font-weight: 700; margin: 0 0 .5rem; }
+  .subtitle { color: #6B7280; font-size: 14px; margin: 0 0 2rem; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .palette {
+    background: #FFFFFF;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.04);
+  }
+  .palette h2 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 .25rem;
+  }
+  .palette .hex {
+    font-family: 'SF Mono', Consolas, monospace;
+    color: #6B7280;
+    font-size: 13px;
+    margin-bottom: 1.5rem;
+  }
+
+  .swatch {
+    width: 100%;
+    height: 70px;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+  }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: #9CA3AF;
+    margin: 1.5rem 0 .5rem;
+  }
+
+  /* Mock card = fold section */
+  .card {
+    background: #F4F4F2;
+    border: 1px solid rgba(0,0,0,0.06);
+    border-radius: 8px;
+    padding: .75rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .card.open {
+    border-color: var(--accent);
+    background: var(--accent-faint);
+  }
+
+  /* Mock button */
+  .btn {
+    padding: .55rem 1rem;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all .15s ease-out;
+    font-family: inherit;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+  }
+  .btn-secondary {
+    background: white;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+  }
+  .btn-ghost {
+    background: transparent;
+    color: #374151;
+  }
+
+  /* Mock badge */
+  .badge {
+    display: inline-block;
+    padding: .2rem .55rem;
+    background: var(--accent-faint);
+    color: var(--accent-dark);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+  }
+
+  /* Mock input with focus state */
+  .input {
+    width: 100%;
+    padding: .55rem .75rem;
+    border: 1px solid rgba(0,0,0,0.12);
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+    background: white;
+    transition: border-color .15s;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-faint);
+  }
+
+  .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; margin-top: .5rem; }
+
+  /* Palette variables */
+  .p-indigo {
+    --accent: #6366F1;
+    --accent-dark: #4338CA;
+    --accent-faint: #EEF2FF;
+  }
+  .p-teal {
+    --accent: #0D9488;
+    --accent-dark: #115E59;
+    --accent-faint: #F0FDFA;
+  }
+  .p-coral {
+    --accent: #EC4899;
+    --accent-dark: #BE185D;
+    --accent-faint: #FDF2F8;
+  }
+
+  .footer-note {
+    margin-top: 3rem;
+    text-align: center;
+    color: #6B7280;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<h1>ImageEditor — Preview des 3 palettes</h1>
+<p class="subtitle">Fond clair + whitespace généreux + Inter + radius doux. La seule variable c'est la couleur d'accent.</p>
+
+<div class="grid">
+
+  <!-- PALETTE 1 : INDIGO -->
+  <div class="palette p-indigo">
+    <h2>Indigo</h2>
+    <div class="hex">#6366F1 — pro, moderne, "tech"</div>
+    <div class="swatch" style="background: var(--accent);"></div>
+
+    <div class="section-label">Fold ouvert</div>
+    <div class="card open">
+      <span>Ajouter NPJ</span>
+      <span class="badge">3 placés</span>
+    </div>
+
+    <div class="section-label">Fold fermé</div>
+    <div class="card">
+      <span>Découpe</span>
+      <span style="color:#9CA3AF;font-size:11px">▾</span>
+    </div>
+
+    <div class="section-label">Boutons</div>
+    <div class="row">
+      <button class="btn btn-primary">Générer</button>
+      <button class="btn btn-secondary">Utiliser comme Réf</button>
+      <button class="btn btn-ghost">Annuler</button>
+    </div>
+
+    <div class="section-label">Input (focus)</div>
+    <input class="input" placeholder="Chercher un personnage…" autofocus>
+  </div>
+
+  <!-- PALETTE 2 : TEAL -->
+  <div class="palette p-teal">
+    <h2>Teal</h2>
+    <div class="hex">#0D9488 — calme, serein, "éditorial"</div>
+    <div class="swatch" style="background: var(--accent);"></div>
+
+    <div class="section-label">Fold ouvert</div>
+    <div class="card open">
+      <span>Ajouter NPJ</span>
+      <span class="badge">3 placés</span>
+    </div>
+
+    <div class="section-label">Fold fermé</div>
+    <div class="card">
+      <span>Découpe</span>
+      <span style="color:#9CA3AF;font-size:11px">▾</span>
+    </div>
+
+    <div class="section-label">Boutons</div>
+    <div class="row">
+      <button class="btn btn-primary">Générer</button>
+      <button class="btn btn-secondary">Utiliser comme Réf</button>
+      <button class="btn btn-ghost">Annuler</button>
+    </div>
+
+    <div class="section-label">Input (focus)</div>
+    <input class="input" placeholder="Chercher un personnage…">
+  </div>
+
+  <!-- PALETTE 3 : CORAL / ROSE -->
+  <div class="palette p-coral">
+    <h2>Rose vif</h2>
+    <div class="hex">#EC4899 — énergique, créatif, "jeu"</div>
+    <div class="swatch" style="background: var(--accent);"></div>
+
+    <div class="section-label">Fold ouvert</div>
+    <div class="card open">
+      <span>Ajouter NPJ</span>
+      <span class="badge">3 placés</span>
+    </div>
+
+    <div class="section-label">Fold fermé</div>
+    <div class="card">
+      <span>Découpe</span>
+      <span style="color:#9CA3AF;font-size:11px">▾</span>
+    </div>
+
+    <div class="section-label">Boutons</div>
+    <div class="row">
+      <button class="btn btn-primary">Générer</button>
+      <button class="btn btn-secondary">Utiliser comme Réf</button>
+      <button class="btn btn-ghost">Annuler</button>
+    </div>
+
+    <div class="section-label">Input (focus)</div>
+    <input class="input" placeholder="Chercher un personnage…">
+  </div>
+
+</div>
+
+<p class="footer-note">Ouvre ce fichier en local ou via <code>http://localhost:3000/design-preview.html</code> si le dev server tourne. Dis-moi laquelle tu préfères (ou une 4e à tester).</p>
+
+</body>
+</html>

@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Mockup Découpe — workflow refondu (icon centré, popover, sync canvas/overlay)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ─── Thème Light (default) ─── */
+    :root {
+      --ie-bg: #FAFAF9;
+      --ie-surface: #FFFFFF;
+      --ie-surface-2: #F4F4F2;
+      --ie-surface-3: #EDEDEB;
+      --ie-text: #18181B;
+      --ie-text-muted: #52525B;
+      --ie-text-faint: #A1A1AA;
+      --ie-border: rgba(0, 0, 0, 0.08);
+      --ie-border-strong: rgba(0, 0, 0, 0.14);
+      --ie-accent: #EC4899;
+      --ie-accent-faint: #FDF2F8;
+      --ie-accent-dark: #BE185D;
+      --ie-radius: 6px;
+      --ie-radius-md: 8px;
+    }
+    body.theme-dark {
+      --ie-bg: #0F0F12;
+      --ie-surface: #17171B;
+      --ie-surface-2: #1F1F25;
+      --ie-surface-3: #2A2A32;
+      --ie-text: #F4F4F5;
+      --ie-text-muted: #A1A1AA;
+      --ie-text-faint: #71717A;
+      --ie-border: rgba(255, 255, 255, 0.08);
+      --ie-border-strong: rgba(255, 255, 255, 0.14);
+      --ie-accent: #F472B6;
+      --ie-accent-faint: rgba(244, 114, 182, 0.12);
+      --ie-accent-dark: #DB2777;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 12px;
+      background: var(--ie-bg);
+      color: var(--ie-text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Demo controls top-right ── */
+    .demo-controls {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 1000;
+      display: flex;
+      gap: 6px;
+      padding: 8px;
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+    }
+    .demo-controls .group { display: flex; gap: 4px; align-items: center; }
+    .demo-controls .group + .group { padding-left: 6px; border-left: 1px solid var(--ie-border); }
+    .demo-controls .label {
+      font-size: 10px; color: var(--ie-text-muted); margin-right: 4px;
+      font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .demo-controls button {
+      padding: 5px 10px;
+      background: transparent;
+      border: 1px solid var(--ie-border);
+      border-radius: 5px;
+      color: var(--ie-text);
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 120ms;
+    }
+    .demo-controls button:hover { background: var(--ie-surface-2); }
+    .demo-controls button.active {
+      background: var(--ie-accent);
+      border-color: var(--ie-accent);
+      color: white;
+    }
+
+    /* ── Designer skeleton (simplifié pour mockup) ── */
+    .designer-root { height: 100vh; display: flex; flex-direction: column; }
+
+    .topbar {
+      flex-shrink: 0;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      gap: 12px;
+      background: var(--ie-surface);
+      border-bottom: 1px solid var(--ie-border);
+    }
+    .topbar-breadcrumb { font-size: 11px; color: var(--ie-text-muted); }
+    .topbar-breadcrumb strong { color: var(--ie-text); font-weight: 600; }
+    .topbar-spacer { flex: 1; }
+
+    .body { flex: 1; display: flex; min-height: 0; position: relative; }
+
+    .rail {
+      flex-shrink: 0;
+      width: 48px;
+      background: var(--ie-bg);
+      border-right: 1px solid var(--ie-border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 8px 0;
+      gap: 4px;
+    }
+    .rail-btn {
+      width: 32px; height: 32px;
+      display: flex; align-items: center; justify-content: center;
+      background: transparent; border: none; border-radius: 6px;
+      color: var(--ie-text-muted); cursor: pointer; font-size: 16px;
+    }
+    .rail-btn:hover { background: var(--ie-surface-2); color: var(--ie-text); }
+
+    /* Center : layer tabs + actions toolbar + canvas */
+    .center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      position: relative;
+      background: var(--ie-surface-2);
+      box-shadow: inset 0 2px 0 0 color-mix(in srgb, var(--ie-accent) 60%, transparent);
+    }
+
+    .layer-tabs {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 12px 0;
+    }
+    .layer-tab {
+      padding: 6px 12px;
+      background: transparent;
+      border: none;
+      border-radius: 6px 6px 0 0;
+      color: var(--ie-text-muted);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .layer-tab.active {
+      color: var(--ie-text);
+      font-weight: 600;
+      box-shadow: inset 0 -2px 0 0 var(--ie-accent);
+    }
+
+    /* ── ACTIONS TOOLBAR : centrée + ✂ avec liséré rose ── */
+    .actions-toolbar {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;       /* centré (au lieu de left) */
+      gap: 8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--ie-border);
+      background: color-mix(in srgb, var(--ie-surface) 60%, transparent);
+      position: relative;            /* pour ancrer le popover sub-menu */
+    }
+
+    .actions-btn {
+      width: 36px;
+      height: 36px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 1px solid var(--ie-accent);  /* liséré rose subtil */
+      border-radius: 999px;                /* pill rond */
+      color: var(--ie-accent);
+      cursor: pointer;
+      transition: all 160ms;
+      box-shadow: 0 0 0 0 transparent;
+    }
+    .actions-btn:hover {
+      background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 15%, transparent);
+    }
+    .actions-btn.active {
+      background: var(--ie-accent);
+      color: white;
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+    }
+
+    /* ── POPOVER SUB-MENU (Baguette / Pinceau) ── */
+    .tool-popover {
+      position: absolute;
+      top: calc(100% + 6px);          /* sous la toolbar */
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 60;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      padding: 6px;
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: var(--ie-radius-md);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+      min-width: 160px;
+      animation: popover-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    body[data-state="tool-pick"] .tool-popover { display: flex; }
+
+    @keyframes popover-in {
+      from { opacity: 0; transform: translate(-50%, -4px); }
+      to   { opacity: 1; transform: translate(-50%, 0); }
+    }
+
+    .tool-popover-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: transparent;
+      border: none;
+      border-radius: var(--ie-radius);
+      color: var(--ie-text);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 120ms;
+      text-align: left;
+    }
+    .tool-popover-item:hover { background: var(--ie-surface-2); }
+    .tool-popover-item .ico { color: var(--ie-accent); }
+    .tool-popover-item-hint {
+      margin-left: auto;
+      font-size: 10px;
+      color: var(--ie-text-faint);
+    }
+
+    /* ── Canvas area ── */
+    .canvas-area {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+    }
+    .canvas-frame {
+      position: relative;
+      max-width: 100%;
+      max-height: 100%;
+      width: auto;
+      height: 100%;
+      aspect-ratio: 16/9;
+      background: url('https://images.unsplash.com/photo-1567538096630-e0c55bd6374c?w=1600&h=900&fit=crop') center/cover;
+      border-radius: var(--ie-radius-md);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.20), 0 2px 8px rgba(0,0,0,0.12);
+      overflow: hidden;
+    }
+
+    /* Rectangle drawn (visible en state drawing/computing) */
+    .draw-rect {
+      position: absolute;
+      top: 35%; left: 30%;
+      width: 40%; height: 50%;
+      border: 2px dashed var(--ie-accent);
+      background: color-mix(in srgb, var(--ie-accent) 4%, transparent);
+      display: none;
+      pointer-events: none;
+    }
+    body[data-state="drawing"] .draw-rect,
+    body[data-state="computing"] .draw-rect { display: block; }
+
+    /* Cut overlays — marching ants on detected objects (visible state results) */
+    .cut-overlay {
+      position: absolute;
+      border: 2px dashed transparent;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: all 200ms;
+      display: none;
+    }
+    .cut-overlay::before {
+      content: '';
+      position: absolute;
+      inset: -3px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    body[data-state="results"] .cut-overlay { display: block; }
+
+    .cut-overlay.selected {
+      border-color: var(--ie-accent);
+      background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--ie-accent) 50%, transparent);
+      animation: marching-ants 600ms linear infinite;
+    }
+    @keyframes marching-ants {
+      to { background-position: 12px 0; }
+    }
+
+    .cut-overlay:not(.selected) {
+      border-color: rgba(255,255,255,0.4);
+      background: rgba(0,0,0,0.05);
+    }
+    .cut-overlay:not(.selected):hover {
+      border-color: rgba(255,255,255,0.8);
+    }
+
+    /* Cut overlays positions (mockés sur l'image) */
+    #cut-1 { top: 38%; left: 32%; width: 22%; height: 24%; }   /* lampe */
+    #cut-2 { top: 60%; left: 30%; width: 38%; height: 30%; }   /* canapé */
+    #cut-3 { top: 65%; left: 22%; width: 12%; height: 18%; }   /* coussin */
+    #cut-4 { top: 40%; left: 56%; width: 14%; height: 18%; }   /* plante */
+    #cut-5 { top: 80%; left: 30%; width: 38%; height: 12%; }   /* tapis */
+
+    /* ── Catalog Édition (gauche, contextuel selon state) ── */
+    .catalog {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 3rem;
+      width: 18rem;
+      background: var(--ie-surface);
+      border-right: 1px solid var(--ie-border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 4px 0 16px rgba(0,0,0,0.12);
+      z-index: 10;
+      animation: slide-in 280ms cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    body[data-state="initial"] .catalog,
+    body[data-state="tool-pick"] .catalog { display: none; }
+
+    @keyframes slide-in {
+      from { transform: translateX(-100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .catalog-header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px;
+      border-bottom: 1px solid var(--ie-border);
+    }
+    .catalog-title {
+      font-size: 13px;
+      font-weight: 600;
+      flex: 1;
+    }
+    .catalog-close {
+      width: 24px; height: 24px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      color: var(--ie-text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .catalog-close:hover { border-color: var(--ie-border-strong); color: var(--ie-text); }
+
+    .catalog-body {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+    }
+
+    /* State drawing : message d'instruction dans le catalog */
+    .state-drawing-message {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 32px 12px;
+      gap: 12px;
+      color: var(--ie-text-muted);
+    }
+    body[data-state="drawing"] .state-drawing-message { display: flex; }
+    .state-drawing-message .icon {
+      width: 48px; height: 48px;
+      border: 2px dashed var(--ie-accent);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--ie-accent);
+      animation: pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.7; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+    .state-drawing-message .label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ie-text);
+    }
+    .state-drawing-message .hint { font-size: 11px; }
+
+    /* State results : grid de cuts + actions */
+    .state-results {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+    }
+    body[data-state="results"] .state-results { display: flex; }
+
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--ie-border);
+    }
+    .results-count {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ie-text);
+    }
+    .results-toggleall {
+      font-size: 10px;
+      color: var(--ie-accent);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      font-weight: 500;
+    }
+
+    .cuts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .cut-tile {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: var(--ie-radius);
+      background: var(--ie-surface-2);
+      border: 2px solid transparent;
+      cursor: pointer;
+      overflow: hidden;
+      transition: all 200ms;
+    }
+    .cut-tile.selected {
+      border-color: var(--ie-accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+    }
+    .cut-tile:hover { transform: translateY(-2px); }
+    .cut-tile-thumb {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      background: linear-gradient(135deg, #f0f0e8 0%, #e0e0d8 100%);
+    }
+    body.theme-dark .cut-tile-thumb {
+      background: linear-gradient(135deg, #2a2a32 0%, #1f1f25 100%);
+    }
+    .cut-tile-check {
+      position: absolute;
+      top: 4px; right: 4px;
+      width: 18px; height: 18px;
+      background: white;
+      border: 1px solid var(--ie-border-strong);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 12px;
+      color: white;
+    }
+    .cut-tile.selected .cut-tile-check {
+      background: var(--ie-accent);
+      border-color: var(--ie-accent);
+    }
+    .cut-tile.selected .cut-tile-check::after { content: '✓'; }
+    .cut-tile-label {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      padding: 3px 6px;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      font-size: 9px;
+      font-weight: 500;
+    }
+
+    .results-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding-top: 8px;
+      border-top: 1px solid var(--ie-border);
+    }
+    .results-action {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: transparent;
+      border: 1px solid var(--ie-border);
+      border-radius: var(--ie-radius);
+      color: var(--ie-text);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 120ms;
+      text-align: left;
+    }
+    .results-action.primary {
+      background: var(--ie-accent);
+      border-color: var(--ie-accent);
+      color: white;
+    }
+    .results-action.primary:hover { background: var(--ie-accent-dark); }
+    .results-action.danger {
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #ef4444;
+    }
+    .results-action.danger:hover {
+      background: rgba(239, 68, 68, 0.08);
+      border-color: #ef4444;
+    }
+    .results-action:not(.primary):hover {
+      border-color: var(--ie-accent);
+      color: var(--ie-accent);
+    }
+    .results-action:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .results-action:disabled:hover {
+      border-color: var(--ie-border);
+      color: var(--ie-text);
+    }
+    .results-action-soon {
+      margin-left: auto;
+      padding: 1px 5px;
+      background: var(--ie-surface-2);
+      color: var(--ie-text-faint);
+      font-size: 9px;
+      border-radius: 3px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── BakeProgressModal (state computing) ── */
+    .bake-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    body[data-state="computing"] .bake-modal { display: flex; }
+
+    .bake-card {
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: 16px;
+      padding: 32px 40px;
+      min-width: 320px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .bake-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      background: var(--ie-accent-faint);
+      color: var(--ie-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .bake-spinner {
+      width: 28px; height: 28px;
+      border: 3px solid color-mix(in srgb, var(--ie-accent) 30%, transparent);
+      border-top-color: var(--ie-accent);
+      border-radius: 50%;
+      animation: spin 800ms linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .bake-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--ie-text);
+    }
+    .bake-phase {
+      font-size: 12px;
+      color: var(--ie-text-muted);
+    }
+    .bake-elapsed {
+      font-size: 11px;
+      color: var(--ie-text-faint);
+      font-variant-numeric: tabular-nums;
+    }
+    .bake-warn {
+      font-size: 10px;
+      color: var(--ie-accent);
+      font-weight: 500;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    /* ── Annotation explainer ── */
+    .explainer {
+      position: fixed;
+      left: 60px;
+      bottom: 12px;
+      max-width: 460px;
+      padding: 12px 16px;
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-left: 3px solid var(--ie-accent);
+      border-radius: var(--ie-radius);
+      font-size: 11px;
+      color: var(--ie-text);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      line-height: 1.55;
+      z-index: 100;
+    }
+    .explainer .title {
+      font-weight: 700;
+      color: var(--ie-accent);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+  </style>
+</head>
+<body data-state="initial">
+
+  <div class="demo-controls">
+    <div class="group">
+      <span class="label">État</span>
+      <button data-state="initial" class="active">1 · Initial</button>
+      <button data-state="tool-pick">2 · Choix outil</button>
+      <button data-state="drawing">3 · Tracer zone</button>
+      <button data-state="computing">4 · SAM compute</button>
+      <button data-state="results">5 · Résultats</button>
+    </div>
+    <div class="group">
+      <span class="label">Thème</span>
+      <button data-theme="light" class="active">☀</button>
+      <button data-theme="dark">🌙</button>
+    </div>
+  </div>
+
+  <div class="designer-root">
+    <div class="topbar">
+      <div class="topbar-breadcrumb">Studio Designer › <strong>Plan 1 — §3</strong></div>
+      <div class="topbar-spacer"></div>
+      <div style="font-size:11px;color:var(--ie-text-muted)">Mockup Découpe workflow</div>
+    </div>
+
+    <div class="body">
+      <div class="rail">
+        <button class="rail-btn">🖼</button>
+        <button class="rail-btn">✨</button>
+        <button class="rail-btn">🌧</button>
+        <button class="rail-btn">🎬</button>
+        <button class="rail-btn">📝</button>
+        <button class="rail-btn">🔊</button>
+      </div>
+
+      <!-- Catalog Édition (visible états drawing/computing/results) -->
+      <aside class="catalog">
+        <header class="catalog-header">
+          <span style="color:var(--ie-accent);font-size:14px">✂</span>
+          <span class="catalog-title">Découpe</span>
+          <button class="catalog-close" title="Fermer" onclick="setState('initial')">×</button>
+        </header>
+        <div class="catalog-body">
+
+          <!-- State drawing: instructions courtes -->
+          <div class="state-drawing-message">
+            <div class="icon">✂</div>
+            <div class="label">Trace une zone sur l'image</div>
+            <div class="hint">Drag pour dessiner un rectangle.<br>SAM détectera automatiquement les objets dans cette zone.</div>
+          </div>
+
+          <!-- State results: grid + actions -->
+          <div class="state-results">
+            <div class="results-header">
+              <span class="results-count" id="results-count">5 objets · 5 sélectionnés</span>
+              <button class="results-toggleall" onclick="toggleAll()">Tout cocher / décocher</button>
+            </div>
+
+            <div class="cuts-grid" id="cuts-grid">
+              <div class="cut-tile selected" data-cut="cut-1" onclick="toggleCut('cut-1')">
+                <div class="cut-tile-thumb">💡</div>
+                <div class="cut-tile-check"></div>
+                <div class="cut-tile-label">Lampe</div>
+              </div>
+              <div class="cut-tile selected" data-cut="cut-2" onclick="toggleCut('cut-2')">
+                <div class="cut-tile-thumb">🛋</div>
+                <div class="cut-tile-check"></div>
+                <div class="cut-tile-label">Canapé</div>
+              </div>
+              <div class="cut-tile selected" data-cut="cut-3" onclick="toggleCut('cut-3')">
+                <div class="cut-tile-thumb">🟦</div>
+                <div class="cut-tile-check"></div>
+                <div class="cut-tile-label">Coussin</div>
+              </div>
+              <div class="cut-tile selected" data-cut="cut-4" onclick="toggleCut('cut-4')">
+                <div class="cut-tile-thumb">🪴</div>
+                <div class="cut-tile-check"></div>
+                <div class="cut-tile-label">Plante</div>
+              </div>
+              <div class="cut-tile selected" data-cut="cut-5" onclick="toggleCut('cut-5')">
+                <div class="cut-tile-thumb">🟫</div>
+                <div class="cut-tile-check"></div>
+                <div class="cut-tile-label">Tapis</div>
+              </div>
+            </div>
+
+            <div class="results-actions">
+              <button class="results-action primary">
+                <span>📦</span><span>Extraire dans un calque</span>
+              </button>
+              <button class="results-action danger">
+                <span>🗑</span><span>Supprimer (Inpaint)</span>
+              </button>
+              <button class="results-action" disabled>
+                <span>👤</span><span>Créer un personnage</span>
+                <span class="results-action-soon">À venir</span>
+              </button>
+              <button class="results-action" disabled>
+                <span>🎒</span><span>Créer un objet</span>
+                <span class="results-action-soon">À venir</span>
+              </button>
+              <button class="results-action" disabled>
+                <span>🔄</span><span>Remplacer par…</span>
+                <span class="results-action-soon">À venir</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="center">
+        <div class="layer-tabs">
+          <button class="layer-tab active">Base 👁</button>
+          <button class="layer-tab">Calque 2 👁</button>
+        </div>
+
+        <!-- Actions toolbar : centrée + ✂ avec liséré rose -->
+        <div class="actions-toolbar">
+          <button class="actions-btn" onclick="setState(document.body.dataset.state === 'tool-pick' ? 'initial' : 'tool-pick')" id="cut-btn" title="Découpe SAM">
+            ✂
+          </button>
+
+          <!-- Popover sub-menu (visible state tool-pick) -->
+          <div class="tool-popover">
+            <button class="tool-popover-item" onclick="setState('drawing')">
+              <span class="ico">🪄</span>
+              <span>Baguette</span>
+              <span class="tool-popover-item-hint">rectangle</span>
+            </button>
+            <button class="tool-popover-item" onclick="setState('drawing')">
+              <span class="ico">🖌</span>
+              <span>Pinceau</span>
+              <span class="tool-popover-item-hint">peindre</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="canvas-area">
+          <div class="canvas-frame">
+            <!-- Rectangle drawn (states drawing/computing) -->
+            <div class="draw-rect"></div>
+
+            <!-- Cut overlays détectés (state results) — interactifs pour sync -->
+            <div class="cut-overlay selected" id="cut-1" onclick="toggleCut('cut-1')" title="Lampe"></div>
+            <div class="cut-overlay selected" id="cut-2" onclick="toggleCut('cut-2')" title="Canapé"></div>
+            <div class="cut-overlay selected" id="cut-3" onclick="toggleCut('cut-3')" title="Coussin"></div>
+            <div class="cut-overlay selected" id="cut-4" onclick="toggleCut('cut-4')" title="Plante"></div>
+            <div class="cut-overlay selected" id="cut-5" onclick="toggleCut('cut-5')" title="Tapis"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bake modal (state computing) -->
+  <div class="bake-modal">
+    <div class="bake-card">
+      <div class="bake-icon">
+        <div class="bake-spinner"></div>
+      </div>
+      <div class="bake-title">SAM analyse l'image</div>
+      <div class="bake-phase">Détection des objets dans la zone tracée…</div>
+      <div class="bake-elapsed">00:08 / 00:30</div>
+      <div class="bake-warn">⚠ Ne ferme pas la fenêtre pendant l'analyse</div>
+    </div>
+  </div>
+
+  <!-- Explainer -->
+  <div class="explainer">
+    <div class="title" id="explainer-title">Initial</div>
+    <div id="explainer-body">Phase B normale. L'icône ✂ est centrée dans la toolbar avec son liseret rose. Click pour ouvrir le popover Baguette/Pinceau.</div>
+  </div>
+
+  <script>
+    const STATES = {
+      initial: {
+        title: 'Initial',
+        body: 'Phase B normale. L\'icône ✂ est centrée dans la toolbar avec son liseret rose. Click pour ouvrir le popover Baguette/Pinceau.'
+      },
+      'tool-pick': {
+        title: 'Choix de l\'outil',
+        body: 'Popover ouvert au-dessus du bouton ✂. Choix : Baguette (drag rectangle) ou Pinceau (peindre la zone). L\'icône ✂ est en mode actif (rempli rose).'
+      },
+      drawing: {
+        title: 'Tracer la zone',
+        body: 'Outil sélectionné, mode actif. Le user trace un rectangle sur le canvas (visible dashed rose). Le catalog gauche affiche une instruction courte avec icône pulsante.'
+      },
+      computing: {
+        title: 'SAM analyse',
+        body: 'Modal full-screen (BakeProgressModal réutilisé) pendant ~30s. Spinner + phase + elapsed. Bloque toute interaction. Auto-passe à "Résultats" quand SAM finit.'
+      },
+      results: {
+        title: 'Résultats — multi-select',
+        body: 'TOUS les objets détectés sont surlignés sur le canvas (marching ants rose) ET listés dans le catalog gauche avec checkbox cochée. Click sur un cut sur le canvas OU dans le catalog → toggle sync bidirectionnel. Actions en bas : Extraire (actif), Créer NPC/objet (greyés "à venir").'
+      }
+    };
+
+    function setState(state) {
+      document.body.dataset.state = state;
+      document.querySelectorAll('.demo-controls [data-state]').forEach(b => {
+        b.classList.toggle('active', b.dataset.state === state);
+      });
+      const meta = STATES[state];
+      document.getElementById('explainer-title').textContent = meta.title;
+      document.getElementById('explainer-body').innerHTML = meta.body;
+      // Cut button highlighted in tool-pick state
+      document.getElementById('cut-btn').classList.toggle('active', state === 'tool-pick');
+      // Auto-pass computing → results après 2.5s pour la démo
+      if (state === 'computing') {
+        setTimeout(() => {
+          if (document.body.dataset.state === 'computing') setState('results');
+        }, 2500);
+      }
+    }
+
+    // Sync bidirectionnel : clic sur un cut (canvas ou tile) toggle sync
+    function toggleCut(id) {
+      const tile = document.querySelector(`.cut-tile[data-cut="${id}"]`);
+      const overlay = document.getElementById(id);
+      const wasSelected = tile.classList.contains('selected');
+      tile.classList.toggle('selected', !wasSelected);
+      overlay.classList.toggle('selected', !wasSelected);
+      updateCount();
+    }
+
+    function toggleAll() {
+      const tiles = document.querySelectorAll('.cut-tile');
+      const overlays = document.querySelectorAll('.cut-overlay');
+      const allSelected = Array.from(tiles).every(t => t.classList.contains('selected'));
+      tiles.forEach(t => t.classList.toggle('selected', !allSelected));
+      overlays.forEach(o => o.classList.toggle('selected', !allSelected));
+      updateCount();
+    }
+
+    function updateCount() {
+      const total = document.querySelectorAll('.cut-tile').length;
+      const selected = document.querySelectorAll('.cut-tile.selected').length;
+      document.getElementById('results-count').textContent = `${total} objets · ${selected} sélectionné${selected > 1 ? 's' : ''}`;
+    }
+
+    document.querySelectorAll('.demo-controls [data-state]').forEach(b => {
+      b.addEventListener('click', () => setState(b.dataset.state));
+    });
+    document.querySelectorAll('.demo-controls [data-theme]').forEach(b => {
+      b.addEventListener('click', () => {
+        document.body.classList.toggle('theme-dark', b.dataset.theme === 'dark');
+        document.querySelectorAll('.demo-controls [data-theme]').forEach(x => x.classList.toggle('active', x === b));
+      });
+    });
+  </script>
+</body>
+</html>

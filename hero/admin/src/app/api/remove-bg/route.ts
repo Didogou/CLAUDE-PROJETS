@@ -4,20 +4,21 @@ export const maxDuration = 60
 
 const REMBG_URL = process.env.REMBG_URL ?? 'http://127.0.0.1:8189'
 
-// POST { image_url } — removes background locally via rembg server
-// Returns the processed image (composited on gray #808080, 1024x1024)
+// POST { image_url, transparent?: boolean }
+//   - transparent=false (default, legacy) → fond gris #808080, 1024x1024 (IPAdapter)
+//   - transparent=true → PNG RGBA natif, taille originale (compositing layered)
 // Then uploads to Supabase and returns { image_url }
 
 export async function POST(req: NextRequest) {
   try {
-    const { image_url } = await req.json() as { image_url: string }
+    const { image_url, transparent } = await req.json() as { image_url: string; transparent?: boolean }
     if (!image_url) return NextResponse.json({ error: 'image_url requis' }, { status: 400 })
 
     // Call local rembg server
     const res = await fetch(`${REMBG_URL}/remove-bg`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_url }),
+      body: JSON.stringify({ image_url, transparent: !!transparent }),
     })
 
     if (!res.ok) {

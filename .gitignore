@@ -42,3 +42,5 @@ fbi-*.png
 
 # .claude/ is intentionally tracked (Claude Code configuration)
 # Add !.claude/ here if it ever gets excluded by a parent rule
+# Sauf les locks runtime générés par scheduled tasks (à exclure)
+**/.claude/scheduled_tasks.lock

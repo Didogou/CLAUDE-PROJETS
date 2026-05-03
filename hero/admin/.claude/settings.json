@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/didie/.claude/projects/c--Users-didie-Documents-Projets-CLAUDE-PROJETS/memory/**)",
+      "Read(//c/Users/didie/Documents/Projets/CLAUDE-PROJETS/hero/**)",
+      "Read(//c/Users/didie/Documents/Projets/CLAUDE-PROJETS/ComfyUI/**)",
+      "Bash(\"c:/Users/didie/Documents/Projets/CLAUDE-PROJETS/ComfyUI/venv/Scripts/pip.exe\" install *)",
+      "Bash(curl -L -o \"c:/Users/didie/Documents/Projets/CLAUDE-PROJETS/ComfyUI/models/controlnet/diffusion_pytorch_model.fp16.safetensors\" \"https://huggingface.co/diffusers/controlnet-depth-sdxl-1.0/resolve/main/diffusion_pytorch_model.fp16.safetensors\")",
+      "WebFetch(domain:github.com)",
+      "WebSearch",
+      "WebFetch(domain:stable-diffusion-art.com)",
+      "WebFetch(domain:mybyways.com)",
+      "WebFetch(domain:learn.runcomfy.com)",
+      "WebFetch(domain:www.runcomfy.com)",
+      "WebFetch(domain:extra-ordinary.tv)",
+      "Bash(curl -L -o \"c:/Users/didie/Documents/Projets/CLAUDE-PROJETS/ComfyUI/models/ipadapter/ip-adapter-faceid-plusv2_sdxl.bin\" \"https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl.bin\")",
+      "Bash(curl -L -o \"c:/Users/didie/Documents/Projets/CLAUDE-PROJETS/ComfyUI/models/loras/ip-adapter-faceid-plusv2_sdxl_lora.safetensors\" \"https://huggingface.co/h94/IP-Adapter-FaceID/resolve/main/ip-adapter-faceid-plusv2_sdxl_lora.safetensors\")",
+      "Bash(curl -s \"https://api.search.brave.com/res/v1/web/search?q=stable+diffusion+3.5+SD3+latest+models+2025+2026&count=5\")",
+      "Bash(curl -s \"https://www.reddit.com/r/StableDiffusion/search.json?q=SDXL+prompt+engineering+best+practices&sort=relevance&t=year&limit=5\" -H \"User-Agent: Mozilla/5.0\")",
+      "Bash(curl -s \"https://stable-diffusion-art.com/sdxl-prompt/\" -H \"User-Agent: Mozilla/5.0\")",
+      "Bash(sed 's/<[^>]*>//g')",
+      "Bash(curl -s \"https://aituts.com/sdxl-prompts/\" -H \"User-Agent: Mozilla/5.0\")",
+      "WebFetch(domain:neurocanvas.net)",
+      "WebFetch(domain:imgtoprompt.app)",
+      "WebFetch(domain:freeaipromptmaker.com)",
+      "WebFetch(domain:education.civitai.com)",
+      "WebFetch(domain:sandner.art)",
+      "WebFetch(domain:weirdwonderfulai.art)"
+    ]
+  }
+}

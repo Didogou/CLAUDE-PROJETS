@@ -5,6 +5,20 @@ import { useParams, useRouter } from 'next/navigation'
 import type { Book, Section, Choice, SectionStatus, Npc, NpcType, Location } from '@/types'
 import { CombatOverlayV4 } from './CombatOverlayV4'
 import { CombatOverlayV6 } from './CombatOverlayV6'
+import PlanTimelineEditor from '@/components/PlanTimelineEditor'
+import MaskDrawCanvas from '@/components/MaskDrawCanvas'
+import PlanPlayer from '@/components/PlanPlayer'
+import SectionPlayer from '@/components/SectionPlayer'
+import { usePlanWizard } from '@/components/wizard/PlanWizard'
+import { useAssignExtractedImage } from '@/components/wizard/helpers/useAssignExtractedImage'
+import { splitIntoSubPhrases, computePhraseTimings, blockTimeWindow, getVisibleTextAtCursor, resolveBlockMedia, PHRASE_GAP_MS, type MediaBlock, type PhraseTiming, type NarrChunk, type BubbleType, type AvailableMediaSnapshot } from '@/lib/timeline'
+import { effectivePlanPrefs, effectiveRedWords, PLAN_DEFAULTS, SIM_PREFS_EVENT, simPrefsStorageKey, broadcastSimPrefsChange, type PlanPrefs, type PlanPrefsOverride } from '@/lib/reading-prefs'
+import { type AnimationInstance, type AnimationKind, type AnimationSource, type AnimationParams, type DerivationParams, type TravellingParams, type VideoWanParams, type WanCameraParams, type WanCameraMotion, type LatentSyncParams, type MotionBrushParams, type MotionBrushDirection, type ExtraImageParams, type ToonCrafterParams, defaultAnimationName, defaultParamsForKind, newAnimationId, previewUrlOfAnimation, resolveAnimationSourceUrl } from '@/lib/animations'
+import { buildAnglePrompt, CHECKPOINTS, resolveCheckpointFilename } from '@/lib/comfyui'
+
+// ── Defaults Qwen Travelling (camera pan, anti-rotation sujet) ───────────────
+const DEFAULT_QWEN_TEMPLATE = 'camera moves to {angle}, scene background shifts, characters in identical pose, identical clothing, fixed subjects, no rotation, no head turning, environment perspective change only'
+const DEFAULT_QWEN_NEGATIVE = 'character turning, head turning, body rotating, different pose, anatomy change, morphing'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -113,6 +127,147 @@ const STATS = [
   { key: 'chance',       label: 'Chance',        color: '#f0a742', icon: '🎲' },
 ] as const
 
+// ── Helper : capture la dernière frame d'une vidéo (pour chaînage anim → anim) ─
+// Utilise HTMLVideoElement + canvas côté client, upload Supabase. Résout en
+// undefined si échec (CORS, vidéo illisible, timeout) — la fonctionnalité
+// devient simplement indisponible pour ce bloc sans bloquer le reste.
+async function captureVideoLastFrame(videoUrl: string, storagePath: string): Promise<string | undefined> {
+  try {
+    const video = document.createElement('video')
+    video.crossOrigin = 'anonymous'
+    video.muted = true
+    video.playsInline = true
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('timeout loadedmetadata')), 30_000)
+      video.onloadedmetadata = () => { clearTimeout(timeout); resolve() }
+      video.onerror = () => { clearTimeout(timeout); reject(new Error('error loading video')) }
+      video.src = videoUrl
+    })
+    // Seek juste avant la fin (la dernière frame exacte peut être vide selon le codec)
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('timeout seek')), 15_000)
+      video.onseeked = () => { clearTimeout(timeout); resolve() }
+      video.onerror = () => { clearTimeout(timeout); reject(new Error('seek error')) }
+      video.currentTime = Math.max(0, (video.duration || 1) - 0.08)
+    })
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth || 640
+    canvas.height = video.videoHeight || 360
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return undefined
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+    const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(b => resolve(b), 'image/png'))
+    if (!blob) return undefined
+    const fd = new FormData()
+    fd.append('file', new File([blob], 'lastframe.png', { type: 'image/png' }))
+    fd.append('path', storagePath)
+    const r = await fetch('/api/upload-file', { method: 'POST', body: fd })
+    const data = await r.json()
+    return data.url ? String(data.url).split('?')[0] : undefined
+  } catch (err) {
+    console.warn('[captureVideoLastFrame] failed:', err)
+    return undefined
+  }
+}
+
+// ── Mini-tel preview (commits 2 + 4) ─────────────────────────────────────────
+// Joue la timeline d'un plan : cursor avance en temps réel, médias cross-fadent
+// (750ms opacity, même mécanisme que SectionPreviewCard du simulateur), texte
+// défile en typewriter synchronisé sur les timings WPM.
+//
+// Pour les blocs séquence (dérivation/travelling), les frames sont étalées
+// uniformément sur la fenêtre du bloc.
+//
+// S'il n'y a pas de blocs sur la timeline, fallback sur fallbackImageUrl statique.
+
+
+/** Heuristique : détecte si une URL pointe vers une vidéo. Regarde dans le path
+ *  ET dans les paramètres (ex: ComfyUI sert via `/api/view?filename=xxx.mp4`). */
+function isVideoUrl(url: string | undefined): boolean {
+  if (!url) return false
+  const lower = url.toLowerCase()
+  return /\.(mp4|webm|mov|m4v|ogg)(?:[?&#]|$)/i.test(lower)
+}
+
+
+
+function MiniPlanPhonePreview(props: {
+  blocks: MediaBlock[]
+  phrases: string[]
+  fallbackImageUrl?: string
+  available: AvailableMediaSnapshot
+  wpm: number
+  wordIntervalMs: number
+  phraseGapMs?: number
+  textFontSize?: number
+  isPlaying: boolean
+  onTogglePlay: () => void
+  textPosition?: { x: number; y: number }
+  redWords: Set<string>
+  /** Ref partagée — écrite à chaque tick rAF (60 Hz, sans re-render BookPage).
+   *  Le PlanTimelineEditor du plan prévisualisé poll cette ref pour bouger son curseur. */
+  cursorMsRef?: React.MutableRefObject<number | null>
+  /** Pour bulles riches (portraits + positions), passe les NPC + bubble_positions du plan. */
+  npcs?: Npc[]
+  bubblePositions?: Record<string, { x: number; y: number }>
+}) {
+  // Wrapper léger : PlanPlayer + chrome local (bouton play + chrono).
+  const { blocks, phrases, fallbackImageUrl, available, wpm, wordIntervalMs, phraseGapMs, textFontSize, isPlaying, onTogglePlay, textPosition, redWords, cursorMsRef, npcs, bubblePositions } = props
+  const effGap = phraseGapMs ?? PHRASE_GAP_MS
+  const timings = useMemo(() => computePhraseTimings(phrases, wpm, wordIntervalMs, effGap), [phrases, wpm, wordIntervalMs, effGap])
+  const totalMs = timings.length > 0 ? timings[timings.length - 1].end_ms + effGap : 0
+  const [localCursor, setLocalCursor] = useState(0)
+  // Throttle de l'affichage chrono (suffit à 4 Hz, l'utilisateur ne lit pas les ms).
+  const lastLocalUpdateRef = useRef(0)
+  return (
+    <div style={{ width: 280, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <PlanPlayer
+        phrases={phrases}
+        timeline={blocks}
+        available={available}
+        fallbackImageUrl={fallbackImageUrl}
+        wpm={wpm}
+        wordIntervalMs={wordIntervalMs}
+        phraseGapMs={effGap}
+        redWords={redWords}
+        textPosition={textPosition}
+        textFontSize={textFontSize ?? 13}
+        npcs={npcs}
+        bubblePositions={bubblePositions}
+        isPlaying={isPlaying}
+        onComplete={() => onTogglePlay()}
+        onCursorChange={(ms) => {
+          // Écrit dans la ref partagée à 60 Hz (le PlanTimelineEditor poll cette ref via rAF interne).
+          // Aucun re-render BookPage : le curseur de la timeline glisse fluide.
+          if (cursorMsRef) cursorMsRef.current = ms
+          // Throttle l'affichage chrono local à 4 Hz (suffisant)
+          const now = performance.now()
+          if (ms === null || now - lastLocalUpdateRef.current >= 250) {
+            lastLocalUpdateRef.current = now
+            setLocalCursor(ms ?? 0)
+          }
+        }}
+        mediaTransition="crossfade"
+        mediaTransitionMs={750}
+        aspectRatio="9/19.5"
+        phoneChrome
+        width={280}
+      />
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+        <button onClick={onTogglePlay} style={{ background: isPlaying ? '#c94c4c' : 'var(--accent)', border: 'none', borderRadius: '6px', padding: '0.4rem 1.2rem', color: '#0f0f14', fontSize: '0.78rem', fontWeight: 'bold', cursor: 'pointer' }}>
+          {isPlaying ? '⏸ Pause' : '▶ Preview'}
+        </button>
+        {totalMs > 0 && (
+          <span style={{ fontSize: '0.65rem', color: 'var(--muted)' }}>
+            {(localCursor / 1000).toFixed(1)}s / {(totalMs / 1000).toFixed(1)}s
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function BookPage() {
@@ -123,6 +278,17 @@ export default function BookPage() {
   const [choices, setChoices] = useState<Choice[]>([])
   const [npcs, setNpcs] = useState<Npc[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  // Mots à colorier en rouge dans le mini-tel preview = noms NPC + lieux (>2 chars)
+  const redWordsSet = useMemo(() => {
+    const s = new Set<string>()
+    for (const npc of npcs) {
+      if (npc.name) npc.name.split(/\s+/).forEach(w => { if (w.length > 2) s.add(w.toLowerCase()) })
+    }
+    for (const loc of locations) {
+      if (loc.name) loc.name.split(/\s+/).forEach(w => { if (w.length > 2) s.add(w.toLowerCase()) })
+    }
+    return s
+  }, [npcs, locations])
   const [loading, setLoading] = useState(true)
   const [bookSaving, setBookSaving] = useState(false)
   const [psDraft, setPsDraft] = useState<import('@/types').PathSynopses | null>(null)
@@ -178,6 +344,48 @@ export default function BookPage() {
   const [generatingThoughts, setGeneratingThoughts] = useState(false)
   const [distributingPhrases, setDistributingPhrases] = useState(false)
   const [editPhraseDistribution, setEditPhraseDistribution] = useState<string[][]>([])
+  // Mini-tel preview (commit 2) : index du plan actuellement prévisualisé dans la colonne droite
+  const [previewPlanIdx, setPreviewPlanIdx] = useState<number | null>(null)
+  const [previewPlaying, setPreviewPlaying] = useState(false)
+  // Position de lecture courante (ms) — affichée comme curseur sur la timeline du plan prévisualisé.
+  // On utilise une REF partagée (pas un useState) pour éviter de re-rendre BookPage à 60 Hz.
+  // Le mini-tel l'écrit, PlanTimelineEditor la poll en rAF interne.
+  const previewCursorRef = useRef<number | null>(null)
+  // Legacy (gardé pour fallback si ref non utilisée) — n'est plus mis à jour par défaut.
+  const [previewCursorMs] = useState<number | null>(null)
+  // Modal "Preview section entière" — joue tous les plans en séquence avec transitions
+  const [sectionPreviewOpen, setSectionPreviewOpen] = useState(false)
+  // Défauts globaux du simulateur (localStorage), sync via event SIM_PREFS_EVENT.
+  // Servent de fallback quand un plan n'a pas de plan_prefs override.
+  // Type libre : c'est l'objet brut simPrefs camelCase tel que stocké par GameSimTab.
+  const [globalSimPrefs, setGlobalSimPrefs] = useState<Record<string, unknown>>({})
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const key = simPrefsStorageKey(window.location.pathname)
+    const read = () => {
+      try {
+        const raw = localStorage.getItem(key)
+        if (!raw) return
+        setGlobalSimPrefs(JSON.parse(raw) as Record<string, unknown>)
+      } catch {}
+    }
+    read()
+    const onCustom = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail
+      if (detail) setGlobalSimPrefs(detail as Record<string, unknown>)
+      else read()
+    }
+    window.addEventListener(SIM_PREFS_EVENT, onCustom)
+    window.addEventListener('storage', read)
+    return () => {
+      window.removeEventListener(SIM_PREFS_EVENT, onCustom)
+      window.removeEventListener('storage', read)
+    }
+  }, [])
+  // État du modal de dessin de masque (Motion Brush)
+  const [maskDrawFor, setMaskDrawFor] = useState<{ animId: string; sourceUrl: string; planIdx: number } | null>(null)
+  // Wizard de construction de plan (multi-étapes : image + dashboard + sous-wizards)
+  const planWizard = usePlanWizard()
   const [editMusicUrl, setEditMusicUrl] = useState('')
   const [editMusicStartTime, setEditMusicStartTime] = useState(0)
   const [uploadingSectionMusic, setUploadingSectionMusic] = useState(false)
@@ -226,6 +434,9 @@ export default function BookPage() {
   const [introViewer, setIntroViewer] = useState(false)
   const [items, setItems] = useState<import('@/types').Item[]>([])
   const [itemsLoaded, setItemsLoaded] = useState(false)
+  // Hook de la modale "Assigner à un NPC ou à un Objet" — utilisée par le wizard
+  // d'extraction (onCharacterExtracted). Remplace les anciens window.prompt natifs.
+  const assignExtracted = useAssignExtractedImage({ bookId: id, npcs, items, setNpcs, setItems })
   const [editingItem, setEditingItem] = useState<string | null>(null) // item id or 'new'
   const [planMapEditor, setPlanMapEditor] = useState<{ imageUrl: string } | null>(null)
   const [combatTypes, setCombatTypes] = useState<import('@/types').CombatType[]>([])
@@ -406,7 +617,7 @@ export default function BookPage() {
     setEditMusicUrl(sec.music_url ?? ''); setEditMusicStartTime(sec.music_start_time ?? 0)
     const imgs = (sec.images ?? []).filter((img: any) => img.url || img.description || img.prompt_fr || img.thought)
     const nSlots = Math.max(imgs.length, 1)
-    setEditImages(Array.from({ length: nSlots }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book?.illustration_style ?? 'realistic', includeProtagonist: (imgs[i] as any)?.includeProtagonist ?? false, aspect_ratio: (imgs[i] as any)?.aspect_ratio ?? (imgs[i] as any)?.aspect_ratio_used, model: (imgs[i] as any)?.model ?? (imgs[i] as any)?.model_used, chain_from_prev: (imgs[i] as any)?.chain_from_prev ?? false, gen4_ref_npc_ids: (imgs[i] as any)?.gen4_ref_npc_ids ?? [], kontext_ref_npc_id: (imgs[i] as any)?.kontext_ref_npc_id ?? undefined, prompt_used: (imgs[i] as any)?.prompt_used, model_used: (imgs[i] as any)?.model_used, aspect_ratio_used: (imgs[i] as any)?.aspect_ratio_used, style_used: (imgs[i] as any)?.style_used, bubble_positions: (imgs[i] as any)?.bubble_positions, text_position: (imgs[i] as any)?.text_position, comfyui_settings: (imgs[i] as any)?.comfyui_settings })))
+    setEditImages(Array.from({ length: nSlots }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book?.illustration_style ?? 'realistic', includeProtagonist: (imgs[i] as any)?.includeProtagonist ?? false, aspect_ratio: (imgs[i] as any)?.aspect_ratio ?? (imgs[i] as any)?.aspect_ratio_used, model: (imgs[i] as any)?.model ?? (imgs[i] as any)?.model_used, chain_from_prev: (imgs[i] as any)?.chain_from_prev ?? false, gen4_ref_npc_ids: (imgs[i] as any)?.gen4_ref_npc_ids ?? [], kontext_ref_npc_id: (imgs[i] as any)?.kontext_ref_npc_id ?? undefined, prompt_used: (imgs[i] as any)?.prompt_used, model_used: (imgs[i] as any)?.model_used, aspect_ratio_used: (imgs[i] as any)?.aspect_ratio_used, style_used: (imgs[i] as any)?.style_used, bubble_positions: (imgs[i] as any)?.bubble_positions, text_position: (imgs[i] as any)?.text_position, comfyui_settings: (imgs[i] as any)?.comfyui_settings, plan_prefs: (imgs[i] as any)?.plan_prefs ?? (imgs[i] as any)?.reading_settings, red_words: (imgs[i] as any)?.red_words, appearance_effect: (imgs[i] as any)?.appearance_effect })))
     setEditPhraseDistribution(sec.phrase_distribution ?? [])
     setEditingSection(sectionDetailId)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -982,7 +1193,7 @@ export default function BookPage() {
     setSectionSaving(sectionId)
     const cleanImages = editImages
       .filter(img => img.url || img.description.trim() || img.thought?.trim() || img.prompt_fr?.trim())
-      .map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, prompt_used: (img as any).prompt_used || undefined, model_used: (img as any).model_used || undefined, aspect_ratio_used: (img as any).aspect_ratio_used || undefined, style_used: (img as any).style_used || undefined, model: img.model || undefined, aspect_ratio: img.aspect_ratio || undefined, chain_from_prev: img.chain_from_prev || undefined, gen4_ref_npc_ids: img.gen4_ref_npc_ids?.length ? img.gen4_ref_npc_ids : undefined, kontext_ref_npc_id: img.kontext_ref_npc_id || undefined, includeProtagonist: img.includeProtagonist || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+      .map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, prompt_used: (img as any).prompt_used || undefined, model_used: (img as any).model_used || undefined, aspect_ratio_used: (img as any).aspect_ratio_used || undefined, style_used: (img as any).style_used || undefined, model: img.model || undefined, aspect_ratio: img.aspect_ratio || undefined, chain_from_prev: img.chain_from_prev || undefined, gen4_ref_npc_ids: img.gen4_ref_npc_ids?.length ? img.gen4_ref_npc_ids : undefined, kontext_ref_npc_id: img.kontext_ref_npc_id || undefined, includeProtagonist: img.includeProtagonist || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined, comfyui_settings: (img as any).comfyui_settings || undefined, plan_prefs: (img as any).plan_prefs ?? (img as any).reading_settings, red_words: (img as any).red_words || undefined }))
     const cleanMusicUrl = editMusicUrl.trim() || undefined
     const cleanPhraseDistribution = editPhraseDistribution.length > 0 && editPhraseDistribution.some(arr => arr.length > 0) ? editPhraseDistribution : null
     const body: Record<string, any> = { content: editContent, summary: editSummary, hint_text: editHint.trim() || null, images: cleanImages, music_url: editMusicUrl.trim() || null, music_start_time: editMusicStartTime || null, phrase_distribution: cleanPhraseDistribution }
@@ -1044,7 +1255,7 @@ export default function BookPage() {
     setSectionModal(sectionId); setEditingSection(sectionId)
     setEditContent(s.content); setEditSummary(s.summary ?? ''); setEditHint(s.hint_text ?? ''); setEditMusicUrl(s.music_url ?? ''); setEditMusicStartTime(s.music_start_time ?? 0)
     const imgs = s.images ?? []
-    setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false, aspect_ratio: (imgs[i] as any)?.aspect_ratio ?? (imgs[i] as any)?.aspect_ratio_used, model: (imgs[i] as any)?.model_used, prompt_used: (imgs[i] as any)?.prompt_used, model_used: (imgs[i] as any)?.model_used, aspect_ratio_used: (imgs[i] as any)?.aspect_ratio_used, style_used: (imgs[i] as any)?.style_used, bubble_positions: (imgs[i] as any)?.bubble_positions, text_position: (imgs[i] as any)?.text_position, comfyui_settings: (imgs[i] as any)?.comfyui_settings })))
+    setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false, aspect_ratio: (imgs[i] as any)?.aspect_ratio ?? (imgs[i] as any)?.aspect_ratio_used, model: (imgs[i] as any)?.model_used, prompt_used: (imgs[i] as any)?.prompt_used, model_used: (imgs[i] as any)?.model_used, aspect_ratio_used: (imgs[i] as any)?.aspect_ratio_used, style_used: (imgs[i] as any)?.style_used, bubble_positions: (imgs[i] as any)?.bubble_positions, text_position: (imgs[i] as any)?.text_position, comfyui_settings: (imgs[i] as any)?.comfyui_settings, plan_prefs: (imgs[i] as any)?.plan_prefs ?? (imgs[i] as any)?.reading_settings, red_words: (imgs[i] as any)?.red_words, appearance_effect: (imgs[i] as any)?.appearance_effect })))
     setEditPhraseDistribution(s.phrase_distribution ?? [])
   }
 
@@ -1123,7 +1334,7 @@ export default function BookPage() {
         <aside style={{
           width: '52px', background: 'var(--sidebar-bg, #141416)',
           borderRight: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          display: 'none', flexDirection: 'column', alignItems: 'center',
           padding: '0.75rem 0', gap: '0.4rem', flexShrink: 0,
         }}>
           <button onClick={() => setSectionDetailId(null)} title="Retour au storyboard"
@@ -1304,11 +1515,15 @@ export default function BookPage() {
 
         return (
           <aside style={{
-            width: '220px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
+            width: '180px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
             display: 'flex', flexDirection: 'column', flexShrink: 0, overflow: 'hidden',
           }}>
             {/* Section header */}
             <div style={{ padding: '1rem', borderBottom: '1px solid var(--border)' }}>
+              <button onClick={() => setSectionDetailId(null)} title="Retour au storyboard"
+                style={{ marginBottom: '0.5rem', fontSize: '0.6rem', padding: '0.15rem 0.5rem', borderRadius: '4px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--accent)', cursor: 'pointer' }}>
+                ← Retour
+              </button>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', marginBottom: '0.6rem' }}>
                 <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: t.color + '33', color: t.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem', flexShrink: 0 }}>{t.icon}</div>
                 <div>
@@ -1430,7 +1645,7 @@ export default function BookPage() {
           .map(n => n.id)
 
         return (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '860px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%' }}>
 
             {/* ── Header ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -1578,7 +1793,8 @@ export default function BookPage() {
 
             {/* ── Sub-tab: Illustrations (édition complète) ── */}
             {sectionDetailTab === 'illustrations' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={labelStyle}>Illustrations (3 plans)</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1604,7 +1820,7 @@ export default function BookPage() {
                             const updated = editImages.map((img, i) => data.thoughts[i] ? { ...img, thought: data.thoughts[i] } : img)
                             setEditImages(updated)
                             // Sauvegarder immédiatement en DB
-                            const cleanImgs = updated.map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined }))
+                            const cleanImgs = updated.map(img => ({ url: img.url?.split('?')[0], description: img.description, style: img.style as any, prompt_fr: img.prompt_fr || undefined, prompt_en: img.prompt_en || undefined, thought: img.thought || undefined, text_position: (img as any).text_position || undefined, bubble_positions: (img as any).bubble_positions || undefined, appearance_effect: (img as any).appearance_effect || undefined, comfyui_settings: (img as any).comfyui_settings || undefined, plan_prefs: (img as any).plan_prefs ?? (img as any).reading_settings, red_words: (img as any).red_words || undefined }))
                             fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: cleanImgs }) })
                             setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, images: cleanImgs } : s))
                           }
@@ -1669,6 +1885,14 @@ export default function BookPage() {
                     >
                       {distributingPhrases ? '…' : '📜 Distribuer'}
                     </button>
+                    {/* ── Bouton "Preview section" : ouvre le SectionPlayer en modal (mode beta) ── */}
+                    <button
+                      title="Lit la section entière en continu : tous les plans + transitions cinématiques entre eux"
+                      onClick={() => setSectionPreviewOpen(true)}
+                      style={{ padding: '0.25rem 0.6rem', fontSize: '0.65rem', borderRadius: '5px', border: '1px solid #d4a84c66', background: 'rgba(212,168,76,0.1)', color: '#d4a84c', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap', fontWeight: 'bold' }}
+                    >
+                      🎬 Preview section
+                    </button>
                   </div>
                 </div>
                 {editImages.map((_, i) => {
@@ -1700,7 +1924,7 @@ export default function BookPage() {
                   function buildClean(imgs: typeof editImages) {
                     return imgs
                       .filter(img => img.url || img.description?.trim() || img.prompt_fr?.trim() || img.prompt_en?.trim() || (img as any).comfyui_settings)
-                      .map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: (img as any).comfyui_settings, text_position: (img as any).text_position, bubble_positions: (img as any).bubble_positions, appearance_effect: (img as any).appearance_effect }))
+                      .map(img => ({ url: (img.url as string)?.split('?')[0], description: img.description, style: img.style, aspect_ratio: (img as any).aspect_ratio, prompt_fr: img.prompt_fr, prompt_en: img.prompt_en, thought: img.thought, comfyui_settings: (img as any).comfyui_settings, text_position: (img as any).text_position, bubble_positions: (img as any).bubble_positions, appearance_effect: (img as any).appearance_effect, plan_prefs: (img as any).plan_prefs ?? (img as any).reading_settings, red_words: (img as any).red_words }))
                   }
                   // Persist to DB — simple async fetch, no React state tricks
                   async function persistToDB(imgs: typeof editImages) {
@@ -1748,14 +1972,63 @@ export default function BookPage() {
                   })).filter(p => p.planIdx !== i)
 
                   return (
-                  <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {/* Header */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--accent)', fontWeight: 'bold' }}>Plan {i + 1}</div>
-                      {(editImages[i] as any)?.shot_size && <span style={{ fontSize: '0.58rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem 0.3rem', color: 'var(--accent)' }}>{(editImages[i] as any).shot_size}</span>}
-                      {(editImages[i] as any)?.perspective && <span style={{ fontSize: '0.58rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem 0.3rem', color: 'var(--muted)' }}>{(editImages[i] as any).perspective}</span>}
-                      <button onClick={() => setEditImages(imgs => imgs.filter((_, idx) => idx !== i))} title="Supprimer ce plan" style={{ marginLeft: 'auto', fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>
-                    </div>
+                  <details key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                    {/* Header repliable : vignette + Plan N + 1ère phrase */}
+                    <summary style={{ padding: '0.55rem 0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem', listStyle: 'none' }}>
+                      {editImages[i]?.url
+                        ? <img src={editImages[i].url} alt={`Plan ${i + 1}`} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border)', flexShrink: 0 }} />
+                        : <div style={{ width: '60px', height: '34px', borderRadius: '4px', background: 'var(--surface-2)', border: '1px dashed var(--border)', flexShrink: 0 }} />}
+                      <div style={{ fontSize: '0.85rem', color: 'var(--accent)', fontWeight: 'bold', flexShrink: 0 }}>Plan {i + 1}</div>
+                      {(editImages[i] as any)?.shot_size && <span style={{ fontSize: '0.58rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem 0.3rem', color: 'var(--accent)', flexShrink: 0 }}>{(editImages[i] as any).shot_size}</span>}
+                      {(editImages[i] as any)?.perspective && <span style={{ fontSize: '0.58rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem 0.3rem', color: 'var(--muted)', flexShrink: 0 }}>{(editImages[i] as any).perspective}</span>}
+                      {editPhraseDistribution[i]?.[0] && <span style={{ fontSize: '0.7rem', color: 'var(--muted)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }} title={editPhraseDistribution[i][0]}>« {editPhraseDistribution[i][0]} »</span>}
+                      <button
+                        onClick={e => {
+                          e.stopPropagation()
+                          if (previewPlanIdx === i) {
+                            setPreviewPlaying(p => !p)
+                          } else {
+                            setPreviewPlanIdx(i)
+                            setPreviewPlaying(true)
+                          }
+                        }}
+                        title={previewPlanIdx === i ? (previewPlaying ? 'Mettre en pause la prévisualisation' : 'Reprendre la prévisualisation') : 'Prévisualiser ce plan dans le mini-tel à droite'}
+                        style={{ marginLeft: 'auto', fontSize: '0.6rem', padding: '0.15rem 0.4rem', borderRadius: '3px', border: `1px solid ${previewPlanIdx === i ? '#52c48488' : '#52c48444'}`, background: previewPlanIdx === i ? '#52c48422' : 'transparent', color: '#52c484', cursor: 'pointer', flexShrink: 0, fontWeight: 'bold' }}>
+                        {previewPlanIdx === i && previewPlaying ? '⏸' : '▶'} Preview
+                      </button>
+                      <button onClick={e => { e.stopPropagation(); setEditImages(imgs => imgs.filter((_, idx) => idx !== i)) }} title="Supprimer ce plan" style={{ fontSize: '0.58rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+                    </summary>
+
+                    <div style={{ padding: '0.5rem 0.85rem 0.85rem 0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderTop: '1px solid var(--border)' }}>
+
+                      {/* ── Texte assigné au plan (en haut) ── */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+                            📜 Texte assigné au plan
+                            {editPhraseDistribution[i]?.length > 0 && (
+                              <span style={{ marginLeft: '0.4rem', color: '#7ab8d8' }}>({editPhraseDistribution[i].length} phrase{editPhraseDistribution[i].length > 1 ? 's' : ''})</span>
+                            )}
+                          </div>
+                          <CorrectButton size="sm" text={(editPhraseDistribution[i] ?? []).join('\n')} onCorrected={corrected => {
+                            const lines = corrected.split('\n').filter(Boolean)
+                            setEditPhraseDistribution(prev => { const next = [...prev]; next[i] = lines; return next })
+                          }} />
+                        </div>
+                        <TaggablePhraseEditor planIdx={i} phrases={editPhraseDistribution[i] ?? []} npcs={npcs}
+                          onChange={lines => { setEditPhraseDistribution(prev => { const next = [...prev]; while (next.length <= i) next.push([]); next[i] = lines; return next }) }}
+                          onBlur={() => {
+                            const clean = editPhraseDistribution.length > 0 && editPhraseDistribution.some(arr => arr.length > 0) ? editPhraseDistribution : null
+                            fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phrase_distribution: clean }) })
+                            setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, phrase_distribution: clean ?? undefined } : s))
+                          }}
+                        />
+                      </div>
+
+                      {/* ══════ 1. 🖼️ CONSTRUCTION IMAGE PRINCIPALE (foldable) ══════ */}
+                      <details style={{ border: '1px solid #e0a74244', borderRadius: '8px', background: 'transparent', marginTop: '0.4rem' }}>
+                        <summary style={{ padding: '0.5rem 0.7rem', fontSize: '0.7rem', color: '#e0a742', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em', background: '#e0a74211' }}>1. 🖼️ Construction image principale</summary>
+                        <div style={{ padding: '0.5rem 0.5rem 0.6rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
 
                     {/* ── Image principale + Prompts côte à côte ── */}
                     <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -2009,8 +2282,121 @@ export default function BookPage() {
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>CFG <input type="number" min={1} max={15} step={0.5} value={imgCfg} onChange={e => updateCs({ cfg: Number(e.target.value) })} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.6rem', textAlign: 'center' }} /></label>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Seed <input type="number" min={-1} value={imgSeed} onChange={e => updateCs({ seed: Number(e.target.value) })} onBlur={saveImages} style={{ width: '55px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.6rem', textAlign: 'center' }} /></label>
                           <select value={imgCheckpoint} onChange={e => { updateCs({ checkpoint: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
-                            <option value="juggernaut">Juggernaut XL v9</option><option value="sdxl_base">SDXL Base</option><option value="juggernaut+anime">+Anime</option><option value="juggernaut+concept">+Concept</option>
+                            {CHECKPOINTS.map(c => (
+                              <option key={c.key} value={c.key} title={c.hint}>{c.label}</option>
+                            ))}
                           </select>
+                          <button
+                            disabled={!(editImages[i]?.prompt_en || '').trim()}
+                            title={(editImages[i]?.prompt_en || '').trim() ? 'Génère la même scène avec les 6 checkpoints, choisis celui qui te plait' : 'Saisis d\'abord un prompt EN'}
+                            onClick={() => {
+                              const prompt = editImages[i]?.prompt_en || ''
+                              if (!prompt.trim()) return
+                              planWizard.open({
+                                mode: 'full-plan',
+                                section: detailSec,
+                                reference: { type: 'plan', id: String(i) },
+                                prompt: prompt.trim(),
+                                promptNegative: imgNeg,
+                                style: imgStyle,
+                                aspectRatio: imgAr,
+                                steps: imgSteps,
+                                cfg: imgCfg,
+                                existingImage: editImages[i]?.url ? { url: editImages[i]!.url!, checkpointKey: imgCheckpoint } : undefined,
+                                storagePathPrefix: `plans/${detailSec.id}/${i}`,
+                                npcs, // Liste complète pour que les sous-wizards (pano 360° scène, composer) proposent les persos
+                                items, // Idem pour placer des objets dans le composer 360°
+                                onImageSelected: async (url, checkpointKey) => {
+                                  // Sauvegarde l'image choisie + le checkpoint dans le plan
+                                  const newImgs = editImagesRef.current.map((img, idx) => {
+                                    if (idx !== i) return img
+                                    const newCs = { ...((img as any).comfyui_settings ?? {}), checkpoint: checkpointKey }
+                                    return { ...img, url, comfyui_settings: newCs } as any
+                                  })
+                                  editImagesRef.current = newImgs
+                                  setEditImages(newImgs)
+                                  if (detailSec.id) persistToDB(newImgs)
+                                },
+                                onVariantsSelected: async (urls) => {
+                                  // Fusionne dans cs.variants existantes
+                                  const newImgs = editImagesRef.current.map((img, idx) => {
+                                    if (idx !== i) return img
+                                    const cur = ((img as any).comfyui_settings?.variants ?? []) as string[]
+                                    const newCs = { ...((img as any).comfyui_settings ?? {}), variants: [...cur, ...urls] }
+                                    return { ...img, comfyui_settings: newCs } as any
+                                  })
+                                  editImagesRef.current = newImgs
+                                  setEditImages(newImgs)
+                                  if (detailSec.id) persistToDB(newImgs)
+                                },
+                                onCharacterExtracted: async (portraitUrl) => {
+                                  // Délègue à la modale "2 listes NPC + Objets".
+                                  // Le hook gère le routage (NPC → portrait_url, Item → illustration_url).
+                                  assignExtracted.open(portraitUrl)
+                                },
+                                onDerivationsGenerated: async (orderedUrls) => {
+                                  // Sauve la séquence dans comfyui_settings.derivations du plan courant.
+                                  const newImgs = editImagesRef.current.map((img, idx) => {
+                                    if (idx !== i) return img
+                                    const cur = ((img as any).comfyui_settings?.derivations ?? []) as string[]
+                                    const newCs = { ...((img as any).comfyui_settings ?? {}), derivations: [...cur, ...orderedUrls] }
+                                    return { ...img, comfyui_settings: newCs } as any
+                                  })
+                                  editImagesRef.current = newImgs
+                                  setEditImages(newImgs)
+                                  if (detailSec.id) persistToDB(newImgs)
+                                },
+                                onPanorama360Generated: async (mode, panoramaUrl) => {
+                                  // Route vers le bon champ selon le mode :
+                                  //   'scene'  → panorama_360_scene_url  (plan cinématique 3P, perso visible)
+                                  //   'choice' → panorama_360_choice_url (POV immersive 1P, moment de choix)
+                                  const key = mode === 'scene' ? 'panorama_360_scene_url' : 'panorama_360_choice_url'
+                                  const newImgs = editImagesRef.current.map((img, idx) => {
+                                    if (idx !== i) return img
+                                    const newCs = { ...((img as any).comfyui_settings ?? {}), [key]: panoramaUrl }
+                                    return { ...img, comfyui_settings: newCs } as any
+                                  })
+                                  editImagesRef.current = newImgs
+                                  setEditImages(newImgs)
+                                  if (detailSec.id) persistToDB(newImgs)
+                                },
+                                onPanorama360Composed: async (panoramaUrl, composition) => {
+                                  // Sauve pano + composition (placements NPCs/Items) pour rendu player Three.js.
+                                  const newImgs = editImagesRef.current.map((img, idx) => {
+                                    if (idx !== i) return img
+                                    const newCs = {
+                                      ...((img as any).comfyui_settings ?? {}),
+                                      panorama_360_choice_url: panoramaUrl,
+                                      scene_composition: composition,
+                                    }
+                                    return { ...img, comfyui_settings: newCs } as any
+                                  })
+                                  editImagesRef.current = newImgs
+                                  setEditImages(newImgs)
+                                  if (detailSec.id) persistToDB(newImgs)
+                                },
+                                onPanorama360Baked: async (bakedUrl, composition) => {
+                                  // Version baked (persos intégrés via IA inpaint) — le player utilise
+                                  // cette version si présente (sinon fallback sur pano base + sprites).
+                                  const newImgs = editImagesRef.current.map((img, idx) => {
+                                    if (idx !== i) return img
+                                    const newCs = {
+                                      ...((img as any).comfyui_settings ?? {}),
+                                      panorama_360_baked_url: bakedUrl,
+                                      scene_composition: composition,
+                                    }
+                                    return { ...img, comfyui_settings: newCs } as any
+                                  })
+                                  editImagesRef.current = newImgs
+                                  setEditImages(newImgs)
+                                  if (detailSec.id) persistToDB(newImgs)
+                                },
+                              })
+                            }}
+                            style={{ fontSize: '0.58rem', padding: '0.15rem 0.4rem', borderRadius: '3px', border: '1px solid #d4a84c66', background: 'rgba(212,168,76,0.1)', color: '#d4a84c', cursor: (editImages[i]?.prompt_en || '').trim() ? 'pointer' : 'not-allowed', opacity: (editImages[i]?.prompt_en || '').trim() ? 1 : 0.5, fontWeight: 'bold' }}
+                          >
+                            🎨 Comparer modèles
+                          </button>
                           <select value={imgStyle} onChange={e => { updateImg({ style: e.target.value }); setTimeout(saveImages, 50) }} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.15rem 0.3rem', color: 'var(--foreground)', fontSize: '0.58rem', cursor: 'pointer' }}>
                             <option value="realistic">Réaliste</option><option value="photo">Photo</option><option value="manga">Manga</option><option value="comic">BD</option><option value="bnw">N&B</option><option value="dark_fantasy">Dark Fantasy</option><option value="sketch">Esquisse</option>
                           </select>
@@ -2032,7 +2418,7 @@ export default function BookPage() {
                             const newVariants = [...variants]
                             for (let v = 0; v < 4; v++) {
                               updateCs({ _generatingVariants: `${v + 1}/4` })
-                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'background', prompt_positive: prompt, prompt_negative: imgNeg, style: imgStyle, width: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 768 : 1360, height: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 1360 : 768, steps: imgSteps, cfg: imgCfg, seed: -1, checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] : undefined }) })
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'background', prompt_positive: prompt, prompt_negative: imgNeg, style: imgStyle, width: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 768 : 1360, height: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 1360 : 768, steps: imgSteps, cfg: imgCfg, seed: -1, checkpoint: resolveCheckpointFilename(imgCheckpoint) }) })
                               const d = await res.json(); if (!d.prompt_id) continue
                               const start = Date.now()
                               while (Date.now() - start < 180_000) {
@@ -2067,7 +2453,942 @@ export default function BookPage() {
                       </div>
                     </details>
 
-                    {/* ── Dérivations ── */}
+                          {/* ── Images des autres plans (déplacé ici dans Construction) ── */}
+                          {otherPlanImages.some(p => p.url || p.variants.length > 0 || p.derivations.length > 0 || p.animationUrl) && (
+                            <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                              <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Images des autres plans</summary>
+                              <div style={{ padding: '0.5rem 0.6rem', display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
+                                {otherPlanImages.flatMap(p => {
+                                  const imgs: Array<{ url: string; label: string }> = []
+                                  if (p.url) imgs.push({ url: p.url.split('?')[0], label: `Plan ${p.planIdx + 1}` })
+                                  p.variants.forEach((v, vi) => imgs.push({ url: v, label: `P${p.planIdx + 1} var${vi + 1}` }))
+                                  p.derivations.forEach((d, di) => imgs.push({ url: d, label: `P${p.planIdx + 1} der${di + 1}` }))
+                                  if (p.animationUrl) imgs.push({ url: p.animationUrl, label: `P${p.planIdx + 1} GIF` })
+                                  return imgs
+                                }).map((item, oi) => (
+                                  <img key={oi} src={item.url} alt={item.label} title={`${item.label} — Clic = utiliser`} onClick={() => setImgAndSave({ url: item.url + '?t=' + Date.now() })} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer', opacity: 0.7 }} />
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </div>
+                      </details>{/* fin 1. Construction */}
+
+                      {/* ══════ 2. 🎬 ANIMATIONS (modèle unifié — liste ordonnée) ══════ */}
+                      {(() => {
+                        // Helpers locaux à l'itération du plan i
+                        const getAnims = (): AnimationInstance[] => {
+                          const csNow = (editImagesRef.current[i] as any)?.comfyui_settings ?? {}
+                          return (csNow.animations ?? []) as AnimationInstance[]
+                        }
+                        const patchAnim = (animId: string, patch: Partial<AnimationInstance>) => {
+                          const list = getAnims().map(a => a.id === animId ? { ...a, ...patch } : a)
+                          setCsAndSave({ animations: list } as any)
+                        }
+                        const deleteAnim = (animId: string) => {
+                          if (!confirm('Supprimer cette animation ? Le bloc correspondant sera retiré de la timeline.')) return
+                          const list = getAnims().filter(a => a.id !== animId)
+                          const cleanedTimeline = (((cs as any).media_timeline ?? []) as any[]).filter(b => b.source_ref !== animId)
+                          setCsAndSave({ animations: list, media_timeline: cleanedTimeline } as any)
+                        }
+                        const addAnim = (kind: AnimationKind) => {
+                          const list = getAnims()
+                          const newAnim: AnimationInstance = {
+                            id: newAnimationId(),
+                            name: defaultAnimationName(kind, list.length + 1),
+                            kind,
+                            source: { mode: 'main' },
+                            params: defaultParamsForKind(kind),
+                            status: 'idle',
+                            created_at: Date.now(),
+                          }
+                          setCsAndSave({ animations: [...list, newAnim] } as any)
+                        }
+
+                        // Génération unifiée (dispatch par kind)
+                        const generateAnim = async (anim: AnimationInstance) => {
+                          const prevAnims = getAnims()
+                          const sourceUrl = resolveAnimationSourceUrl(anim.source, editImages[i]?.url?.split('?')[0], prevAnims)
+                          if (!sourceUrl) {
+                            alert('Source introuvable. Vérifie l\'image principale ou l\'animation précédente.')
+                            return
+                          }
+                          patchAnim(anim.id, { status: 'generating', status_progress: 'init', error: undefined })
+
+                          try {
+                            if (anim.kind === 'derivation') {
+                              const p = anim.params as DerivationParams
+                              const count = p.count ?? 20
+                              const denoise = p.denoise ?? 0.4
+                              const steps = p.steps ?? imgSteps
+                              const cfg = p.cfg ?? imgCfg
+                              // Upload source 1x
+                              const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: sourceUrl, name: `derive_${anim.id}` }) })
+                              const upData = await upRes.json()
+                              if (!upRes.ok) throw new Error(upData.error)
+                              const angleVariations = [
+                                'slight left angle view', 'slight right angle view', 'low angle dramatic view', 'high angle overview',
+                                'centered front view', 'three-quarter left view', 'three-quarter right view', 'over-the-shoulder view',
+                                'wider establishing shot', 'tighter close-up framing', 'slight dutch angle', 'eye-level shot',
+                                'subtle camera tilt up', 'subtle camera tilt down', 'profile left view', 'profile right view',
+                                'shallow depth of field', 'wide focal length', 'small position shift left', 'small position shift right',
+                              ]
+                              const deriveNeg = `${imgNeg}, changing character appearance, different clothing, adding hat, cap, helmet, changing face, morphing`
+                              const basePrompt = editImages[i]?.prompt_en || ''
+                              const newUrls: string[] = []
+                              for (let v = 0; v < count; v++) {
+                                patchAnim(anim.id, { status_progress: `${v + 1}/${count}` })
+                                const variedPrompt = `${basePrompt}, ${angleVariations[v % angleVariations.length]}, same character same clothing`
+                                const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'transition', source_image: upData.filename, prompt_positive: variedPrompt, prompt_negative: deriveNeg, style: imgStyle, steps, cfg, seed: -1, denoise, checkpoint: resolveCheckpointFilename(imgCheckpoint) }) })
+                                const d = await res.json()
+                                if (!d.prompt_id) continue
+                                const start = Date.now()
+                                while (Date.now() - start < 180_000) {
+                                  await new Promise(r => setTimeout(r, 3000))
+                                  const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                  const pd = await poll.json()
+                                  if (pd.status === 'succeeded') {
+                                    const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(`books/${id}/sections/${detailSec.id}_${i}_${anim.id}_${v}_${Date.now()}`)}`)
+                                    const imgData = await imgRes.json()
+                                    if (imgData.image_url) newUrls.push(imgData.image_url.split('?')[0])
+                                    break
+                                  }
+                                  if (pd.status === 'failed') break
+                                }
+                              }
+                              const lastFrame = newUrls[newUrls.length - 1]
+                              patchAnim(anim.id, { status: 'done', status_progress: undefined, output: { urls: newUrls, last_frame_url: lastFrame, generated_at: Date.now() } })
+                            }
+                            else if (anim.kind === 'travelling') {
+                              const p = anim.params as TravellingParams
+                              const res = await fetch('/api/comfyui/qwen-travelling', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                                source_url: sourceUrl,
+                                start_angle: p.start_angle ?? -15,
+                                end_angle: p.end_angle ?? 15,
+                                vertical_angle: p.vertical_angle ?? 0,
+                                zoom: p.zoom ?? 5,
+                                frame_count: p.frame_count ?? 30,
+                                prompt_template: p.prompt_template ?? DEFAULT_QWEN_TEMPLATE,
+                                negative_prompt: p.negative_prompt ?? DEFAULT_QWEN_NEGATIVE,
+                              }) })
+                              const d = await res.json()
+                              if (!d.prompt_ids) {
+                                console.error('[qwen] Erreur API :', d)
+                                throw new Error((d.error || 'Erreur Qwen') + (d.details ? '\n\nDétails ComfyUI :\n' + JSON.stringify(d.details, null, 2) : ''))
+                              }
+                              const total = d.prompt_ids.length
+                              const newUrls: string[] = []
+                              for (let k = 0; k < total; k++) {
+                                patchAnim(anim.id, { status_progress: `${k + 1}/${total}` })
+                                const promptId = d.prompt_ids[k]
+                                const start = Date.now()
+                                while (Date.now() - start < 180_000) {
+                                  await new Promise(r => setTimeout(r, 2000))
+                                  const poll = await fetch(`/api/comfyui?prompt_id=${promptId}`)
+                                  const pd = await poll.json()
+                                  if (pd.status === 'succeeded') {
+                                    const path = `qwen-travelling/${detailSec.id}/p${i}_${anim.id}_${k.toString().padStart(2, '0')}_${Date.now()}`
+                                    const fetchRes = await fetch(`/api/comfyui?prompt_id=${promptId}&action=image&storage_path=${encodeURIComponent(path)}`)
+                                    const fetchData = await fetchRes.json()
+                                    if (fetchData.image_url) newUrls.push(fetchData.image_url)
+                                    break
+                                  }
+                                  if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                                }
+                              }
+                              const lastFrame = newUrls[newUrls.length - 1]
+                              patchAnim(anim.id, { status: 'done', status_progress: undefined, output: { urls: newUrls, last_frame_url: lastFrame, generated_at: Date.now() } })
+                            }
+                            else if (anim.kind === 'wan_camera') {
+                              const p = anim.params as WanCameraParams
+                              const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: sourceUrl, name: `wan_camera_src_${anim.id}` }) })
+                              const upData = await upRes.json()
+                              if (!upRes.ok) throw new Error(upData.error)
+                              const ar = imgAr ?? '16:9'
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                                workflow_type: 'wan_camera',
+                                source_image: upData.filename,
+                                prompt_positive: p.prompt_positive ?? 'cinematic camera movement',
+                                prompt_negative: p.prompt_negative ?? 'static, blurred, character moving',
+                                camera_motion: p.motion ?? 'pan_left',
+                                steps: p.steps ?? 20,
+                                cfg: p.cfg ?? 3.5,
+                                seed: -1,
+                                frames: p.frames ?? 25,
+                                fps: p.fps ?? 12,
+                                width: ar === '16:9' ? 832 : ar === '9:16' ? 480 : ar === '1:1' ? 640 : 832,
+                                height: ar === '16:9' ? 480 : ar === '9:16' ? 832 : ar === '1:1' ? 640 : 480,
+                              }) })
+                              const d = await res.json()
+                              if (!d.prompt_id) {
+                                console.error('[wan_camera] Erreur API :', d)
+                                throw new Error((d.error || 'Erreur Wan Camera') + (d.details ? '\n\nDétails ComfyUI :\n' + JSON.stringify(d.details, null, 2) : ''))
+                              }
+                              // Wan Camera 14B sur GPU consumer = très lent (offload CPU). Timeout 45 min.
+                              const MAX_WAIT_MS = 45 * 60 * 1000
+                              const start = Date.now()
+                              let done = false
+                              while (Date.now() - start < MAX_WAIT_MS) {
+                                await new Promise(r => setTimeout(r, 5000))
+                                patchAnim(anim.id, { status_progress: `${Math.round((Date.now() - start) / 1000)}s` })
+                                const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                const pd = await poll.json()
+                                if (pd.status === 'succeeded') {
+                                  const storagePath = `wan-camera/${detailSec.id}/p${i}_${anim.id}_${Date.now()}`
+                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=video_info&storage_path=${encodeURIComponent(storagePath)}`)
+                                  const histData = await histRes.json()
+                                  if (histData.video_url) {
+                                    patchAnim(anim.id, { status_progress: 'snapshot...' })
+                                    const lastFrame = await captureVideoLastFrame(histData.video_url, `${storagePath}_lastframe`)
+                                    patchAnim(anim.id, { status: 'done', status_progress: undefined, output: { url: histData.video_url, last_frame_url: lastFrame, generated_at: Date.now() } })
+                                  }
+                                  done = true
+                                  break
+                                }
+                                if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                              }
+                              if (!done) {
+                                throw new Error(`Timeout après ${Math.round(MAX_WAIT_MS / 60000)} min. La vidéo peut avoir été générée malgré tout — vérifie ComfyUI/output/hero_wan_camera_*.mp4. Prompt id : ${d.prompt_id}`)
+                              }
+                            }
+                            else if (anim.kind === 'latent_sync') {
+                              const p = anim.params as LatentSyncParams
+                              if (!p.audio_url) throw new Error('Upload un fichier audio pour le lip sync')
+                              if (!sourceUrl) throw new Error('Source introuvable — sélectionne une animation vidéo précédente (Wan / Caméra Wan) ou upload une vidéo')
+                              // LatentSync nécessite une VIDÉO source. Teste l'extension dans le pathname proprement.
+                              const srcPath = (() => { try { return new URL(sourceUrl, window.location.href).pathname } catch { return sourceUrl } })()
+                              const srcIsVideo = /\.(mp4|webm|mov|m4v|ogg)$/i.test(srcPath)
+                              if (!srcIsVideo) throw new Error('La source doit être une vidéo (mp4). Utilise une animation vidéo précédente (Wan/Caméra Wan) comme source.')
+
+                              // Upload vidéo puis audio (en parallèle pour aller + vite)
+                              const [videoUp, audioUp] = await Promise.all([
+                                fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: sourceUrl, name: `lsync_vid_${anim.id}` }) }),
+                                fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: p.audio_url, name: `lsync_aud_${anim.id}` }) }),
+                              ])
+                              const videoUpData = await videoUp.json()
+                              const audioUpData = await audioUp.json()
+                              if (!videoUp.ok) throw new Error(`Upload vidéo échoué: ${videoUpData.error}`)
+                              if (!audioUp.ok) throw new Error(`Upload audio échoué: ${audioUpData.error}`)
+
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                                workflow_type: 'latent_sync',
+                                source_video: videoUpData.filename,
+                                audio_filename: audioUpData.filename,
+                                seed: p.seed ?? -1,
+                                lips_expression: p.inference_steps === undefined ? 1.5 : (anim.params as any).lips_expression ?? 1.5,
+                                inference_steps: p.inference_steps ?? 20,
+                                fps: 25,
+                                length_mode: 'pingpong',
+                                // prompt_positive etc. non utilisés par le workflow latent_sync mais requis par l'API guard
+                                prompt_positive: 'lip sync',
+                              }) })
+                              const d = await res.json()
+                              if (!d.prompt_id) {
+                                console.error('[latent_sync] Erreur API :', d)
+                                throw new Error((d.error || 'Erreur LatentSync') + (d.details ? '\n\nDétails ComfyUI :\n' + JSON.stringify(d.details, null, 2) : ''))
+                              }
+                              const start = Date.now()
+                              let done = false
+                              const MAX_WAIT_MS = 30 * 60 * 1000
+                              while (Date.now() - start < MAX_WAIT_MS) {
+                                await new Promise(r => setTimeout(r, 5000))
+                                patchAnim(anim.id, { status_progress: `${Math.round((Date.now() - start) / 1000)}s` })
+                                const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                const pd = await poll.json()
+                                if (pd.status === 'succeeded') {
+                                  const storagePath = `latent-sync/${detailSec.id}/p${i}_${anim.id}_${Date.now()}`
+                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=video_info&storage_path=${encodeURIComponent(storagePath)}`)
+                                  const histData = await histRes.json()
+                                  if (histData.video_url) {
+                                    patchAnim(anim.id, { status_progress: 'snapshot...' })
+                                    const lastFrame = await captureVideoLastFrame(histData.video_url, `${storagePath}_lastframe`)
+                                    patchAnim(anim.id, { status: 'done', status_progress: undefined, output: { url: histData.video_url, last_frame_url: lastFrame, generated_at: Date.now() } })
+                                  }
+                                  done = true
+                                  break
+                                }
+                                if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                              }
+                              if (!done) throw new Error(`Timeout après ${Math.round(MAX_WAIT_MS / 60000)} min.`)
+                            }
+                            else if (anim.kind === 'tooncrafter') {
+                              const p = anim.params as ToonCrafterParams
+                              if (!p.end_image_url) throw new Error('Upload une image de fin (end frame). La source en haut sert de start frame.')
+                              if (!sourceUrl) throw new Error('Source introuvable — choisis une image de début')
+                              // Upload start (source) + end image
+                              const [upStart, upEnd] = await Promise.all([
+                                fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: sourceUrl, name: `tc_start_${anim.id}` }) }),
+                                fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: p.end_image_url, name: `tc_end_${anim.id}` }) }),
+                              ])
+                              const upStartData = await upStart.json()
+                              const upEndData = await upEnd.json()
+                              if (!upStart.ok) throw new Error(`Upload start frame échoué: ${upStartData.error}`)
+                              if (!upEnd.ok) throw new Error(`Upload end frame échoué: ${upEndData.error}`)
+
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                                workflow_type: 'tooncrafter',
+                                source_image: upStartData.filename,
+                                end_image: upEndData.filename,
+                                prompt_positive: p.prompt ?? 'smooth animation, anime style',
+                                seed: p.seed ?? -1,
+                                steps: p.steps ?? 30,
+                                cfg_scale: p.cfg_scale ?? 7.5,
+                                eta: p.eta ?? 1.0,
+                                frame_count: p.frame_count ?? 10,
+                                fps: p.fps ?? 8,
+                                vram_opt: p.vram_opt ?? 'low',
+                              }) })
+                              const d = await res.json()
+                              if (!d.prompt_id) {
+                                // Si ComfyUI a renvoyé node_errors, on les inclut pour debug.
+                                const detailsStr = d.details ? '\n\nDétails ComfyUI :\n' + JSON.stringify(d.details, null, 2) : ''
+                                console.error('[tooncrafter] Erreur API :', d)
+                                throw new Error((d.error || 'Erreur ToonCrafter') + detailsStr)
+                              }
+                              const start = Date.now()
+                              let done = false
+                              // ToonCrafter sans xformers (patch Blackwell) en SDPA pur peut prendre 30-50 min.
+                              const MAX_WAIT_MS = 60 * 60 * 1000
+                              while (Date.now() - start < MAX_WAIT_MS) {
+                                await new Promise(r => setTimeout(r, 5000))
+                                patchAnim(anim.id, { status_progress: `${Math.round((Date.now() - start) / 1000)}s` })
+                                const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                const pd = await poll.json()
+                                if (pd.status === 'succeeded') {
+                                  const storagePath = `tooncrafter/${detailSec.id}/p${i}_${anim.id}_${Date.now()}`
+                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=video_info&storage_path=${encodeURIComponent(storagePath)}`)
+                                  const histData = await histRes.json()
+                                  if (histData.video_url) {
+                                    patchAnim(anim.id, { status_progress: 'snapshot...' })
+                                    const lastFrame = await captureVideoLastFrame(histData.video_url, `${storagePath}_lastframe`)
+                                    patchAnim(anim.id, { status: 'done', status_progress: undefined, output: { url: histData.video_url, last_frame_url: lastFrame, generated_at: Date.now() } })
+                                  }
+                                  done = true
+                                  break
+                                }
+                                if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                              }
+                              if (!done) throw new Error(`Timeout après ${Math.round(MAX_WAIT_MS / 60000)} min.`)
+                            }
+                            else if (anim.kind === 'extra_image') {
+                              const p = anim.params as ExtraImageParams
+                              // Validation : prompt obligatoire (override OU image principale déjà générée)
+                              const effectivePrompt = (p.prompt_override?.trim()) || editImages[i]?.prompt_en?.trim() || ''
+                              if (!effectivePrompt) {
+                                throw new Error('Aucun prompt disponible. Génère d\'abord l\'image principale du plan, ou ajoute un prompt override dans les params.')
+                              }
+                              // Double référence à l'image principale pour une vraie variante :
+                              //   - ControlNet Depth (background_image) → préserve la composition spatiale 3D
+                              //   - IPAdapter Plus (style_reference_image) → préserve style, couleurs, lumière
+                              const mainImageUrl = editImages[i]?.url?.split('?')[0]
+                              let refFilename: string | undefined // pour ControlNet Depth
+                              let styleRefFilename: string | undefined // pour IPAdapter Plus
+                              // ControlNet Depth : p.reference_url override, sinon image principale, sinon bg décor
+                              const refUrlToUpload = p.reference_url || mainImageUrl || imgBgUrl || undefined
+                              if (refUrlToUpload) {
+                                const upRef = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: refUrlToUpload, name: `xtra_ref_${anim.id}` }) })
+                                const upRefData = await upRef.json()
+                                if (upRef.ok) {
+                                  refFilename = upRefData.filename
+                                  console.log('[extra_image] Référence ControlNet =', refUrlToUpload === p.reference_url ? 'override utilisateur' : refUrlToUpload === mainImageUrl ? 'image principale' : 'background décor', '→', upRefData.filename)
+                                } else {
+                                  console.warn('[extra_image] Upload référence échoué :', upRefData)
+                                }
+                              }
+                              // IPAdapter Plus style : toujours l'image principale si dispo (même si reference_url override la depth)
+                              // → garde la style/couleurs même si l'utilisateur a donné une ref géométrique différente
+                              if (mainImageUrl) {
+                                const upStyle = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: mainImageUrl, name: `xtra_style_${anim.id}` }) })
+                                const upStyleData = await upStyle.json()
+                                if (upStyle.ok) {
+                                  styleRefFilename = upStyleData.filename
+                                  console.log('[extra_image] Référence IPAdapter Plus (style) = image principale →', upStyleData.filename)
+                                }
+                              }
+                              // Personnage NPC (IPAdapter FaceID) — override ou fallback sur les persos de l'image principale
+                              const characters: Array<{ portrait_filename: string; mask: any; weight?: number }> = []
+                              if (p.npc_id) {
+                                // Override explicite : 1 NPC choisi par l'utilisateur
+                                const npc = allNpcCandidates.find(n => n.id === p.npc_id)
+                                if (!npc) {
+                                  throw new Error(`Personnage introuvable (id: ${p.npc_id}). Vérifie que le NPC est dans les compagnons de la section, ou re-sélectionne-le dans le menu déroulant.`)
+                                }
+                                const upNpc = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: npc.url, name: `xtra_npc_${anim.id}` }) })
+                                const upNpcData = await upNpc.json()
+                                if (!upNpc.ok) throw new Error(`Upload portrait NPC échoué: ${upNpcData.error}`)
+                                characters.push({ portrait_filename: upNpcData.filename, mask: { type: p.npc_mask ?? 'full' }, weight: p.npc_weight ?? 0.8 })
+                              } else if (imgChars.length > 0) {
+                                // Fallback : reprend les persos de l'image principale → la variante reste cohérente avec la scène
+                                for (const c of imgChars) {
+                                  const npc = allNpcCandidates.find(n => n.id === c.npc_id)
+                                  if (!npc) continue
+                                  const upNpc = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: npc.url, name: `xtra_main_npc_${anim.id}_${c.npc_id}` }) })
+                                  const upNpcData = await upNpc.json()
+                                  if (upNpc.ok) characters.push({ portrait_filename: upNpcData.filename, mask: { type: c.mask }, weight: c.weight })
+                                }
+                              }
+                              // Workflow : TOUJOURS scene_composition (sinon on perd persos + background = pas une vraie variante)
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                                workflow_type: 'scene_composition',
+                                prompt_positive: effectivePrompt,
+                                prompt_negative: p.negative_override ?? imgNeg,
+                                style: p.style_override ?? imgStyle,
+                                width: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 768 : 1360,
+                                height: imgAr === '1:1' ? 1024 : imgAr === '9:16' ? 1360 : 768,
+                                steps: imgSteps,
+                                cfg: imgCfg,
+                                seed: -1,
+                                checkpoint: resolveCheckpointFilename(imgCheckpoint),
+                                background_image: refFilename, // ControlNet Depth (déjà uploadé : ref override OU bg de l'image principale)
+                                style_reference_image: styleRefFilename, // IPAdapter Plus (style transfer depuis l'image principale)
+                                style_reference_weight: p.reference_weight ?? 0.6,
+                                characters: characters.length > 0 ? characters : undefined,
+                              }) })
+                              const d = await res.json()
+                              if (!d.prompt_id) {
+                                console.error('[extra_image] Erreur API :', d)
+                                throw new Error((d.error || 'Erreur génération image') + (d.details ? '\n\nDétails ComfyUI :\n' + JSON.stringify(d.details, null, 2) : ''))
+                              }
+                              const start = Date.now()
+                              let done = false
+                              while (Date.now() - start < 600_000) {
+                                await new Promise(r => setTimeout(r, 3000))
+                                patchAnim(anim.id, { status_progress: `${Math.round((Date.now() - start) / 1000)}s` })
+                                const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                const pd = await poll.json()
+                                if (pd.status === 'succeeded') {
+                                  const storagePath = `extra-images/${detailSec.id}/p${i}_${anim.id}_${Date.now()}`
+                                  const imgRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=image&storage_path=${encodeURIComponent(storagePath)}`)
+                                  const imgData = await imgRes.json()
+                                  if (imgData.image_url) {
+                                    patchAnim(anim.id, { status: 'done', status_progress: undefined, output: { url: imgData.image_url.split('?')[0], generated_at: Date.now() } })
+                                  }
+                                  done = true
+                                  break
+                                }
+                                if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                              }
+                              if (!done) throw new Error('Timeout 10 min')
+                            }
+                            else if (anim.kind === 'motion_brush') {
+                              const p = anim.params as MotionBrushParams
+                              if (!p.mask_url) throw new Error('Upload d\'abord un masque PNG (blanc = zone animée, noir = zone statique)')
+                              // Upload source + mask dans ComfyUI input
+                              const upSrc = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: sourceUrl, name: `mbrush_src_${anim.id}` }) })
+                              const upSrcData = await upSrc.json()
+                              if (!upSrc.ok) throw new Error(upSrcData.error)
+                              const upMask = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: p.mask_url, name: `mbrush_mask_${anim.id}` }) })
+                              const upMaskData = await upMask.json()
+                              if (!upMask.ok) throw new Error(upMaskData.error)
+
+                              // Injecte la direction dans le prompt — elle n'est PAS un input du loader AnimateDiff,
+                              // donc on doit guider la motion via le langage. Sans ça, le mouvement est aléatoire.
+                              const dirHints: Record<string, string> = {
+                                up: 'camera panning up, motion moving upward',
+                                down: 'camera panning down, motion moving downward',
+                                left: 'camera panning left, motion moving to the left',
+                                right: 'camera panning right, motion moving to the right',
+                                rotate_cw: 'rotation clockwise, swirling clockwise motion',
+                                rotate_ccw: 'rotation counter-clockwise, swirling counter-clockwise motion',
+                                zoom_in: 'camera zooming in, push-in motion',
+                                zoom_out: 'camera zooming out, pull-out motion',
+                              }
+                              const dirHint = dirHints[p.direction ?? 'left'] ?? ''
+                              const enhancedPrompt = `${p.prompt_positive ?? 'gentle motion in marked area'}, ${dirHint}, dynamic movement, visible animation`
+
+                              // Mapping intensity 0..1 → denoise 0.6..0.95 (motion brush a besoin d'un denoise élevé
+                              // pour produire un mouvement visible — denoise<0.7 = quasi statique).
+                              const intensity = Math.max(0, Math.min(1, p.intensity ?? 0.5))
+                              const mappedDenoise = 0.6 + intensity * 0.35
+
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                                workflow_type: 'motion_brush',
+                                source_image: upSrcData.filename,
+                                mask_image: upMaskData.filename,
+                                prompt_positive: enhancedPrompt,
+                                prompt_negative: p.prompt_negative ?? 'static, frozen, distorted, identical, no motion, still image',
+                                frames: p.frames ?? 16,
+                                fps: p.fps ?? 8,
+                                steps: p.steps ?? 25,
+                                cfg: p.cfg ?? 7,
+                                denoise: mappedDenoise,
+                                seed: -1,
+                                checkpoint: resolveCheckpointFilename(imgCheckpoint),
+                              }) })
+                              const d = await res.json()
+                              if (!d.prompt_id) {
+                                console.error('[motion_brush] Erreur API :', d)
+                                throw new Error((d.error || 'Erreur Motion Brush') + (d.details ? '\n\nDétails ComfyUI :\n' + JSON.stringify(d.details, null, 2) : ''))
+                              }
+                              const start = Date.now()
+                              let done = false
+                              const MAX_WAIT_MS = 15 * 60 * 1000
+                              while (Date.now() - start < MAX_WAIT_MS) {
+                                await new Promise(r => setTimeout(r, 3000))
+                                patchAnim(anim.id, { status_progress: `${Math.round((Date.now() - start) / 1000)}s` })
+                                const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                const pd = await poll.json()
+                                if (pd.status === 'succeeded') {
+                                  const storagePath = `motion-brush/${detailSec.id}/p${i}_${anim.id}_${Date.now()}`
+                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=video_info&storage_path=${encodeURIComponent(storagePath)}`)
+                                  const histData = await histRes.json()
+                                  if (histData.video_url) {
+                                    patchAnim(anim.id, { status_progress: 'snapshot...' })
+                                    const lastFrame = await captureVideoLastFrame(histData.video_url, `${storagePath}_lastframe`)
+                                    patchAnim(anim.id, { status: 'done', status_progress: undefined, output: { url: histData.video_url, last_frame_url: lastFrame, generated_at: Date.now() } })
+                                  }
+                                  done = true
+                                  break
+                                }
+                                if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                              }
+                              if (!done) throw new Error(`Timeout après ${Math.round(MAX_WAIT_MS / 60000)} min.`)
+                            }
+                            else if (anim.kind === 'video_wan') {
+                              const p = anim.params as VideoWanParams
+                              const upRes = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: sourceUrl, name: `wan_src_${anim.id}` }) })
+                              const upData = await upRes.json()
+                              if (!upRes.ok) throw new Error(upData.error)
+                              const ar = imgAr ?? '16:9'
+                              const wanDims: Record<string, [number, number]> = { '16:9': [640, 352], '9:16': [352, 640], '1:1': [480, 480], '4:3': [544, 416], '3:4': [416, 544] }
+                              const [wanW, wanH] = wanDims[ar] ?? [640, 352]
+                              const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'wan_animate', source_image: upData.filename, prompt_positive: p.prompt_positive ?? 'subtle ambient motion', prompt_negative: p.prompt_negative ?? 'static, blurred', steps: p.steps ?? 30, cfg: p.cfg ?? 7, seed: -1, denoise: p.denoise ?? 0.7, frames: p.frames ?? 17, fps: p.fps ?? 12, width: wanW, height: wanH }) })
+                              const d = await res.json()
+                              if (!d.prompt_id) {
+                                console.error('[wan] Erreur API :', d)
+                                throw new Error((d.error || 'Erreur Wan') + (d.details ? '\n\nDétails ComfyUI :\n' + JSON.stringify(d.details, null, 2) : ''))
+                              }
+                              const start = Date.now()
+                              while (Date.now() - start < 600_000) {
+                                await new Promise(r => setTimeout(r, 5000))
+                                patchAnim(anim.id, { status_progress: `${Math.round((Date.now() - start) / 1000)}s` })
+                                const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`)
+                                const pd = await poll.json()
+                                if (pd.status === 'succeeded') {
+                                  const storagePath = `wan-animations/${detailSec.id}/p${i}_${anim.id}_${Date.now()}`
+                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=video_info&storage_path=${encodeURIComponent(storagePath)}`)
+                                  const histData = await histRes.json()
+                                  if (histData.video_url) {
+                                    patchAnim(anim.id, { status_progress: 'snapshot...' })
+                                    const lastFrame = await captureVideoLastFrame(histData.video_url, `${storagePath}_lastframe`)
+                                    patchAnim(anim.id, { status: 'done', status_progress: undefined, output: { url: histData.video_url, last_frame_url: lastFrame, generated_at: Date.now() } })
+                                  }
+                                  break
+                                }
+                                if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                              }
+                            }
+                          } catch (err: unknown) {
+                            const msg = err instanceof Error ? err.message : String(err)
+                            patchAnim(anim.id, { status: 'error', status_progress: undefined, error: msg })
+                            alert(`Erreur génération animation: ${msg}`)
+                          }
+                        }
+
+                        const animations = ((cs as any).animations ?? []) as AnimationInstance[]
+
+                        return (
+                      <details style={{ border: '1px solid #64b5f644', borderRadius: '8px', background: 'transparent' }}>
+                        <summary style={{ padding: '0.5rem 0.7rem', fontSize: '0.7rem', color: '#64b5f6', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em', background: '#64b5f611' }}>2. 🎬 Animations {animations.length > 0 ? `(${animations.length})` : ''}</summary>
+                        <div style={{ padding: '0.5rem 0.5rem 0.6rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+
+                          {animations.length === 0 && (
+                            <div style={{ padding: '0.6rem', fontSize: '0.7rem', color: 'var(--muted)', fontStyle: 'italic', textAlign: 'center' }}>
+                              Aucune animation. Crée-en une avec les boutons ci-dessous.
+                            </div>
+                          )}
+
+                          {animations.map((anim, animIdx) => {
+                            const kindLabel =
+                              anim.kind === 'derivation' ? '🔄 Dérivation' :
+                              anim.kind === 'travelling' ? '📐 Travelling' :
+                              anim.kind === 'video_wan' ? '🎬 Vidéo Wan' :
+                              anim.kind === 'wan_camera' ? '🎥 Caméra Wan' :
+                              anim.kind === 'latent_sync' ? '💬 Lip sync' :
+                              anim.kind === 'motion_brush' ? '🎨 Motion Brush' :
+                              anim.kind === 'extra_image' ? '🖼️ Image variante' :
+                              '🎭 ToonCrafter'
+                            const kindColor =
+                              anim.kind === 'derivation' ? '#64b5f6' :
+                              anim.kind === 'travelling' ? '#7ab8d8' :
+                              anim.kind === 'video_wan' ? '#e8a84c' :
+                              anim.kind === 'wan_camera' ? '#b48edd' :
+                              anim.kind === 'latent_sync' ? '#52c484' :
+                              anim.kind === 'motion_brush' ? '#f0a742' :
+                              anim.kind === 'extra_image' ? '#e0a742' :
+                              '#ff7eb6'
+                            const isGenerating = anim.status === 'generating'
+                            const sourceLabel = anim.source.mode === 'main' ? 'Image principale' : anim.source.mode === 'prev' ? `Animation précédente` : 'Image uploadée'
+                            const otherAnims = animations.filter(a => a.id !== anim.id && (a.output?.urls?.length || a.output?.last_frame_url || a.output?.url))
+                            return (
+                              <details key={anim.id} open={!anim.output} style={{ border: `1px solid ${kindColor}55`, borderRadius: '6px', background: 'var(--surface)' }}>
+                                <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem', listStyle: 'none' }}>
+                                  <span style={{ fontWeight: 'bold', color: kindColor }}>{kindLabel}</span>
+                                  <input
+                                    value={anim.name}
+                                    onChange={e => patchAnim(anim.id, { name: e.target.value })}
+                                    onClick={e => e.stopPropagation()}
+                                    style={{ flex: 1, fontSize: '0.7rem', background: 'transparent', border: '1px solid transparent', borderRadius: '3px', padding: '0.1rem 0.3rem', color: 'var(--foreground)', outline: 'none' }}
+                                    onFocus={e => (e.target.style.border = '1px solid var(--border)')}
+                                    onBlur={e => (e.target.style.border = '1px solid transparent')}
+                                  />
+                                  {anim.status === 'done' && anim.output?.urls && <span style={{ fontSize: '0.55rem', color: kindColor, opacity: 0.8 }}>{anim.output.urls.length}f</span>}
+                                  {anim.status === 'done' && anim.output?.url && <span style={{ fontSize: '0.55rem', color: kindColor, opacity: 0.8 }}>vidéo</span>}
+                                  {isGenerating && <span style={{ fontSize: '0.55rem', color: '#f0a742' }}>⏳ {anim.status_progress}</span>}
+                                  {anim.status === 'error' && <span style={{ fontSize: '0.55rem', color: '#c94c4c' }}>✕ erreur</span>}
+                                  <button onClick={e => { e.stopPropagation(); deleteAnim(anim.id) }} title="Supprimer cette animation" style={{ fontSize: '0.55rem', padding: '0.1rem 0.4rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>
+                                </summary>
+                                <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+
+                                  {/* ── Source ── */}
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                                    <div style={{ fontSize: '0.55rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Source</div>
+                                    <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.65rem', cursor: 'pointer' }}>
+                                        <input type="radio" checked={anim.source.mode === 'main'} onChange={() => patchAnim(anim.id, { source: { mode: 'main' } })} />
+                                        🖼️ Image principale
+                                      </label>
+                                      {otherAnims.length > 0 && (
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.65rem', cursor: 'pointer' }}>
+                                          <input type="radio" checked={anim.source.mode === 'prev'} onChange={() => patchAnim(anim.id, { source: { mode: 'prev', anim_id: otherAnims[0].id } })} />
+                                          🔗 Animation précédente
+                                          {anim.source.mode === 'prev' && (
+                                            <select value={anim.source.anim_id} onChange={e => patchAnim(anim.id, { source: { mode: 'prev', anim_id: e.target.value } })} style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.3rem', color: 'var(--foreground)' }}>
+                                              {otherAnims.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                                            </select>
+                                          )}
+                                        </label>
+                                      )}
+                                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.2rem', fontSize: '0.65rem', cursor: 'pointer' }}>
+                                        <input type="radio" checked={anim.source.mode === 'upload'} onChange={() => patchAnim(anim.id, { source: { mode: 'upload', url: (anim.source.mode === 'upload' ? anim.source.url : '') } })} />
+                                        📁 Upload
+                                        {anim.source.mode === 'upload' && (
+                                          <>
+                                            {anim.source.url && <img src={anim.source.url} alt="src" style={{ width: 32, height: 18, objectFit: 'cover', borderRadius: '2px', border: '1px solid var(--border)' }} />}
+                                            <input type="file" accept="image/*" style={{ fontSize: '0.55rem', maxWidth: 140 }}
+                                              onChange={async e => {
+                                                const f = e.target.files?.[0]; if (!f) return
+                                                const fd = new FormData(); fd.append('file', f); fd.append('path', `books/${id}/sections/${detailSec.id}_anim_${anim.id}_src`)
+                                                const r = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                                                const data = await r.json()
+                                                if (data.url) patchAnim(anim.id, { source: { mode: 'upload', url: data.url.split('?')[0] } })
+                                                e.target.value = ''
+                                              }}
+                                            />
+                                          </>
+                                        )}
+                                      </label>
+                                    </div>
+                                  </div>
+
+                                  {/* ── Params spécifiques au kind ── */}
+                                  {anim.kind === 'derivation' && (() => {
+                                    const p = anim.params as DerivationParams
+                                    return (
+                                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>
+                                        <label>Frames <input type="number" min={1} max={50} value={p.count ?? 20} onChange={e => patchAnim(anim.id, { params: { ...p, count: Math.max(1, Math.min(50, Number(e.target.value) || 20)) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                        <label>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={p.denoise ?? 0.4} onChange={e => patchAnim(anim.id, { params: { ...p, denoise: Number(e.target.value) } })} style={{ width: 44, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                        <label>Steps <input type="number" min={10} max={50} value={p.steps ?? imgSteps} onChange={e => patchAnim(anim.id, { params: { ...p, steps: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                        <label>CFG <input type="number" min={1} max={12} step={0.5} value={p.cfg ?? imgCfg} onChange={e => patchAnim(anim.id, { params: { ...p, cfg: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                      </div>
+                                    )
+                                  })()}
+
+                                  {anim.kind === 'travelling' && (() => {
+                                    const p = anim.params as TravellingParams
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>
+                                          <label>Début <input type="number" min={-180} max={180} value={p.start_angle ?? -15} onChange={e => patchAnim(anim.id, { params: { ...p, start_angle: Number(e.target.value) } })} style={{ width: 40, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} />°</label>
+                                          <label>Fin <input type="number" min={-180} max={180} value={p.end_angle ?? 15} onChange={e => patchAnim(anim.id, { params: { ...p, end_angle: Number(e.target.value) } })} style={{ width: 40, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} />°</label>
+                                          <label>Frames <input type="number" min={2} max={60} value={p.frame_count ?? 30} onChange={e => patchAnim(anim.id, { params: { ...p, frame_count: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Pitch <input type="number" min={-30} max={60} value={p.vertical_angle ?? 0} onChange={e => patchAnim(anim.id, { params: { ...p, vertical_angle: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} />°</label>
+                                          <label>Zoom <input type="number" min={0} max={10} step={0.5} value={p.zoom ?? 5} onChange={e => patchAnim(anim.id, { params: { ...p, zoom: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                        </div>
+                                        <textarea value={p.prompt_template ?? DEFAULT_QWEN_TEMPLATE} placeholder="Prompt template (use {angle})" onChange={e => patchAnim(anim.id, { params: { ...p, prompt_template: e.target.value } })} rows={2} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #7ab8d822', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.62rem', resize: 'vertical', fontFamily: 'monospace' }} />
+                                        <textarea value={p.negative_prompt ?? DEFAULT_QWEN_NEGATIVE} placeholder="Negative" onChange={e => patchAnim(anim.id, { params: { ...p, negative_prompt: e.target.value } })} rows={1} style={{ width: '100%', background: '#c94c4c06', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.2rem 0.4rem', color: '#c94c4c88', fontSize: '0.6rem', resize: 'vertical' }} />
+                                      </div>
+                                    )
+                                  })()}
+
+                                  {anim.kind === 'video_wan' && (() => {
+                                    const p = anim.params as VideoWanParams
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <textarea value={p.prompt_positive ?? ''} placeholder="Prompt mouvement (EN)" onChange={e => patchAnim(anim.id, { params: { ...p, prompt_positive: e.target.value } })} rows={1} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #e8a84c22', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical' }} />
+                                        <textarea value={p.prompt_negative ?? ''} placeholder="Negative" onChange={e => patchAnim(anim.id, { params: { ...p, prompt_negative: e.target.value } })} rows={1} style={{ width: '100%', background: '#c94c4c06', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.2rem 0.4rem', color: '#c94c4c88', fontSize: '0.6rem', resize: 'vertical' }} />
+                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>
+                                          <label>Frames <input type="number" min={8} max={32} value={p.frames ?? 17} onChange={e => patchAnim(anim.id, { params: { ...p, frames: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Steps <input type="number" min={10} max={50} value={p.steps ?? 30} onChange={e => patchAnim(anim.id, { params: { ...p, steps: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>CFG <input type="number" min={1} max={12} step={0.5} value={p.cfg ?? 7} onChange={e => patchAnim(anim.id, { params: { ...p, cfg: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>FPS <input type="number" min={4} max={24} value={p.fps ?? 12} onChange={e => patchAnim(anim.id, { params: { ...p, fps: Number(e.target.value) } })} style={{ width: 32, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Denoise <input type="number" min={0.1} max={1.0} step={0.05} value={p.denoise ?? 0.7} onChange={e => patchAnim(anim.id, { params: { ...p, denoise: Number(e.target.value) } })} style={{ width: 44, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                        </div>
+                                      </div>
+                                    )
+                                  })()}
+
+                                  {anim.kind === 'wan_camera' && (() => {
+                                    const p = anim.params as WanCameraParams
+                                    const motions: WanCameraMotion[] = ['static', 'pan_left', 'pan_right', 'pan_up', 'pan_down', 'zoom_in', 'zoom_out', 'orbit_left', 'orbit_right', 'dolly_in', 'dolly_out', 'tilt_up', 'tilt_down']
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>
+                                          <label>Mouvement <select value={p.motion ?? 'pan_left'} onChange={e => patchAnim(anim.id, { params: { ...p, motion: e.target.value as WanCameraMotion } })} style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.3rem', color: 'var(--foreground)' }}>{motions.map(m => <option key={m} value={m}>{m}</option>)}</select></label>
+                                          <label>Intensité <input type="number" min={0} max={1} step={0.1} value={p.intensity ?? 0.5} onChange={e => patchAnim(anim.id, { params: { ...p, intensity: Number(e.target.value) } })} style={{ width: 40, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Frames <input type="number" min={8} max={60} value={p.frames ?? 25} onChange={e => patchAnim(anim.id, { params: { ...p, frames: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>FPS <input type="number" min={4} max={24} value={p.fps ?? 12} onChange={e => patchAnim(anim.id, { params: { ...p, fps: Number(e.target.value) } })} style={{ width: 32, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Steps <input type="number" min={10} max={50} value={p.steps ?? 30} onChange={e => patchAnim(anim.id, { params: { ...p, steps: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>CFG <input type="number" min={1} max={12} step={0.5} value={p.cfg ?? 7} onChange={e => patchAnim(anim.id, { params: { ...p, cfg: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                        </div>
+                                        <textarea value={p.prompt_positive ?? ''} placeholder="Prompt complémentaire (mood, ambiance)" onChange={e => patchAnim(anim.id, { params: { ...p, prompt_positive: e.target.value } })} rows={1} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #b48edd22', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical' }} />
+                                        <textarea value={p.prompt_negative ?? ''} placeholder="Negative" onChange={e => patchAnim(anim.id, { params: { ...p, prompt_negative: e.target.value } })} rows={1} style={{ width: '100%', background: '#c94c4c06', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.2rem 0.4rem', color: '#c94c4c88', fontSize: '0.6rem', resize: 'vertical' }} />
+                                      </div>
+                                    )
+                                  })()}
+
+                                  {anim.kind === 'latent_sync' && (() => {
+                                    const p = anim.params as LatentSyncParams
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.65rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
+                                          <span style={{ fontWeight: 'bold', color: '#52c484' }}>🎵 Audio</span>
+                                          {p.audio_url && <audio controls src={p.audio_url} style={{ height: 24, maxWidth: 200 }} />}
+                                          <input type="file" accept="audio/*" style={{ fontSize: '0.55rem', maxWidth: 180 }} onChange={async e => {
+                                            const f = e.target.files?.[0]; if (!f) return
+                                            const fd = new FormData(); fd.append('file', f); fd.append('path', `books/${id}/sections/${detailSec.id}_anim_${anim.id}_audio`)
+                                            const r = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                                            const data = await r.json()
+                                            if (data.url) patchAnim(anim.id, { params: { ...p, audio_url: data.url.split('?')[0] } })
+                                            e.target.value = ''
+                                          }} />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>
+                                          <label>Steps <input type="number" min={5} max={50} value={p.inference_steps ?? 20} onChange={e => patchAnim(anim.id, { params: { ...p, inference_steps: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Guidance <input type="number" min={1} max={5} step={0.1} value={p.guidance_scale ?? 1.5} onChange={e => patchAnim(anim.id, { params: { ...p, guidance_scale: Number(e.target.value) } })} style={{ width: 44, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Seed <input type="number" value={p.seed ?? -1} onChange={e => patchAnim(anim.id, { params: { ...p, seed: Number(e.target.value) } })} style={{ width: 60, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                        </div>
+                                      </div>
+                                    )
+                                  })()}
+
+                                  {anim.kind === 'motion_brush' && (() => {
+                                    const p = anim.params as MotionBrushParams
+                                    const dirs: MotionBrushDirection[] = ['up', 'down', 'left', 'right', 'rotate_cw', 'rotate_ccw', 'zoom_in', 'zoom_out']
+                                    // Résout l'image source pour l'éditeur de masque (image principale, anim précédente, ou upload)
+                                    const maskSourceUrl = anim.source.mode === 'main' ? editImages[i]?.url?.split('?')[0]
+                                      : anim.source.mode === 'upload' ? anim.source.url
+                                      : anim.source.mode === 'prev' ? resolveAnimationSourceUrl(anim.source, editImages[i]?.url?.split('?')[0], ((cs as any).animations ?? []) as AnimationInstance[])
+                                      : undefined
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.65rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
+                                          <span style={{ fontWeight: 'bold', color: '#f0a742' }}>🎨 Masque</span>
+                                          {p.mask_url && <img src={p.mask_url} alt="mask" style={{ width: 36, height: 20, objectFit: 'cover', borderRadius: '2px', border: '1px solid var(--border)' }} />}
+                                          <button
+                                            disabled={!maskSourceUrl}
+                                            onClick={() => setMaskDrawFor({ animId: anim.id, sourceUrl: maskSourceUrl!, planIdx: i })}
+                                            title={maskSourceUrl ? 'Ouvre le canvas de dessin' : 'Définis d\'abord une source image'}
+                                            style={{ fontSize: '0.65rem', padding: '0.25rem 0.6rem', borderRadius: '4px', background: '#f0a74222', border: '1px solid #f0a74266', color: '#f0a742', cursor: maskSourceUrl ? 'pointer' : 'not-allowed', fontWeight: 'bold', opacity: maskSourceUrl ? 1 : 0.5 }}
+                                          >
+                                            🖌️ {p.mask_url ? 'Modifier masque' : 'Dessiner masque'}
+                                          </button>
+                                          <span style={{ fontSize: '0.5rem', color: 'var(--muted)' }}>ou</span>
+                                          <input type="file" accept="image/png" style={{ fontSize: '0.55rem', maxWidth: 140 }} onChange={async e => {
+                                            const f = e.target.files?.[0]; if (!f) return
+                                            const fd = new FormData(); fd.append('file', f); fd.append('path', `books/${id}/sections/${detailSec.id}_anim_${anim.id}_mask`)
+                                            const r = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                                            const data = await r.json()
+                                            if (data.url) patchAnim(anim.id, { params: { ...p, mask_url: data.url.split('?')[0] } })
+                                            e.target.value = ''
+                                          }} />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>
+                                          <label>Direction <select value={p.direction ?? 'left'} onChange={e => patchAnim(anim.id, { params: { ...p, direction: e.target.value as MotionBrushDirection } })} style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.3rem', color: 'var(--foreground)' }}>{dirs.map(d => <option key={d} value={d}>{d}</option>)}</select></label>
+                                          <label>Intensité <input type="number" min={0} max={1} step={0.1} value={p.intensity ?? 0.4} onChange={e => patchAnim(anim.id, { params: { ...p, intensity: Number(e.target.value) } })} style={{ width: 40, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Frames <input type="number" min={8} max={32} value={p.frames ?? 16} onChange={e => patchAnim(anim.id, { params: { ...p, frames: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>FPS <input type="number" min={4} max={24} value={p.fps ?? 8} onChange={e => patchAnim(anim.id, { params: { ...p, fps: Number(e.target.value) } })} style={{ width: 32, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                        </div>
+                                        <textarea value={p.prompt_positive ?? ''} placeholder="Prompt mouvement (ex: torch flickering, hair waving)" onChange={e => patchAnim(anim.id, { params: { ...p, prompt_positive: e.target.value } })} rows={1} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #f0a74222', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical' }} />
+                                      </div>
+                                    )
+                                  })()}
+
+                                  {anim.kind === 'extra_image' && (() => {
+                                    const p = anim.params as ExtraImageParams
+                                    // Prompt par défaut = celui de l'image principale
+                                    const mainPromptEn = editImages[i]?.prompt_en || ''
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        {/* Prompt override (défaut = prompt image principale) */}
+                                        <div style={{ fontSize: '0.55rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Prompt (par défaut repris de l'image principale)</div>
+                                        <textarea
+                                          value={p.prompt_override ?? mainPromptEn}
+                                          placeholder="Prompt EN — laisse vide pour reprendre celui de l'image principale"
+                                          onChange={e => patchAnim(anim.id, { params: { ...p, prompt_override: e.target.value } })}
+                                          rows={2}
+                                          style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #e0a74222', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical' }}
+                                        />
+                                        <textarea value={p.negative_override ?? imgNeg} placeholder="Negative" onChange={e => patchAnim(anim.id, { params: { ...p, negative_override: e.target.value } })} rows={1} style={{ width: '100%', background: '#c94c4c06', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.2rem 0.4rem', color: '#c94c4c88', fontSize: '0.6rem', resize: 'vertical' }} />
+
+                                        {/* Référence image (IPAdapter Plus) */}
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.65rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
+                                          <span style={{ fontWeight: 'bold', color: '#e0a742' }}>🖼️ Image de référence</span>
+                                          {p.reference_url && <img src={p.reference_url} alt="ref" style={{ width: 36, height: 20, objectFit: 'cover', borderRadius: '2px', border: '1px solid var(--border)' }} />}
+                                          <input type="file" accept="image/*" style={{ fontSize: '0.55rem', maxWidth: 180 }} onChange={async e => {
+                                            const f = e.target.files?.[0]; if (!f) return
+                                            const fd = new FormData(); fd.append('file', f); fd.append('path', `books/${id}/sections/${detailSec.id}_anim_${anim.id}_ref`)
+                                            const r = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                                            const data = await r.json()
+                                            if (data.url) patchAnim(anim.id, { params: { ...p, reference_url: data.url.split('?')[0] } })
+                                            e.target.value = ''
+                                          }} />
+                                          {p.reference_url && (
+                                            <>
+                                              <label>Poids <input type="number" min={0} max={1} step={0.05} value={p.reference_weight ?? 0.7} onChange={e => patchAnim(anim.id, { params: { ...p, reference_weight: Number(e.target.value) } })} style={{ width: 44, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                              <button onClick={() => patchAnim(anim.id, { params: { ...p, reference_url: undefined } })} style={{ fontSize: '0.55rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>
+                                            </>
+                                          )}
+                                        </div>
+
+                                        {/* Personnage NPC (IPAdapter FaceID) */}
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.65rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
+                                          <span style={{ fontWeight: 'bold', color: '#b48edd' }}>👤 Personnage</span>
+                                          <select
+                                            value={p.npc_id ?? ''}
+                                            onChange={e => patchAnim(anim.id, { params: { ...p, npc_id: e.target.value || undefined } })}
+                                            style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.3rem', color: 'var(--foreground)', maxWidth: 180 }}
+                                          >
+                                            <option value="">— aucun —</option>
+                                            {allNpcCandidates.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                                          </select>
+                                          {p.npc_id && (
+                                            <>
+                                              <label>Position
+                                                <select value={p.npc_mask ?? 'full'} onChange={e => patchAnim(anim.id, { params: { ...p, npc_mask: e.target.value as ExtraImageParams['npc_mask'] } })} style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.3rem', color: 'var(--foreground)', marginLeft: 4 }}>
+                                                  <option value="full">pleine</option>
+                                                  <option value="left">gauche</option>
+                                                  <option value="right">droite</option>
+                                                  <option value="left_third">1/3 gauche</option>
+                                                  <option value="center_third">1/3 centre</option>
+                                                  <option value="right_third">1/3 droite</option>
+                                                </select>
+                                              </label>
+                                              <label>Poids <input type="number" min={0} max={1} step={0.05} value={p.npc_weight ?? 0.8} onChange={e => patchAnim(anim.id, { params: { ...p, npc_weight: Number(e.target.value) } })} style={{ width: 44, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                            </>
+                                          )}
+                                        </div>
+                                        <span style={{ fontSize: '0.55rem', color: 'var(--muted)', fontStyle: 'italic' }}>
+                                          Hérite de : style={imgStyle}, aspect={imgAr}, steps={imgSteps}, CFG={imgCfg}, checkpoint={imgCheckpoint}
+                                        </span>
+                                      </div>
+                                    )
+                                  })()}
+
+                                  {anim.kind === 'tooncrafter' && (() => {
+                                    const p = anim.params as ToonCrafterParams
+                                    return (
+                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                        <div style={{ fontSize: '0.55rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                          Image de FIN (la source plus haut sert d'image de DÉBUT)
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.65rem', color: 'var(--muted)', flexWrap: 'wrap' }}>
+                                          {p.end_image_url && <img src={p.end_image_url} alt="end" style={{ width: 48, height: 27, objectFit: 'cover', borderRadius: '3px', border: '1px solid #ff7eb644' }} />}
+                                          <input type="file" accept="image/*" style={{ fontSize: '0.55rem', maxWidth: 180 }} onChange={async e => {
+                                            const f = e.target.files?.[0]; if (!f) return
+                                            const fd = new FormData(); fd.append('file', f); fd.append('path', `books/${id}/sections/${detailSec.id}_anim_${anim.id}_endframe`)
+                                            const r = await fetch('/api/upload-file', { method: 'POST', body: fd })
+                                            const data = await r.json()
+                                            if (data.url) patchAnim(anim.id, { params: { ...p, end_image_url: data.url.split('?')[0] } })
+                                            e.target.value = ''
+                                          }} />
+                                          {p.end_image_url && (
+                                            <button onClick={() => patchAnim(anim.id, { params: { ...p, end_image_url: undefined } })} style={{ fontSize: '0.55rem', padding: '0.1rem 0.35rem', borderRadius: '3px', border: '1px solid #c94c4c44', background: 'transparent', color: '#c94c4c88', cursor: 'pointer' }}>✕</button>
+                                          )}
+                                        </div>
+                                        <textarea value={p.prompt ?? ''} placeholder="Prompt (ex: smooth animation, anime style, fluid motion)" onChange={e => patchAnim(anim.id, { params: { ...p, prompt: e.target.value } })} rows={1} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #ff7eb622', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical' }} />
+                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.6rem', color: 'var(--muted)' }}>
+                                          <label>Frames <input type="number" min={5} max={30} value={p.frame_count ?? 10} onChange={e => patchAnim(anim.id, { params: { ...p, frame_count: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>FPS <input type="number" min={1} max={60} value={p.fps ?? 8} onChange={e => patchAnim(anim.id, { params: { ...p, fps: Number(e.target.value) } })} style={{ width: 32, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Steps <input type="number" min={1} max={60} value={p.steps ?? 30} onChange={e => patchAnim(anim.id, { params: { ...p, steps: Number(e.target.value) } })} style={{ width: 36, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>CFG <input type="number" min={1} max={15} step={0.5} value={p.cfg_scale ?? 7.5} onChange={e => patchAnim(anim.id, { params: { ...p, cfg_scale: Number(e.target.value) } })} style={{ width: 40, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>Eta <input type="number" min={0} max={15} step={0.1} value={p.eta ?? 1.0} onChange={e => patchAnim(anim.id, { params: { ...p, eta: Number(e.target.value) } })} style={{ width: 40, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.2rem', color: 'var(--foreground)', fontSize: '0.65rem', textAlign: 'center' }} /></label>
+                                          <label>VRAM
+                                            <select value={p.vram_opt ?? 'low'} onChange={e => patchAnim(anim.id, { params: { ...p, vram_opt: e.target.value as 'none' | 'low' } })} style={{ fontSize: '0.65rem', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.1rem 0.3rem', color: 'var(--foreground)', marginLeft: 4 }}>
+                                              <option value="low">low (8 Go)</option>
+                                              <option value="none">none (16+ Go)</option>
+                                            </select>
+                                          </label>
+                                        </div>
+                                        <span style={{ fontSize: '0.55rem', color: 'var(--muted)', fontStyle: 'italic' }}>
+                                          Interpolation cartoon entre 2 keyframes. Résolution sortie ~512×320. ~5-10 min sur 8 Go VRAM.
+                                        </span>
+                                      </div>
+                                    )
+                                  })()}
+
+                                  {/* ── Bouton Générer / Régénérer + état ── */}
+                                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <button disabled={isGenerating} onClick={() => generateAnim(anim)} style={{ fontSize: '0.7rem', background: `${kindColor}22`, border: `1px solid ${kindColor}66`, borderRadius: '4px', padding: '0.3rem 0.7rem', color: isGenerating ? 'var(--muted)' : kindColor, cursor: isGenerating ? 'default' : 'pointer', fontWeight: 'bold' }}>
+                                      {isGenerating ? `⏳ ${anim.status_progress ?? '...'}` : (anim.output ? '🔁 Régénérer' : '▶ Générer')}
+                                    </button>
+                                    {isGenerating && (
+                                      <button
+                                        onClick={() => patchAnim(anim.id, { status: 'idle', status_progress: undefined, error: undefined })}
+                                        title="Force un reset de l'état 'generating' (utile si une session précédente a été interrompue)"
+                                        style={{ fontSize: '0.6rem', background: '#c94c4c22', border: '1px solid #c94c4c66', borderRadius: '4px', padding: '0.2rem 0.5rem', color: '#c94c4c', cursor: 'pointer' }}>
+                                        ✕ Débloquer
+                                      </button>
+                                    )}
+                                    <span style={{ fontSize: '0.55rem', color: 'var(--muted)' }}>Source : {sourceLabel}</span>
+                                    {anim.error && <span style={{ fontSize: '0.55rem', color: '#c94c4c' }}>{anim.error}</span>}
+                                  </div>
+
+                                  {/* ── Output preview ── */}
+                                  {anim.output?.urls && anim.output.urls.length > 0 && (
+                                    <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap', marginTop: '0.2rem' }}>
+                                      {anim.output.urls.slice(0, 16).map((url, k) => (
+                                        <img key={k} src={url} alt={`f${k+1}`} title={`Frame ${k + 1}/${anim.output!.urls!.length} — Clic = ouvrir`}
+                                          onClick={() => {
+                                            const all = anim.output!.urls!.map((u, j) => ({ url: u, label: `${anim.name} — Frame ${j + 1}/${anim.output!.urls!.length}` }))
+                                            setGalleryViewer({ images: all, index: k })
+                                          }}
+                                          style={{ width: 40, height: 22, objectFit: 'cover', borderRadius: '2px', border: '1px solid var(--border)', cursor: 'pointer' }} />
+                                      ))}
+                                      {anim.output.urls.length > 16 && <span style={{ fontSize: '0.55rem', color: 'var(--muted)', alignSelf: 'center' }}>+{anim.output.urls.length - 16}</span>}
+                                    </div>
+                                  )}
+                                  {anim.output?.url && !anim.output?.urls && (
+                                    <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.2rem' }}>
+                                      <a href={anim.output.url} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: kindColor, textDecoration: 'underline' }}>Voir la vidéo ↗</a>
+                                      <span style={{ fontSize: '0.55rem', color: 'var(--muted)', fontStyle: 'italic' }}>(snapshot dernière frame TODO)</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </details>
+                            )
+                          })}
+
+                          {/* ── Boutons d'ajout par kind ── */}
+                          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', paddingTop: '0.3rem', borderTop: '1px solid var(--border)' }}>
+                            <button onClick={() => addAnim('derivation')} style={{ fontSize: '0.65rem', background: '#64b5f615', border: '1px dashed #64b5f655', borderRadius: '4px', padding: '0.3rem 0.7rem', color: '#64b5f6', cursor: 'pointer' }}>+ 🔄 Dérivation</button>
+                            <button onClick={() => addAnim('travelling')} style={{ fontSize: '0.65rem', background: '#7ab8d815', border: '1px dashed #7ab8d855', borderRadius: '4px', padding: '0.3rem 0.7rem', color: '#7ab8d8', cursor: 'pointer' }}>+ 📐 Travelling</button>
+                            <button onClick={() => addAnim('video_wan')} style={{ fontSize: '0.65rem', background: '#e8a84c15', border: '1px dashed #e8a84c55', borderRadius: '4px', padding: '0.3rem 0.7rem', color: '#e8a84c', cursor: 'pointer' }}>+ 🎬 Vidéo Wan</button>
+                            <button onClick={() => addAnim('wan_camera')} title="Wan 2.2 Fun Camera Control — vrai travelling caméra" style={{ fontSize: '0.65rem', background: '#b48edd15', border: '1px dashed #b48edd55', borderRadius: '4px', padding: '0.3rem 0.7rem', color: '#b48edd', cursor: 'pointer' }}>+ 🎥 Caméra Wan</button>
+                            <button onClick={() => addAnim('latent_sync')} title="LatentSync 1.6 — lip sync sur vidéo source (~20 Go ComfyUI)" style={{ fontSize: '0.65rem', background: '#52c48415', border: '1px dashed #52c48455', borderRadius: '4px', padding: '0.3rem 0.7rem', color: '#52c484', cursor: 'pointer' }}>+ 💬 Lip sync</button>
+                            <button onClick={() => addAnim('motion_brush')} title="AnimateDiff + mask PNG — anime une zone précise de l'image" style={{ fontSize: '0.65rem', background: '#f0a74215', border: '1px dashed #f0a74255', borderRadius: '4px', padding: '0.3rem 0.7rem', color: '#f0a742', cursor: 'pointer' }}>+ 🎨 Motion Brush</button>
+                            <button onClick={() => addAnim('extra_image')} title="Génère une image variante avec le même prompt + référence/perso optionnels" style={{ fontSize: '0.65rem', background: '#e0a74215', border: '1px dashed #e0a74255', borderRadius: '4px', padding: '0.3rem 0.7rem', color: '#e0a742', cursor: 'pointer' }}>+ 🖼️ Image variante</button>
+                            <button onClick={() => addAnim('tooncrafter')} title="ToonCrafter — interpolation cartoon/anime entre 2 keyframes (8 Go VRAM OK)" style={{ fontSize: '0.65rem', background: '#ff7eb615', border: '1px dashed #ff7eb655', borderRadius: '4px', padding: '0.3rem 0.7rem', color: '#ff7eb6', cursor: 'pointer' }}>+ 🎭 ToonCrafter</button>
+                          </div>
+
+                        </div>
+                      </details>
+                        )
+                      })()}
+                      {/* fin Animations unifiées — ancien code 3 sous-sections retiré ci-dessous */}
+                      <div style={{ display: 'none' }}>
+
+                    {/* ── Dérivations (séquence d'images frame-by-frame pour la timeline) ── */}
                     <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
                       <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#64b5f6', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Dérivations {derivations.length > 0 ? `(${derivations.length})` : ''}</summary>
                       <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
@@ -2080,13 +3401,20 @@ export default function BookPage() {
                               // Upload source image once
                               const upRes0 = await fetch('/api/comfyui/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'url', url: srcUrl, name: `derive_${Date.now()}` }) })
                               const upData0 = await upRes0.json(); if (!upRes0.ok) throw new Error(upData0.error)
-                              const angleVariations = ['slight left angle view', 'slight right angle view', 'low angle dramatic view', 'high angle overview']
+                              const angleVariations = [
+                                'slight left angle view', 'slight right angle view', 'low angle dramatic view', 'high angle overview',
+                                'centered front view', 'three-quarter left view', 'three-quarter right view', 'over-the-shoulder view',
+                                'wider establishing shot', 'tighter close-up framing', 'slight dutch angle', 'eye-level shot',
+                                'subtle camera tilt up', 'subtle camera tilt down', 'profile left view', 'profile right view',
+                                'shallow depth of field', 'wide focal length', 'small position shift left', 'small position shift right',
+                              ]
                               const deriveNeg = `${imgNeg}, changing character appearance, different clothing, adding hat, cap, helmet, changing face, morphing`
-                              for (let v = 0; v < 4; v++) {
-                                updateCs({ _deriving: `${v + 1}/4` })
+                              const DERIVATION_COUNT = 20
+                              for (let v = 0; v < DERIVATION_COUNT; v++) {
+                                updateCs({ _deriving: `${v + 1}/${DERIVATION_COUNT}` })
                                 const basePrompt = editImages[i]?.prompt_en || ''
                                 const variedPrompt = `${basePrompt}, ${angleVariations[v]}, same character same clothing`
-                                const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'transition', source_image: upData0.filename, prompt_positive: variedPrompt, prompt_negative: deriveNeg, style: imgStyle, steps: imgSteps, cfg: imgCfg, seed: -1, denoise: cs.derive_denoise ?? 0.35, checkpoint: imgCheckpoint ? ({ juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors', sdxl_base: 'sd_xl_base_1.0.safetensors' } as Record<string, string>)[imgCheckpoint] : undefined }) })
+                                const res = await fetch('/api/comfyui', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ workflow_type: 'transition', source_image: upData0.filename, prompt_positive: variedPrompt, prompt_negative: deriveNeg, style: imgStyle, steps: imgSteps, cfg: imgCfg, seed: -1, denoise: cs.derive_denoise ?? 0.35, checkpoint: resolveCheckpointFilename(imgCheckpoint) }) })
                                 const d = await res.json(); if (!d.prompt_id) continue
                                 const start = Date.now()
                                 while (Date.now() - start < 180_000) {
@@ -2100,10 +3428,19 @@ export default function BookPage() {
                               setCsAndSave({ derivations: newDerivations, _deriving: false })
                             } catch { updateCs({ _deriving: false }) }
                           }} style={{ fontSize: '0.65rem', background: '#64b5f615', border: '1px solid #64b5f633', borderRadius: '4px', padding: '0.25rem 0.6rem', color: cs._deriving ? 'var(--muted)' : '#64b5f6', cursor: cs._deriving ? 'default' : 'pointer', fontWeight: 'bold' }}>
-                            {cs._deriving ? `⏳ ${cs._deriving}` : '🔄 Générer 4 dérivations'}
+                            {cs._deriving ? `⏳ ${cs._deriving}` : '🔄 Générer 20 dérivations'}
                           </button>
-                          <label style={{ fontSize: '0.55rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.derive_denoise ?? 0.4} onChange={e => updateCs({ derive_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.08rem', color: 'var(--foreground)', fontSize: '0.58rem', textAlign: 'center' }} /></label>
+                          <label style={{ fontSize: '0.55rem', color: 'var(--muted)', display: 'flex', alignItems: 'center', gap: '0.15rem' }}>Denoise <input type="number" min={0.1} max={0.8} step={0.05} value={cs.derive_denoise ?? 0.4} onChange={e => updateCs({ derive_denoise: Number(e.target.value) })} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.58rem', textAlign: 'center' }} /></label>
                           <span style={{ fontSize: '0.5rem', color: 'var(--muted)' }}>0.2=proche | 0.4=angle diff | 0.6=scène diff</span>
+                          {derivations.length > 0 && (
+                            <button onClick={() => {
+                              if (!confirm(`Supprimer toutes les ${derivations.length} dérivations ? Les blocs correspondants seront retirés de la timeline.`)) return
+                              const cleaned = (((cs as any).media_timeline ?? []) as any[]).filter(b => b.source_ref !== 'derivations_seq')
+                              setCsAndSave({ derivations: [], media_timeline: cleaned } as any)
+                            }} title="Supprimer toutes les dérivations + retirer les blocs timeline" style={{ marginLeft: 'auto', fontSize: '0.55rem', background: '#c94c4c15', border: '1px solid #c94c4c44', borderRadius: '4px', padding: '0.15rem 0.45rem', color: '#c94c4c', cursor: 'pointer' }}>
+                              🗑️ Tout supprimer
+                            </button>
+                          )}
                         </div>
                         {derivations.length > 0 && (
                           <div style={{ display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
@@ -2125,9 +3462,130 @@ export default function BookPage() {
                       </div>
                     </details>
 
-                    {/* ── Animation Scène (Wan 2.2) ── */}
+                    {/* ── Travelling Qwen (caméra qui bouge sur scène figée) ── */}
                     <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
-                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#e8a84c', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Animation Scène {animationUrl ? '✓' : ''}</summary>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#7ab8d8', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>
+                        📐 Travelling Qwen {(cs as any).qwen_travelling_urls?.length ? `(${(cs as any).qwen_travelling_urls.length})` : ''}
+                      </summary>
+                      <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--muted)', fontStyle: 'italic' }}>
+                          Génère N images de la même scène sous angles légèrement différents (caméra qui bouge, sujets figés).
+                        </div>
+                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.55rem', color: 'var(--muted)' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }} title="Angle horizontal de départ (°)">Début <input type="number" min={-180} max={180} value={(cs as any).qwen_start_angle ?? -15} onChange={e => updateCs({ qwen_start_angle: Number(e.target.value) } as any)} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} />°</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }} title="Angle horizontal d'arrivée (°)">Fin <input type="number" min={-180} max={180} value={(cs as any).qwen_end_angle ?? 15} onChange={e => updateCs({ qwen_end_angle: Number(e.target.value) } as any)} onBlur={saveImages} style={{ width: '40px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} />°</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }}>Frames <input type="number" min={2} max={60} value={(cs as any).qwen_frames ?? 30} onChange={e => updateCs({ qwen_frames: Number(e.target.value) } as any)} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }} title="Pitch vertical -30 (low) à +60 (high)">Pitch <input type="number" min={-30} max={60} value={(cs as any).qwen_vertical ?? 0} onChange={e => updateCs({ qwen_vertical: Number(e.target.value) } as any)} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} />°</label>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.1rem' }} title="0 = wide, 5 = medium, 10 = close-up">Zoom <input type="number" min={0} max={10} step={0.5} value={(cs as any).qwen_zoom ?? 5} onChange={e => updateCs({ qwen_zoom: Number(e.target.value) } as any)} onBlur={saveImages} style={{ width: '36px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '3px', padding: '0.06rem', color: 'var(--foreground)', fontSize: '0.55rem', textAlign: 'center' }} /></label>
+                        </div>
+
+                        {/* ── Prompt template (modifiable) ── */}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <label style={{ fontSize: '0.55rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            Prompt envoyé à Qwen (utilise <code style={{ background: '#7ab8d822', padding: '0 3px', borderRadius: '2px' }}>{'{angle}'}</code> pour l'angle auto par frame)
+                          </label>
+                          <textarea
+                            value={(cs as any).qwen_prompt_template ?? DEFAULT_QWEN_TEMPLATE}
+                            placeholder="Vide = prompt auto par frame. Utilise {angle} pour insérer l'angle calculé."
+                            onChange={e => updateCs({ qwen_prompt_template: e.target.value } as any)}
+                            onBlur={saveImages}
+                            rows={3}
+                            style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #7ab8d822', borderRadius: '4px', padding: '0.3rem 0.4rem', color: 'var(--foreground)', fontSize: '0.62rem', resize: 'vertical', outline: 'none', fontFamily: 'monospace' }}
+                          />
+                          {/* Aperçu frame 1 */}
+                          <div style={{ fontSize: '0.55rem', color: 'var(--muted)', fontStyle: 'italic', padding: '0.2rem 0.3rem', background: '#7ab8d80a', borderRadius: '3px', borderLeft: '2px solid #7ab8d855' }}>
+                            <strong style={{ color: '#7ab8d8', fontWeight: 'bold' }}>Aperçu frame 1 →</strong>{' '}
+                            {(() => {
+                              const startA = (cs as any).qwen_start_angle ?? -15
+                              const vA = (cs as any).qwen_vertical ?? 0
+                              const zA = (cs as any).qwen_zoom ?? 5
+                              const auto = buildAnglePrompt(startA, vA, zA)
+                              const tpl = ((cs as any).qwen_prompt_template ?? DEFAULT_QWEN_TEMPLATE).trim()
+                              return tpl.length > 0 ? tpl.replace(/\{angle\}/g, auto) : auto
+                            })()}
+                          </div>
+                        </div>
+
+                        {/* Negative prompt */}
+                        <textarea
+                          value={(cs as any).qwen_negative_prompt ?? DEFAULT_QWEN_NEGATIVE}
+                          placeholder="Negative prompt (optionnel)"
+                          onChange={e => updateCs({ qwen_negative_prompt: e.target.value } as any)}
+                          onBlur={saveImages}
+                          rows={1}
+                          style={{ width: '100%', background: '#c94c4c06', border: '1px solid #c94c4c15', borderRadius: '4px', padding: '0.2rem 0.4rem', color: '#c94c4c88', fontSize: '0.6rem', resize: 'vertical', outline: 'none' }}
+                        />
+
+                        <button disabled={!!(cs as any)._qwen_running || !editImages[i]?.url} onClick={async () => {
+                          updateCs({ _qwen_running: true } as any)
+                          try {
+                            const imgUrl = editImages[i]?.url?.split('?')[0]; if (!imgUrl) return
+                            const res = await fetch('/api/comfyui/qwen-travelling', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+                              source_url: imgUrl,
+                              start_angle: (cs as any).qwen_start_angle ?? -15,
+                              end_angle: (cs as any).qwen_end_angle ?? 15,
+                              vertical_angle: (cs as any).qwen_vertical ?? 0,
+                              zoom: (cs as any).qwen_zoom ?? 5,
+                              frame_count: (cs as any).qwen_frames ?? 30,
+                              prompt_template: (cs as any).qwen_prompt_template ?? DEFAULT_QWEN_TEMPLATE,
+                              negative_prompt: (cs as any).qwen_negative_prompt ?? DEFAULT_QWEN_NEGATIVE,
+                            }) })
+                            const d = await res.json(); if (!d.prompt_ids) throw new Error(d.error || 'Erreur')
+                            const total = d.prompt_ids.length
+                            const urls: string[] = []
+                            for (let k = 0; k < total; k++) {
+                              updateCs({ _qwen_running: `${k}/${total}` } as any)
+                              const promptId = d.prompt_ids[k]
+                              const start = Date.now()
+                              while (Date.now() - start < 180_000) {
+                                await new Promise(r => setTimeout(r, 2000))
+                                const poll = await fetch(`/api/comfyui?prompt_id=${promptId}`); const pd = await poll.json()
+                                if (pd.status === 'succeeded') {
+                                  const storagePath = `qwen-travelling/${detailSec.id}/p${i}_${k.toString().padStart(2, '0')}_${Date.now()}`
+                                  const fetchRes = await fetch(`/api/comfyui?prompt_id=${promptId}&action=image&storage_path=${encodeURIComponent(storagePath)}`)
+                                  const fetchData = await fetchRes.json()
+                                  if (fetchData.image_url) urls.push(fetchData.image_url)
+                                  break
+                                }
+                                if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
+                              }
+                            }
+                            setCsAndSave({ qwen_travelling_urls: urls, _qwen_running: false } as any)
+                          } catch (err: unknown) { alert('Erreur Qwen : ' + (err instanceof Error ? err.message : String(err))) }
+                          finally { updateCs({ _qwen_running: false } as any) }
+                        }} style={{ alignSelf: 'flex-start', fontSize: '0.65rem', background: '#7ab8d815', border: '1px solid #7ab8d833', borderRadius: '4px', padding: '0.25rem 0.6rem', color: (cs as any)._qwen_running ? 'var(--muted)' : '#7ab8d8', cursor: (cs as any)._qwen_running ? 'default' : 'pointer', fontWeight: 'bold' }}>
+                          {(cs as any)._qwen_running ? `⏳ ${(cs as any)._qwen_running}` : '📐 Générer travelling'}
+                        </button>
+                        {(cs as any).qwen_travelling_urls?.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.4rem' }}>
+                            <span style={{ fontSize: '0.55rem', color: '#7ab8d8', fontWeight: 'bold' }}>{(cs as any).qwen_travelling_urls.length} frames</span>
+                            <button onClick={() => {
+                              if (!confirm(`Supprimer les ${(cs as any).qwen_travelling_urls.length} frames du travelling ? Les blocs correspondants seront retirés de la timeline.`)) return
+                              const cleaned = (((cs as any).media_timeline ?? []) as any[]).filter(b => b.source_ref !== 'travelling_seq')
+                              setCsAndSave({ qwen_travelling_urls: [], media_timeline: cleaned } as any)
+                            }} title="Supprimer toutes les frames + retirer les blocs timeline" style={{ fontSize: '0.55rem', background: '#c94c4c15', border: '1px solid #c94c4c44', borderRadius: '4px', padding: '0.15rem 0.45rem', color: '#c94c4c', cursor: 'pointer' }}>
+                              🗑️ Tout supprimer
+                            </button>
+                          </div>
+                        )}
+                        {(cs as any).qwen_travelling_urls?.length > 0 && (
+                          <div style={{ display: 'flex', gap: '0.2rem', flexWrap: 'wrap', marginTop: '0.4rem' }}>
+                            {((cs as any).qwen_travelling_urls as string[]).map((url: string, k: number) => (
+                              <img key={k} src={url} alt={`Frame ${k + 1}`} title={`Frame ${k + 1} — Clic = ouvrir grand + naviguer`}
+                                onClick={() => {
+                                  const allFrames = ((cs as any).qwen_travelling_urls as string[]).map((u, j) => ({ url: u, label: `Frame ${j + 1}/${(cs as any).qwen_travelling_urls.length}` }))
+                                  setGalleryViewer({ images: allFrames, index: k })
+                                }}
+                                style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer' }} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+
+                    {/* ── Animation Scène (Wan 2.2) — vidéo continue ── */}
+                    <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
+                      <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: '#e8a84c', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>🎬 Vidéo Wan {animationUrl ? '✓' : ''}</summary>
                       <div style={{ padding: '0.5rem 0.6rem', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                         {/* Prompt mouvement */}
                         <textarea value={cs.anim_prompt ?? ''} onChange={e => updateCs({ anim_prompt: e.target.value })} onBlur={saveImages} placeholder="Prompt mouvement (EN) : gentle wind, flickering lights, crowd moving..." rows={1} style={{ width: '100%', background: 'var(--surface-2)', border: '1px solid #e8a84c22', borderRadius: '4px', padding: '0.25rem 0.4rem', color: 'var(--foreground)', fontSize: '0.65rem', resize: 'vertical', outline: 'none' }} />
@@ -2150,8 +3608,19 @@ export default function BookPage() {
                                 await new Promise(r => setTimeout(r, 5000)); updateCs({ _animating: `${Math.round((Date.now() - start) / 1000)}s` })
                                 const poll = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}`); const pd = await poll.json()
                                 if (pd.status === 'succeeded') {
-                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=video_info`); const histData = await histRes.json()
-                                  if (histData.video_url) setCsAndSave({ animation_url: histData.video_url, _animating: false })
+                                  // Persist sur Supabase pour que la vidéo survive aux redémarrages ComfyUI
+                                  const storagePath = `wan-animations/${detailSec.id}/p${i}_${Date.now()}`
+                                  const histRes = await fetch(`/api/comfyui?prompt_id=${d.prompt_id}&action=video_info&storage_path=${encodeURIComponent(storagePath)}`)
+                                  const histData = await histRes.json()
+                                  if (histData.video_url) {
+                                    const newVideoUrl = histData.video_url as string
+                                    // Auto-refresh : met à jour tous les blocs "video" de la timeline pour pointer vers la nouvelle URL
+                                    const curCs = (editImagesRef.current[i] as any)?.comfyui_settings ?? {}
+                                    const refreshedTimeline = ((curCs.media_timeline ?? []) as any[]).map(b =>
+                                      b.type === 'video' ? { ...b, source_url: newVideoUrl } : b
+                                    )
+                                    setCsAndSave({ animation_url: newVideoUrl, media_timeline: refreshedTimeline, _animating: false } as any)
+                                  }
                                   break
                                 }
                                 if (pd.status === 'failed') throw new Error(pd.error || 'Échoué')
@@ -2165,6 +3634,15 @@ export default function BookPage() {
                           {!animationUrl && ((editImages[i] as any)?.comfyui_settings?.animation_url) && (
                             <a href={(editImages[i] as any).comfyui_settings.animation_url} target="_blank" rel="noreferrer" style={{ fontSize: '0.65rem', color: '#e8a84c', textDecoration: 'underline' }}>Voir (live)</a>
                           )}
+                          {(animationUrl || (editImages[i] as any)?.comfyui_settings?.animation_url) && (
+                            <button onClick={() => {
+                              if (!confirm('Supprimer la vidéo Wan ? Le bloc correspondant sera retiré de la timeline.')) return
+                              const cleaned = (((cs as any).media_timeline ?? []) as any[]).filter(b => b.source_ref !== 'video')
+                              setCsAndSave({ animation_url: '', media_timeline: cleaned } as any)
+                            }} title="Supprimer la vidéo + retirer le bloc timeline" style={{ marginLeft: 'auto', fontSize: '0.55rem', background: '#c94c4c15', border: '1px solid #c94c4c44', borderRadius: '4px', padding: '0.15rem 0.45rem', color: '#c94c4c', cursor: 'pointer' }}>
+                              🗑️ Supprimer
+                            </button>
+                          )}
                         </div>
                         {/* Params */}
                         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center', fontSize: '0.55rem', color: 'var(--muted)' }}>
@@ -2177,24 +3655,184 @@ export default function BookPage() {
                       </div>
                     </details>
 
-                    {/* ── Images des autres plans ── */}
-                    {otherPlanImages.some(p => p.url || p.variants.length > 0 || p.derivations.length > 0 || p.animationUrl) && (
-                      <details style={{ border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)' }}>
-                        <summary style={{ padding: '0.4rem 0.6rem', fontSize: '0.65rem', color: 'var(--muted)', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase' }}>Images des autres plans</summary>
-                        <div style={{ padding: '0.5rem 0.6rem', display: 'flex', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          {otherPlanImages.flatMap(p => {
-                            const imgs: Array<{ url: string; label: string }> = []
-                            if (p.url) imgs.push({ url: p.url.split('?')[0], label: `Plan ${p.planIdx + 1}` })
-                            p.variants.forEach((v, vi) => imgs.push({ url: v, label: `P${p.planIdx + 1} var${vi + 1}` }))
-                            p.derivations.forEach((d, di) => imgs.push({ url: d, label: `P${p.planIdx + 1} der${di + 1}` }))
-                            if (p.animationUrl) imgs.push({ url: p.animationUrl, label: `P${p.planIdx + 1} GIF` })
-                            return imgs
-                          }).map((item, oi) => (
-                            <img key={oi} src={item.url} alt={item.label} title={`${item.label} — Clic = utiliser`} onClick={() => setImgAndSave({ url: item.url + '?t=' + Date.now() })} style={{ width: '60px', height: '34px', objectFit: 'cover', borderRadius: '3px', border: '1px solid var(--border)', cursor: 'pointer', opacity: 0.7 }} />
-                          ))}
-                        </div>
-                      </details>
-                    )}
+                      </div>{/* fin wrapper hidden ancien code Animations */}
+
+                      {/* ══════ ⚙ PLAN (override des défauts simulateur — par plan) ══════ */}
+                      {(() => {
+                        const planPrefs = ((editImages[i] as any)?.plan_prefs ?? (editImages[i] as any)?.reading_settings) as PlanPrefsOverride | undefined
+                        const planRedWords = ((editImages[i] as any)?.red_words ?? []) as string[]
+                        const eff = effectivePlanPrefs(planPrefs, globalSimPrefs)
+                        const overrideKeys = planPrefs ? Object.keys(planPrefs).filter(k => (planPrefs as any)[k] != null) : []
+                        const isOverride = overrideKeys.length > 0 || planRedWords.length > 0
+
+                        // FIX bug save : on calcule newImgs directement, on met à jour la ref immédiatement,
+                        // puis on appelle persistToDB avec newImgs (pas editImagesRef.current qui est stale au moment
+                        // du queueMicrotask — la useEffect qui sync le ref ne tourne qu'après le render suivant).
+                        const applyImageChange = (mutator: (img: any) => any) => {
+                          const newImgs = editImagesRef.current.map((img, idx) => idx === i ? mutator(img) : img)
+                          editImagesRef.current = newImgs
+                          setEditImages(newImgs)
+                          persistToDB(newImgs)
+                        }
+                        const setOverride = (patch: Partial<PlanPrefsOverride>) => {
+                          const current: PlanPrefsOverride = { ...(planPrefs ?? {}) }
+                          for (const [k, v] of Object.entries(patch)) {
+                            if (v == null) delete (current as any)[k]
+                            else (current as any)[k] = v
+                          }
+                          const cleaned = Object.keys(current).length ? current : undefined
+                          applyImageChange(img => ({ ...img, plan_prefs: cleaned, reading_settings: undefined }))
+                        }
+                        const setPlanRedWords = (raw: string) => {
+                          const arr = raw.split(',').map(s => s.trim()).filter(Boolean)
+                          applyImageChange(img => ({ ...img, red_words: arr.length ? arr : undefined }))
+                        }
+                        const resetAll = () => {
+                          applyImageChange(img => ({ ...img, plan_prefs: undefined, reading_settings: undefined, red_words: undefined }))
+                        }
+
+                        const captionLabels: Record<number, string> = { 1: 'Neon', 2: 'Ember', 3: 'Spot' }
+                        const thoughtLabels: Record<number, string> = { 1: 'Strip', 2: 'Manga', 3: 'Ghost' }
+                        const fontLabels: Record<number, string> = { 13: 'XS', 15: 'S', 17: 'M', 19: 'L' }
+                        const intervalLabels: Record<number, string> = { 120: 'Vite', 200: 'Normal', 280: 'Lent', 400: 'Très lent' }
+                        const wpmLabels: Record<number, string> = { 120: 'Lent', 180: 'Normal', 240: 'Rapide' }
+                        const gapLabels: Record<number, string> = { 1000: 'Court', 2000: 'Moyen', 4000: 'Normal', 6000: 'Long', 8000: 'Très long' }
+
+                        const summaryBits: string[] = [
+                          `${eff.wpm} mots/min`,
+                          `${intervalLabels[eff.wordIntervalMs] ?? eff.wordIntervalMs + 'ms'}`,
+                          `pause ${gapLabels[eff.phraseGapMs] ?? (eff.phraseGapMs / 1000).toFixed(1) + 's'}`,
+                          captionLabels[eff.captionStyle],
+                          `texte ${fontLabels[eff.textFontSize]}`,
+                          `pensées ${thoughtLabels[eff.thoughtStyle]}`,
+                        ]
+                        if (planRedWords.length) summaryBits.push(`${planRedWords.length} mots rouges`)
+
+                        const selectStyle: React.CSSProperties = { background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.18rem 0.35rem', color: 'var(--foreground)', fontSize: '0.65rem' }
+                        const labelStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'var(--muted)', fontSize: '0.62rem' }
+
+                        // Valeur effective si on retirait l'override : c'est ce que "Défaut" représente.
+                        // (note : SNAKE map plus utilisée — on utilise `fallback` direct.)
+                        const fallback = effectivePlanPrefs(undefined, globalSimPrefs)
+                        const defLabel = (k: keyof PlanPrefs, fmt?: (v: any) => string) => {
+                          const v = fallback[k]
+                          return `Défaut (${fmt ? fmt(v) : v})`
+                        }
+
+                        return (
+                          <details style={{ border: '1px solid #d4a84c66', borderRadius: '8px', background: 'transparent' }}>
+                            <summary style={{ padding: '0.5rem 0.7rem', fontSize: '0.7rem', color: '#d4a84c', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em', background: '#d4a84c11', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                              <span>⚙ Plan {isOverride ? `(override × ${overrideKeys.length + (planRedWords.length ? 1 : 0)})` : `(défauts simulateur)`}</span>
+                              <span style={{ marginLeft: 'auto', fontSize: '0.55rem', opacity: 0.8, color: 'var(--muted)', textTransform: 'none', letterSpacing: 0 }}>
+                                {summaryBits.join(' · ')}
+                              </span>
+                            </summary>
+                            <div style={{ padding: '0.6rem 0.8rem', display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem 0.8rem' }}>
+                                <label style={labelStyle}>
+                                  Vitesse lecture (WPM)
+                                  <select value={planPrefs?.wpm ?? ''} onChange={e => setOverride({ wpm: e.target.value ? Number(e.target.value) as PlanPrefs['wpm'] : null as any })} style={selectStyle}>
+                                    <option value="">{defLabel('wpm', v => wpmLabels[v] ?? v)}</option>
+                                    <option value="120">120 — Lent</option>
+                                    <option value="180">180 — Normal</option>
+                                    <option value="240">240 — Rapide</option>
+                                  </select>
+                                </label>
+                                <label style={labelStyle}>
+                                  Vitesse mots (narratif)
+                                  <select value={planPrefs?.word_interval_ms ?? ''} onChange={e => setOverride({ word_interval_ms: e.target.value ? Number(e.target.value) as PlanPrefs['wordIntervalMs'] : null as any })} style={selectStyle}>
+                                    <option value="">{defLabel('wordIntervalMs', v => intervalLabels[v] ?? v + 'ms')}</option>
+                                    <option value="120">Vite (120ms)</option>
+                                    <option value="200">Normal (200ms)</option>
+                                    <option value="280">Lent (280ms)</option>
+                                    <option value="400">Très lent (400ms)</option>
+                                  </select>
+                                </label>
+                                <label style={labelStyle}>
+                                  Pause entre phrases
+                                  <select value={planPrefs?.phrase_gap_ms ?? ''} onChange={e => setOverride({ phrase_gap_ms: e.target.value ? Number(e.target.value) : null as any })} style={selectStyle}>
+                                    <option value="">{defLabel('phraseGapMs', v => gapLabels[v] ?? (v / 1000).toFixed(1) + 's')}</option>
+                                    <option value="0">Aucune (0s)</option>
+                                    <option value="1000">Court (1s)</option>
+                                    <option value="2000">Moyen (2s)</option>
+                                    <option value="4000">Normal (4s) — défaut simulateur</option>
+                                    <option value="6000">Long (6s)</option>
+                                    <option value="8000">Très long (8s)</option>
+                                  </select>
+                                </label>
+                                <label style={labelStyle}>
+                                  Style dialogue
+                                  <select value={planPrefs?.caption_style ?? ''} onChange={e => setOverride({ caption_style: e.target.value ? Number(e.target.value) as PlanPrefs['captionStyle'] : null as any })} style={selectStyle}>
+                                    <option value="">{defLabel('captionStyle', v => captionLabels[v] ?? v)}</option>
+                                    <option value="1">Neon</option>
+                                    <option value="2">Ember</option>
+                                    <option value="3">Spot</option>
+                                  </select>
+                                </label>
+                                <label style={labelStyle}>
+                                  Taille texte
+                                  <select value={planPrefs?.text_font_size ?? ''} onChange={e => setOverride({ text_font_size: e.target.value ? Number(e.target.value) as PlanPrefs['textFontSize'] : null as any })} style={selectStyle}>
+                                    <option value="">{defLabel('textFontSize', v => fontLabels[v] ?? v)}</option>
+                                    <option value="13">XS (13px)</option>
+                                    <option value="15">S (15px)</option>
+                                    <option value="17">M (17px)</option>
+                                    <option value="19">L (19px)</option>
+                                  </select>
+                                </label>
+                                <label style={labelStyle}>
+                                  Style pensées
+                                  <select value={planPrefs?.thought_style ?? ''} onChange={e => setOverride({ thought_style: e.target.value ? Number(e.target.value) as PlanPrefs['thoughtStyle'] : null as any })} style={selectStyle}>
+                                    <option value="">{defLabel('thoughtStyle', v => thoughtLabels[v] ?? v)}</option>
+                                    <option value="1">Strip</option>
+                                    <option value="2">Manga</option>
+                                    <option value="3">Ghost</option>
+                                  </select>
+                                </label>
+                              </div>
+                              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', color: 'var(--muted)', fontSize: '0.62rem' }}>
+                                <span>Mots rouges supplémentaires <span style={{ opacity: 0.6, fontSize: '0.55rem' }}>(en plus des PNJ + lieux auto, virgules)</span></span>
+                                <input type="text" defaultValue={planRedWords.join(', ')} onBlur={e => setPlanRedWords(e.target.value)}
+                                  placeholder="ex: trésor, cypress, alarme"
+                                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: '4px', padding: '0.3rem 0.5rem', color: 'var(--foreground)', fontSize: '0.65rem' }} />
+                              </label>
+                              {isOverride && (
+                                <button onClick={resetAll}
+                                  style={{ alignSelf: 'flex-start', fontSize: '0.6rem', padding: '0.25rem 0.6rem', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--muted)', cursor: 'pointer' }}>
+                                  ↺ Reset tous les overrides
+                                </button>
+                              )}
+                            </div>
+                          </details>
+                        )
+                      })()}
+
+                      {/* ══════ 3. 🎞️ TIMELINE (foldable) ══════ */}
+                      <details style={{ border: '1px solid #52c48466', borderRadius: '8px', background: 'transparent' }}>
+                        <summary style={{ padding: '0.5rem 0.7rem', fontSize: '0.7rem', color: '#52c484', fontWeight: 'bold', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em', background: '#52c48411' }}>
+                          3. 🎞️ Timeline {((cs as any).media_timeline?.length ?? 0) > 0 ? `(${(cs as any).media_timeline.length})` : ''}
+                        </summary>
+                        {(() => {
+                          const planPrefs = ((editImages[i] as any)?.plan_prefs ?? (editImages[i] as any)?.reading_settings) as PlanPrefsOverride | undefined
+                          const eff = effectivePlanPrefs(planPrefs, globalSimPrefs)
+                          return (
+                            <PlanTimelineEditor
+                              phrases={(editPhraseDistribution[i] ?? []).flatMap(splitIntoSubPhrases)}
+                              available={{
+                                imageUrl: editImages[i]?.url?.split('?')[0],
+                                variants: cs.variants ?? [],
+                                animations: ((cs as any).animations ?? []) as AnimationInstance[],
+                              }}
+                              blocks={(cs as any).media_timeline ?? []}
+                              onChange={(blocks) => setCsAndSave({ media_timeline: blocks } as any)}
+                              wpm={eff.wpm}
+                              wordIntervalMs={eff.wordIntervalMs}
+                              phraseGapMs={eff.phraseGapMs}
+                              cursorMsRef={previewCursorRef}
+                              cursorActive={previewPlanIdx === i && previewPlaying}
+                            />
+                          )
+                        })()}
+                      </details>{/* fin 3. Timeline */}
 
                     {/* Bouton Save explicite */}
                     <button onClick={async () => {
@@ -2211,30 +3849,8 @@ export default function BookPage() {
                       💾 Sauvegarder
                     </button>
 
-                    {/* Texte assigné au plan + tags */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', borderTop: '1px solid var(--border)', paddingTop: '0.4rem' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ fontSize: '0.6rem', color: 'var(--muted)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                          📜 Texte assigné au plan
-                          {editPhraseDistribution[i]?.length > 0 && (
-                            <span style={{ marginLeft: '0.4rem', color: '#7ab8d8' }}>({editPhraseDistribution[i].length} phrase{editPhraseDistribution[i].length > 1 ? 's' : ''})</span>
-                          )}
-                        </div>
-                        <CorrectButton size="sm" text={(editPhraseDistribution[i] ?? []).join('\n')} onCorrected={corrected => {
-                          const lines = corrected.split('\n').filter(Boolean)
-                          setEditPhraseDistribution(prev => { const next = [...prev]; next[i] = lines; return next })
-                        }} />
-                      </div>
-                      <TaggablePhraseEditor planIdx={i} phrases={editPhraseDistribution[i] ?? []} npcs={npcs}
-                        onChange={lines => { setEditPhraseDistribution(prev => { const next = [...prev]; while (next.length <= i) next.push([]); next[i] = lines; return next }) }}
-                        onBlur={() => {
-                          const clean = editPhraseDistribution.length > 0 && editPhraseDistribution.some(arr => arr.length > 0) ? editPhraseDistribution : null
-                          fetch(`/api/sections/${detailSec.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phrase_distribution: clean }) })
-                          setSections(ss => ss.map(s => s.id === detailSec.id ? { ...s, phrase_distribution: clean ?? undefined } : s))
-                        }}
-                      />
-                    </div>
-                  </div>
+                    </div>{/* fin wrapper plan déplié */}
+                  </details>
                   )
                 })}
                 {editImages.length < 3 && (
@@ -2243,6 +3859,48 @@ export default function BookPage() {
                     + Plan {editImages.length + 1}
                   </button>
                 )}
+                </div>{/* fin colonne gauche (plans) */}
+
+                {/* ── Colonne droite : mini-tel sticky ── */}
+                <div style={{ position: 'sticky', top: '1rem', flexShrink: 0 }}>
+                  {previewPlanIdx !== null && editImages[previewPlanIdx] ? (() => {
+                    const previewImg = editImages[previewPlanIdx] as any
+                    const planPrefs = (previewImg?.plan_prefs ?? previewImg?.reading_settings) as PlanPrefsOverride | undefined
+                    const eff = effectivePlanPrefs(planPrefs, globalSimPrefs)
+                    const planRedWords = (previewImg?.red_words ?? []) as string[]
+                    const mergedRedWords = effectiveRedWords(redWordsSet, planRedWords)
+                    return (
+                    <MiniPlanPhonePreview
+                      blocks={((previewImg?.comfyui_settings?.media_timeline) ?? []) as MediaBlock[]}
+                      phrases={(editPhraseDistribution[previewPlanIdx] ?? []).flatMap(splitIntoSubPhrases)}
+                      fallbackImageUrl={editImages[previewPlanIdx]?.url}
+                      available={{
+                        imageUrl: editImages[previewPlanIdx]?.url?.split('?')[0],
+                        variants: (previewImg?.comfyui_settings?.variants) ?? [],
+                        animations: ((previewImg?.comfyui_settings?.animations ?? []) as AnimationInstance[]).map(a => ({
+                          id: a.id,
+                          url: a.output?.url,
+                          urls: a.output?.urls,
+                        })),
+                      }}
+                      textPosition={previewImg?.text_position}
+                      wpm={eff.wpm}
+                      wordIntervalMs={eff.wordIntervalMs}
+                      phraseGapMs={eff.phraseGapMs}
+                      textFontSize={eff.textFontSize}
+                      isPlaying={previewPlaying}
+                      onTogglePlay={() => setPreviewPlaying(p => !p)}
+                      redWords={mergedRedWords}
+                      cursorMsRef={previewCursorRef}
+                      npcs={npcs}
+                      bubblePositions={previewImg?.bubble_positions}
+                    />)
+                  })() : (
+                    <div style={{ width: 280, padding: '1.5rem 1rem', background: 'var(--surface)', border: '1px dashed var(--border)', borderRadius: '12px', textAlign: 'center', color: 'var(--muted)', fontSize: '0.72rem', fontStyle: 'italic' }}>
+                      📱 Cliquez sur <strong style={{ color: 'var(--accent)' }}>▶</strong> dans un plan pour le prévisualiser ici.
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -2639,6 +4297,34 @@ export default function BookPage() {
                                       if (!res.ok) { const e = await res.json().catch(() => ({})); console.error('[transition onSaved] PATCH failed:', e) }
                                       else { setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_image_url: `${cleanUrl}?v=${Date.now()}` } : c)) }
                                     }} />
+                                  {/* Wizard ComfyUI : comparer 6 modèles + choisir */}
+                                  <button
+                                    title="Compare 6 modèles ComfyUI pour l'image de transition, édite prompt/style et regénère à volonté"
+                                    onClick={() => {
+                                      const prompt = (tSett.description || transitionDraft || choice.transition_text || choice.label || '').trim()
+                                      if (!prompt) { alert('Saisis d\'abord une description ou un texte de transition'); return }
+                                      planWizard.open({
+                                        mode: 'image-only', // Transition = juste une image, pas de dashboard/animations
+                                        section: detailSec,
+                                        reference: { type: 'transition', id: choice.id },
+                                        prompt,
+                                        promptNegative: 'blurry, distorted, watermark, text, deformed hands, low quality',
+                                        style: tSett.style || 'realistic',
+                                        aspectRatio: tSett.aspect_ratio || '16:9',
+                                        steps: 35,
+                                        cfg: 7,
+                                        existingImage: choice.transition_image_url ? { url: choice.transition_image_url } : undefined,
+                                        storagePathPrefix: `transitions/${choice.id}`,
+                                        onImageSelected: async (url) => {
+                                          const cleanUrl = url.split('?')[0]
+                                          await fetch(`/api/choices/${choice.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ transition_image_url: cleanUrl }) })
+                                          setChoices(cs => cs.map(c => c.id === choice.id ? { ...c, transition_image_url: `${cleanUrl}?v=${Date.now()}` } : c))
+                                        },
+                                      })
+                                    }}
+                                    style={{ fontSize: '0.65rem', padding: '0.2rem 0.55rem', borderRadius: '4px', border: '1px solid #d4a84c66', background: 'rgba(212,168,76,0.1)', color: '#d4a84c', cursor: 'pointer', fontWeight: 'bold', whiteSpace: 'nowrap' }}>
+                                    🎨 Comparer
+                                  </button>
                                 </div>
                               </div>
                             )
@@ -4214,7 +5900,7 @@ export default function BookPage() {
                 setEditHint(sec.hint_text ?? '')
                 setEditMusicUrl(sec.music_url ?? '')
                 const imgs = sec.images ?? []
-                setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false, aspect_ratio: (imgs[i] as any)?.aspect_ratio, comfyui_settings: (imgs[i] as any)?.comfyui_settings })))
+                setEditImages(Array.from({ length: 3 }, (_, i) => ({ url: imgs[i]?.url, description: imgs[i]?.description ?? '', description_fr: imgs[i]?.prompt_fr, prompt_fr: imgs[i]?.prompt_fr, prompt_en: imgs[i]?.prompt_en, thought: imgs[i]?.thought, style: imgs[i]?.style ?? book.illustration_style ?? 'realistic', includeProtagonist: false, aspect_ratio: (imgs[i] as any)?.aspect_ratio, comfyui_settings: (imgs[i] as any)?.comfyui_settings, plan_prefs: (imgs[i] as any)?.plan_prefs ?? (imgs[i] as any)?.reading_settings, red_words: (imgs[i] as any)?.red_words, bubble_positions: (imgs[i] as any)?.bubble_positions, text_position: (imgs[i] as any)?.text_position, appearance_effect: (imgs[i] as any)?.appearance_effect })))
               }
 
               return (
@@ -6480,14 +8166,123 @@ Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit 
       />
     )}
 
-    {/* ── Lightbox image ──────────────────────────────────────────────────── */}
-    {zoomedImage && (
-      <div onClick={() => setZoomedImage(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: '#000000cc', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
-        <img src={zoomedImage} alt="" style={{ maxWidth: '92vw', maxHeight: '92vh', borderRadius: '8px', boxShadow: '0 8px 40px #000' }} />
+    {/* ── Mask draw canvas (Motion Brush) ─────────────────────────────────── */}
+    {maskDrawFor && (
+      <MaskDrawCanvas
+        sourceImageUrl={maskDrawFor.sourceUrl}
+        initialMaskUrl={(() => {
+          const curAnims = ((editImages[maskDrawFor.planIdx] as any)?.comfyui_settings?.animations ?? []) as AnimationInstance[]
+          const cur = curAnims.find(a => a.id === maskDrawFor.animId)
+          return (cur?.params as MotionBrushParams | undefined)?.mask_url
+        })()}
+        onSave={async (blob) => {
+          const fd = new FormData()
+          const file = new File([blob], 'mask.png', { type: 'image/png' })
+          fd.append('file', file)
+          fd.append('path', `books/${id}/sections/${sectionDetailId ?? 'x'}_anim_${maskDrawFor.animId}_mask_${Date.now()}`)
+          const r = await fetch('/api/upload-file', { method: 'POST', body: fd })
+          const data = await r.json()
+          if (!data.url) throw new Error(data.error || 'Upload échoué')
+          // Update l'anim avec la nouvelle URL de masque
+          const pi = maskDrawFor.planIdx
+          const curAnims = ((editImagesRef.current[pi] as any)?.comfyui_settings?.animations ?? []) as AnimationInstance[]
+          const updated = curAnims.map(a => a.id === maskDrawFor.animId
+            ? { ...a, params: { ...(a.params as any), mask_url: data.url.split('?')[0] } as any }
+            : a)
+          const newImgs = editImagesRef.current.map((img, idx) => {
+            if (idx !== pi) return img
+            return { ...img, comfyui_settings: { ...(img as any).comfyui_settings, animations: updated } } as any
+          })
+          setEditImages(newImgs)
+          editImagesRef.current = newImgs
+          // Persist (conversion minimale — champs url + comfyui_settings suffisent)
+          if (sectionDetailId) {
+            const clean = newImgs.map(img => ({
+              url: (img.url as string | undefined)?.split('?')[0],
+              description: img.description,
+              style: img.style,
+              aspect_ratio: (img as any).aspect_ratio,
+              prompt_fr: img.prompt_fr,
+              prompt_en: img.prompt_en,
+              thought: img.thought,
+              comfyui_settings: (img as any).comfyui_settings,
+              text_position: (img as any).text_position,
+              bubble_positions: (img as any).bubble_positions,
+              appearance_effect: (img as any).appearance_effect,
+              plan_prefs: (img as any).plan_prefs ?? (img as any).reading_settings,
+              red_words: (img as any).red_words,
+            }))
+            fetch(`/api/sections/${sectionDetailId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ images: clean }) })
+          }
+        }}
+        onClose={() => setMaskDrawFor(null)}
+      />
+    )}
+
+    {/* ── Modal "Preview section entière" : SectionPlayer en plein écran ────── */}
+    {sectionPreviewOpen && editImages.length > 0 && (
+      <div onClick={() => setSectionPreviewOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 3500, background: '#000000ee', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+        <div onClick={e => e.stopPropagation()} style={{ cursor: 'default', display: 'flex', flexDirection: 'column', gap: '0.6rem', alignItems: 'center', padding: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', color: 'var(--muted)', fontSize: '0.7rem' }}>
+            <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>🎬 Preview section</span>
+            <span>· {editImages.length} plan{editImages.length > 1 ? 's' : ''}</span>
+            <span style={{ opacity: 0.6 }}>· cliquez en dehors pour fermer · cliquez la frame pour passer au plan suivant</span>
+          </div>
+          {(() => {
+            // Filtre : ne joue que les plans avec une image OU des phrases OU une timeline.
+            // On garde la correspondance plan ↔ phraseDistribution en filtrant les 2 ensembles.
+            const filtered = editImages
+              .map((img, origIdx) => ({ img, origIdx, phrases: editPhraseDistribution[origIdx] ?? [] }))
+              .filter(({ img, phrases }) => !!img.url || phrases.length > 0 || ((img as any)?.comfyui_settings?.media_timeline?.length ?? 0) > 0)
+            const playablePlans = filtered.map(({ img }) => ({
+              url: img.url,
+              text_position: (img as any).text_position,
+              bubble_positions: (img as any).bubble_positions,
+              plan_prefs: (img as any).plan_prefs ?? (img as any).reading_settings,
+              red_words: (img as any).red_words,
+              comfyui_settings: (img as any).comfyui_settings,
+            }))
+            const playablePhraseDist = filtered.map(({ phrases }) => phrases)
+            if (playablePlans.length === 0) {
+              return <div style={{ padding: '2rem', color: 'var(--muted)', fontStyle: 'italic' }}>Aucun plan jouable dans cette section (image / phrases / timeline manquants).</div>
+            }
+            return (
+              <SectionPlayer
+                plans={playablePlans}
+                phraseDistribution={playablePhraseDist}
+                redWordsAuto={redWordsSet}
+                npcs={npcs}
+                globalSimPrefs={globalSimPrefs}
+                planTransition="fade-to-black"
+                planTransitionMs={500}
+                mediaTransition="crossfade"
+                mediaTransitionMs={750}
+                layout="phone"
+                width={360}
+                autoPlay
+                onComplete={() => setSectionPreviewOpen(false)}
+              />
+            )
+          })()}
+        </div>
       </div>
     )}
 
-    {/* ── Gallery viewer (variantes/dérivations) ── */}
+    {/* ── Wizard image generation (utilisé pour Plans, Transitions, etc.) ──── */}
+    {planWizard.modal}
+    {assignExtracted.modal}
+
+    {/* ── Lightbox image ou vidéo ─────────────────────────────────────────── */}
+    {zoomedImage && (
+      <div onClick={() => setZoomedImage(null)} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: '#000000cc', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'zoom-out' }}>
+        {isVideoUrl(zoomedImage)
+          ? <video src={zoomedImage} controls autoPlay loop style={{ maxWidth: '92vw', maxHeight: '92vh', borderRadius: '8px', boxShadow: '0 8px 40px #000' }} onClick={e => e.stopPropagation()} />
+          : <img src={zoomedImage} alt="" style={{ maxWidth: '92vw', maxHeight: '92vh', borderRadius: '8px', boxShadow: '0 8px 40px #000' }} />
+        }
+      </div>
+    )}
+
+    {/* ── Gallery viewer (variantes/dérivations/travelling) ── */}
     {galleryViewer && (
       <div style={{ position: 'fixed', inset: 0, zIndex: 3001, background: '#000000dd', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }} onClick={() => setGalleryViewer(null)}>
         {/* Close */}
@@ -6496,12 +8291,17 @@ Chaque lieu doit être visible avec son nom inscrit sur la carte. La carte doit 
         <div style={{ color: '#fff', fontSize: '0.85rem', marginBottom: '0.75rem', opacity: 0.8 }}>
           {galleryViewer.images[galleryViewer.index]?.label} ({galleryViewer.index + 1}/{galleryViewer.images.length})
         </div>
-        {/* Image */}
+        {/* Image ou vidéo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }} onClick={e => e.stopPropagation()}>
           {/* Left arrow */}
           <button onClick={() => setGalleryViewer(g => g ? { ...g, index: (g.index - 1 + g.images.length) % g.images.length } : null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '48px', height: '48px', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>◀</button>
-          {/* Image */}
-          <img src={galleryViewer.images[galleryViewer.index]?.url} alt="" style={{ maxWidth: '80vw', maxHeight: '75vh', borderRadius: '8px', boxShadow: '0 8px 40px #000' }} />
+          {/* Image ou vidéo */}
+          {(() => {
+            const url = galleryViewer.images[galleryViewer.index]?.url
+            return isVideoUrl(url)
+              ? <video key={url} src={url} controls autoPlay loop style={{ maxWidth: '80vw', maxHeight: '75vh', borderRadius: '8px', boxShadow: '0 8px 40px #000' }} />
+              : <img src={url} alt="" style={{ maxWidth: '80vw', maxHeight: '75vh', borderRadius: '8px', boxShadow: '0 8px 40px #000' }} />
+          })()}
           {/* Right arrow */}
           <button onClick={() => setGalleryViewer(g => g ? { ...g, index: (g.index + 1) % g.images.length } : null)} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%', width: '48px', height: '48px', color: '#fff', fontSize: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>▶</button>
         </div>
@@ -8944,7 +10744,7 @@ function TransitionInlineBlock({ choiceId, initialText, imgUrl, initialTextPosit
   )
 }
 
-function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, npcs, locations = [], mangaSelectedNpcs = [], mangaEmotions = {}, settingsStep, section, sectionChoices, allSections = [], onChoiceClick, simMode, book, captionStyle = 1, textMode = 'descriptif', thoughtStyle = 1, choiceStyle = 3, choiceTitleStyle = 1, choiceFontSize = 15, phrasesPerSlide = 1, readingWpm = 180, textFontSize = 15, wordIntervalMs = 200, onSavePlayerPrefs, openSettingsRef, simPlayRef, onPlayingChange, simItems, simInventory, simMoney, onCollectItem, onOpenItem, simPlanOpen, simPlanFoldSoundUrl, simPlanFoldTrigger, simPlanIsOpening, simPlanMusicDucked, onTransitionStart, onTransitionEnd, onNavReady }: {
+function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, npcs, locations = [], mangaSelectedNpcs = [], mangaEmotions = {}, settingsStep, section, sectionChoices, allSections = [], onChoiceClick, simMode, book, captionStyle: propCaptionStyle = 1, textMode = 'descriptif', thoughtStyle: propThoughtStyle = 1, choiceStyle = 3, choiceTitleStyle = 1, choiceFontSize = 15, phrasesPerSlide = 1, readingWpm = 180, textFontSize: propTextFontSize = 15, wordIntervalMs = 200, onSavePlayerPrefs, openSettingsRef, simPlayRef, onPlayingChange, simItems, simInventory, simMoney, onCollectItem, onOpenItem, simPlanOpen, simPlanFoldSoundUrl, simPlanFoldTrigger, simPlanIsOpening, simPlanMusicDucked, onTransitionStart, onTransitionEnd, onNavReady }: {
   s: import('@/types').SectionLayoutSettings
   previewMode: 'phone' | 'tablet'
   scale?: number
@@ -9239,8 +11039,8 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     return result
   }, [simPhrases, simPlayableImgs.length, textMode, section?.phrase_distribution])
 
-  // Mots rouges : noms propres (PNJ + lieux uniquement)
-  const redWordsSet = React.useMemo(() => {
+  // Mots rouges auto : noms propres (PNJ + lieux uniquement) — augmentés par image.red_words
+  const redWordsSetAuto = React.useMemo(() => {
     const s = new Set<string>()
     for (const npc of npcs) {
       if (npc.name) npc.name.split(/\s+/).forEach(w => { if (w.length > 2) s.add(w.toLowerCase()) })
@@ -9250,6 +11050,37 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     }
     return s
   }, [npcs, locations])
+  // Mots rouges effectifs pour l'image courante = auto + override du plan
+  const redWordsSet = React.useMemo(() => {
+    const planRedWords = (simPlayableImgs[simImgIdx] as any)?.red_words as string[] | undefined
+    if (!planRedWords || planRedWords.length === 0) return redWordsSetAuto
+    const merged = new Set(redWordsSetAuto)
+    for (const w of planRedWords) {
+      const c = w.trim().toLowerCase()
+      if (c) merged.add(c)
+    }
+    return merged
+  }, [redWordsSetAuto, simPlayableImgs, simImgIdx])
+  // Prefs effectives pour l'image courante : override plan_prefs > props (= simPrefs) > défauts.
+  // Couvre 5 champs per-plan + textMode reste section-wide (gate de phrasesByImage).
+  const effPrefs = React.useMemo(() => {
+    const img = simPlayableImgs[simImgIdx] as any
+    const planPrefs = (img?.plan_prefs ?? img?.reading_settings) as Record<string, any> | undefined
+    return {
+      wpm: planPrefs?.wpm ?? readingWpm,
+      wordIntervalMs: planPrefs?.word_interval_ms ?? wordIntervalMs,
+      captionStyle: planPrefs?.caption_style ?? propCaptionStyle,
+      textFontSize: planPrefs?.text_font_size ?? propTextFontSize,
+      thoughtStyle: planPrefs?.thought_style ?? propThoughtStyle,
+    }
+  }, [simPlayableImgs, simImgIdx, readingWpm, wordIntervalMs, propCaptionStyle, propTextFontSize, propThoughtStyle])
+  const effWpm = effPrefs.wpm
+  const effInterval = effPrefs.wordIntervalMs
+  // Shadow les noms originaux pour éviter de réécrire 100+ usages dans le rendu.
+  // textMode reste = prop (section-wide, gate de phrasesByImage — voir ligne ~10941).
+  const captionStyle = effPrefs.captionStyle
+  const textFontSize = effPrefs.textFontSize
+  const thoughtStyle = effPrefs.thoughtStyle
 
   // Timer de lecture auto — se déclenche quand simPhraseIdx, readingWpm ou phrasesPerSlide change
   const [simReadReady, setSimReadReady] = React.useState(false) // true = "Taper pour continuer" visible
@@ -9259,11 +11090,11 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     if (textMode === 'narratif') return
     const text = (phrasesByImage[simImgIdx] ?? [])[simPhraseIdx] ?? ''
     const wordCount = text.split(/\s+/).filter(Boolean).length
-    const ms = Math.max(Math.round(wordCount / readingWpm * 60 * 1000), 1500)
+    const ms = Math.max(Math.round(wordCount / effWpm * 60 * 1000), 1500)
     setSimReadReady(false)
     const t = setTimeout(() => setSimReadReady(true), ms)
     return () => clearTimeout(t)
-  }, [simPhraseIdx, simTextDone, readingWpm, phrasesPerSlide, simImgIdx, textMode])
+  }, [simPhraseIdx, simTextDone, effWpm, phrasesPerSlide, simImgIdx, textMode])
 
   // Découpe un texte en chunks typés : lineBreak=true après .!?… (long break + nouvelle ligne)
   // speaker + bubbleType = extraits des tags [name:type]...[/name:type]
@@ -9342,8 +11173,8 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
       let delay = 0
       if (prevChunk) {
         const wordCount = prevChunk.text.split(/\s+/).filter(Boolean).length
-        const readMs = Math.round(wordCount / readingWpm * 60000)
-        const baseBreak = prevChunk.lineBreak ? wordIntervalMs * 5 : wordIntervalMs * 2
+        const readMs = Math.round(wordCount / effWpm * 60000)
+        const baseBreak = prevChunk.lineBreak ? effInterval * 5 : effInterval * 2
         delay = readMs + baseBreak
       }
       timeoutId = setTimeout(() => {
@@ -9358,7 +11189,7 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
     }
     scheduleChunk(0)
     return () => { cancelled = true; if (timeoutId) clearTimeout(timeoutId) }
-  }, [simPhraseIdx, simImgIdx, textMode, simTextDone, wordIntervalMs])
+  }, [simPhraseIdx, simImgIdx, textMode, simTextDone, effWpm, effInterval])
 
   // Auto-avance 2s après simReadReady, sauf dernière phrase de la dernière image
   const autoAdvanceTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -10719,7 +12550,7 @@ function SectionPreviewCard({ s, previewMode, scale = 1, onUpdate, protagonist, 
             )}
             {/* Nom */}
             {isTile ? (
-              <div style={{ width: vigCollapsed ? '0px' : undefined, flex: vigCollapsed ? undefined : 1, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '4px', background: `rgba(8,8,16,${tileBgOpacity})`, paddingLeft: vigCollapsed ? 0 : `${tileNameX}px`, paddingTop: `${tileNameY}px`, paddingRight: vigCollapsed ? 0 : '6px', pointerEvents: 'none', overflow: 'hidden', transition: 'width 0.3s ease, padding 0.3s ease', flexShrink: 0 }}>
+              <div style={{ width: vigCollapsed ? '0px' : undefined, flexGrow: vigCollapsed ? 0 : 1, flexBasis: vigCollapsed ? 'auto' : 0, flexShrink: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '4px', background: `rgba(8,8,16,${tileBgOpacity})`, paddingLeft: vigCollapsed ? 0 : `${tileNameX}px`, paddingTop: `${tileNameY}px`, paddingRight: vigCollapsed ? 0 : '6px', pointerEvents: 'none', overflow: 'hidden', transition: 'width 0.3s ease, padding 0.3s ease' }}>
                 <span style={{ fontSize: `${tileNameSize}px`, color: tileTextColor, fontFamily: 'Georgia, serif', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', lineHeight: 1.2 }}>{v.name}</span>
                 {tileShowHp && i > 0 && v.npc && (
                   <div style={{ width: '85%', height: '3px', background: 'rgba(255,255,255,0.12)', borderRadius: '2px', overflow: 'hidden', flexShrink: 0 }}>
@@ -12423,10 +14254,11 @@ function GameSimTab({ bookId, sections, choices, npcs, items, locations, protago
     if (!simPrefsKey) return
     try { const p = JSON.parse(localStorage.getItem(simPrefsKey) ?? '{}'); if (Object.keys(p).length) setSimPrefs(prev => ({ ...prev, ...p })) } catch {}
   }, [simPrefsKey])
-  // Sauvegarder dans localStorage à chaque changement
+  // Sauvegarder dans localStorage à chaque changement + broadcast pour BookPage / preview / timeline
   React.useEffect(() => {
     if (!simPrefsKey) return
     try { localStorage.setItem(simPrefsKey, JSON.stringify(simPrefs)) } catch {}
+    broadcastSimPrefsChange(simPrefs as unknown as Record<string, unknown>)
   }, [simPrefsKey, simPrefs])
   const { captionStyle, textMode, thoughtStyle, choiceStyle, choiceFontSize, phrasesPerSlide, readingWpm, textFontSize, wordIntervalMs } = simPrefs
   const setCaptionStyle    = (v: 1|2|3) => setSimPrefs(p => ({ ...p, captionStyle: v }))
@@ -17805,9 +19637,12 @@ function ImageGenButton({ type, data, currentUrl, onSaved, label, storagePath, s
     const negative = data.negative || undefined
 
     // Map checkpoint key to actual filenames
+    // Inclut les variantes +anime/+concept (LoRA combo) en plus du mapping central CHECKPOINTS
     const CHECKPOINT_MAP: Record<string, string> = {
       juggernaut: 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
       sdxl_base: 'sd_xl_base_1.0.safetensors',
+      animagine_xl_4: 'animagine-xl-4.0.safetensors',
+      pony_xl_v6: 'ponyDiffusionV6XL.safetensors',
       'juggernaut+anime': 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
       'juggernaut+concept': 'Juggernaut-XL_v9_RunDiffusionPhoto_v2.safetensors',
       'sdxl_base+anime': 'sd_xl_base_1.0.safetensors',

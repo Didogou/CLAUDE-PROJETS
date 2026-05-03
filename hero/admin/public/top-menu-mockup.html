@@ -1,0 +1,1761 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Mockup architecture Hero — Image Editor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ─── Thème "Designer actuel (dark)" — valeurs EXACTES de editor.css ─── */
+    :root, .theme-actuel {
+      --ie-bg: #0F0F12;
+      --ie-surface: #17171B;
+      --ie-surface-2: #1F1F25;
+      --ie-surface-3: #2A2A32;
+      --ie-text: #F4F4F5;
+      --ie-text-muted: #A1A1AA;
+      --ie-text-faint: #71717A;
+      --ie-border: rgba(255, 255, 255, 0.08);
+      --ie-border-strong: rgba(255, 255, 255, 0.14);
+      --ie-accent: #F472B6;       /* version dark plus claire pour contraste WCAG */
+      --ie-accent-faint: rgba(244, 114, 182, 0.12);
+      --ie-accent-dark: #DB2777;
+      --ie-gold: #d4a84c;          /* layer tabs accent (héritage admin) */
+      --ie-radius: 6px;
+      --ie-font-base: 12px;        /* réduit comme demandé (vs 13px par défaut) */
+      --ie-font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    /* ─── Thème "Designer actuel (light)" — second thème natif du Designer ─── */
+    .theme-actuel-light {
+      --ie-bg: #FAFAF9;
+      --ie-surface: #FFFFFF;
+      --ie-surface-2: #F4F4F2;
+      --ie-surface-3: #EDEDEB;
+      --ie-text: #18181B;
+      --ie-text-muted: #52525B;
+      --ie-text-faint: #A1A1AA;
+      --ie-border: rgba(0, 0, 0, 0.08);
+      --ie-border-strong: rgba(0, 0, 0, 0.14);
+      --ie-accent: #EC4899;
+      --ie-accent-faint: #FDF2F8;
+      --ie-accent-dark: #BE185D;
+      --ie-gold: #d4a84c;
+      --ie-radius: 6px;
+      --ie-font-base: 12px;
+      --ie-font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    /* Thème : Sombre minimaliste (Linear / Vercel) */
+    .theme-minimal {
+      --ie-bg: #0a0a0a;
+      --ie-surface: #141414;
+      --ie-surface-2: #1f1f1f;
+      --ie-border: #262626;
+      --ie-border-strong: #383838;
+      --ie-text: #fafafa;
+      --ie-text-muted: #a3a3a3;
+      --ie-text-faint: #737373;
+      --ie-accent: #5e6ad2;
+      --ie-accent-faint: rgba(94, 106, 210, 0.12);
+      --ie-accent-dark: #8b95e0;
+      --ie-gold: #fbbf24;
+      --ie-radius: 5px;
+      --ie-font-base: 12px;
+      --ie-font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    /* Thème : Glassmorphism rose vif (Canva / Apple) */
+    .theme-glass {
+      --ie-bg: #1a0d1f;
+      --ie-surface: rgba(40, 20, 50, 0.7);
+      --ie-surface-2: rgba(60, 30, 75, 0.6);
+      --ie-border: rgba(255, 255, 255, 0.08);
+      --ie-border-strong: rgba(255, 255, 255, 0.18);
+      --ie-text: #fef3ff;
+      --ie-text-muted: #d8b4fe;
+      --ie-text-faint: #a78bfa;
+      --ie-accent: #f472b6;
+      --ie-accent-faint: rgba(244, 114, 182, 0.18);
+      --ie-accent-dark: #fbcfe8;
+      --ie-gold: #fde68a;
+      --ie-radius: 10px;
+      --ie-font-base: 12px;
+      --ie-font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    /* Thème : Clair créatif (Figma / Notion) */
+    .theme-light {
+      --ie-bg: #f9f9fb;
+      --ie-surface: #ffffff;
+      --ie-surface-2: #f3f4f6;
+      --ie-border: #e5e7eb;
+      --ie-border-strong: #d1d5db;
+      --ie-text: #111827;
+      --ie-text-muted: #6b7280;
+      --ie-text-faint: #9ca3af;
+      --ie-accent: #ec4899;
+      --ie-accent-faint: rgba(236, 72, 153, 0.10);
+      --ie-accent-dark: #be185d;
+      --ie-gold: #d97706;
+      --ie-radius: 6px;
+      --ie-font-base: 12px;
+      --ie-font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    body {
+      background: var(--ie-bg);
+      color: var(--ie-text);
+      font-family: var(--ie-font-family);
+      font-size: var(--ie-font-base);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background 200ms, color 200ms;
+    }
+
+    /* ─── Crédits popover (bouton $ dans top bar) ─── */
+    .credits-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px; height: 28px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-border);
+      border-radius: 6px;
+      color: var(--ie-text); cursor: pointer;
+      font-size: 12px; font-family: inherit; font-weight: 600;
+    }
+    .credits-btn:hover { border-color: var(--ie-accent); }
+    .credits-btn.low { color: var(--ie-gold); border-color: var(--ie-gold); }
+    .credits-btn.critical { color: #ef4444; border-color: #ef4444; animation: pulse-warn 2s ease-in-out infinite; }
+    @keyframes pulse-warn {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+      50% { box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15); }
+    }
+    .credits-popover {
+      position: absolute;
+      top: calc(100% + 6px); right: 0;
+      width: 320px;
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      z-index: 100;
+      display: none;
+      overflow: hidden;
+    }
+    .credits-popover.open { display: block; }
+    .credits-popover-header {
+      padding: 14px;
+      background: linear-gradient(135deg, var(--ie-accent) 0%, #6366f1 100%);
+      color: white;
+    }
+    .credits-popover-header .plan {
+      font-size: 11px; opacity: 0.9; letter-spacing: 0.04em;
+      text-transform: uppercase; font-weight: 600;
+    }
+    .credits-popover-header .balance {
+      font-size: 28px; font-weight: 700;
+      margin-top: 4px;
+      display: flex; align-items: baseline; gap: 4px;
+    }
+    .credits-popover-header .balance .unit {
+      font-size: 14px; opacity: 0.8; font-weight: 500;
+    }
+    .credits-popover-section {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--ie-border);
+      font-size: 12px;
+    }
+    .credits-popover-section:last-child { border-bottom: none; }
+    .credits-popover-section .title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+      text-transform: uppercase; color: var(--ie-text-faint);
+      margin-bottom: 8px;
+    }
+    .credits-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 4px 0;
+      color: var(--ie-text);
+    }
+    .credits-row .right { color: var(--ie-text-muted); }
+    .credits-bar {
+      width: 100%; height: 6px;
+      background: var(--ie-surface-2);
+      border-radius: 3px; overflow: hidden;
+      margin: 6px 0 4px;
+    }
+    .credits-bar .fill {
+      height: 100%;
+      background: var(--ie-accent);
+      transition: width 200ms;
+    }
+    .credits-bar .fill.warn { background: var(--ie-gold); }
+    .credits-bar .fill.critical { background: #ef4444; }
+    .credits-popover-actions {
+      padding: 12px 14px;
+      display: flex; gap: 6px;
+      background: var(--ie-bg);
+    }
+    .credits-popover-actions button {
+      flex: 1;
+      padding: 8px;
+      background: var(--ie-accent);
+      color: white;
+      border: none; border-radius: 5px;
+      font-size: 12px; font-weight: 600; font-family: inherit;
+      cursor: pointer;
+    }
+    .credits-popover-actions button.secondary {
+      background: var(--ie-surface);
+      color: var(--ie-text);
+      border: 1px solid var(--ie-border);
+    }
+
+    /* ─── Banner IA (rouge, suggestion proactive) ─── */
+    .ai-banner {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 16px;
+      background: rgba(239, 68, 68, 0.1);
+      border-bottom: 1px solid #ef4444;
+      color: #fca5a5;
+      font-size: 12px;
+      flex-shrink: 0;
+    }
+    .ai-banner-ico { font-size: 16px; flex-shrink: 0; }
+    .ai-banner-text { flex: 1; line-height: 1.4; }
+    .ai-banner-text strong { color: #fff; }
+    .ai-banner-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+    .ai-banner-btn {
+      padding: 5px 10px;
+      background: transparent;
+      border: 1px solid #ef4444;
+      border-radius: 4px;
+      color: #fca5a5;
+      font-size: 11px; font-weight: 500; font-family: inherit;
+      cursor: pointer;
+    }
+    .ai-banner-btn.primary {
+      background: #ef4444;
+      color: white;
+      font-weight: 600;
+    }
+    .ai-banner-btn:hover { background: rgba(239, 68, 68, 0.2); }
+    .ai-banner-btn.primary:hover { background: #dc2626; }
+    .ai-banner-close {
+      width: 22px; height: 22px;
+      background: transparent;
+      border: none;
+      color: #fca5a5;
+      font-size: 14px; cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; justify-content: center;
+      margin-left: 4px;
+    }
+    .ai-banner-close:hover { color: white; }
+
+    /* ─────────────── TOP BAR (existant) ─────────────── */
+    .top-bar {
+      display: flex; align-items: center;
+      padding: 10px 16px;
+      background: var(--ie-surface);
+      border-bottom: 1px solid var(--ie-border);
+      flex-shrink: 0; gap: 16px;
+      height: 56px;
+    }
+    .breadcrumb {
+      font-size: 13px; color: var(--ie-text);
+      flex-shrink: 0;
+      max-width: 380px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ─── IA command bar (top center) ─── */
+    .ai-bar-wrapper { flex: 1; display: flex; justify-content: center; min-width: 0; }
+    .ai-bar {
+      width: 100%;
+      max-width: 560px;
+      position: relative;
+    }
+    .ai-input {
+      width: 100%;
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-border);
+      border-radius: 8px;
+      color: var(--ie-text);
+      font-size: 13px; font-family: inherit;
+      cursor: text;
+      transition: border-color 120ms;
+    }
+    .ai-input:hover, .ai-input:focus-within {
+      border-color: var(--ie-accent);
+    }
+    .ai-input .wand {
+      font-size: 14px; color: var(--ie-accent);
+      flex-shrink: 0;
+    }
+    .ai-input input {
+      flex: 1;
+      background: transparent; border: none;
+      color: var(--ie-text);
+      font-size: 13px; font-family: inherit;
+      outline: none;
+    }
+    .ai-input input::placeholder { color: var(--ie-text-faint); }
+    .ai-input .kbd {
+      font-size: 10px;
+      padding: 2px 6px;
+      background: var(--ie-surface-2);
+      border: 1px solid var(--ie-border);
+      border-radius: 3px;
+      color: var(--ie-text-faint);
+      font-family: monospace;
+      flex-shrink: 0;
+    }
+
+    /* Dropdown chat (au focus de l'IA bar) */
+    .ai-dropdown {
+      position: absolute;
+      top: calc(100% + 6px); left: 0; right: 0;
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      z-index: 100;
+      display: none;
+      overflow: hidden;
+    }
+    .ai-dropdown.open { display: block; }
+    .ai-dropdown-section { padding: 10px 14px; border-bottom: 1px solid var(--ie-border); }
+    .ai-dropdown-section:last-child { border-bottom: none; }
+    .ai-dropdown-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--ie-text-faint);
+      margin-bottom: 6px;
+    }
+    .ai-suggestion {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px; margin: 2px -8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px; color: var(--ie-text);
+    }
+    .ai-suggestion:hover { background: var(--ie-surface-2); }
+    .ai-suggestion .ico { color: var(--ie-accent); font-size: 13px; }
+    .ai-history { max-height: 200px; overflow-y: auto; }
+    .top-actions { display: flex; gap: 8px; align-items: center; }
+    .top-btn {
+      padding: 6px 12px;
+      background: var(--ie-accent); color: white;
+      border: none; border-radius: 4px;
+      font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+    }
+    .icon-btn-tb {
+      width: 28px; height: 28px;
+      background: transparent;
+      border: 1px solid var(--ie-border);
+      border-radius: 4px;
+      color: var(--ie-text-muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-family: inherit;
+    }
+    .mode-toggle {
+      display: inline-flex; gap: 0;
+      border: 1px solid var(--ie-border);
+      border-radius: 6px; overflow: hidden; margin-right: 12px;
+    }
+    .mode-toggle button {
+      padding: 5px 10px; background: transparent; border: none;
+      color: var(--ie-text-muted); font-size: 11px;
+      cursor: pointer; font-family: inherit;
+    }
+    .mode-toggle button.active {
+      background: var(--ie-accent-faint); color: var(--ie-accent-dark); font-weight: 600;
+    }
+    .undo-redo { display: flex; gap: 2px; margin-right: 12px; }
+    .undo-redo button {
+      width: 26px; height: 26px;
+      background: transparent;
+      border: 1px solid var(--ie-border);
+      border-radius: 4px;
+      color: var(--ie-text-muted); cursor: pointer;
+      font-family: inherit; font-size: 14px;
+    }
+
+    /* ─────────────── LAYOUT PRINCIPAL ─────────────── */
+    .main {
+      flex: 1; display: flex; overflow: hidden;
+    }
+
+    /* ─── Rail gauche (40px, catégories permanentes) ─── */
+    .left-rail {
+      width: 48px;
+      background: var(--ie-surface);
+      border-right: 1px solid var(--ie-border);
+      flex-shrink: 0;
+      display: flex; flex-direction: column;
+      padding: 4px 0;
+      gap: 2px;
+    }
+    .rail-btn {
+      width: 40px; height: 40px; margin: 0 auto;
+      background: transparent; border: none;
+      border-radius: 6px;
+      color: var(--ie-text-muted); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-family: inherit;
+      position: relative;
+      transition: all 120ms;
+    }
+    .rail-btn:hover { background: var(--ie-surface-2); color: var(--ie-text); }
+    .rail-btn.active {
+      background: var(--ie-accent-faint);
+      color: var(--ie-accent-dark);
+    }
+    .rail-btn.active::before {
+      content: '';
+      position: absolute; left: -4px; top: 8px; bottom: 8px;
+      width: 3px; background: var(--ie-accent); border-radius: 2px;
+    }
+    .rail-divider {
+      width: 24px; height: 1px;
+      background: var(--ie-border);
+      margin: 6px auto;
+    }
+    .rail-bottom { margin-top: auto; }
+
+    /* ─── Catalogue panel (s'ouvre via rail) ─── */
+    .catalog {
+      width: 320px;
+      background: var(--ie-surface);
+      border-right: 1px solid var(--ie-border);
+      flex-shrink: 0;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+    }
+    .catalog.hidden { display: none; }
+    .catalog-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--ie-border);
+    }
+    .catalog-title {
+      font-size: 14px; font-weight: 600; color: var(--ie-text);
+    }
+    .catalog-close {
+      background: transparent; border: none;
+      color: var(--ie-text-faint); font-size: 16px; cursor: pointer; font-family: inherit;
+      padding: 2px 6px;
+    }
+    .catalog-search {
+      padding: 8px 14px; border-bottom: 1px solid var(--ie-border);
+    }
+    .catalog-search input {
+      width: 100%;
+      padding: 6px 10px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-border);
+      border-radius: 4px;
+      color: var(--ie-text);
+      font-size: 12px; font-family: inherit;
+    }
+    .catalog-body {
+      flex: 1; overflow-y: auto; padding: 12px 14px;
+    }
+    .catalog-section {
+      margin-bottom: 16px;
+    }
+    .catalog-section-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--ie-text-faint);
+      margin-bottom: 8px;
+    }
+    .catalog-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .catalog-item {
+      padding: 10px 8px;
+      background: var(--ie-surface-2);
+      border: 1px solid var(--ie-border);
+      border-radius: 5px;
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      transition: all 120ms;
+      font-family: inherit;
+      color: var(--ie-text);
+    }
+    .catalog-item:hover {
+      border-color: var(--ie-accent);
+      background: var(--ie-surface);
+    }
+    .catalog-item .ico { font-size: 22px; }
+    .catalog-item .label { font-size: 10px; color: var(--ie-text); text-align: center; }
+
+    /* Catalogue annotations (rendu custom) */
+    .annot-list { display: flex; flex-direction: column; gap: 4px; }
+    .annot-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 10px;
+      background: var(--ie-surface-2);
+      border: 1px solid var(--ie-border);
+      border-radius: 5px;
+      cursor: pointer;
+      transition: all 120ms;
+    }
+    .annot-row:hover { border-color: var(--ie-accent); }
+    .annot-row.placed { opacity: 0.7; }
+    .annot-row.placed:hover { opacity: 1; border-color: var(--ie-gold); }
+    .annot-ico { font-size: 16px; flex-shrink: 0; color: var(--ie-accent); }
+    .annot-row.placed .annot-ico { color: var(--ie-gold); }
+    .annot-meta { flex: 1; min-width: 0; }
+    .annot-label {
+      font-size: 12px; color: var(--ie-text); font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .annot-target {
+      font-size: 10px; color: var(--ie-text-faint);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .annot-state {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      color: var(--ie-text-faint);
+    }
+    .annot-state.to-place {
+      background: var(--ie-accent-faint);
+      color: var(--ie-accent-dark);
+      font-weight: 600;
+    }
+    .annot-create {
+      width: 100%;
+      margin-top: 12px;
+      padding: 8px;
+      background: transparent;
+      border: 1px dashed var(--ie-border-strong);
+      border-radius: 5px;
+      color: var(--ie-text-muted);
+      font-size: 12px; font-family: inherit;
+      cursor: pointer;
+    }
+    .annot-create:hover { border-color: var(--ie-accent); color: var(--ie-accent-dark); }
+
+    /* ─── Catalogue audio (custom : 3 onglets) ─── */
+    .audio-tabs {
+      display: flex; gap: 0;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--ie-border);
+    }
+    .audio-tabs button {
+      flex: 1;
+      padding: 8px 4px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--ie-text-muted);
+      font-size: 11px; font-family: inherit;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .audio-tabs button.active {
+      color: var(--ie-accent-dark);
+      border-bottom-color: var(--ie-accent);
+      font-weight: 600;
+    }
+    .audio-context {
+      padding: 8px 10px;
+      margin-bottom: 10px;
+      background: var(--ie-surface-2);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--ie-text-muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .audio-context .layer-pill {
+      padding: 2px 6px;
+      background: var(--ie-bg);
+      border-left: 3px solid var(--ie-gold);
+      border-radius: 3px;
+      color: var(--ie-text);
+      font-weight: 600;
+      font-size: 11px;
+    }
+    .audio-context.warn {
+      background: rgba(212, 168, 76, 0.1);
+      color: var(--ie-gold);
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+    }
+    .audio-context.warn button {
+      padding: 5px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-gold);
+      border-radius: 3px;
+      color: var(--ie-gold);
+      font-size: 11px; font-family: inherit; cursor: pointer;
+    }
+    .audio-cat-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--ie-text-faint);
+      margin: 12px 0 6px;
+      display: flex; align-items: center; gap: 4px;
+    }
+    .audio-cat-title:first-child { margin-top: 0; }
+    .audio-cat-title .chevron { font-size: 10px; }
+    .audio-item {
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 8px;
+      background: var(--ie-surface-2);
+      border: 1px solid var(--ie-border);
+      border-radius: 4px;
+      margin-bottom: 4px;
+      font-size: 11px;
+    }
+    .audio-item .ico { font-size: 14px; flex-shrink: 0; }
+    .audio-item .meta { flex: 1; min-width: 0; }
+    .audio-item .name {
+      color: var(--ie-text); font-weight: 500;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .audio-item .info { color: var(--ie-text-faint); font-size: 9px; }
+    .audio-item .actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .audio-item .actions button {
+      width: 22px; height: 22px;
+      background: transparent;
+      border: 1px solid var(--ie-border);
+      border-radius: 3px;
+      color: var(--ie-text-muted); cursor: pointer;
+      font-size: 10px; font-family: inherit;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .audio-item .actions button:hover { color: var(--ie-accent-dark); border-color: var(--ie-accent); }
+    .audio-upload {
+      padding: 16px;
+      border: 2px dashed var(--ie-border-strong);
+      border-radius: 6px;
+      text-align: center;
+      color: var(--ie-text-muted);
+      font-size: 12px;
+      margin-bottom: 12px;
+      cursor: pointer;
+    }
+    .audio-upload:hover { border-color: var(--ie-accent); color: var(--ie-accent-dark); }
+    .audio-gen-form {
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .audio-gen-form textarea {
+      padding: 8px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-border);
+      border-radius: 4px;
+      color: var(--ie-text);
+      font-size: 12px; font-family: inherit;
+      resize: vertical;
+      min-height: 60px;
+    }
+    .audio-gen-form .row {
+      display: flex; gap: 6px; font-size: 11px;
+    }
+    .audio-gen-form .row label { display: flex; flex-direction: column; gap: 2px; flex: 1; color: var(--ie-text-muted); }
+    .audio-gen-form .row select, .audio-gen-form .row input {
+      padding: 4px 6px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-border);
+      border-radius: 3px;
+      color: var(--ie-text);
+      font-size: 11px; font-family: inherit;
+    }
+    .audio-gen-form .gen-btn {
+      padding: 8px;
+      background: var(--ie-accent);
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px; font-weight: 600; font-family: inherit;
+      cursor: pointer;
+    }
+
+    /* Markers visuels sur canvas */
+    .canvas-marker {
+      position: absolute;
+      width: 32px; height: 32px;
+      transform: translate(-50%, -50%);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+    }
+    .canvas-marker .pulse {
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      background: rgba(236, 72, 153, 0.3);
+      animation: pulse 2s ease-out infinite;
+    }
+    .canvas-marker .ring {
+      position: relative;
+      width: 24px; height: 24px;
+      border-radius: 50%;
+      background: var(--ie-accent);
+      border: 2px solid white;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 12px; font-weight: bold;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    }
+    .canvas-marker.conv .ring { background: var(--ie-gold); }
+    .canvas-marker.conv .pulse { background: rgba(212, 168, 76, 0.3); }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity: 0.6; }
+      100% { transform: scale(2.2); opacity: 0; }
+    }
+    .canvas-marker .tooltip {
+      position: absolute;
+      bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.85);
+      color: white;
+      border-radius: 4px;
+      font-size: 10px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 120ms;
+    }
+    .canvas-marker:hover .tooltip { opacity: 1; }
+
+    /* ─── Canvas area ─── */
+    .canvas-area {
+      flex: 1;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      background: var(--ie-bg);
+    }
+    .layer-tabs-bar {
+      display: flex; align-items: flex-end;
+      padding: 0 14px; gap: 0;
+      border-bottom: 1px solid var(--ie-border);
+      flex-shrink: 0; height: 32px;
+    }
+    .layer-tab {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px;
+      background: transparent; border: none; cursor: pointer;
+      font-family: inherit; font-size: 12px;
+      color: var(--ie-text-muted);
+      border-top: 3px solid transparent;
+      border-top-left-radius: 4px; border-top-right-radius: 4px;
+    }
+    .layer-tab.active {
+      background: var(--ie-bg);
+      color: var(--ie-text);
+      border-top-color: var(--ie-gold);
+      font-weight: 600;
+    }
+    .layer-tab .vis { color: var(--ie-text-faint); margin-left: 4px; }
+    .add-layer-btn {
+      width: 22px; height: 22px;
+      background: transparent;
+      border: 1px dashed var(--ie-border-strong);
+      border-radius: 4px;
+      color: var(--ie-text-muted); cursor: pointer;
+      margin-left: 8px; margin-bottom: 4px;
+      font-family: inherit; font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .canvas {
+      flex: 1;
+      background: #0a0a0a center/contain no-repeat;
+      background-image: url('https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=1600&h=900&fit=crop');
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .canvas .label-corner {
+      position: absolute; top: 8px; left: 8px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.5);
+      border-radius: 4px;
+      font-size: 10px; color: var(--ie-text);
+    }
+
+    /* ─── Bottom gen strip (Base only, AVANT sélection d'image) ─── */
+    .gen-strip {
+      flex-shrink: 0;
+      padding: 10px 14px;
+      background: var(--ie-surface);
+      border-top: 1px solid var(--ie-border);
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 8px;
+      font-size: 10px;
+    }
+    .gen-strip .field { display: flex; flex-direction: column; gap: 3px; }
+    .gen-strip .field label {
+      font-size: 9px; color: var(--ie-text-faint);
+      letter-spacing: 0.04em; text-transform: uppercase; font-weight: 600;
+    }
+    .gen-strip .field select, .gen-strip .field input {
+      padding: 5px 8px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-border);
+      border-radius: 4px;
+      color: var(--ie-text);
+      font-size: 11px; font-family: inherit;
+    }
+    .gen-strip-prompt {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px; align-items: end;
+    }
+
+    /* ─── Mini bandeau prompt (Base, APRÈS sélection d'image) ─── */
+    .prompt-banner {
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 8px;
+      padding: 6px 14px;
+      background: var(--ie-surface);
+      border-top: 1px solid var(--ie-border);
+      font-size: 11px;
+      color: var(--ie-text-muted);
+    }
+    .prompt-banner .label-tag {
+      padding: 1px 6px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-border);
+      border-radius: 3px;
+      font-size: 9px; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ie-text-faint);
+      flex-shrink: 0;
+    }
+    .prompt-banner .text {
+      flex: 1;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-style: italic;
+    }
+    .prompt-banner .actions { display: flex; gap: 4px; flex-shrink: 0; }
+    .prompt-banner button {
+      padding: 3px 8px;
+      background: transparent;
+      border: 1px solid var(--ie-border);
+      border-radius: 3px;
+      color: var(--ie-text-muted);
+      font-size: 11px; font-family: inherit; cursor: pointer;
+    }
+    .prompt-banner button:hover { color: var(--ie-accent-dark); border-color: var(--ie-accent); }
+
+    /* ─── Mixer audio drawer (bas, expansible) ─── */
+    .mixer-drawer {
+      flex-shrink: 0;
+      background: var(--ie-surface);
+      border-top: 1px solid var(--ie-border);
+      transition: height 200ms;
+      overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .mixer-drawer.collapsed { height: 32px; }
+    .mixer-drawer.expanded { height: 220px; }
+    .mixer-header {
+      display: flex; align-items: center; gap: 12px;
+      padding: 6px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--ie-border);
+      flex-shrink: 0;
+      height: 32px;
+    }
+    .mixer-header .title {
+      font-size: 12px; font-weight: 600; color: var(--ie-text);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .mixer-header .info {
+      font-size: 10px; color: var(--ie-text-faint);
+      flex: 1;
+    }
+    .mixer-header .toggle {
+      background: transparent; border: none;
+      color: var(--ie-text-muted); font-size: 14px; cursor: pointer;
+      font-family: inherit;
+    }
+    .mixer-body {
+      flex: 1; overflow: hidden;
+      display: flex;
+    }
+    .mixer-tracks-col {
+      width: 120px; flex-shrink: 0;
+      background: var(--ie-bg);
+      border-right: 1px solid var(--ie-border);
+      display: flex; flex-direction: column;
+      font-size: 10px;
+    }
+    .mixer-tracks-col .track-label {
+      flex: 1;
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px;
+      border-bottom: 1px solid var(--ie-border);
+      color: var(--ie-text);
+    }
+    .mixer-tracks-col .track-label .ico { font-size: 12px; }
+    .mixer-tracks-col .track-label .vol {
+      margin-left: auto; font-size: 9px; color: var(--ie-text-faint);
+    }
+    .mixer-timeline {
+      flex: 1;
+      display: flex; flex-direction: column;
+      overflow-x: auto;
+      position: relative;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          transparent 0,
+          transparent 79px,
+          var(--ie-border) 79px,
+          var(--ie-border) 80px
+        );
+    }
+    .mixer-ruler {
+      height: 18px;
+      flex-shrink: 0;
+      border-bottom: 1px solid var(--ie-border);
+      display: flex;
+      font-size: 9px; color: var(--ie-text-faint);
+      background: var(--ie-surface);
+    }
+    .mixer-ruler .tick {
+      width: 80px;
+      padding: 3px 4px;
+      border-right: 1px solid var(--ie-border);
+      box-sizing: border-box;
+    }
+    .mixer-track {
+      flex: 1;
+      position: relative;
+      border-bottom: 1px solid var(--ie-border);
+      min-height: 30px;
+    }
+    .mixer-clip {
+      position: absolute;
+      top: 4px; bottom: 4px;
+      background: var(--ie-accent-faint);
+      border: 1px solid var(--ie-accent);
+      border-radius: 3px;
+      padding: 0 6px;
+      font-size: 10px;
+      color: var(--ie-accent-dark);
+      display: flex; align-items: center;
+      cursor: grab;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .mixer-clip.gold {
+      background: rgba(212, 168, 76, 0.15);
+      border-color: var(--ie-gold);
+      color: var(--ie-gold);
+    }
+    .mixer-playhead {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--ie-accent);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .mixer-playhead::after {
+      content: '';
+      position: absolute;
+      top: 0; left: -5px;
+      border-left: 6px solid transparent;
+      border-right: 6px solid transparent;
+      border-top: 8px solid var(--ie-accent);
+    }
+
+    /* ─── Right inspector (collapsible β) ─── */
+    .inspector {
+      width: 320px;
+      background: var(--ie-surface);
+      border-left: 1px solid var(--ie-border);
+      flex-shrink: 0;
+      display: flex; flex-direction: column;
+      overflow: hidden;
+      transition: width 200ms;
+    }
+    .inspector.collapsed { width: 32px; }
+    .inspector-toggle {
+      display: flex; align-items: center; justify-content: center;
+      padding: 6px;
+      border-bottom: 1px solid var(--ie-border);
+      cursor: pointer;
+      color: var(--ie-text-muted);
+      background: transparent; border: none; border-bottom: 1px solid var(--ie-border);
+      font-family: inherit; font-size: 14px;
+    }
+    .inspector-content { flex: 1; overflow-y: auto; padding: 12px; }
+    .inspector.collapsed .inspector-content,
+    .inspector.collapsed .inspector-header { display: none; }
+    .inspector-header {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--ie-border);
+      font-size: 14px; font-weight: 600;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .inspector-section {
+      margin-bottom: 14px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--ie-border);
+    }
+    .inspector-section:last-child { border-bottom: none; }
+    .inspector-section-title {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+      text-transform: uppercase; color: var(--ie-text-faint);
+      margin-bottom: 8px;
+    }
+    .field-row {
+      display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px;
+    }
+    .field-row label { font-size: 11px; color: var(--ie-text-muted); }
+    .field-row input[type=range] { width: 100%; }
+    .field-row .value { font-size: 11px; color: var(--ie-text); float: right; }
+
+    /* ─── Demo controls (bottom-right) ─── */
+    .demo-controls {
+      position: fixed;
+      bottom: 12px; right: 12px;
+      background: rgba(0,0,0,0.85);
+      padding: 10px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--ie-border);
+      font-size: 11px;
+      z-index: 100;
+      display: flex; gap: 10px; align-items: center;
+    }
+    .demo-controls .grp { display: flex; gap: 4px; align-items: center; }
+    .demo-controls span.muted { color: var(--ie-text-muted); }
+    .demo-controls button {
+      padding: 4px 8px;
+      background: var(--ie-surface);
+      color: var(--ie-text);
+      border: 1px solid var(--ie-border);
+      border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 10px;
+    }
+    .demo-controls button.active { background: var(--ie-accent); color: white; border-color: var(--ie-accent); }
+    .demo-controls .sep { width: 1px; height: 18px; background: var(--ie-border); }
+
+    /* ─── Modal Aperçu (device picker + preview) ─── */
+    .preview-modal-backdrop {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: none;
+      align-items: center; justify-content: center;
+      z-index: 1000;
+    }
+    .preview-modal-backdrop.open { display: flex; }
+    .preview-modal {
+      background: var(--ie-surface);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 90vw; max-height: 90vh;
+      display: flex; flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .preview-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+    }
+    .preview-modal-title { font-size: 16px; font-weight: 600; color: var(--ie-text); }
+    .preview-modal-close {
+      width: 32px; height: 32px;
+      background: transparent; border: 1px solid var(--ie-border);
+      border-radius: 6px;
+      color: var(--ie-text); cursor: pointer; font-family: inherit; font-size: 14px;
+    }
+    .device-picker {
+      display: flex; gap: 6px; flex-wrap: wrap;
+    }
+    .device-picker button {
+      padding: 6px 12px;
+      background: var(--ie-bg);
+      border: 1px solid var(--ie-border);
+      border-radius: 6px;
+      color: var(--ie-text-muted);
+      font-size: 12px; font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .device-picker button.active {
+      background: var(--ie-accent-faint);
+      border-color: var(--ie-accent);
+      color: var(--ie-accent-dark);
+      font-weight: 600;
+    }
+    .device-frame {
+      background: #000;
+      border-radius: 32px;
+      padding: 12px;
+      transition: all 200ms;
+      position: relative;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    }
+    .device-frame.iphone { width: 320px; height: 692px; border-radius: 36px; }
+    .device-frame.ipad { width: 540px; height: 720px; border-radius: 24px; }
+    .device-frame.desktop { width: 800px; height: 500px; border-radius: 12px; padding: 4px; }
+    .device-screen {
+      width: 100%; height: 100%;
+      background: #0a0a0a center/cover no-repeat;
+      background-image: url('https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=1600&h=900&fit=crop');
+      border-radius: 24px;
+      overflow: hidden;
+      position: relative;
+      display: flex; align-items: flex-end;
+      padding: 16px;
+    }
+    .device-frame.desktop .device-screen { border-radius: 8px; }
+    .device-screen .player-text {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(0,0,0,0.7);
+      border-radius: 6px;
+      color: white;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .device-screen .player-choice {
+      display: inline-block;
+      margin-top: 8px;
+      padding: 4px 10px;
+      background: var(--ie-accent);
+      color: white;
+      border-radius: 16px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .preview-info {
+      font-size: 11px; color: var(--ie-text-faint);
+      text-align: center;
+    }
+
+    /* Tooltip pour rail */
+    .rail-btn[data-tooltip]:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 100%; top: 50%; transform: translateY(-50%);
+      margin-left: 8px;
+      padding: 4px 8px;
+      background: var(--ie-bg);
+      color: var(--ie-text);
+      border: 1px solid var(--ie-border);
+      border-radius: 4px;
+      font-size: 11px;
+      white-space: nowrap;
+      z-index: 1000;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <!-- Banner IA suggestion (rouge, action proactive) -->
+  <div class="ai-banner" id="aiBanner">
+    <span class="ai-banner-ico">⚠️</span>
+    <span class="ai-banner-text">L'IA suggère : la pluie est très intense, la flaque pourrait avoir des impacts trop discrets. <strong>Augmenter l'opacité de la flaque à 80% ?</strong></span>
+    <div class="ai-banner-actions">
+      <button class="ai-banner-btn primary" onclick="document.getElementById('aiBanner').style.display='none'">✓ Appliquer</button>
+      <button class="ai-banner-btn" onclick="document.getElementById('aiBanner').style.display='none'">Plus tard</button>
+      <button class="ai-banner-close" onclick="document.getElementById('aiBanner').style.display='none'" title="Ignorer">✕</button>
+    </div>
+  </div>
+
+  <!-- Top bar -->
+  <div class="top-bar">
+    <div class="breadcrumb" title="Studio Designer › Plan 1 — Tu rentres dans le bar enfumé. Le barman te fixe…">
+      <span style="color: var(--ie-text-faint); font-size: 11px; margin-right: 6px;">Studio Designer ›</span>
+      Plan 1 — Tu rentres dans le bar enfumé. Le barman te fixe…
+    </div>
+
+    <!-- IA command bar (centre) -->
+    <div class="ai-bar-wrapper">
+      <div class="ai-bar">
+        <div class="ai-input" id="aiInput" tabindex="0">
+          <span class="wand">✨</span>
+          <input type="text" placeholder="Demande à l'IA d'éditer ce plan… (ex : pluie battante, ajoute un PNJ)" id="aiInputField" />
+          <span class="kbd">Ctrl K</span>
+        </div>
+        <div class="ai-dropdown" id="aiDropdown">
+          <div class="ai-dropdown-section">
+            <div class="ai-dropdown-title">Suggestions pour ce plan</div>
+            <div class="ai-suggestion"><span class="ico">🌧</span> Mets de la pluie battante sur la scène</div>
+            <div class="ai-suggestion"><span class="ico">🪟</span> Ajoute un effet vitre sur les fenêtres</div>
+            <div class="ai-suggestion"><span class="ico">🌙</span> Rends l'ambiance plus sombre / nocturne</div>
+            <div class="ai-suggestion"><span class="ico">👤</span> Place Travis devant le canapé</div>
+            <div class="ai-suggestion"><span class="ico">✨</span> Génère une variation plus colorée</div>
+          </div>
+          <div class="ai-dropdown-section">
+            <div class="ai-dropdown-title">Conversation récente</div>
+            <div class="ai-history">
+              <div class="ai-suggestion"><span class="ico">↩</span> "Mets une vitre dépolie sur la baie"</div>
+              <div class="ai-suggestion"><span class="ico">↩</span> "Rajoute des plantes près de la fenêtre"</div>
+              <div class="ai-suggestion"><span class="ico">↩</span> "Découpe le canapé"</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="top-actions" style="flex-shrink: 0;">
+      <div class="undo-redo">
+        <button title="Annuler">↶</button>
+        <button title="Refaire">↷</button>
+      </div>
+      <button class="icon-btn-tb" title="Modifier la base (prompt, style, génération)" onclick="alert('Ouverture du panneau de génération de la base : prompt, style, format, modèles, [Générer]. Idem rail ✨.')" style="width: auto; padding: 0 10px; font-size: 11px; gap: 6px;">
+        🖼 Base
+      </button>
+      <button class="icon-btn-tb" title="Aperçu sur device" onclick="openPreviewModal()" style="width: auto; padding: 0 10px; font-size: 11px; gap: 6px;">
+        ▶ Aperçu
+      </button>
+      <!-- Crédits / plan (popover au clic) -->
+      <div style="position: relative;">
+        <button class="credits-btn low" onclick="toggleCredits()" title="Plan & crédits">
+          <span style="font-size: 13px;">💎</span>
+          <span>142</span>
+          <span style="font-size: 9px; color: var(--ie-text-faint); font-weight: 400;">crédits</span>
+        </button>
+        <div class="credits-popover" id="creditsPopover">
+          <div class="credits-popover-header">
+            <div class="plan">Plan Créateur Pro</div>
+            <div class="balance">142 <span class="unit">crédits restants</span></div>
+          </div>
+          <div class="credits-popover-section">
+            <div class="title">Utilisation ce mois</div>
+            <div class="credits-row">
+              <span>Images générées</span>
+              <span class="right">38 / 100</span>
+            </div>
+            <div class="credits-bar"><div class="fill" style="width: 38%;"></div></div>
+            <div class="credits-row">
+              <span>Sons générés (IA)</span>
+              <span class="right">12 / 50</span>
+            </div>
+            <div class="credits-bar"><div class="fill" style="width: 24%;"></div></div>
+            <div class="credits-row">
+              <span>Vidéos Wan</span>
+              <span class="right">6 / 20</span>
+            </div>
+            <div class="credits-bar"><div class="fill warn" style="width: 30%;"></div></div>
+            <div class="credits-row" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--ie-border);">
+              <span style="color: var(--ie-text-muted); font-size: 11px;">Renouvellement</span>
+              <span class="right" style="font-size: 11px;">dans 14 jours</span>
+            </div>
+          </div>
+          <div class="credits-popover-section">
+            <div class="title">Plan actuel</div>
+            <div style="font-size: 12px; color: var(--ie-text);">Créateur Pro · 19€/mois</div>
+            <div style="font-size: 11px; color: var(--ie-text-muted); margin-top: 4px;">100 images · 50 sons · 20 vidéos / mois</div>
+          </div>
+          <div class="credits-popover-actions">
+            <button class="secondary" onclick="alert('Acheter pack 50 crédits supplémentaires : 9€')">+ Crédits</button>
+            <button onclick="alert('Upgrade vers Studio Pro : 200 images / 100 sons / 50 vidéos pour 49€/mois')">⬆ Upgrade</button>
+          </div>
+        </div>
+      </div>
+      <button class="icon-btn-tb" title="Mode clair">☀</button>
+      <!-- Sauvegarde implicite (autosave). Bouton retour contextuel selon
+           d'où le Designer a été ouvert. -->
+      <button class="top-btn" title="Sauvegarde auto. Retour à la section dans le Creator." style="background: var(--ie-bg); color: var(--ie-text); border: 1px solid var(--ie-border-strong); font-weight: 500;">
+        ← Retour à la section §3
+      </button>
+    </div>
+  </div>
+
+  <!-- Layout principal -->
+  <div class="main">
+    <!-- Rail gauche (catégories) — Studio Designer uniquement.
+         Studio Creator + Réglages projet vivent dans le Creator (qui appelle
+         le Designer pour éditer un visuel). -->
+    <div class="left-rail">
+      <button class="rail-btn" data-cat="banks" data-tooltip="Banques (images, NPCs, objets…)">🖼</button>
+      <button class="rail-btn" data-cat="generate" data-tooltip="Génération AI (image, vidéo, son…)">✨</button>
+      <button class="rail-btn" data-cat="effects" data-tooltip="Effets visuels (atmosphère, particles…)">🌧</button>
+      <button class="rail-btn" data-cat="animations" data-tooltip="Animations (Lottie, GSAP, transitions)">🎬</button>
+      <div class="rail-divider"></div>
+      <button class="rail-btn" data-cat="edit" data-tooltip="Édition (découpe, filtres)">✂</button>
+      <button class="rail-btn" data-cat="annotations" data-tooltip="Annotations narratives (choix, dialogues)">📝</button>
+      <button class="rail-btn" data-cat="audio" data-tooltip="Sons & musiques">🔊</button>
+    </div>
+
+    <!-- Catalogue (s'ouvre quand un rail item est actif) -->
+    <div class="catalog hidden" id="catalog">
+      <div class="catalog-header">
+        <div class="catalog-title" id="catalogTitle">Banques</div>
+        <button class="catalog-close" onclick="closeCatalog()">✕</button>
+      </div>
+      <div class="catalog-search">
+        <input type="text" placeholder="Rechercher…" />
+      </div>
+      <div class="catalog-body" id="catalogBody">
+        <!-- Contenu injecté en JS selon catégorie -->
+      </div>
+    </div>
+
+    <!-- Canvas area -->
+    <div class="canvas-area">
+      <div class="layer-tabs-bar">
+        <button class="layer-tab active" id="tab-base">🖼 Base <span class="vis" title="Visible">👁</span> <span class="vis" title="Verrouillé : aucune modif possible">🔓</span></button>
+        <button class="layer-tab" id="tab-rain">🌧 Pluie forte <span class="vis" title="Visible">👁</span> <span class="vis" title="Verrouillé">🔒</span></button>
+        <button class="add-layer-btn">+</button>
+      </div>
+      <div class="canvas" id="canvas">
+        <div class="label-corner" id="canvasLabel">Vue Base — image plein écran</div>
+        <!-- Markers d'annotations placées (injectés en JS) -->
+      </div>
+      <!-- Bottom gen strip (Base only, AVANT sélection d'image) -->
+      <div class="gen-strip" id="genStrip" style="display: none;">
+        <div class="field"><label>Style</label><select><option>Réaliste</option></select></div>
+        <div class="field"><label>Format</label><select><option>16:9 Cinéma</option></select></div>
+        <div class="field"><label>Cadrage</label><select><option>— Défaut —</option></select></div>
+        <div class="field"><label>Angle</label><select><option>— Défaut —</option></select></div>
+        <div class="field"><label>Type</label><select><option>Plan standard</option></select></div>
+        <div class="field"><label>Modèles</label><select><option>Juggernaut</option></select></div>
+        <div class="gen-strip-prompt">
+          <div class="field"><label>Prompt</label><input value="(modern living room interior:1.2), large floor-to-ceiling glass bay window…" /></div>
+          <button class="top-btn" style="background:#6366F1; height: 28px;">✨ Générer (1)</button>
+        </div>
+      </div>
+
+      <!-- Mixer audio drawer (en bas, expansible) -->
+      <div class="mixer-drawer collapsed" id="mixerDrawer">
+        <div class="mixer-header" onclick="toggleMixer()">
+          <div class="title">🎚 Mixer audio</div>
+          <div class="info">3 sons placés · Animation Wan video 5.2s</div>
+          <button class="toggle" id="mixerToggle">⌃</button>
+        </div>
+        <div class="mixer-body">
+          <div class="mixer-tracks-col">
+            <div class="track-label"><span class="ico">🌧</span><span>Ambiance</span><span class="vol">80%</span></div>
+            <div class="track-label"><span class="ico">🚪</span><span>Effets</span><span class="vol">100%</span></div>
+            <div class="track-label"><span class="ico">🎻</span><span>Musique</span><span class="vol">60%</span></div>
+          </div>
+          <div class="mixer-timeline">
+            <div class="mixer-ruler">
+              <div class="tick">0s</div>
+              <div class="tick">1s</div>
+              <div class="tick">2s</div>
+              <div class="tick">3s</div>
+              <div class="tick">4s</div>
+              <div class="tick">5s</div>
+              <div class="tick">6s</div>
+              <div class="tick">7s</div>
+              <div class="tick">8s</div>
+              <div class="tick">9s</div>
+            </div>
+            <div class="mixer-track">
+              <div class="mixer-clip" style="left: 0; width: 720px;">🌧 Pluie loop · 0-9s</div>
+            </div>
+            <div class="mixer-track">
+              <div class="mixer-clip gold" style="left: 80px; width: 60px;">🚪 Porte 1.0s</div>
+              <div class="mixer-clip gold" style="left: 320px; width: 50px;">⚡ Tonnerre 4.0s</div>
+            </div>
+            <div class="mixer-track">
+              <div class="mixer-clip" style="left: 0; width: 480px;">🎻 Tension intro · 0-6s</div>
+            </div>
+            <div class="mixer-playhead" style="left: 200px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Inspector droite (collapsible) -->
+    <div class="inspector" id="inspector">
+      <button class="inspector-toggle" onclick="toggleInspector()" id="inspectorToggle" title="Replier">▶</button>
+      <div class="inspector-header" id="inspectorHeader">⚙ Sélectionne un calque</div>
+      <div class="inspector-content" id="inspectorContent">
+        <div style="color: var(--ie-text-muted); font-size: 12px; line-height: 1.6;">
+          Sélectionne un calque (Pluie forte par exemple) pour voir ses paramètres ici.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Aperçu device -->
+  <div class="preview-modal-backdrop" id="previewModal" onclick="if(event.target.id==='previewModal') closePreviewModal()">
+    <div class="preview-modal">
+      <div class="preview-modal-header">
+        <div>
+          <div class="preview-modal-title">Aperçu — Plan 1</div>
+          <div style="font-size: 11px; color: var(--ie-text-faint); margin-top: 4px;">Comment le lecteur verra ce plan sur son device</div>
+        </div>
+        <div class="device-picker">
+          <button data-device="iphone" class="active" onclick="setDevice('iphone')">📱 iPhone</button>
+          <button data-device="ipad" onclick="setDevice('ipad')">📱 iPad</button>
+          <button data-device="desktop" onclick="setDevice('desktop')">🖥 Desktop</button>
+        </div>
+        <button class="preview-modal-close" onclick="closePreviewModal()">✕</button>
+      </div>
+      <div style="display: flex; justify-content: center;">
+        <div class="device-frame iphone" id="deviceFrame">
+          <div class="device-screen">
+            <div class="player-text">
+              Tu rentres dans le bar enfumé. Le barman te fixe. Au fond de la salle, une silhouette familière se découpe dans la pénombre…
+              <br><br>
+              <span class="player-choice">▶ Aller voir Travis</span>
+              &nbsp;
+              <span class="player-choice">▶ Sortir par derrière</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="preview-info">
+        Animations Wan, sons et choix interactifs jouent comme en lecture finale. Esc pour fermer.
+      </div>
+    </div>
+  </div>
+
+  <!-- Demo controls -->
+  <div class="demo-controls">
+    <div class="grp">
+      <span class="muted">🎨 Thème :</span>
+      <button class="theme-btn active" data-theme="actuel" onclick="setTheme('actuel')">Designer actuel (dark)</button>
+      <button class="theme-btn" data-theme="actuel-light" onclick="setTheme('actuel-light')">Designer actuel (light)</button>
+      <button class="theme-btn" data-theme="minimal" onclick="setTheme('minimal')">Sombre minimaliste</button>
+      <button class="theme-btn" data-theme="glass" onclick="setTheme('glass')">Glassmorphism rose</button>
+      <button class="theme-btn" data-theme="light" onclick="setTheme('light')">Clair créatif</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp">
+      <span class="muted">Calque :</span>
+      <button id="btn-view-base" class="active">Base</button>
+      <button id="btn-view-layer">Pluie</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp">
+      <span class="muted">État Base :</span>
+      <button onclick="setBaseState('genmode')">Sans image (gen)</button>
+      <button onclick="setBaseState('edited')">Avec image</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp">
+      <span class="muted">Catalogue :</span>
+      <button onclick="openCatalog('effects')">Effets</button>
+      <button onclick="openCatalog('annotations')">📝 Annotations</button>
+      <button onclick="closeCatalog()">Fermer</button>
+    </div>
+    <div class="sep"></div>
+    <div class="grp">
+      <span class="muted">Mixer :</span>
+      <button onclick="toggleMixer()">Toggle</button>
+    </div>
+  </div>
+
+  <script>
+    // ─── State ───
+    const tabBase = document.getElementById('tab-base')
+    const tabRain = document.getElementById('tab-rain')
+    const inspectorContent = document.getElementById('inspectorContent')
+    const inspectorHeader = document.getElementById('inspectorHeader')
+    const genStrip = document.getElementById('genStrip')
+    const canvasLabel = document.getElementById('canvasLabel')
+    const btnBase = document.getElementById('btn-view-base')
+    const btnLayer = document.getElementById('btn-view-layer')
+    const catalog = document.getElementById('catalog')
+    const catalogTitle = document.getElementById('catalogTitle')
+    const catalogBody = document.getElementById('catalogBody')
+    const inspector = document.getElementById('inspector')
+    const inspectorToggle = document.getElementById('inspectorToggle')
+
+    // ─── Catalog data (mock) ───
+    const CATALOGS = {
+      banks: {
+        title: '🖼 Banques',
+        sections: [
+          { title: 'Images générées', items: ['🏞 Forêt', '🌃 Bar enfumé', '🏰 Château', '🚀 Vaisseau'] },
+          { title: 'NPCs génériques', items: ['👮 Garde', '🧙 Sorcier', '🦹 Voleur', '👸 Reine'] },
+          { title: 'Objets', items: ['⚔ Épée', '🛡 Bouclier', '🧪 Potion', '📜 Parchemin'] },
+        ]
+      },
+      generate: {
+        title: '✨ Génération AI',
+        sections: [
+          { title: 'Image', items: ['📷 Nouvelle image', '🎭 Variation', '🪄 Inpaint', '🧹 Erase'] },
+          { title: 'Avancé', items: ['🌐 Pano 360°', '🎬 Vidéo Wan', '👄 LipSync', '🗣 TTS voix'] },
+        ]
+      },
+      effects: {
+        title: '🌧 Effets visuels',
+        sections: [
+          { title: 'Atmosphère', items: ['🌧 Pluie', '❄ Neige', '🌫 Brouillard', '☁ Nuages', '⚡ Éclair'] },
+          { title: 'Surfaces', items: ['💧 Vitre rainyday', '🌊 Eau', '🔥 Feu', '✨ Étincelles'] },
+          { title: 'Filtres', items: ['🌀 Flou', '🌈 Hue', '🎬 Glitch', '🎞 Vignette'] },
+        ]
+      },
+      animations: {
+        title: '🎬 Animations',
+        sections: [
+          { title: 'Vectorielles (Lottie)', items: ['⭐ Sparkle', '🔥 Feu', '🔮 Magie', '⬆ Level up'] },
+          { title: 'Timelines (GSAP)', items: ['🎭 Rideau', '⚔ Combat hit', '📝 Reveal texte', '🃏 Cards stagger'] },
+          { title: 'Parallax', items: ['🎴 Tilt 3D', '🖼 Multi-couches'] },
+        ]
+      },
+      edit: {
+        title: '✂ Édition',
+        sections: [
+          { title: 'Découpe', items: ['🪄 SAM auto', '🖌 Pinceau manuel', '◻ Rectangle'] },
+          { title: 'Retouche', items: ['🖼 Crop', '↔ Resize', '🧱 Bake calques'] },
+        ]
+      },
+      annotations: {
+        title: '📝 Annotations',
+        // Custom rendu : ce catalogue n'utilise pas la grille standard mais une
+        // liste verticale avec état (à placer / placé) + bouton de création rapide.
+        custom: 'annotations',
+      },
+      audio: {
+        title: '🔊 Sons & musiques',
+        // Custom : 3 onglets (Banque / Mes sons / Générer IA)
+        custom: 'audio',
+      }
+    }
+
+    const mixerDrawer = document.getElementById('mixerDrawer')
+    const mixerToggle = document.getElementById('mixerToggle')
+
+    // ─── Theme switcher ───
+    function setTheme(name) {
+      document.body.classList.remove('theme-actuel', 'theme-actuel-light', 'theme-minimal', 'theme-glass', 'theme-light')
+      document.body.classList.add('theme-' + name)
+      document.querySelectorAll('.theme-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.theme === name)
+      })
+      // Glass theme : ajouter backdrop-filter pour l'effet vrai glassmorphism
+      const isGlass = name === 'glass'
+      document.body.style.background = isGlass
+        ? 'linear-gradient(135deg, #1a0d1f 0%, #2d1b4e 50%, #0f0f23 100%)'
+        : ''
+      // Appliquer l'effet glass aux panneaux principaux
+      document.querySelectorAll('.left-rail, .catalog, .inspector, .top-bar, .mixer-drawer').forEach(el => {
+        el.style.backdropFilter = isGlass ? 'blur(20px) saturate(180%)' : ''
+      })
+    }
+    setTheme('actuel')
+
+    function toggleCredits() {
+      document.getElementById('creditsPopover').classList.toggle('open')
+    }
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.credits-btn') && !e.target.closest('.credits-popover')) {
+        document.getElementById('creditsPopover')?.classList.remove('open')
+      }
+    })
+
+    // Modal Aperçu
+    function openPreviewModal() { document.getElementById('previewModal').classList.add('open') }
+    function closePreviewModal() { document.getElementById('previewModal').classList.remove('open') }
+    function setDevice(device) {
+      const frame = document.getElementById('deviceFrame')
+      frame.className = 'device-frame ' + device
+      document.querySelectorAll('.device-picker button').forEach(b => {
+        b.classList.toggle('active', b.dataset.device === device)
+      })
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closePreviewModal()
+    })
+
+    function toggleMixer() {
+      const isCollapsed = mixerDrawer.classList.contains('collapsed')
+      mixerDrawer.classList.toggle('collapsed', !isCollapsed)
+      mixerDrawer.classList.toggle('expanded', isCollapsed)
+      mixerToggle.textContent = isCollapsed ? '⌄' : '⌃'
+    }
+
+    // Toggle entre les 2 états de Base : sans image (gen mode) vs avec image (édition)
+    function setBaseState(state) {
+      if (state === 'genmode') {
+        genStrip.style.display = 'grid'
+        canvasLabel.textContent = 'Vue Base — état initial : gen strip visible pour générer la première image'
+      } else {
+        genStrip.style.display = 'none'
+        canvasLabel.textContent = 'Vue Base — image sélectionnée, espace canvas libéré'
+      }
+    }
+
+    // ─── View modes ───
+    function showBase() {
+      tabBase.classList.add('active'); tabRain.classList.remove('active')
+      // Le gen strip apparait UNIQUEMENT si l'image n'est pas encore sélectionnée.
+      // Par défaut on suppose qu'elle l'est → gen strip masqué.
+      genStrip.style.display = 'none'
+      canvasLabel.textContent = 'Vue Base — image plein écran (gen strip masqué après sélection)'
+      inspectorHeader.innerHTML = '⚙ Pas de calque sélectionné'
+      inspectorContent.innerHTML = '<div style="color: var(--ie-text-muted); font-size: 12px; line-height: 1.6;">La <strong>Base</strong> est le calque image. Pour modifier la base (prompt, style, régénérer) : bouton <strong>🖼 Base</strong> en haut-droite OU rail <strong>✨ Génération</strong>.</div>'
+      btnBase.classList.add('active'); btnLayer.classList.remove('active')
+    }
+    function showLayer() {
+      tabBase.classList.remove('active'); tabRain.classList.add('active')
+      genStrip.style.display = 'none'
+      inspectorHeader.innerHTML = '🌧 Pluie forte'
+      inspectorContent.innerHTML = `
+        <div class="inspector-section">
+          <div class="inspector-section-title">Paramètres pluie</div>
+          <div class="field-row"><label>Densité <span class="value">200</span></label><input type="range" value="200" min="0" max="500" /></div>
+          <div class="field-row"><label>Vitesse <span class="value">1.0×</span></label><input type="range" value="50" /></div>
+          <div class="field-row"><label>Angle <span class="value">15°</span></label><input type="range" value="60" /></div>
+          <div class="field-row"><label>Opacité de la pluie <span class="value">85%</span></label><input type="range" value="85" /></div>
+        </div>
+        <div class="inspector-section">
+          <div class="inspector-section-title">Zones d'impact</div>
+          <div style="font-size: 12px; color: var(--ie-text-muted); margin-bottom: 8px;">2 zones définies (drag pour réordonner)</div>
+          <div style="padding: 8px; background: var(--ie-bg); border-radius: 4px; border-left: 3px solid #F59E0B; margin-bottom: 6px; font-size: 12px;">💧 Eau / flaque</div>
+          <div style="padding: 8px; background: var(--ie-bg); border-radius: 4px; border-left: 3px solid var(--ie-border); font-size: 12px;">🪟 Vitre</div>
+          <button style="margin-top: 8px; padding: 6px; background: transparent; border: 1px dashed var(--ie-border-strong); border-radius: 4px; color: var(--ie-text-muted); width: 100%; cursor: pointer; font-family: inherit; font-size: 12px;">+ Ajouter une zone</button>
+        </div>
+      `
+      btnBase.classList.remove('active'); btnLayer.classList.add('active')
+    }
+    btnBase.onclick = showBase
+    btnLayer.onclick = showLayer
+    tabBase.onclick = showBase
+    tabRain.onclick = showLayer
+
+    // ─── Catalogue ───
+    // ─── Annotations data (mock — vient de Studio Creator dans la vraie app) ───
+    const ANNOTATIONS = {
+      toPlace: [
+        { id: 'c3', type: 'choix', icon: '▶', label: 'Examiner le bar', target: '§3' },
+        { id: 'conv2', type: 'conv', icon: '💬', label: 'Barman (commander)', target: 'NPC Barman' },
+      ],
+      placed: [
+        { id: 'c1', type: 'choix', icon: '▶', label: 'Aller voir Travis', target: '§7', position: { x: 60, y: 55 } },
+        { id: 'c2', type: 'choix', icon: '▶', label: 'Sortir par derrière', target: '§12', position: { x: 25, y: 70 } },
+        { id: 'conv1', type: 'conv', icon: '💬', label: 'Travis (interroger)', target: 'NPC Travis', position: { x: 70, y: 60 } },
+      ]
+    }
+
+    function renderCatalog(catKey) {
+      const data = CATALOGS[catKey]
+      if (!data) return
+      catalogTitle.textContent = data.title
+
+      // Rendu custom pour annotations
+      if (data.custom === 'annotations') {
+        catalogBody.innerHTML = renderAnnotationsCatalog()
+        return
+      }
+
+      catalogBody.innerHTML = data.sections.map(s => `
+        <div class="catalog-section">
+          <div class="catalog-section-title">${s.title}</div>
+          <div class="catalog-grid">
+            ${s.items.map(it => {
+              const parts = it.split(' ')
+              return `<button class="catalog-item"><span class="ico">${parts[0]}</span><span class="label">${parts.slice(1).join(' ')}</span></button>`
+            }).join('')}
+          </div>
+        </div>
+      `).join('')
+    }
+
+    function renderAnnotationsCatalog() {
+      const renderItem = (it, isPlaced) => `
+        <div class="annot-row${isPlaced ? ' placed' : ''}" onclick="onAnnotClick('${it.id}', ${isPlaced})">
+          <span class="annot-ico">${it.icon}</span>
+          <div class="annot-meta">
+            <div class="annot-label">${it.label}</div>
+            <div class="annot-target">${it.target}</div>
+          </div>
+          ${isPlaced
+            ? '<span class="annot-state" title="Cliquer pour aller voir">✓ <span style="font-size:9px;">↗</span></span>'
+            : '<span class="annot-state to-place">À placer</span>'}
+        </div>
+      `
+      return `
+        <div class="catalog-section">
+          <div class="catalog-section-title">À placer (${ANNOTATIONS.toPlace.length})</div>
+          <div class="annot-list">
+            ${ANNOTATIONS.toPlace.map(it => renderItem(it, false)).join('')}
+          </div>
+        </div>
+        <div class="catalog-section">
+          <div class="catalog-section-title">Placés (${ANNOTATIONS.placed.length}) — clic = aller voir</div>
+          <div class="annot-list">
+            ${ANNOTATIONS.placed.map(it => renderItem(it, true)).join('')}
+          </div>
+        </div>
+        <button class="annot-create" onclick="alert('Mini-form inline pour créer un choix sans quitter le Designer.\\nSync avec Studio Creator côté data.')">
+          + Créer un choix / conversation rapidement
+        </button>
+        <div style="margin-top: 10px; font-size: 11px; color: var(--ie-text-faint); line-height: 1.5;">
+          Les choix et conversations sont créés dans Studio Creator. Le Designer ne fait que <strong>placer leur représentation visuelle</strong> sur l'image.
+        </div>
+      `
+    }
+
+    function onAnnotClick(id, isPlaced) {
+      if (isPlaced) {
+        alert('→ Navigation vers la position du marker dans le canvas (zoom + highlight bref)')
+      } else {
+        alert('→ Curseur en mode placement. Click sur le canvas pour poser le marker.')
+      }
+    }
+    function openCatalog(catKey) {
+      catalog.classList.remove('hidden')
+      document.querySelectorAll('.rail-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.cat === catKey)
+      })
+      renderCatalog(catKey)
+    }
+    function closeCatalog() {
+      catalog.classList.add('hidden')
+      document.querySelectorAll('.rail-btn').forEach(b => b.classList.remove('active'))
+    }
+    document.querySelectorAll('.rail-btn').forEach(btn => {
+      btn.onclick = () => {
+        const cat = btn.dataset.cat
+        if (btn.classList.contains('active')) closeCatalog()
+        else openCatalog(cat)
+      }
+    })
+
+    // ─── Inspecteur (collapsible β) ───
+    function toggleInspector() {
+      inspector.classList.toggle('collapsed')
+      inspectorToggle.textContent = inspector.classList.contains('collapsed') ? '◀' : '▶'
+    }
+
+    // ─── Inject markers visuels sur le canvas ───
+    function injectMarkers() {
+      const canvas = document.getElementById('canvas')
+      // Retire les markers existants (re-render)
+      canvas.querySelectorAll('.canvas-marker').forEach(m => m.remove())
+      ANNOTATIONS.placed.forEach(it => {
+        if (!it.position) return
+        const m = document.createElement('div')
+        m.className = `canvas-marker ${it.type === 'conv' ? 'conv' : ''}`
+        m.style.left = `${it.position.x}%`
+        m.style.top = `${it.position.y}%`
+        m.innerHTML = `
+          <div class="pulse"></div>
+          <div class="ring">${it.icon}</div>
+          <div class="tooltip">${it.label} → ${it.target}</div>
+        `
+        m.title = `${it.label} → ${it.target}`
+        canvas.appendChild(m)
+      })
+    }
+    injectMarkers()
+
+    // ─── IA command bar ───
+    const aiInput = document.getElementById('aiInput')
+    const aiInputField = document.getElementById('aiInputField')
+    const aiDropdown = document.getElementById('aiDropdown')
+    aiInputField.addEventListener('focus', () => aiDropdown.classList.add('open'))
+    aiInputField.addEventListener('blur', () => setTimeout(() => aiDropdown.classList.remove('open'), 150))
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault()
+        aiInputField.focus()
+      }
+    })
+
+    // Init : Base view
+    showBase()
+  </script>
+</body>
+</html>

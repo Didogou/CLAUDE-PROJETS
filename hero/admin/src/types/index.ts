@@ -154,6 +154,27 @@ export interface TextSequenceItem {
   text: string
 }
 
+/** Tags d'un plan — auto-dérivés du data model par défaut, éditables par l'auteur.
+ *  Voir `project_plan_tags_strategy.md` pour la stratégie hybride.
+ *  V1 : `objects` peut être vide tant que Florence-2/Qwen VL n'a pas tourné. */
+export interface PlanTags {
+  /** Type du plan, miroir de SectionImage.kind. Auto. */
+  kind?: 'image' | 'animation'
+  /** IDs des sections où ce plan apparaît (parent + transitions où réutilisé). Auto. */
+  sections?: string[]
+  /** ID Location de la section parente. Auto. */
+  location?: string | null
+  /** IDs/noms des personnages détectés ou assignés au plan. Auto si calques perso, sinon Qwen VL. */
+  characters?: string[]
+  /** Effets posés sur le plan (`pluie`, `brouillard`, etc.). Auto via plan.layers. */
+  effects?: string[]
+  /** Objets identifiés dans l'image (Florence-2/Qwen VL). Souvent vide V1. */
+  objects?: string[]
+  /** Champs taggés manuellement par l'auteur — ne pas écraser au re-tagging auto.
+   *  Format : ['characters', 'objects', ...] = catégories où l'auteur a fait des modifs */
+  manual_overrides?: Array<keyof Omit<PlanTags, 'manual_overrides'>>
+}
+
 export interface SectionImage {
   url?: string
   description?: string
@@ -163,6 +184,22 @@ export interface SectionImage {
   thought?: string                  // legacy — fallback si text_sequence absent
   text_sequence?: TextSequenceItem[] // narratif + pensées alternés
   bubble_positions?: Record<string, { x: number; y: number }> // speaker → position % sur l'image
+
+  // ── Plan kind & animation (décision 2026-05-03, cf project_plan_kind_data_model.md) ──
+  /** Type du plan. `'image'` (défaut, rétro-compat : si absent → image) ou `'animation'` (vidéo LTX/Wan).
+   *  Drive l'UX (bouton "Animer la scène" masqué si 'animation') et le runtime (compositing video vs img). */
+  kind?: 'image' | 'animation'
+  /** URL Supabase du MP4 — UNIQUEMENT si kind='animation'. La base joue 1× puis fige sur dernière frame. */
+  base_video_url?: string
+  /** URL Supabase de la 1ère frame du MP4 (capturée à la gen) — UNIQUEMENT si kind='animation'.
+   *  Utilisée par la banque (mini-galerie vignette) et la modale "Image début" lors de la copie. */
+  first_frame_url?: string
+  /** URL Supabase de la dernière frame du MP4 (capturée à la gen) — UNIQUEMENT si kind='animation'.
+   *  Utilisée par la banque (mini-galerie vignette) et la modale "Image fin" lors de la copie. */
+  last_frame_url?: string
+  /** Tags du plan (auto + manuel). Voir PlanTags. Indispensable pour la banque (recherche, filtre, ordre). */
+  tags?: PlanTags
+
   // ComfyUI generation settings
   comfyui_settings?: {
     negative?: string
@@ -177,6 +214,25 @@ export interface SectionImage {
     seed?: number
     checkpoint?: string
     aspect_ratio?: string
+  }
+  /** Override des prefs de rendu par plan — fallback sur les prefs globales (simPrefs) si undefined.
+   *  Source unique consommée par : simulateur, mini-tel preview, timeline, transitions.
+   *  Toutes optionnelles ; champs vides = utilise le défaut global. */
+  plan_prefs?: {
+    wpm?: 120 | 180 | 240
+    word_interval_ms?: 120 | 200 | 280 | 400
+    caption_style?: 1 | 2 | 3
+    text_font_size?: 13 | 15 | 17 | 19
+    thought_style?: 1 | 2 | 3
+    /** Pause (ms) entre 2 phrases atomiques. Défaut 4000. */
+    phrase_gap_ms?: number
+  }
+  /** Mots à colorier en rouge sur ce plan, en plus des PNJ + lieux auto (additif). */
+  red_words?: string[]
+  /** [LEGACY] ancien nom de plan_prefs — gardé pour compat lecture seule, ne plus écrire. */
+  reading_settings?: {
+    wpm?: 120 | 180 | 240
+    word_interval_ms?: 120 | 200 | 280 | 400
   }
 }
 
@@ -576,7 +632,10 @@ export interface Npc {
   voice_prompt?: string       // directive de jeu d'acteur ex: "tense, breathless"
   image_url?: string          // portrait généré par IA
   background_image_url?: string      // fond de la fiche personnage (jeu)
-  portrait_url?: string              // illustration buste (protagoniste)
+  portrait_url?: string              // illustration buste fond gris (référence IPAdapter + fiche compacte)
+  portrait_scenic_url?: string       // portrait avec décor (carte joueur immersive) — migration 071
+  fullbody_gray_url?: string         // plein-pied fond gris (réf forte + fiche complète) — migration 071
+  fullbody_scenic_url?: string       // plein-pied avec décor (image directe pour un plan) — migration 071
   character_illustrations?: string[] // 3 illustrations corps entier côte à côte
   name_image_url?: string            // image du nom stylisé (logo/graffiti)
   name_image_settings?: Record<string, unknown>

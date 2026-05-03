@@ -1,0 +1,465 @@
+/**
+ * Design tokens scopés au ImageEditor.
+ *
+ * Cette feuille définit une palette light + dark indépendante du thème global
+ * de l'admin (qui reste dark avec accent or). L'éditeur vit dans son propre
+ * espace visuel "SaaS moderne grand public" pour préparer l'extraction future
+ * en outil autonome vendu par abonnement.
+ *
+ * Les vars sont scopées au sélecteur `.image-editor-root[data-theme]` pour
+ * éviter toute fuite dans l'UI admin.
+ *
+ * Fonts : Inter (Google Fonts, déjà utilisée par l'admin en fallback)
+ * Icons : lucide-react (importées à la demande dans les composants)
+ * Animations : framer-motion (transitions expressives, springs doux)
+ */
+
+/* ── Bloque le scroll du body quand l'éditeur plein écran est ouvert ──────
+ * Sans ça, le body (qui contient la page admin de fond) garde sa hauteur
+ * réelle et affiche une scrollbar inutile même si l'éditeur en fixed:inset:0
+ * couvre tout visuellement.
+ */
+html:has(.image-editor-root),
+body:has(.image-editor-root) {
+  overflow: hidden !important;
+}
+
+/* ── Masquage des overlays de l'admin quand l'éditeur est ouvert ──────────
+ * Le SystemServicesWidget (fichier src/components/SystemServicesWidget.tsx)
+ * est monté globalement via layout.tsx et se pose en `position: fixed;
+ * bottom: 16px; right: 16px; z-index: 2500`. Il masque notre bouton Générer.
+ * On utilise `:has()` pour détecter quand l'éditeur est ouvert et on cache
+ * ce widget dans ce cas uniquement. Rien n'est touché quand l'éditeur est
+ * fermé — le widget reste pleinement utilisable dans le reste de l'admin.
+ */
+:root:has(.image-editor-root) button[title*="services actifs"] {
+  display: none !important;
+}
+:root:has(.image-editor-root) div[style*="z-index: 2500"][style*="position: fixed"][style*="bottom: 16px"] {
+  display: none !important;
+}
+
+/* ── Teinte de sidebar selon le calque actif ──────────────────────────────
+ * Quand l'utilisateur édite le calque Base, la sidebar garde sa teinte neutre.
+ * Quand il passe sur un calque additionnel, la sidebar prend une teinte indigo
+ * douce pour signaler qu'on n'est plus sur la fondation mais sur un overlay.
+ * Sélecteurs directs (au lieu de CSS vars) pour fiabilité maximale.
+ */
+.image-editor-root[data-active-layer="layer"][data-theme="light"] .ie-sidebar-left {
+  background: rgba(129, 140, 248, 0.10) !important;   /* indigo doux sur fond clair */
+}
+.image-editor-root[data-active-layer="layer"][data-theme="dark"] .ie-sidebar-left {
+  background: rgba(129, 140, 248, 0.14) !important;
+}
+/* Petite barre indigo en haut de la sidebar quand on est sur un calque additionnel
+   — signal supplémentaire en plus du fond teinté */
+.image-editor-root[data-active-layer="layer"] .ie-sidebar-left {
+  box-shadow: inset 0 3px 0 0 #818CF8;
+}
+
+/* ── Light theme (défaut) ────────────────────────────────────────────────── */
+.image-editor-root[data-theme="light"] {
+  /* Fonds et surfaces */
+  --ie-bg: #FAFAF9;              /* fond général (off-white) */
+  --ie-surface: #FFFFFF;         /* cartes, modales */
+  --ie-surface-2: #F4F4F2;       /* sidebars, panneaux secondaires */
+  --ie-surface-3: #EDEDEB;       /* hover state des surfaces */
+
+  /* Texte */
+  --ie-text: #18181B;            /* texte principal (pas pur noir) */
+  --ie-text-muted: #52525B;      /* texte secondaire */
+  --ie-text-faint: #A1A1AA;      /* labels, placeholders */
+
+  /* Bordures */
+  --ie-border: rgba(0, 0, 0, 0.08);
+  --ie-border-strong: rgba(0, 0, 0, 0.14);
+
+  /* Accent (rose vif — énergique, créatif) */
+  --ie-accent: #EC4899;
+  --ie-accent-hover: #DB2777;
+  --ie-accent-dark: #BE185D;
+  --ie-accent-faint: #FDF2F8;
+  --ie-accent-text-on: #FFFFFF;  /* texte sur fond accent */
+
+  /* Status */
+  --ie-success: #10B981;
+  --ie-danger: #EF4444;
+  --ie-warning: #F59E0B;
+  --ie-info: #3B82F6;
+
+  /* Ombres (subtiles) */
+  --ie-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --ie-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 4px 12px rgba(0, 0, 0, 0.04);
+  --ie-shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.04), 0 10px 24px rgba(0, 0, 0, 0.06);
+}
+
+/* ── Dark theme (Linear-inspired) ────────────────────────────────────────── */
+.image-editor-root[data-theme="dark"] {
+  --ie-bg: #0F0F12;
+  --ie-surface: #17171B;
+  --ie-surface-2: #1F1F25;
+  --ie-surface-3: #2A2A32;
+
+  --ie-text: #F4F4F5;
+  --ie-text-muted: #A1A1AA;
+  --ie-text-faint: #71717A;
+
+  --ie-border: rgba(255, 255, 255, 0.08);
+  --ie-border-strong: rgba(255, 255, 255, 0.14);
+
+  /* Accent version dark (légèrement plus claire pour le contraste WCAG) */
+  --ie-accent: #F472B6;
+  --ie-accent-hover: #EC4899;
+  --ie-accent-dark: #DB2777;
+  --ie-accent-faint: rgba(244, 114, 182, 0.12);
+  --ie-accent-text-on: #18181B;
+
+  --ie-success: #34D399;
+  --ie-danger: #F87171;
+  --ie-warning: #FBBF24;
+  --ie-info: #60A5FA;
+
+  --ie-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --ie-shadow: 0 1px 3px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.3);
+  --ie-shadow-lg: 0 4px 6px rgba(0, 0, 0, 0.4), 0 10px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Base du root ────────────────────────────────────────────────────────── */
+.image-editor-root {
+  /* Radius standards */
+  --ie-radius-sm: 4px;
+  --ie-radius: 6px;
+  --ie-radius-md: 8px;
+  --ie-radius-lg: 12px;
+
+  /* Spacing cohérent (échelle de 4px) */
+  --ie-space-1: 0.25rem;
+  --ie-space-2: 0.5rem;
+  --ie-space-3: 0.75rem;
+  --ie-space-4: 1rem;
+  --ie-space-5: 1.25rem;
+  --ie-space-6: 1.5rem;
+  --ie-space-8: 2rem;
+
+  /* Typo */
+  --ie-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ie-text-xs: 11px;
+  --ie-text-sm: 12px;
+  --ie-text-base: 13px;
+  --ie-text-md: 14px;
+  --ie-text-lg: 16px;
+  --ie-text-xl: 20px;
+  --ie-text-2xl: 24px;
+
+  /* Hauteurs responsives — scale avec zoom navigateur */
+  --ie-tab-height: 2.375rem;      /* onglets (layer tabs, menu view tabs) */
+  --ie-tab-inner-height: 1.875rem;/* onglets intérieurs (calques secondaires) */
+
+  /* Transition par défaut */
+  --ie-transition: 150ms ease-out;
+
+  font-family: var(--ie-font);
+  font-size: var(--ie-text-base);
+  color: var(--ie-text);
+  background: var(--ie-bg);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Animations partagées ──────────────────────────────────────────────── */
+@keyframes ie-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes ie-zone-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.25); }
+  50%      { box-shadow: 0 0 0 6px rgba(236, 72, 153, 0.15); }
+}
+.image-editor-root .ie-spin {
+  animation: ie-spin 1s linear infinite;
+}
+
+/* ── Reset ciblé pour les éléments de l'éditeur uniquement ──────────────── */
+.image-editor-root * {
+  box-sizing: border-box;
+}
+
+.image-editor-root button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.image-editor-root input,
+.image-editor-root textarea,
+.image-editor-root select {
+  font-family: inherit;
+  color: inherit;
+}
+
+/* ── Layout principal 3 colonnes ─────────────────────────────────────────── */
+.ie-layout {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: var(--ie-bg);
+}
+
+.ie-header {
+  flex: 0 0 auto;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--ie-space-5);
+  background: var(--ie-surface);
+  border-bottom: 1px solid var(--ie-border);
+}
+
+.ie-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 0;
+}
+
+.ie-sidebar-left {
+  /* L'aside occupe 100% de son wrapper motion.div (qui gère la largeur) */
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  overflow-y: auto;     /* scroll interne quand le contenu dépasse — évite que
+                           la page entière scroll (cf. règle UX "zéro scroll body") */
+  overflow-x: hidden;
+  padding: var(--ie-space-4);
+  background: var(--ie-surface-2);
+  border-right: 1px solid var(--ie-border);
+  transition: background 250ms ease-out, box-shadow 250ms ease-out;
+  /* Scrollbar masquée par défaut (Firefox + WebKit) — apparaît au hover */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.ie-sidebar-left:hover {
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+.ie-sidebar-left::-webkit-scrollbar {
+  width: 6px;
+}
+.ie-sidebar-left::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ie-sidebar-left::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+  transition: background 150ms ease-out;
+}
+.ie-sidebar-left:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+}
+.image-editor-root[data-theme="dark"] .ie-sidebar-left:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.ie-center {
+  flex: 1 1 0;     /* prend TOUT l'espace restant → l'image s'élargit quand
+                      la sidebar ou la gallery rétrécissent */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ie-sidebar-right {
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--ie-space-4);
+  background: var(--ie-surface-2);
+  border-left: 1px solid var(--ie-border);
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+.ie-sidebar-right:hover { scrollbar-color: rgba(0, 0, 0, 0.2) transparent; }
+.ie-sidebar-right::-webkit-scrollbar { width: 6px; }
+.ie-sidebar-right::-webkit-scrollbar-track { background: transparent; }
+.ie-sidebar-right::-webkit-scrollbar-thumb { background: transparent; border-radius: 3px; transition: background 150ms ease-out; }
+.ie-sidebar-right:hover::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.2); }
+.image-editor-root[data-theme="dark"] .ie-sidebar-right:hover::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); }
+
+/* Rail étroit quand la sidebar est repliée */
+.ie-sidebar-rail {
+  background: var(--ie-surface-2);
+  border-right: 1px solid var(--ie-border);
+  padding: var(--ie-space-3) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 48px;
+  flex: 0 0 48px;
+}
+
+/* Bande fine au bas quand le gen panel est replié */
+.ie-gen-panel-collapsed {
+  flex: 0 0 auto;
+  background: var(--ie-surface);
+  border-top: 1px solid var(--ie-border);
+  padding: var(--ie-space-2) var(--ie-space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ie-space-3);
+  min-height: 48px;
+}
+
+.ie-sidebar-left {
+  background: var(--ie-surface-2);
+  border-right: 1px solid var(--ie-border);
+  overflow-y: auto;
+  padding: var(--ie-space-4);
+}
+
+.ie-center {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ie-canvas {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ie-space-5);
+  overflow: hidden;
+  position: relative;
+}
+
+.ie-gen-panel {
+  height: 100%;
+  overflow: hidden;   /* zéro scroll — le contenu est conçu pour toujours tenir */
+  background: var(--ie-surface);
+  border-top: 1px solid var(--ie-border);
+  padding: var(--ie-space-3) var(--ie-space-4);   /* padding resserré pour gain vertical */
+}
+
+.ie-sidebar-right {
+  background: var(--ie-surface-2);
+  border-left: 1px solid var(--ie-border);
+  overflow-y: auto;
+  padding: var(--ie-space-4);
+}
+
+/* ── Utilitaires ─────────────────────────────────────────────────────────── */
+.ie-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ie-space-2);
+  padding: var(--ie-space-2) var(--ie-space-4);
+  border-radius: var(--ie-radius);
+  font-size: var(--ie-text-base);
+  font-weight: 500;
+  transition: all var(--ie-transition);
+  white-space: nowrap;
+}
+
+.ie-btn-primary {
+  background: var(--ie-accent);
+  color: var(--ie-accent-text-on);
+}
+.ie-btn-primary:hover {
+  background: var(--ie-accent-hover);
+}
+
+.ie-btn-ghost {
+  background: transparent;
+  color: var(--ie-text-muted);
+}
+.ie-btn-ghost:hover {
+  background: var(--ie-surface-3);
+  color: var(--ie-text);
+}
+
+.ie-btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  justify-content: center;
+  border-radius: var(--ie-radius);
+  color: var(--ie-text-muted);
+}
+.ie-btn-icon:hover {
+  background: var(--ie-surface-3);
+  color: var(--ie-text);
+}
+
+.ie-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-faint);
+  font-size: var(--ie-text-sm);
+  text-align: center;
+  padding: var(--ie-space-6);
+  border: 2px dashed var(--ie-border);
+  border-radius: var(--ie-radius-md);
+  height: 100%;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * ZoomLoupe — fenêtre de zoom flottante (220×220, 2.5×) en coin haut-droit
+ * du canvas. MODULE ISOLÉ : pour désactiver, retirer l'import + JSX dans
+ * CanvasOverlay. Voir src/components/image-editor/ZoomLoupe.tsx.
+ * ────────────────────────────────────────────────────────────────────────── */
+.ie-zoom-loupe {
+  position: absolute;
+  /* top/left contrôlés inline par framer-motion (dodge animation) */
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), 0 2px 6px rgba(0, 0, 0, 0.12);
+  pointer-events: none;
+  z-index: 20;
+}
+.ie-zoom-loupe canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.ie-zoom-loupe-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 2px 7px;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border-radius: 4px;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.ie-zoom-loupe-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ie-surface);
+  color: var(--ie-text-faint);
+  font-size: 11px;
+  font-style: italic;
+  text-align: center;
+  padding: 0 16px;
+  line-height: 1.4;
+}
