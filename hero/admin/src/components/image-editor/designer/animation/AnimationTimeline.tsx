@@ -22,7 +22,7 @@
 
 import React, { useState } from 'react'
 import { Reorder, motion, AnimatePresence } from 'framer-motion'
-import { Plus, Play, Pause, Trash2, Film, Settings2, Link2, AlertTriangle } from 'lucide-react'
+import { Plus, Play, Pause, Trash2, Film, Settings2, Link2, AlertTriangle, Image as ImageIcon, MessageSquare } from 'lucide-react'
 import { useEditorState, type AnimationPellicule } from '@/components/image-editor/EditorStateContext'
 import { SHOT_LABELS, CAMERA_LABELS } from './labels'
 import AnimationOptionsModal from './AnimationOptionsModal'
@@ -146,16 +146,14 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
               // l'a forcé en mode continuité, cf handleGeneratePellicule).
               // Status :
               //   - first cell (idx 0) → pas d'indicateur
-              //   - both pellicules générées + URL match → continu (✓ vert)
-              //   - both générées + URL mismatch → rupture (⚠ ambre)
-              //   - l'une n'est pas générée → neutre (pas d'indicateur, pas
-              //     pertinent tant que pas de média à comparer)
+              //   - both ont firstFrame/lastFrame + URL match → continu (✓ vert)
+              //   - both ont les frames + URL mismatch → rupture (⚠ ambre)
+              //   - l'une n'a pas de frame → neutre (pas pertinent à comparer)
+              // Couvre animation ET image_static (les 2 ont firstFrame/lastFrame).
               const continuityStatus: 'continuous' | 'broken' | 'na' =
                 idx === 0 ? 'na'
-                : (!p.videoUrl || !prev?.videoUrl) ? 'na'
-                : p.firstFrameUrl && prev.lastFrameUrl && p.firstFrameUrl === prev.lastFrameUrl
-                  ? 'continuous'
-                  : 'broken'
+                : (!p.firstFrameUrl || !prev?.lastFrameUrl) ? 'na'
+                : p.firstFrameUrl === prev.lastFrameUrl ? 'continuous' : 'broken'
               return (
                 <Reorder.Item
                   key={p.id}
@@ -194,16 +192,39 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
                         : <AlertTriangle size={9} />}
                     </div>
                   )}
-                  {/* Titre cellule : "P1 — Plan moyen, Caméra fixe, 5s" + tag à générer
-                   *  Permet à l'auteur de scanner les params de chaque pellicule en
-                   *  un coup d'œil sans cliquer (édition via bouton Options ci-dessous). */}
+                  {/* Titre cellule — adapté selon le type :
+                   *  - animation    : "P1 — Plan moyen, Caméra fixe, 5s" + tag à générer
+                   *  - image_static : "P1 — Image fixe, 5s" + tag à choisir si pas d'image
+                   *  - conversation : "P1 — Conversation" (placeholder) */}
                   <div className="dz-anim-cell-num">
                     <span className="dz-anim-cell-num-id">P{idx + 1}</span>
                     <span className="dz-anim-cell-num-sep">—</span>
                     <span className="dz-anim-cell-num-params">
-                      {SHOT_LABELS[p.shot]}, {CAMERA_LABELS[p.camera]}, {p.duration}s
+                      {p.type === 'animation' && (
+                        <>
+                          <Film size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.2rem' }} />
+                          {SHOT_LABELS[p.shot]}, {CAMERA_LABELS[p.camera]}, {p.duration}s
+                        </>
+                      )}
+                      {p.type === 'image_static' && (
+                        <>
+                          <ImageIcon size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.2rem' }} />
+                          Image fixe, {p.duration}s
+                        </>
+                      )}
+                      {p.type === 'conversation' && (
+                        <>
+                          <MessageSquare size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.2rem' }} />
+                          Conversation
+                        </>
+                      )}
                     </span>
-                    {!generated && <span className="dz-anim-cell-pending-tag">à générer</span>}
+                    {p.type === 'animation' && !generated && (
+                      <span className="dz-anim-cell-pending-tag">à générer</span>
+                    )}
+                    {p.type === 'image_static' && !p.firstFrameUrl && (
+                      <span className="dz-anim-cell-pending-tag">à choisir</span>
+                    )}
                   </div>
                   <div className="dz-anim-cell-thumb">
                     {startImage ? (

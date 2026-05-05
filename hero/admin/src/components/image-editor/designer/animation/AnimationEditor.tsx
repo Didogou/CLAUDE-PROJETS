@@ -2,26 +2,18 @@
 /**
  * AnimationEditor — éditeur inline sous la timeline pour la pellicule active.
  *
- * Affiche UNIQUEMENT les contrôles narratifs (= ce que font les persos) :
- *   - Action + dialogue par perso sélectionné (max 2)
- *   - Bouton Générer / Régénérer
+ * Phase E (2026-05-05) : rendu conditionnel selon `pell.type` :
+ *   - 'animation'    : actions + dialogue par perso + bouton Générer (LTX)
+ *   - 'image_static' : upload d'une image fixe + preview
+ *   - 'conversation' : placeholder "à configurer dans Studio Creator"
  *
- * Refonte 2026-05-05 : Cadrage / Caméra / Durée sont remontés dans la cellule
- * pellicule de la timeline (sous le thumbnail). Permet à l'auteur de scanner
- * les paramètres caméra de tout le storyboard d'un coup d'œil, sans déplier
- * pellicule par pellicule. L'éditeur en bas se concentre sur le contenu narratif
- * (qui est le vrai cœur de la prompting LTX).
- *
- * Si aucune pellicule sélectionnée → message guide.
- * Si pellicule sélectionnée mais aucun perso choisi → message guide.
- *
- * V1 mono-type 'animation'. En Phase C les contrôles seront conditionnels au
- * type (image_static n'a pas actions, conversation lit l'arbre Studio Creator
- * au lieu de prompt actions).
+ * Cadrage / Caméra / Durée sont dans le modal Options de la cellule timeline
+ * (cf AnimationOptionsModal). L'éditeur en bas se concentre sur le contenu
+ * spécifique au type.
  */
 
-import React, { useMemo } from 'react'
-import { Loader2 } from 'lucide-react'
+import React, { useMemo, useRef, useState } from 'react'
+import { Loader2, Upload, Image as ImageIcon, MessageSquare } from 'lucide-react'
 import { useCharacterStore, type Character } from '@/lib/character-store'
 import { useEditorState } from '@/components/image-editor/EditorStateContext'
 
@@ -33,19 +25,24 @@ interface AnimationEditorProps {
   generatingPelliculeId?: string | null
   /** Label de progression LTX courant (vide quand pas de gen). */
   generatingProgressLabel?: string
+  /** Préfixe Supabase pour les uploads image_static. */
+  storagePathPrefix: string
 }
 
 export default function AnimationEditor({
   onGenerate,
   generatingPelliculeId = null,
   generatingProgressLabel = '',
+  storagePathPrefix,
 }: AnimationEditorProps) {
   const { characters } = useCharacterStore()
   const {
     animationPellicules,
     animationSelectedPelliculeId,
     animationSelectedCharIds,
+    updateAnimationPellicule,
     updateAnimationPelliculeCharData,
+    setBakeStatus,
   } = useEditorState()
 
   const pell = useMemo(
@@ -59,6 +56,11 @@ export default function AnimationEditor({
     [animationSelectedCharIds, characters],
   )
 
+  // Upload image_static — local state pour le file input + indicateur busy
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
   // États guides : invitent l'auteur à compléter avant d'éditer
   if (!pell) {
     return (
@@ -71,6 +73,137 @@ export default function AnimationEditor({
   }
 
   const isGenerating = generatingPelliculeId === pell.id
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Type 'image_static' — upload d'une image fixe
+  // ────────────────────────────────────────────────────────────────────────
+  async function handleImageUpload(file: File) {
+    if (!pell) return
+    if (!file.type.startsWith('image/')) {
+      setUploadError(`Format non supporté : ${file.type || 'inconnu'}`)
+      return
+    }
+    setUploading(true); setUploadError(null)
+    setBakeStatus({
+      startedAt: Date.now(),
+      phase: 'Upload image…',
+      kind: 'animation',
+      estimatedTotalSec: 10,
+    })
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('Lecture du fichier échouée'))
+        reader.readAsDataURL(file)
+      })
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
+      const path = `${storagePathPrefix}_pellicule_static_${pell.id}.${ext === 'jpeg' ? 'jpg' : ext}`
+      const res = await fetch('/api/storage/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_url: dataUrl, path }),
+      })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? `HTTP ${res.status}`)
+      }
+      // Pour image_static : firstFrame == lastFrame (l'image est statique)
+      // → permet aussi la continuité visuelle avec la pellicule suivante.
+      updateAnimationPellicule(pell.id, {
+        firstFrameUrl: data.url,
+        lastFrameUrl: data.url,
+        // videoUrl reste null (pas de vidéo)
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[AnimationEditor] image upload failed:', msg)
+      setUploadError(msg)
+    } finally {
+      setUploading(false)
+      setBakeStatus(null)
+    }
+  }
+
+  function pickImageFile() {
+    if (uploading) return
+    fileInputRef.current?.click()
+  }
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) void handleImageUpload(file)
+    e.target.value = ''
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // Render conditionnel par type
+  // ────────────────────────────────────────────────────────────────────────
+
+  if (pell.type === 'image_static') {
+    return (
+      <div className="dz-anim-editor">
+        <div className="dz-anim-editor-type-header">
+          <ImageIcon size={14} />
+          <span>Image fixe — {pell.duration}s d'affichage</span>
+        </div>
+
+        {pell.firstFrameUrl ? (
+          <div className="dz-anim-editor-image-preview">
+            <img src={pell.firstFrameUrl} alt="Image fixe" />
+          </div>
+        ) : (
+          <div className="dz-anim-editor-guide">
+            Aucune image — choisis une image fixe à afficher pendant {pell.duration}s.
+          </div>
+        )}
+
+        <div className="dz-anim-editor-actions">
+          {uploadError && (
+            <div className="dza-upload-error" title={uploadError}>
+              ⚠ {uploadError.length > 90 ? uploadError.slice(0, 90) + '…' : uploadError}
+            </div>
+          )}
+          <button
+            type="button"
+            className="dz-anim-editor-gen-btn"
+            onClick={pickImageFile}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <><Loader2 size={14} className="dza-spin" /><span>Upload…</span></>
+            ) : (
+              <><Upload size={14} /><span>{pell.firstFrameUrl ? 'Changer l\'image' : 'Choisir une image'}</span></>
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={onFileChange}
+            style={{ display: 'none' }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (pell.type === 'conversation') {
+    return (
+      <div className="dz-anim-editor">
+        <div className="dz-anim-editor-type-header">
+          <MessageSquare size={14} />
+          <span>Conversation — branching dialogue</span>
+        </div>
+        <div className="dz-anim-editor-guide">
+          À venir : la pellicule conversation sera configurée depuis le Studio Creator
+          (arbre de dialogues avec choix joueur). Pour l'instant, change le type
+          dans Options pour Animation ou Image fixe.
+        </div>
+      </div>
+    )
+  }
+
+  // type === 'animation' — UI existante (chars + actions + generate)
   const noChars = selectedChars.length === 0
   const promptOk = Object.values(pell.perCharacter).some(d => d.action.trim().length > 0)
   const canGenerate = !noChars && promptOk && !isGenerating
@@ -78,7 +211,7 @@ export default function AnimationEditor({
   return (
     <div className="dz-anim-editor">
       {/* Actions + dialogues par perso (1 ligne par perso sélectionné).
-       *  Cadrage / Caméra / Durée sont dans la cellule timeline pour scan rapide. */}
+       *  Cadrage / Caméra / Durée sont dans le modal Options de la cellule. */}
       {noChars ? (
         <div className="dz-anim-editor-guide">
           Sélectionne 1-2 personnages dans le panneau de gauche pour configurer leurs actions.

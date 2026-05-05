@@ -213,10 +213,15 @@ export default function DesignerLayout({
   }
 
   /** Génération LTX d'une pellicule. Source image résolue selon la table :
-   *  pell.firstFrameUrl (re-gen) || prev.lastFrameUrl (continuité) || flatten(base+layers). */
+   *  pell.firstFrameUrl (re-gen) || prev.lastFrameUrl (continuité) || flatten(base+layers).
+   *  Skip si type !== 'animation' (image_static n'a pas de gen, conversation pas implémentée). */
   async function handleGeneratePellicule(pelliculeId: string) {
     const pell = animationPellicules.find(p => p.id === pelliculeId)
     if (!pell) return
+    if (pell.type !== 'animation') {
+      console.warn('[DesignerLayout] gen ignoré : pellicule type =', pell.type)
+      return
+    }
     const selectedChars = animationSelectedCharIds
       .map(id => characters.find(c => c.id === id))
       .filter((c): c is Character => !!c)
@@ -589,6 +594,7 @@ export default function DesignerLayout({
                   onGenerate={handleGeneratePellicule}
                   generatingPelliculeId={generatingPelliculeId}
                   generatingProgressLabel={generatingProgressLabel}
+                  storagePathPrefix={storagePathPrefix}
                 />
               </motion.div>
             )}

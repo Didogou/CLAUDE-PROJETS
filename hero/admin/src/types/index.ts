@@ -186,6 +186,9 @@ export interface PlanTags {
  *  `type: 'animation' | 'image_static' | 'conversation'` (V1 implicite = 'animation'). */
 export interface PelliculePersisted {
   id: string
+  /** Type de pellicule (Phase E 2026-05-05). Optionnel pour back-compat —
+   *  saves d'avant Phase E sont rehydratés avec type='animation' par défaut. */
+  type?: 'animation' | 'image_static' | 'conversation'
   duration: number
   shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
   camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'

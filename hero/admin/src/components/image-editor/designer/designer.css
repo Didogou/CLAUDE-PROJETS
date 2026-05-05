@@ -5639,6 +5639,40 @@ body.theme-dark .dz-cut-tile,
   background: color-mix(in srgb, var(--ie-text) 3%, transparent);
   border-radius: 0.3rem;
 }
+
+/* Phase E — header type-specific dans l'éditeur (icône + label).
+ * Aide l'auteur à savoir quel type de pellicule il édite. */
+.dz-anim-editor-type-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--ie-text-muted);
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--ie-border);
+  margin-bottom: 0.4rem;
+}
+
+/* Phase E — image_static preview dans l'éditeur. */
+.dz-anim-editor-image-preview {
+  position: relative;
+  width: 100%;
+  max-height: 14rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--ie-text) 4%, var(--ie-bg));
+  border-radius: 0.4rem;
+  overflow: hidden;
+  padding: 0.4rem;
+}
+.dz-anim-editor-image-preview img {
+  max-width: 100%;
+  max-height: 13rem;
+  object-fit: contain;
+  border-radius: 0.25rem;
+}
 .dz-anim-editor-chars {
   display: flex;
   flex-direction: column;

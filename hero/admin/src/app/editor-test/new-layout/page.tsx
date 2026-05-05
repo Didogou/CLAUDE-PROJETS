@@ -236,6 +236,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
         persistedPellicules.forEach(p => {
           addAnimationPellicule({
             id: p.id,  // préserve l'id DB
+            type: p.type ?? 'animation',  // Phase E : back-compat saves anciens
             duration: p.duration,
             shot: p.shot,
             camera: p.camera,

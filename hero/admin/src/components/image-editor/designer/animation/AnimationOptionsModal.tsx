@@ -14,8 +14,15 @@
 import React, { useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { X } from 'lucide-react'
-import { useEditorState, type AnimationPellicule } from '@/components/image-editor/EditorStateContext'
+import { useEditorState, type AnimationPellicule, type PelliculeType } from '@/components/image-editor/EditorStateContext'
 import { SHOT_LABELS, CAMERA_LABELS, DURATION_OPTIONS } from './labels'
+
+/** Labels FR pour les types de pellicule (UI). */
+const TYPE_LABELS: Record<PelliculeType, string> = {
+  animation: '🎬 Animation (vidéo générée par IA)',
+  image_static: '🖼 Image fixe (statique pendant la durée)',
+  conversation: '💬 Conversation (à venir — Studio Creator)',
+}
 
 interface AnimationOptionsModalProps {
   pellicule: AnimationPellicule
@@ -67,29 +74,49 @@ export default function AnimationOptionsModal({ pellicule, onClose }: AnimationO
         </header>
 
         <div className="dz-anim-options-body">
+          {/* Sélecteur de type — première option car drive les champs suivants. */}
           <label className="dz-anim-options-field">
-            <span>Cadrage</span>
+            <span>Type de pellicule</span>
             <select
-              value={pellicule.shot}
-              onChange={e => updateAnimationPellicule(pellicule.id, { shot: e.target.value as AnimationPellicule['shot'] })}
+              value={pellicule.type}
+              onChange={e => updateAnimationPellicule(pellicule.id, { type: e.target.value as PelliculeType })}
               autoFocus
             >
-              {Object.entries(SHOT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              <option value="animation">{TYPE_LABELS.animation}</option>
+              <option value="image_static">{TYPE_LABELS.image_static}</option>
+              <option value="conversation" disabled>{TYPE_LABELS.conversation}</option>
             </select>
           </label>
 
-          <label className="dz-anim-options-field">
-            <span>Caméra</span>
-            <select
-              value={pellicule.camera}
-              onChange={e => updateAnimationPellicule(pellicule.id, { camera: e.target.value as AnimationPellicule['camera'] })}
-            >
-              {Object.entries(CAMERA_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-            </select>
-          </label>
+          {/* Cadrage et Caméra UNIQUEMENT pour type='animation' (paramètres LTX). */}
+          {pellicule.type === 'animation' && (
+            <>
+              <label className="dz-anim-options-field">
+                <span>Cadrage</span>
+                <select
+                  value={pellicule.shot}
+                  onChange={e => updateAnimationPellicule(pellicule.id, { shot: e.target.value as AnimationPellicule['shot'] })}
+                >
+                  {Object.entries(SHOT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </label>
 
+              <label className="dz-anim-options-field">
+                <span>Caméra</span>
+                <select
+                  value={pellicule.camera}
+                  onChange={e => updateAnimationPellicule(pellicule.id, { camera: e.target.value as AnimationPellicule['camera'] })}
+                >
+                  {Object.entries(CAMERA_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </label>
+            </>
+          )}
+
+          {/* Durée applicable à TOUS les types — drive le wf LTX (animation)
+           *  ou la durée d'affichage en lecture séquence (image_static). */}
           <label className="dz-anim-options-field">
-            <span>Durée</span>
+            <span>Durée {pellicule.type === 'image_static' ? '(temps d\'affichage)' : '(durée vidéo)'}</span>
             <select
               value={pellicule.duration}
               onChange={e => updateAnimationPellicule(pellicule.id, { duration: Number(e.target.value) })}

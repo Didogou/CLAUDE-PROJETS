@@ -112,18 +112,27 @@ export interface SceneDetection {
 /** État de la pré-analyse de l'image courante. `result` null tant que pas
  *  encore lancée ou si l'analyse a échoué. `busy` true pendant les ~80-100s
  *  d'analyse ComfyUI (Florence + Qwen + DINO + SAM 1 HQ). */
-/** Pellicule = 1 segment vidéo de la timeline d'animation Phase A.
- *  V1 = mono-type 'animation' (= 1 wf LTX 2.3 par pellicule).
- *  Les types `image_static` / `conversation` + exits configurables seront
- *  ajoutés en Phase C (cf project_hero_animation_brainstorm.md). */
+/** Type de pellicule (Phase E 2026-05-05) :
+ *  - 'animation'    : segment vidéo généré par LTX (default, V1)
+ *  - 'image_static' : image fixe affichée pendant `duration` secondes
+ *  - 'conversation' : arbre de dialogues branching (réservé Studio Creator) */
+export type PelliculeType = 'animation' | 'image_static' | 'conversation'
+
+/** Pellicule = 1 segment de la timeline d'animation.
+ *  Phase E (2026-05-05) : ajout du champ `type` qui détermine le comportement.
+ *  Default 'animation' (= 1 wf LTX 2.3 par pellicule). */
 export interface AnimationPellicule {
   /** ID local stable. */
   id: string
-  /** Durée cible en secondes (3-8, défaut 5). Drive aussi le steps LTX. */
+  /** Type de pellicule (Phase E). Default 'animation' (rétro-compat). */
+  type: PelliculeType
+  /** Durée cible en secondes (3-8, défaut 5).
+   *  - type='animation' : durée du wf LTX
+   *  - type='image_static' : durée d'affichage en lecture séquence */
   duration: number
-  /** Cadrage du plan (= shot). Voir SHOT_PROMPT pour le mapping LTX. */
+  /** Cadrage du plan (= shot). UNIQUEMENT pour type='animation'. */
   shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
-  /** Mouvement caméra. Voir CAMERA_PROMPT pour le mapping LTX. */
+  /** Mouvement caméra. UNIQUEMENT pour type='animation'. */
   camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'
        | 'pan_left' | 'pan_right' | 'dolly_in' | 'dolly_out' | 'handheld'
   /** IDs des Characters featured DANS cette pellicule (max 2 — IC LoRA Dual).
@@ -777,10 +786,12 @@ function reducer(state: State, action: Action): State {
         ?? `pell-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
       // Defaults d'abord, puis overrides du caller, puis id final en dernier
       // pour garantir le bon id (preserved or generated).
+      // type : default 'animation' (Phase E rétro-compat)
       // characterIds : par défaut hérite de la sélection globale courante
       // (= continuité — l'auteur ajoute une pellicule, elle reprend les chars
       // déjà sélectionnés). Override possible si caller fournit characterIds.
       const newPell: AnimationPellicule = {
+        type: 'animation',
         duration: 5,
         shot: 'medium',
         camera: 'static',
