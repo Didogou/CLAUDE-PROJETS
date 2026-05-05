@@ -1,0 +1,219 @@
+'use client'
+/**
+ * AnimationTimeline — strip horizontal des pellicules de la Section courante.
+ *
+ * Layout (Phase A) :
+ *   [P1] [P2] [P3] [+]      ▶ Lire séquence    Total: 15s · 3 plans
+ *
+ * Comportements :
+ *   - 1 clic vignette = sélectionne la pellicule (= statique dans le canvas
+ *     central, pas de play). L'éditeur en dessous (AnimationEditor) montre
+ *     les contrôles de la pellicule sélectionnée.
+ *   - Bouton ▶ sur la vignette = lance la lecture isolée (Canvas joue le
+ *     videoUrl, fige sur lastFrame à la fin).
+ *   - Drag & drop pour réordonner (framer-motion <Reorder>).
+ *   - Vignette = poster `firstFrameUrl` ; placeholder dashed si pas générée.
+ *   - Bouton "+" en fin de strip = nouvelle pellicule vide auto-sélectionnée.
+ *
+ * Phase C : drag avec warning continuité, lecture séquence ▶ chaînage.
+ *
+ * State partagé via EditorState (animationPellicules, animationSelected*).
+ */
+
+import React, { useState } from 'react'
+import { Reorder, motion, AnimatePresence } from 'framer-motion'
+import { Plus, Play, Trash2, Film, Settings2 } from 'lucide-react'
+import { useEditorState, type AnimationPellicule } from '@/components/image-editor/EditorStateContext'
+import { SHOT_LABELS, CAMERA_LABELS } from './labels'
+import AnimationOptionsModal from './AnimationOptionsModal'
+
+interface AnimationTimelineProps {
+  /** Callback play d'une pellicule isolée — câblé sur setCurrentVideo dans le
+   *  parent (DesignerLayout / page) car la lecture passe par le Canvas global. */
+  onPlayPellicule: (pellicule: AnimationPellicule) => void
+}
+
+export default function AnimationTimeline({ onPlayPellicule }: AnimationTimelineProps) {
+  const {
+    animationPellicules,
+    animationSelectedPelliculeId,
+    setAnimationSelectedPellicule,
+    addAnimationPellicule,
+    removeAnimationPellicule,
+    setAnimationPelliculesOrder,
+    imageUrl,  // base image du plan — fallback racine pour vignettes non générées
+  } = useEditorState()
+
+  // ID de la pellicule dont on édite les options (modal). null = aucun ouvert.
+  const [optionsForPelliculeId, setOptionsForPelliculeId] = useState<string | null>(null)
+  const optionsForPellicule = optionsForPelliculeId
+    ? animationPellicules.find(p => p.id === optionsForPelliculeId) ?? null
+    : null
+
+  const totalDuration = animationPellicules.reduce((acc, p) => acc + p.duration, 0)
+  const generatedCount = animationPellicules.filter(p => p.videoUrl).length
+
+  // framer-motion Reorder donne directement la nouvelle permutation complète.
+  // On la passe au reducer qui valide que c'est bien une permutation stricte.
+  // (Avant 2026-05-05 : on tentait de détecter from/to manuellement, bug
+  // sur les drag non-adjacents → swaps mal interprétés.)
+  function handleReorder(newOrder: AnimationPellicule[]) {
+    setAnimationPelliculesOrder(newOrder)
+  }
+
+  function handleAdd() {
+    addAnimationPellicule()  // duration/shot/camera defaults + auto-select
+  }
+
+  function handleRemove(e: React.MouseEvent, id: string) {
+    e.stopPropagation()  // évite de re-sélectionner la pellicule en supprimant
+    removeAnimationPellicule(id)
+  }
+
+  function handlePlay(e: React.MouseEvent, p: AnimationPellicule) {
+    e.stopPropagation()
+    if (!p.videoUrl) return
+    onPlayPellicule(p)
+  }
+
+  return (
+    <div className="dz-anim-timeline">
+      <div className="dz-anim-timeline-header">
+        <div className="dz-anim-timeline-title">
+          <Film size={12} />
+          <span>Storyboard</span>
+        </div>
+        <div className="dz-anim-timeline-meta">
+          {animationPellicules.length === 0
+            ? 'Aucune pellicule — clique + pour commencer'
+            : `${animationPellicules.length} pellicule${animationPellicules.length > 1 ? 's' : ''} · ${totalDuration}s · ${generatedCount} générée${generatedCount > 1 ? 's' : ''}`}
+        </div>
+      </div>
+
+      <div className="dz-anim-timeline-strip">
+        <Reorder.Group
+          axis="x"
+          values={animationPellicules}
+          onReorder={handleReorder}
+          className="dz-anim-timeline-cells"
+          // Layout flex appliqué via className — Reorder.Group accepte les
+          // styles CSS standards.
+        >
+          <AnimatePresence initial={false}>
+            {animationPellicules.map((p, idx) => {
+              const selected = p.id === animationSelectedPelliculeId
+              const generated = !!p.videoUrl
+              // Image affichée dans la vignette = "image de départ" de la pellicule.
+              // Même règle que le Canvas : firstFrame > prev.lastFrame > baseImage.
+              // Garantit une cohérence visuelle quand on scanne la timeline (chaque
+              // vignette montre par où la pellicule commence/commencera).
+              const prev = idx > 0 ? animationPellicules[idx - 1] : null
+              const startImage = p.firstFrameUrl ?? prev?.lastFrameUrl ?? imageUrl ?? null
+              return (
+                <Reorder.Item
+                  key={p.id}
+                  value={p}
+                  className={`dz-anim-cell ${selected ? 'selected' : ''} ${generated ? 'generated' : 'pending'}`}
+                  onClick={() => {
+                    // Sélectionne la pellicule + auto-play si vidéo dispo.
+                    // Comportement design 2026-05-05 : 1 clic = je veux voir
+                    // la vidéo jouer 1× puis revenir à l'état initial (firstFrame)
+                    // pour pouvoir éditer l'image de base et régénérer.
+                    setAnimationSelectedPellicule(p.id)
+                    if (p.videoUrl) onPlayPellicule(p)
+                  }}
+                  whileDrag={{ scale: 1.04, zIndex: 5 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  // Layout shared pour animation fluide au drag/drop
+                  layout
+                >
+                  {/* Titre cellule : "P1 — Plan moyen, Caméra fixe, 5s" + tag à générer
+                   *  Permet à l'auteur de scanner les params de chaque pellicule en
+                   *  un coup d'œil sans cliquer (édition via bouton Options ci-dessous). */}
+                  <div className="dz-anim-cell-num">
+                    <span className="dz-anim-cell-num-id">P{idx + 1}</span>
+                    <span className="dz-anim-cell-num-sep">—</span>
+                    <span className="dz-anim-cell-num-params">
+                      {SHOT_LABELS[p.shot]}, {CAMERA_LABELS[p.camera]}, {p.duration}s
+                    </span>
+                    {!generated && <span className="dz-anim-cell-pending-tag">à générer</span>}
+                  </div>
+                  <div className="dz-anim-cell-thumb">
+                    {startImage ? (
+                      <img src={startImage} alt={`Pellicule ${idx + 1}`} />
+                    ) : (
+                      // Aucune image disponible (pas de base ET pas de pellicule
+                      // précédente) — fallback ultime : icône neutre.
+                      <div className="dz-anim-cell-thumb-empty">
+                        <Film size={20} />
+                      </div>
+                    )}
+                    {/* Overlay play (visible au hover si générée) */}
+                    {generated && (
+                      <button
+                        type="button"
+                        className="dz-anim-cell-play"
+                        onClick={(e) => handlePlay(e, p)}
+                        title="Lire cette pellicule"
+                      >
+                        <Play size={14} fill="currentColor" />
+                      </button>
+                    )}
+                    {/* Bouton supprimer (visible au hover) */}
+                    <button
+                      type="button"
+                      className="dz-anim-cell-remove"
+                      onClick={(e) => handleRemove(e, p.id)}
+                      title="Supprimer cette pellicule"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                  {/* Bouton Options : ouvre une modal avec Cadrage/Caméra/Durée.
+                   *  stopPropagation pour ne pas re-sélectionner la pellicule au clic. */}
+                  <button
+                    type="button"
+                    className="dz-anim-cell-options-btn"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOptionsForPelliculeId(p.id)
+                    }}
+                    title="Modifier cadrage, caméra, durée"
+                  >
+                    <Settings2 size={11} />
+                    <span>Options</span>
+                  </button>
+                </Reorder.Item>
+              )
+            })}
+          </AnimatePresence>
+        </Reorder.Group>
+
+        {/* Bouton + ajouter pellicule (séparé du drag group) */}
+        <motion.button
+          type="button"
+          className="dz-anim-cell-add"
+          onClick={handleAdd}
+          title="Ajouter une nouvelle pellicule"
+          whileHover={{ scale: 1.03 }}
+          whileTap={{ scale: 0.97 }}
+          transition={{ duration: 0.15 }}
+        >
+          <Plus size={20} />
+          <span>Ajouter</span>
+        </motion.button>
+      </div>
+
+      {/* Modal Options de pellicule (Cadrage / Caméra / Durée).
+       *  Ouvert via bouton Options dans la cellule. */}
+      <AnimatePresence>
+        {optionsForPellicule && (
+          <AnimationOptionsModal
+            pellicule={optionsForPellicule}
+            onClose={() => setOptionsForPelliculeId(null)}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}

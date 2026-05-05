@@ -38,10 +38,16 @@ import type { Character } from '@/lib/character-store'
 import DesignerInspector from './DesignerInspector'
 import DesignerPreviewModal from './DesignerPreviewModal'
 import DesignerActionsToolbar, { type DesignerAction, type DesignerSecondaryAction } from './DesignerActionsToolbar'
-import { useEditorState } from '../EditorStateContext'
+import { useEditorState, type AnimationPellicule } from '../EditorStateContext'
 import { AICutCommandProvider } from '../AICutCommandContext'
 import { usePreAnalyzeImage } from '../hooks/usePreAnalyzeImage'
 import SceneAnalysisPrompt from '../SceneAnalysisPrompt'
+import AnimationTimeline from './animation/AnimationTimeline'
+import AnimationEditor from './animation/AnimationEditor'
+import { buildVantagePrompt } from '@/lib/ltx-vantage-prompt'
+import { runLtx23Dual } from '@/lib/comfyui-ltx-dual'
+import { flattenLayersToImage } from '@/lib/flatten-layers'
+import { useCharacterStore } from '@/lib/character-store'
 import type { DesignerPhase } from './types'
 
 interface DesignerLayoutProps {
@@ -162,7 +168,22 @@ export default function DesignerLayout({
     selectedDetectionId,
     setSelectedDetection,
     bakedCharacterIds,
+    // Animation Phase A : timeline + gen LTX
+    animationPellicules,
+    animationSelectedCharIds,
+    updateAnimationPellicule,
+    setBakeStatus,
+    setCurrentVideo,
+    isAnimationPlaying,  // pour rétracter la bande basse pendant lecture
   } = useEditorState()
+  const { characters } = useCharacterStore()
+  // Pellicule en cours de gen LTX (null = aucune). Local au layout, pas
+  // partagé via context (1 seule gen à la fois par design).
+  const [generatingPelliculeId, setGeneratingPelliculeId] = useState<string | null>(null)
+  const [generatingProgressLabel, setGeneratingProgressLabel] = useState('')
+  // Hauteur manuelle de la bande basse (px). null = défaut CSS auto-fit.
+  // Persisté pendant la session (résiste à open/close du drawer).
+  const [animBottomHeightPx, setAnimBottomHeightPx] = useState<number | null>(null)
 
   // IDs des persos présents dans la scène — UNION de 2 sources :
   // 1. Calques avec character_id renseigné (mode asLayer=true à l'insertion)
@@ -175,6 +196,123 @@ export default function DesignerLayout({
     // Dedupe via Set (évite doublons si un perso est à la fois en calque et baked)
     return Array.from(new Set([...fromLayers, ...bakedCharacterIds]))
   }, [layers, bakedCharacterIds])
+
+  // ── Animation Phase A — handlers play & gen ─────────────────────────────
+  // Conditions d'ouverture du bottom (timeline + éditeur) : drawer Animer ouvert
+  // (= category 'generate' avec personnageMode='animate', cf DesignerCatalog).
+  const isAnimationDrawerOpen = phase === 'editing'
+    && activeCategory === 'generate'
+    && personnageMode === 'animate'
+
+  /** Lecture isolée d'une pellicule (clic ▶ sur sa vignette). Pousse la vidéo
+   *  dans EditorState.currentVideoUrl → Canvas joue automatiquement. */
+  function handlePlayPellicule(p: AnimationPellicule) {
+    if (!p.videoUrl) return
+    setCurrentVideo(p.videoUrl, p.firstFrameUrl, p.lastFrameUrl)
+  }
+
+  /** Génération LTX d'une pellicule. Source image résolue selon la table :
+   *  pell.firstFrameUrl (re-gen) || prev.lastFrameUrl (continuité) || flatten(base+layers). */
+  async function handleGeneratePellicule(pelliculeId: string) {
+    const pell = animationPellicules.find(p => p.id === pelliculeId)
+    if (!pell) return
+    const selectedChars = animationSelectedCharIds
+      .map(id => characters.find(c => c.id === id))
+      .filter((c): c is Character => !!c)
+    if (selectedChars.length === 0) {
+      alert('Sélectionne au moins 1 personnage avant de générer.')
+      return
+    }
+
+    setGeneratingPelliculeId(pelliculeId)
+    setGeneratingProgressLabel('Préparation…')
+    setBakeStatus({
+      startedAt: Date.now(),
+      phase: 'Préparation…',
+      kind: 'animation',
+      estimatedTotalSec: 1020,  // 17 min sur 8 GB
+    })
+    try {
+      // Résolution source image — règle : firstFrame > prev.lastFrame > flatten(base)
+      const idx = animationPellicules.findIndex(p => p.id === pelliculeId)
+      const prev = idx > 0 ? animationPellicules[idx - 1] : null
+      let sourceImage: string
+      if (pell.firstFrameUrl) {
+        sourceImage = pell.firstFrameUrl
+      } else if (prev?.lastFrameUrl) {
+        sourceImage = prev.lastFrameUrl
+      } else if (imageUrl) {
+        setGeneratingProgressLabel('Composition de l\'image source…')
+        sourceImage = await flattenLayersToImage({
+          baseImageUrl: imageUrl,
+          layers: layers,
+          storagePathPrefix: `studio/animation_source/${Date.now()}`,
+        })
+      } else {
+        throw new Error('Aucune image source : ni base de plan, ni pellicule précédente avec lastFrame.')
+      }
+
+      const positivePrompt = buildVantagePrompt(pell, selectedChars)
+      console.log('[DesignerLayout] LTX prompt:', positivePrompt)
+
+      const result = await runLtx23Dual({
+        imageUrl: sourceImage,
+        positivePrompt,
+        seed: -1,
+        onProgress: p => setGeneratingProgressLabel(p.label ?? p.stage),
+      })
+
+      updateAnimationPellicule(pelliculeId, {
+        videoUrl: result.video_url,
+        firstFrameUrl: result.first_frame_url,
+        lastFrameUrl: result.last_frame_url,
+      })
+      // Auto-play après gen pour montrer le résultat
+      setCurrentVideo(result.video_url, result.first_frame_url, result.last_frame_url)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[DesignerLayout] gen pellicule failed:', msg)
+      alert('Erreur génération : ' + msg)
+    } finally {
+      setGeneratingPelliculeId(null)
+      setGeneratingProgressLabel('')
+      setBakeStatus(null)
+    }
+  }
+
+  /** Drag handler pour le handle de resize de la bande basse. Drag UP = expand,
+   *  DOWN = shrink. Bornes : 9rem (~144px, juste timeline visible) à 80vh.
+   *  Listeners attachés à window pour ne pas perdre le drag si le curseur
+   *  sort du handle. */
+  function handleAnimBottomResize(e: React.MouseEvent) {
+    e.preventDefault()
+    const startY = e.clientY
+    const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize || '16')
+    const minPx = 9 * rootFontSize  // 9rem = juste timeline visible
+    // Max = quasi tout l'écran (laisse ~3rem en haut pour la top bar)
+    const maxPx = window.innerHeight - (3 * rootFontSize)
+    // Hauteur courante : si déjà manuel utiliser, sinon mesurer depuis le DOM
+    const startHeight = animBottomHeightPx ?? (() => {
+      const el = document.querySelector('.dz-anim-bottom') as HTMLElement | null
+      return el?.getBoundingClientRect().height ?? window.innerHeight * 0.38
+    })()
+
+    function onMove(ev: MouseEvent) {
+      const delta = startY - ev.clientY  // up = positive
+      const next = Math.max(minPx, Math.min(maxPx, startHeight + delta))
+      setAnimBottomHeightPx(next)
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
 
   // Pré-analyse de l'image courante (opt-in via popup 2026-05-04).
   // Si cache DB existe → load direct (rapide). Sinon → popup demande confirmation
@@ -324,9 +462,7 @@ export default function DesignerLayout({
                 personnageMode={personnageMode}
                 onAddCharacter={onAddCharacter}
                 onNavigateToBanks={() => setActiveCategory('banks')}
-                currentBaseImageUrl={imageUrl}
                 presentCharacterIds={presentCharacterIds}
-                currentLayers={layers}
               />
             </motion.div>
           )}
@@ -335,8 +471,10 @@ export default function DesignerLayout({
         <main className="dz-center">
           {/* Zone canvas : layerTabs (haut) + actions toolbar + children (canvas)
            * Le bouton Commencer flottant reste au-dessus du drawer (pas par-dessus
-           * Générer du form) grâce à son ancrage absolu dans cette zone. */}
-          <div className="dz-canvas-zone">
+           * Générer du form) grâce à son ancrage absolu dans cette zone.
+           * data-catalog-open : drive le mode mini de la toolbar (labels masqués)
+           * quand un catalog drawer gauche est ouvert (cf C+ 2026-05-05). */}
+          <div className="dz-canvas-zone" data-catalog-open={!!activeCategory}>
             {phase === 'editing' && layerTabs}
             {phase === 'editing' && actionsWithSecondary.length > 0 && (
               <DesignerActionsToolbar
@@ -381,6 +519,58 @@ export default function DesignerLayout({
           </div>
 
           {phase === 'creation' && bottomDrawer}
+
+          {/* Phase B — bottom area Animation : timeline + éditeur de pellicule.
+           * Apparaît quand le drawer Personnage → Animer est ouvert. Cohabite
+           * avec le canvas qui reste interactif au-dessus.
+           * Hauteur : auto par défaut (max-height 38vh), surchargée si l'utilisateur
+           * a redimensionné via le handle (= animBottomHeightPx en px). */}
+          <AnimatePresence initial={false}>
+            {isAnimationDrawerOpen && (
+              <motion.div
+                key="dz-anim-bottom"
+                className={`dz-anim-bottom${
+                  // Auto-expand quand au moins 1 perso sélectionné (= l'auteur
+                  // est en train de configurer activement) → max-height passe
+                  // de 45vh à 95vh pour quasi-cacher le canvas.
+                  // Inactif si :
+                  //   - resize manuel via handle (animBottomHeightPx)
+                  //   - vidéo en lecture (isAnimationPlaying) → on rétracte
+                  //     temporairement pour que le canvas redevienne visible
+                  //     pendant la lecture. Remontera auto à la fin (onEnded).
+                  animationSelectedCharIds.length > 0 && !animBottomHeightPx && !isAnimationPlaying
+                    ? ' dz-anim-bottom-expanded'
+                    : ''
+                }`}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{
+                  height: animBottomHeightPx ?? 'auto',
+                  opacity: 1,
+                }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.65, ease: [0.22, 0.61, 0.36, 1] }}
+                style={animBottomHeightPx ? { maxHeight: 'none' } : undefined}
+              >
+                {/* Handle de resize : top edge, drag vertical pour ajuster */}
+                <div
+                  className="dz-anim-bottom-handle"
+                  onMouseDown={handleAnimBottomResize}
+                  title="Glisser vers le haut/bas pour redimensionner la zone"
+                  role="separator"
+                  aria-orientation="horizontal"
+                >
+                  <div className="dz-anim-bottom-handle-grip" />
+                </div>
+
+                <AnimationTimeline onPlayPellicule={handlePlayPellicule} />
+                <AnimationEditor
+                  onGenerate={handleGeneratePellicule}
+                  generatingPelliculeId={generatingPelliculeId}
+                  generatingProgressLabel={generatingProgressLabel}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </main>
 
         {/* Phase B : inspecteur visible. Phase A : caché via CSS [data-phase] */}

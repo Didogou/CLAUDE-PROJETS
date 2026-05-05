@@ -112,6 +112,32 @@ export interface SceneDetection {
 /** État de la pré-analyse de l'image courante. `result` null tant que pas
  *  encore lancée ou si l'analyse a échoué. `busy` true pendant les ~80-100s
  *  d'analyse ComfyUI (Florence + Qwen + DINO + SAM 1 HQ). */
+/** Pellicule = 1 segment vidéo de la timeline d'animation Phase A.
+ *  V1 = mono-type 'animation' (= 1 wf LTX 2.3 par pellicule).
+ *  Les types `image_static` / `conversation` + exits configurables seront
+ *  ajoutés en Phase C (cf project_hero_animation_brainstorm.md). */
+export interface AnimationPellicule {
+  /** ID local stable. */
+  id: string
+  /** Durée cible en secondes (3-8, défaut 5). Drive aussi le steps LTX. */
+  duration: number
+  /** Cadrage du plan (= shot). Voir SHOT_PROMPT pour le mapping LTX. */
+  shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
+  /** Mouvement caméra. Voir CAMERA_PROMPT pour le mapping LTX. */
+  camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'
+       | 'pan_left' | 'pan_right' | 'dolly_in' | 'dolly_out' | 'handheld'
+  /** Action + dialogue par perso (clé = character.id). Vide si perso non utilisé
+   *  dans cette pellicule (sera nettoyé à la sérialisation). */
+  perCharacter: Record<string, { action: string; dialogue: string }>
+  /** URL Supabase du MP4 — null tant que pas généré. */
+  videoUrl: string | null
+  /** 1ère frame du MP4 (poster + image affichée dans Canvas en mode statique). */
+  firstFrameUrl: string | null
+  /** Dernière frame du MP4 (= image affichée dans Canvas pour la pellicule
+   *  N+1 sélectionnée si N+1 pas encore générée — "preview point de départ"). */
+  lastFrameUrl: string | null
+}
+
 export interface SceneAnalysisState {
   /** Image URL pour laquelle on a le résultat. Permet de détecter qu'une
    *  nouvelle image a été chargée et qu'il faut relancer l'analyse. */
@@ -252,6 +278,28 @@ interface State {
   /** Plan animation : dernière frame du MP4. Utilisée par la modale "Image fin"
    *  lors de la copie d'animation. null si pas d'animation. */
   currentVideoLastFrameUrl: string | null
+  /** Compteur incrémenté à chaque `setCurrentVideo` (même avec mêmes URLs).
+   *  Le Canvas l'utilise dans la `key` du <video> pour forcer un re-mount
+   *  → autoplay redéclenché à chaque appel. Permet de re-jouer la même vidéo
+   *  via clic répété sans hack hors-React. */
+  currentVideoPlayId: number
+  /** True quand la vidéo plan-animation est en train de jouer (entre onPlay
+   *  et onEnded du <video> dans Canvas). Lu par DesignerLayout pour rétracter
+   *  temporairement la bande basse expanded → canvas redevient visible pendant
+   *  la lecture. */
+  isAnimationPlaying: boolean
+  /** Timeline d'animation Phase A : array de pellicules de la Section courante.
+   *  Chacune = un segment vidéo de 3-8s (1 wf LTX 2.3). En V1 toutes mono-type
+   *  'animation' linéaire ; les types image_static / conversation viendront en
+   *  Phase C. Persistance DB en Phase B (pour l'instant mémoire seulement). */
+  animationPellicules: AnimationPellicule[]
+  /** Pellicule actuellement sélectionnée dans la timeline. null = aucune
+   *  (= état "sans animation" → Canvas affiche l'imageUrl base). */
+  animationSelectedPelliculeId: string | null
+  /** IDs des Characters sélectionnés POUR LA TIMELINE animation (max 2 — limite
+   *  IC LoRA Dual Characters). Partagé entre toutes les pellicules de la timeline
+   *  (même 2 persos d'un bout à l'autre par défaut, raffinable plus tard). */
+  animationSelectedCharIds: string[]
   /** Compteur incrémenté à chaque clic sur le fond image — la Sidebar
    *  l'écoute pour fermer tous ses folds (même si rien n'était sélectionné). */
   backgroundClickTick: number
@@ -318,6 +366,15 @@ type Action =
   | { type: 'set_layers'; layers: EditorLayer[]; activeIdx?: number }
   | { type: 'set_image_url'; url: string | null }
   | { type: 'set_current_video'; videoUrl: string | null; firstFrameUrl?: string | null; lastFrameUrl?: string | null }
+  | { type: 'set_animation_playing'; playing: boolean }
+  | { type: 'add_animation_pellicule'; pellicule?: Partial<AnimationPellicule> }
+  | { type: 'update_animation_pellicule'; id: string; patch: Partial<AnimationPellicule> }
+  | { type: 'update_animation_pellicule_char_data'; pelliculeId: string; charId: string; field: 'action' | 'dialogue'; value: string }
+  | { type: 'remove_animation_pellicule'; id: string }
+  | { type: 'reorder_animation_pellicules'; from: number; to: number }
+  | { type: 'set_animation_pellicules_order'; pellicules: AnimationPellicule[] }
+  | { type: 'set_animation_selected_pellicule'; id: string | null }
+  | { type: 'set_animation_selected_chars'; ids: string[] }
   /** Remplace la base courante par une nouvelle (sélection d'une variante,
    *  pick depuis la banque, etc.). Distinct de `set_image_url` car cascade
    *  delete : on jette tous les calques + cut state + scene analysis liés
@@ -673,12 +730,111 @@ function reducer(state: State, action: Action): State {
     case 'set_current_video': {
       // Hors historique : la vidéo n'est pas un edit destructif de l'image base.
       // L'undo restaure l'imageUrl de référence, pas la vidéo générée.
+      // Incrément playId à CHAQUE appel (même URLs identiques) → force le
+      // re-mount du <video> côté Canvas → autoplay redéclenché → re-play OK.
       return {
         ...state,
         currentVideoUrl: action.videoUrl,
         currentVideoFirstFrameUrl: action.firstFrameUrl ?? null,
         currentVideoLastFrameUrl: action.lastFrameUrl ?? null,
+        currentVideoPlayId: state.currentVideoPlayId + 1,
       }
+    }
+    case 'set_animation_playing': {
+      if (state.isAnimationPlaying === action.playing) return state
+      return { ...state, isAnimationPlaying: action.playing }
+    }
+
+    // ── Animation Phase A ─────────────────────────────────────────────────
+    case 'add_animation_pellicule': {
+      const newId = `pell-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+      // Defaults d'abord, puis overrides du caller, puis id forcé en dernier
+      // pour garantir l'unicité (un caller ne peut pas réutiliser un id externe).
+      const newPell: AnimationPellicule = {
+        duration: 5,
+        shot: 'medium',
+        camera: 'static',
+        perCharacter: {},
+        videoUrl: null,
+        firstFrameUrl: null,
+        lastFrameUrl: null,
+        ...action.pellicule,
+        id: newId,
+      }
+      return {
+        ...state,
+        animationPellicules: [...state.animationPellicules, newPell],
+        // Auto-select la nouvelle pellicule pour focus immédiat sur l'éditeur
+        animationSelectedPelliculeId: newId,
+      }
+    }
+    case 'update_animation_pellicule': {
+      return {
+        ...state,
+        animationPellicules: state.animationPellicules.map(p =>
+          p.id === action.id ? { ...p, ...action.patch } : p
+        ),
+      }
+    }
+    case 'update_animation_pellicule_char_data': {
+      return {
+        ...state,
+        animationPellicules: state.animationPellicules.map(p => {
+          if (p.id !== action.pelliculeId) return p
+          const cur = p.perCharacter[action.charId] ?? { action: '', dialogue: '' }
+          return {
+            ...p,
+            perCharacter: {
+              ...p.perCharacter,
+              [action.charId]: { ...cur, [action.field]: action.value },
+            },
+          }
+        }),
+      }
+    }
+    case 'remove_animation_pellicule': {
+      const removed = state.animationPellicules.findIndex(p => p.id === action.id)
+      if (removed < 0) return state
+      const next = state.animationPellicules.filter(p => p.id !== action.id)
+      // Si on a supprimé la pellicule sélectionnée, on sélectionne sa voisine
+      // (préférence : celle de droite, sinon celle de gauche, sinon null)
+      let nextSelected = state.animationSelectedPelliculeId
+      if (state.animationSelectedPelliculeId === action.id) {
+        const neighbor = next[removed] ?? next[removed - 1] ?? null
+        nextSelected = neighbor?.id ?? null
+      }
+      return {
+        ...state,
+        animationPellicules: next,
+        animationSelectedPelliculeId: nextSelected,
+      }
+    }
+    case 'reorder_animation_pellicules': {
+      const { from, to } = action
+      if (from === to || from < 0 || from >= state.animationPellicules.length) return state
+      const next = [...state.animationPellicules]
+      const [moved] = next.splice(from, 1)
+      next.splice(Math.max(0, Math.min(to, next.length)), 0, moved)
+      return { ...state, animationPellicules: next }
+    }
+    case 'set_animation_pellicules_order': {
+      // Validation : la nouvelle liste doit être une permutation stricte (mêmes IDs).
+      // Sinon = bug d'appelant → on ignore pour éviter de corrompre le state.
+      const oldIds = new Set(state.animationPellicules.map(p => p.id))
+      const newIds = new Set(action.pellicules.map(p => p.id))
+      if (oldIds.size !== newIds.size || ![...oldIds].every(id => newIds.has(id))) {
+        console.warn('[EditorState] set_animation_pellicules_order rejected: not a permutation')
+        return state
+      }
+      return { ...state, animationPellicules: action.pellicules }
+    }
+    case 'set_animation_selected_pellicule': {
+      return { ...state, animationSelectedPelliculeId: action.id }
+    }
+    case 'set_animation_selected_chars': {
+      // Limite dure 2 (IC LoRA Dual Characters) — on garde les 2 derniers ajoutés
+      const trimmed = action.ids.slice(-2)
+      return { ...state, animationSelectedCharIds: trimmed }
     }
 
     case 'replace_base': {
@@ -712,6 +868,11 @@ function reducer(state: State, action: Action): State {
         currentVideoUrl: null,
         currentVideoFirstFrameUrl: null,
         currentVideoLastFrameUrl: null,
+        currentVideoPlayId: 0,
+        isAnimationPlaying: false,
+        animationPellicules: [],
+        animationSelectedPelliculeId: null,
+        animationSelectedCharIds: [],
       }
     }
 
@@ -973,6 +1134,15 @@ interface EditorStateContextValue {
   currentVideoFirstFrameUrl: string | null
   /** Vignette dernière frame du MP4 (modale "Image fin" lors copie). */
   currentVideoLastFrameUrl: string | null
+  /** Compteur play-id (incr à chaque setCurrentVideo). Utilisé en `key` dans
+   *  Canvas pour re-mount le <video> et redéclencher autoplay au re-clic. */
+  currentVideoPlayId: number
+  /** True pendant la lecture du <video> Canvas (entre onPlay et onEnded).
+   *  DesignerLayout l'utilise pour rétracter la bande basse en mode lecture
+   *  (canvas redevient visible). */
+  isAnimationPlaying: boolean
+  /** Set par Canvas dans onPlay/onEnded du <video>. */
+  setAnimationPlaying: (playing: boolean) => void
   /** Set la vidéo courante du plan (typiquement appelé après gen LTX 2.3 réussie).
    *  Pour basculer un plan en kind='animation' → passer videoUrl ; pour revenir
    *  en kind='image' → passer null. Hors historique (un undo restaure l'image base). */
@@ -981,6 +1151,29 @@ interface EditorStateContextValue {
     firstFrameUrl?: string | null,
     lastFrameUrl?: string | null,
   ) => void
+  // ── Animation Phase A — pellicules timeline (mémoire seulement V1) ──────
+  animationPellicules: AnimationPellicule[]
+  animationSelectedPelliculeId: string | null
+  animationSelectedCharIds: string[]
+  /** Crée une nouvelle pellicule et l'auto-sélectionne. Override des défauts
+   *  optionnel (ex: pré-remplir videoUrl pour un import direct). */
+  addAnimationPellicule: (pellicule?: Partial<AnimationPellicule>) => void
+  /** Patch partiel d'une pellicule (durée, shot, camera, frames…). */
+  updateAnimationPellicule: (id: string, patch: Partial<AnimationPellicule>) => void
+  /** Patch action ou dialogue d'un perso dans une pellicule. */
+  updateAnimationPelliculeCharData: (
+    pelliculeId: string, charId: string,
+    field: 'action' | 'dialogue', value: string,
+  ) => void
+  removeAnimationPellicule: (id: string) => void
+  reorderAnimationPellicules: (from: number, to: number) => void
+  /** Set la liste des pellicules dans un ordre arbitraire (utilisé par framer-motion
+   *  Reorder qui donne déjà la permutation complète). Validation : doit être
+   *  une permutation stricte des pellicules existantes (mêmes IDs). */
+  setAnimationPelliculesOrder: (pellicules: AnimationPellicule[]) => void
+  setAnimationSelectedPellicule: (id: string | null) => void
+  /** Set les persos sélectionnés (max 2 — IC LoRA Dual limit). */
+  setAnimationSelectedChars: (ids: string[]) => void
   /** Marque l'analyse comme en cours pour une image donnée (busy=true).
    *  Le hook usePreAnalyzeImage l'appelle au début de l'API call. */
   setSceneAnalysisBusy: (busy: boolean, imageUrl: string | null) => void
@@ -1097,6 +1290,11 @@ export function EditorStateProvider({
     currentVideoUrl: null,
     currentVideoFirstFrameUrl: null,
     currentVideoLastFrameUrl: null,
+    currentVideoPlayId: 0,
+    isAnimationPlaying: false,
+    animationPellicules: [],
+    animationSelectedPelliculeId: null,
+    animationSelectedCharIds: [],
     backgroundClickTick: 0,
     history: [{ layers: initialLayers, imageUrl: initialImageUrl }],
     historyIndex: 0,
@@ -1199,6 +1397,25 @@ export function EditorStateProvider({
   const setCurrentVideo = useCallback(
     (videoUrl: string | null, firstFrameUrl?: string | null, lastFrameUrl?: string | null) =>
       dispatch({ type: 'set_current_video', videoUrl, firstFrameUrl, lastFrameUrl }), [])
+  const setAnimationPlaying = useCallback((playing: boolean) =>
+    dispatch({ type: 'set_animation_playing', playing }), [])
+  const addAnimationPellicule = useCallback((pellicule?: Partial<AnimationPellicule>) =>
+    dispatch({ type: 'add_animation_pellicule', pellicule }), [])
+  const updateAnimationPellicule = useCallback((id: string, patch: Partial<AnimationPellicule>) =>
+    dispatch({ type: 'update_animation_pellicule', id, patch }), [])
+  const updateAnimationPelliculeCharData = useCallback(
+    (pelliculeId: string, charId: string, field: 'action' | 'dialogue', value: string) =>
+      dispatch({ type: 'update_animation_pellicule_char_data', pelliculeId, charId, field, value }), [])
+  const removeAnimationPellicule = useCallback((id: string) =>
+    dispatch({ type: 'remove_animation_pellicule', id }), [])
+  const reorderAnimationPellicules = useCallback((from: number, to: number) =>
+    dispatch({ type: 'reorder_animation_pellicules', from, to }), [])
+  const setAnimationPelliculesOrder = useCallback((pellicules: AnimationPellicule[]) =>
+    dispatch({ type: 'set_animation_pellicules_order', pellicules }), [])
+  const setAnimationSelectedPellicule = useCallback((id: string | null) =>
+    dispatch({ type: 'set_animation_selected_pellicule', id }), [])
+  const setAnimationSelectedChars = useCallback((ids: string[]) =>
+    dispatch({ type: 'set_animation_selected_chars', ids }), [])
   const reorderLayers = useCallback((from: number, to: number) =>
     dispatch({ type: 'reorder_layers', from, to }), [])
   const setLayers = useCallback((layers: EditorLayer[], activeIdx?: number) =>
@@ -1267,7 +1484,21 @@ export function EditorStateProvider({
     currentVideoUrl: state.currentVideoUrl,
     currentVideoFirstFrameUrl: state.currentVideoFirstFrameUrl,
     currentVideoLastFrameUrl: state.currentVideoLastFrameUrl,
+    currentVideoPlayId: state.currentVideoPlayId,
+    isAnimationPlaying: state.isAnimationPlaying,
     setCurrentVideo,
+    setAnimationPlaying,
+    animationPellicules: state.animationPellicules,
+    animationSelectedPelliculeId: state.animationSelectedPelliculeId,
+    animationSelectedCharIds: state.animationSelectedCharIds,
+    addAnimationPellicule,
+    updateAnimationPellicule,
+    updateAnimationPelliculeCharData,
+    removeAnimationPellicule,
+    reorderAnimationPellicules,
+    setAnimationPelliculesOrder,
+    setAnimationSelectedPellicule,
+    setAnimationSelectedChars,
     setSceneAnalysisBusy,
     setSceneAnalysisResult,
     setSceneAnalysisError,
@@ -1300,6 +1531,9 @@ export function EditorStateProvider({
     setBakeStatus,
     addBakedCharacter, clearBakedCharacters,
     setCurrentVideo,
+    addAnimationPellicule, updateAnimationPellicule, updateAnimationPelliculeCharData,
+    removeAnimationPellicule, reorderAnimationPellicules, setAnimationPelliculesOrder,
+    setAnimationSelectedPellicule, setAnimationSelectedChars,
     setSceneAnalysisBusy, setSceneAnalysisResult, setSceneAnalysisError, clearSceneAnalysis, removeSceneDetection, setSelectedDetection, setZoomLoupeManualOpen,
     addNpc, updateNpc, removeNpc, reorderNpcs, setNpcs,
     addItem, updateItem, removeItem, reorderItems, setItems,

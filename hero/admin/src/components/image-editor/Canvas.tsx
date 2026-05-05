@@ -11,7 +11,7 @@
  * clientWidth/clientHeight du <img> via ResizeObserver — garantit l'alignement
  * pixel-perfect des sprites même quand les panneaux sont redimensionnés.
  */
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { ImageIcon } from 'lucide-react'
 import type { Npc, Item, Choice } from '@/types'
@@ -64,8 +64,32 @@ interface CanvasProps {
 export default function Canvas({ imageUrl, npcs, items, choices, format }: CanvasProps) {
   const {
     signalBackgroundClick, cutMode, layers, activeLayerIdx,
-    currentVideoUrl, currentVideoFirstFrameUrl,
+    currentVideoUrl, currentVideoFirstFrameUrl, currentVideoPlayId,
+    animationPellicules, animationSelectedPelliculeId,
+    setAnimationPlaying,
   } = useEditorState()
+
+  // Animation Phase A : si une pellicule est sélectionnée et qu'aucune vidéo
+  // ne joue, le Canvas affiche l'"état initial" de la pellicule selon la table :
+  //   pell.firstFrameUrl > prev.lastFrameUrl > base imageUrl
+  // (cf design 2026-05-05). Ça permet à l'auteur de voir le point de départ
+  // visuel de chaque pellicule au survol/clic, même non encore générée.
+  const animationStaticImageUrl = useMemo(() => {
+    if (!animationSelectedPelliculeId) return null
+    const idx = animationPellicules.findIndex(p => p.id === animationSelectedPelliculeId)
+    if (idx < 0) return null
+    const pell = animationPellicules[idx]
+    if (pell.firstFrameUrl) return pell.firstFrameUrl
+    const prev = idx > 0 ? animationPellicules[idx - 1] : null
+    if (prev?.lastFrameUrl) return prev.lastFrameUrl
+    return null  // tombe sur l'imageUrl base via le rendu standard
+  }, [animationSelectedPelliculeId, animationPellicules])
+
+  // L'image affichée dans Canvas. Priorité :
+  //   1. animationStaticImageUrl si pellicule sélectionnée (et pas de vidéo qui joue)
+  //   2. imageUrl base sinon
+  // Le rendu <video> (si currentVideoUrl) reste au-dessus de l'<img>.
+  const displayedImageUrl = (!currentVideoUrl && animationStaticImageUrl) || imageUrl
   const imgRef = useRef<HTMLImageElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   // Taille rendue du wrapper en CSS px (pas DPR-multiplied). Utilisée par
@@ -98,7 +122,7 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
         if (e.target === e.currentTarget) signalBackgroundClick()
       }}
     >
-      {imageUrl ? (
+      {displayedImageUrl ? (
         <>
           {/* Wrapper qui impose le ratio du Format choisi.
               L'image dedans est en object-fit: cover → croppée pour remplir
@@ -123,7 +147,7 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
           >
             <img
               ref={imgRef}
-              src={imageUrl}
+              src={displayedImageUrl}
               alt="image en édition"
               crossOrigin="anonymous"
               style={{
@@ -150,12 +174,32 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
             */}
             {currentVideoUrl && (
               <video
+                /* key sur playId → re-mount du <video> à CHAQUE setCurrentVideo
+                 * (même URL identique). Force autoplay → permet de re-jouer la
+                 * même vidéo via re-clic sur la pellicule. */
+                key={`anim-video-${currentVideoPlayId}`}
                 src={currentVideoUrl}
                 poster={currentVideoFirstFrameUrl ?? undefined}
                 autoPlay
                 muted
                 playsInline
                 onError={(e) => console.error('[Canvas] Plan animation video failed:', currentVideoUrl, e)}
+                /* onPlay : signale que la lecture commence → DesignerLayout
+                 * rétracte temporairement la bande basse (canvas redevient visible). */
+                onPlay={() => setAnimationPlaying(true)}
+                /* À la fin de lecture : seek à 0 + pause → la vidéo affiche
+                 * la firstFrame statique. L'auteur voit "l'état de départ" et
+                 * peut modifier l'image base / régénérer / re-cliquer pour
+                 * re-jouer (cf design 2026-05-05).
+                 * setAnimationPlaying(false) → bande basse remonte à sa
+                 * hauteur expanded (si chars sélectionnés). */
+                onEnded={(e) => {
+                  const v = e.currentTarget
+                  v.pause()
+                  try { v.currentTime = 0 } catch {/* edge case browsers */}
+                  setAnimationPlaying(false)
+                }}
+                onPause={() => setAnimationPlaying(false)}
                 style={{
                   position: 'absolute',
                   inset: 0,

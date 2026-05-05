@@ -2611,24 +2611,36 @@ body.theme-dark .dz-actions-secondary-btn:disabled,
   --dz-tool-color: var(--ie-accent);
 
   position: relative;
+  /* A (2026-05-05) : layout HORIZONTAL (icône + label côte-à-côte) au lieu
+   * de vertical stacked → division par 2 de la hauteur de la toolbar. */
   display: inline-flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 4px;
-  width: 64px;
-  padding: 6px 4px 5px;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem 0.3rem 0.4rem;
   background: var(--ie-surface);
   border: 1px solid var(--ie-border);
   border-radius: var(--ie-radius-md);
   color: var(--ie-text);
   cursor: pointer;
-  transition: background 140ms, border-color 140ms, box-shadow 140ms, transform 140ms;
+  transition: background 140ms, border-color 140ms, box-shadow 140ms, transform 140ms, padding 200ms;
   font-family: inherit;
-  font-size: 10px;
+  font-size: 0.7rem;
   font-weight: 500;
-  text-align: center;
+  text-align: left;
   line-height: 1.2;
+  white-space: nowrap;
+}
+/* C+ (2026-05-05) : quand un catalog drawer (gauche) est ouvert, on masque les
+ * labels → icônes seules. Économise encore ~3rem de largeur cumulée et signale
+ * à l'auteur "tu es maintenant en mode édition focalisé". La loupe et les
+ * icônes principales restent accessibles. */
+.dz-canvas-zone[data-catalog-open="true"] .dz-actions-subtool {
+  padding: 0.3rem;
+}
+.dz-canvas-zone[data-catalog-open="true"] .dz-actions-subtool-label {
+  display: none;
 }
 .dz-actions-subtool:hover {
   background: color-mix(in srgb, var(--dz-tool-color) 6%, var(--ie-surface));
@@ -4979,5 +4991,614 @@ body.theme-dark .dz-cut-tile,
   background: var(--ie-surface);
   border: 1px dashed var(--ie-border);
   border-radius: 8px;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Animation Phase A — bande basse Studio Designer
+ * Timeline horizontale + éditeur inline pour la pellicule sélectionnée.
+ * Mounted dans .dz-center en bas, conditional sur drawer Animer ouvert.
+ * Tailles relatives (rem/vh) pour s'adapter à tous les écrans.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.dz-anim-bottom {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1rem 1rem 0.85rem;  /* top padding plus grand → place pour le handle */
+  background: var(--ie-bg);
+  border-top: 1px solid var(--ie-border);
+  /* Hauteur max ~45vh par défaut (laisse 55vh pour le canvas).
+   * L'utilisateur peut surcharger via le handle de resize → animBottomHeightPx
+   * en px appliqué inline + maxHeight: none pour libérer la limite. */
+  max-height: 45vh;
+  overflow: hidden;
+  position: relative;
+  /* Transition longue + ease-out quart pour un slide drawer "réfléchi".
+   * 650ms = sweet spot pour un drawer qui couvre une grande surface
+   * (assez long pour être perçu, assez court pour ne pas frustrer). */
+  transition: max-height 650ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+/* Auto-expand : quand au moins 1 perso est sélectionné dans la timeline,
+ * l'auteur est en train d'éditer activement → on lui donne quasi tout l'écran
+ * (95vh). Le canvas se réduit fortement, pratiquement caché → focus animation. */
+.dz-anim-bottom.dz-anim-bottom-expanded {
+  max-height: 95vh;
+}
+
+/* Handle de resize : barre fine en haut, drag vertical pour ajuster la hauteur.
+ * Visible au hover, accent rose pour signaler l'affordance. */
+.dz-anim-bottom-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 0.6rem;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+  background: transparent;
+  transition: background 140ms;
+}
+.dz-anim-bottom-handle:hover {
+  background: color-mix(in srgb, var(--ie-accent) 12%, transparent);
+}
+.dz-anim-bottom-handle-grip {
+  width: 3rem;
+  height: 0.2rem;
+  border-radius: 0.1rem;
+  background: var(--ie-border);
+  transition: background 140ms, width 140ms;
+}
+.dz-anim-bottom-handle:hover .dz-anim-bottom-handle-grip {
+  background: var(--ie-accent);
+  width: 4rem;
+}
+
+/* ── Timeline (strip horizontal) ────────────────────────────────────────── */
+.dz-anim-timeline {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-height: 0;
+}
+.dz-anim-timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 0.7rem;
+  color: var(--ie-text-muted);
+}
+.dz-anim-timeline-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ie-text);
+}
+.dz-anim-timeline-meta {
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+}
+.dz-anim-timeline-strip {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.2rem 0.1rem 0.5rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ie-border) transparent;
+}
+.dz-anim-timeline-strip::-webkit-scrollbar { height: 0.5rem; }
+.dz-anim-timeline-strip::-webkit-scrollbar-track { background: transparent; }
+.dz-anim-timeline-strip::-webkit-scrollbar-thumb {
+  background: var(--ie-border);
+  border-radius: 0.25rem;
+}
+.dz-anim-timeline-cells {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Cellule pellicule (vignette draggable, style film strip) ───────────── */
+.dz-anim-cell {
+  flex: 0 0 auto;
+  width: 14rem;  /* élargi 2026-05-05 pour accueillir titre + params inline */
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.35rem 0.4rem 0.5rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  transition: border-color 140ms, background 140ms;
+  user-select: none;
+  position: relative;
+}
+.dz-anim-cell:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ie-accent) 4%, transparent);
+}
+.dz-anim-cell.selected {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
+  box-shadow: 0 0 0 1px var(--ie-accent);
+}
+.dz-anim-cell.pending .dz-anim-cell-thumb img { opacity: 0.65; }
+/* Titre cellule : "P1 — Plan moyen, Caméra fixe, 5s · à générer"
+ * Layout inline-wrap, ID en accent rose, params en regular, pending en italique. */
+.dz-anim-cell-num {
+  font-size: 0.65rem;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  color: var(--ie-text);
+  line-height: 1.25;
+  min-height: 1.6rem;
+  padding: 0 0.1rem;
+}
+.dz-anim-cell-num-id {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text-muted);
+  flex: 0 0 auto;
+}
+.dz-anim-cell.selected .dz-anim-cell-num-id { color: var(--ie-accent); }
+.dz-anim-cell-num-sep {
+  color: var(--ie-text-faint);
+  flex: 0 0 auto;
+}
+.dz-anim-cell-num-params {
+  color: var(--ie-text);
+  font-weight: 500;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.dz-anim-cell-pending-tag {
+  font-size: 0.55rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ie-warning, #f59e0b);
+  font-style: normal;
+  background: color-mix(in srgb, var(--ie-warning, #f59e0b) 12%, transparent);
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.2rem;
+  flex: 0 0 auto;
+}
+/* Film strip — bandes noires top/bottom avec perforations + image au milieu.
+ * Métaphore visuelle "pellicule" cinéma. SVG inline pour les perforations
+ * (rectangles arrondis blancs) → scale parfait + thématisable. */
+.dz-anim-cell-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: #1a1a1a;  /* matériau "film" noir */
+  border-radius: 0.15rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Bandes top + bottom avec perforations — pseudo-éléments z-index 2.
+ * Le SVG : viewBox 16x14, rect blanc 12x6 rx=1.5 → perforation pill arrondie.
+ * Repeat-x avec background-size 1rem 0.85rem → ~16 perfos par 16rem de strip. */
+.dz-anim-cell-thumb::before,
+.dz-anim-cell-thumb::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0.85rem;
+  pointer-events: none;
+  z-index: 2;
+  background-color: #1a1a1a;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 14'><rect x='2' y='4' width='12' height='6' rx='1.5' fill='%23f5f5f5'/></svg>");
+  background-size: 1rem 0.85rem;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+.dz-anim-cell-thumb::before { top: 0; }
+.dz-anim-cell-thumb::after { bottom: 0; }
+/* Image (et placeholders) : entre les 2 bandes via height calc.
+ * width: 100% pour aligner pixel-perfect avec les bords du strip. */
+.dz-anim-cell-thumb > img {
+  width: 100%;
+  height: calc(100% - 1.7rem);  /* -2× hauteur de bande */
+  object-fit: cover;
+  pointer-events: none;
+  position: relative;
+  z-index: 1;
+}
+.dz-anim-cell-thumb-empty,
+.dz-anim-cell-thumb-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  width: 100%;
+  height: calc(100% - 1.7rem);
+  font-size: 0.7rem;
+  color: #666;  /* visible sur fond noir */
+  background: #2a2a2a;  /* gris foncé pour ne pas être confondu avec une vraie image */
+  position: relative;
+  z-index: 1;
+}
+.dz-anim-cell-thumb-pending {
+  background:
+    #2a2a2a
+    repeating-linear-gradient(
+      45deg,
+      transparent, transparent 0.4rem,
+      rgba(255,255,255,0.05) 0.4rem,
+      rgba(255,255,255,0.05) 0.8rem
+    );
+}
+.dz-anim-cell-play,
+.dz-anim-cell-remove {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms, transform 140ms, background 140ms;
+}
+.dz-anim-cell-play {
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  width: 1.875rem;
+  height: 1.875rem;
+  background: color-mix(in srgb, #000 65%, transparent);
+  color: #fff;
+  z-index: 4;  /* au-dessus de l'image et des perforations */
+}
+.dz-anim-cell-play:hover {
+  background: var(--ie-accent);
+  transform: translate(-50%, -50%) scale(1.08);
+}
+.dz-anim-cell-remove {
+  top: 1.1rem;  /* dans la zone image (sous la bande sprocket top) */
+  right: 0.3rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  background: color-mix(in srgb, #000 60%, transparent);
+  color: #fff;
+  z-index: 4;  /* au-dessus de l'image et des perforations */
+}
+.dz-anim-cell-remove:hover { background: #dc2626; }
+.dz-anim-cell:hover .dz-anim-cell-play,
+.dz-anim-cell:hover .dz-anim-cell-remove,
+.dz-anim-cell.selected .dz-anim-cell-play,
+.dz-anim-cell.selected .dz-anim-cell-remove {
+  opacity: 1;
+}
+.dz-anim-cell-meta {
+  font-size: 0.625rem;
+  color: var(--ie-text-faint);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Bouton "Options" sous le thumbnail — déclenche la modale pour modifier
+ * Cadrage / Caméra / Durée. Style minimal pour ne pas voler la vedette au
+ * thumbnail film strip. */
+.dz-anim-cell-options-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.5rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text-muted);
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 140ms;
+  margin-top: 0.1rem;
+  align-self: center;
+}
+.dz-anim-cell-options-btn:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 5%, transparent);
+}
+
+/* Modal AnimationOptionsModal — petite boîte centrée avec backdrop blur.
+ * Style aligné sur les autres modals du Studio (ccm-*, sceneAnalysis…). */
+.dz-anim-options-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 105;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(0.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2vh 2vw;
+}
+.dz-anim-options-modal {
+  width: min(28rem, 92vw);
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.6rem;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  font-family: var(--ie-font);
+  color: var(--ie-text);
+  overflow: hidden;
+}
+.dz-anim-options-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--ie-border);
+}
+.dz-anim-options-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.dz-anim-options-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 0.3rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: background 120ms;
+}
+.dz-anim-options-close:hover {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+.dz-anim-options-body {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+.dz-anim-options-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.dz-anim-options-field span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ie-text-muted);
+}
+.dz-anim-options-field select {
+  padding: 0.5rem 0.7rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.35rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 0.7rem 0.7rem;
+  padding-right: 1.8rem;
+  transition: border-color 120ms;
+}
+.dz-anim-options-field select:hover { border-color: color-mix(in srgb, var(--ie-accent) 40%, var(--ie-border)); }
+.dz-anim-options-field select:focus { border-color: var(--ie-accent); }
+.dz-anim-options-footer {
+  padding: 0.65rem 1rem 0.85rem;
+  border-top: 1px solid var(--ie-border);
+  display: flex;
+  justify-content: flex-end;
+}
+.dz-anim-options-done {
+  padding: 0.55rem 1.2rem;
+  background: var(--ie-accent);
+  border: 1px solid var(--ie-accent);
+  border-radius: 0.35rem;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.dz-anim-options-done:hover {
+  background: color-mix(in srgb, #000 8%, var(--ie-accent));
+}
+.dz-anim-cell-add {
+  flex: 0 0 auto;
+  width: 11rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.4rem;
+  background: transparent;
+  border: 1px dashed var(--ie-border);
+  border-radius: 0.4rem;
+  color: var(--ie-text-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 140ms;
+  align-self: stretch;
+}
+.dz-anim-cell-add:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 5%, transparent);
+}
+
+/* ── Éditeur inline (panneau sous la timeline) ──────────────────────────── */
+.dz-anim-editor {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+.dz-anim-editor-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+  color: var(--ie-text-muted);
+  font-style: italic;
+  text-align: center;
+  padding: 0.8rem;
+}
+.dz-anim-editor-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.dz-anim-editor-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1 1 8rem;
+}
+.dz-anim-editor-field-narrow { flex: 0 0 5.5rem; }
+.dz-anim-editor-field span {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ie-text-muted);
+}
+.dz-anim-editor-field select {
+  padding: 0.4rem 0.55rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  padding-right: 1.4rem;
+  transition: border-color 120ms;
+}
+.dz-anim-editor-field select:hover { border-color: color-mix(in srgb, var(--ie-accent) 40%, var(--ie-border)); }
+.dz-anim-editor-field select:focus { border-color: var(--ie-accent); }
+.dz-anim-editor-field select:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.dz-anim-editor-guide {
+  font-size: 0.75rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  text-align: center;
+  padding: 0.5rem;
+  background: color-mix(in srgb, var(--ie-text) 3%, transparent);
+  border-radius: 0.3rem;
+}
+.dz-anim-editor-chars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.dz-anim-editor-char {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.45rem 0.5rem;
+  background: var(--ie-bg);
+  border-radius: 0.35rem;
+  border: 1px solid var(--ie-border);
+}
+.dz-anim-editor-char-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.dz-anim-editor-input {
+  width: 100%;
+  padding: 0.4rem 0.55rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.75rem;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 120ms;
+}
+.dz-anim-editor-input::placeholder {
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+.dz-anim-editor-input:focus { border-color: var(--ie-accent); }
+.dz-anim-editor-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.dz-anim-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.2rem;
+}
+.dz-anim-editor-gen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 1.1rem;
+  background: var(--ie-accent);
+  border: 1px solid var(--ie-accent);
+  border-radius: 0.4rem;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms;
+}
+.dz-anim-editor-gen-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, #000 8%, var(--ie-accent));
+}
+.dz-anim-editor-gen-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 

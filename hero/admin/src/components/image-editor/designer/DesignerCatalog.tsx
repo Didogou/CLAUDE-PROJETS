@@ -16,7 +16,6 @@ import CatalogCharacters from './catalogs/CatalogCharacters'
 import CatalogAnimation from './catalogs/CatalogAnimation'
 import CatalogPlaceholder from './catalogs/CatalogPlaceholder'
 import type { Character } from '@/lib/character-store'
-import type { EditorLayer } from '../types'
 
 /** Mode actif sur l'action Personnage (drive le contenu rendu quand
  *  category='generate' est ouverte par Personnage→sub-tool). */
@@ -37,22 +36,16 @@ interface DesignerCatalogProps {
   /** Callback breadcrumb : remonter d'une vue sub-bank (Personnages, Objets…)
    *  vers la racine Banques. */
   onNavigateToBanks?: () => void
-  /** URL de l'image de base actuellement affichée dans le canvas Designer.
-   *  Sert de source pour I2V dans CatalogAnimation (animation qui démarre
-   *  depuis l'image courante du plan). */
-  currentBaseImageUrl?: string | null
   /** IDs des Characters présents dans le plan en cours (extraits des calques
-   *  avec character_id renseigné). Filtre le sélecteur de CatalogAnimation. */
+   *  avec character_id renseigné OU bakedCharacterIds). Filtre le sélecteur
+   *  de CatalogAnimation. */
   presentCharacterIds?: string[]
-  /** Calques actuels du plan (base + overlays). Servent à CatalogAnimation
-   *  pour flatten l'image source LTX (base + persos en 1 image composite). */
-  currentLayers?: EditorLayer[]
 }
 
 export default function DesignerCatalog({
   category, onClose, storagePathPrefix,
   personnageMode = null, onAddCharacter, onNavigateToBanks,
-  currentBaseImageUrl, presentCharacterIds, currentLayers,
+  presentCharacterIds,
 }: DesignerCatalogProps) {
   switch (category) {
     case 'effects':
@@ -94,14 +87,15 @@ export default function DesignerCatalog({
         )
       }
       if (personnageMode === 'animate') {
+        // Refonte 2026-05-05 : CatalogAnimation est désormais un drawer minimal
+        // (Import vidéo + Persos). Le storyboard (timeline + éditeur) vit dans
+        // la bande basse de DesignerLayout, indépendamment de ce drawer.
         return (
           <CatalogAnimation
             onClose={onClose}
             onNavigateToBanks={onNavigateToBanks}
             storagePathPrefix={storagePathPrefix}
-            baseImageUrl={currentBaseImageUrl ?? null}
             presentCharacterIds={presentCharacterIds ?? []}
-            currentLayers={currentLayers ?? []}
           />
         )
       }

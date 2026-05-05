@@ -18,7 +18,7 @@
  * Phase B avec l'image restaurée. Sinon Phase A avec prompt pré-rempli.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Scissors, Paintbrush, Wand2, Sparkles, Hexagon, PenTool, User, UserPlus, Replace, Pencil, Film } from 'lucide-react'
 import '../../../components/image-editor/editor.css'
 import '../../../components/image-editor/designer/designer.css'
@@ -178,6 +178,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
     setCutMode, setCutTool, clearSceneAnalysis,
     addLayer, setBakeStatus, addBakedCharacter, bakedCharacterIds,
     currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl, setCurrentVideo,
+    addAnimationPellicule,  // hydratation : restaure la pellicule unique au reload
   } = useEditorState()
 
   // Liste UNION des Characters présents dans le plan en cours :
@@ -197,17 +198,37 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
   // encore reload depuis DB en V1, ce sera Phase plan_layers V2).
   // Si plan kind='animation', restaure la vidéo + frames pour que Canvas
   // l'affiche immédiatement (sinon reload = perte de la vidéo).
+  //
+  // ⚠ Ref guard contre React StrictMode (qui exécute useEffect 2× en dev).
+  // Sans ce guard, addAnimationPellicule se déclenche 2× → 2 pellicules
+  // dupliquées dans la timeline (addBakedCharacter est déjà idempotent).
+  // Le ref stocke la clé du plan déjà hydraté ; si l'effet re-fire avec
+  // la même clé → no-op. Si on switch de plan, la clé change → re-hydrate.
+  const hydratedPlanKeyRef = useRef<string | null>(null)
   useEffect(() => {
+    const planKey = `${picked.sectionId}_${picked.planIndex}`
+    if (hydratedPlanKeyRef.current === planKey) return
+    hydratedPlanKeyRef.current = planKey
+
     const persisted = picked.plan.tags?.characters ?? []
     persisted.forEach(id => addBakedCharacter(id))
     if (picked.plan.kind === 'animation' && picked.plan.base_video_url) {
+      // Canvas affiche la vidéo immédiatement
       setCurrentVideo(
         picked.plan.base_video_url,
         picked.plan.first_frame_url ?? null,
         picked.plan.last_frame_url ?? null,
       )
+      // Phase A : restaure aussi UNE pellicule dans la timeline pour que
+      // l'auteur puisse continuer à éditer (régénérer, supprimer, ajouter
+      // d'autres pellicules à la suite). Phase B : array complet en DB.
+      addAnimationPellicule({
+        videoUrl: picked.plan.base_video_url,
+        firstFrameUrl: picked.plan.first_frame_url ?? null,
+        lastFrameUrl: picked.plan.last_frame_url ?? null,
+      })
     }
-    // Volontairement pas dans deps : on hydrate UNE FOIS au mount.
+    // Volontairement pas dans deps : on hydrate UNE FOIS au mount + au switch de plan.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [picked.sectionId, picked.planIndex])
   const [format, setFormat] = useState('16:9')
