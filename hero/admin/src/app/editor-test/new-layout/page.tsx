@@ -653,21 +653,32 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
           label: 'Personnage',
           icon: <User size={18} />,
           opensCategory: 'generate',
-          title: 'Personnage — Ajouter / Remplacer / Modifier / Animer',
+          title: 'Personnage — Ajouter / Remplacer / Modifier',
           subTools: [
-            // 4 verbes alignés sur la design Prompt Assistant validée :
-            // AJOUTE / REMPLACE / CHANGE / ANIME. Couleurs distinctes mais
-            // dans la même famille tonale que les outils Découper.
-            { id: 'add',     label: 'Ajouter',   icon: <UserPlus size={16} />, hint: 'insérer un perso dans la scène', color: '#10b981' /* green  */ },
-            { id: 'replace', label: 'Remplacer', icon: <Replace size={16} />,  hint: 'swap un perso existant',         color: '#f59e0b' /* amber  */ },
-            { id: 'modify',  label: 'Modifier',  icon: <Pencil size={16} />,   hint: 'changer un attribut',            color: '#3b82f6' /* blue   */ },
-            { id: 'animate', label: 'Animer',    icon: <Film size={16} />,     hint: 'mettre en mouvement',            color: '#a855f7' /* violet */ },
+            // 3 verbes (AJOUTE / REMPLACE / CHANGE). Animer a été retiré le
+            // 2026-05-05 : c'est une action sur la SCÈNE (pas sur 1 perso) →
+            // top-level icon dédié dans la toolbar, voir action 'animer' ci-dessous.
+            { id: 'add',     label: 'Ajouter',   icon: <UserPlus size={16} />, hint: 'insérer un perso dans la scène', color: '#10b981' /* green */ },
+            { id: 'replace', label: 'Remplacer', icon: <Replace size={16} />,  hint: 'swap un perso existant',         color: '#f59e0b' /* amber */ },
+            { id: 'modify',  label: 'Modifier',  icon: <Pencil size={16} />,   hint: 'changer un attribut',            color: '#3b82f6' /* blue  */ },
           ],
           onSubToolPick: (toolId) => {
-            // Set le mode → drive le contenu du catalog 'generate'. Pour
-            // l'instant seul 'add' route vers CatalogCharacters, les autres
-            // tomberont sur le placeholder 'Génération AI' jusqu'au branchement.
             setPersonnageMode(toolId as PersonnageMode)
+          },
+        } satisfies DesignerAction,
+        // Animer = action SCÈNE-LEVEL (storyboard d'animation pour tout le plan).
+        // Top-level depuis 2026-05-05 : icone Film à côté de Personnage. Pas de
+        // sub-tools — clic ouvre direct le drawer CatalogAnimation. Réutilise
+        // personnageMode='animate' pour router via DesignerCatalog (pas besoin
+        // de nouvelle RailCategory pour l'instant).
+        {
+          id: 'animer',
+          label: 'Animer',
+          icon: <Film size={18} />,
+          opensCategory: 'generate',
+          title: 'Animer la scène — storyboard + pellicules vidéo',
+          onActivate: () => {
+            setPersonnageMode('animate')
           },
         } satisfies DesignerAction,
       ]}
