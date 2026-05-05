@@ -175,6 +175,7 @@ export default function DesignerLayout({
     setBakeStatus,
     setCurrentVideo,
     isAnimationPlaying,  // pour rétracter la bande basse pendant lecture
+    sequencePlayheadIdx,  // Phase C : rétracte aussi pendant lecture séquence
   } = useEditorState()
   const { characters } = useCharacterStore()
   // Pellicule en cours de gen LTX (null = aucune). Local au layout, pas
@@ -538,7 +539,14 @@ export default function DesignerLayout({
                   //   - vidéo en lecture (isAnimationPlaying) → on rétracte
                   //     temporairement pour que le canvas redevienne visible
                   //     pendant la lecture. Remontera auto à la fin (onEnded).
-                  animationSelectedCharIds.length > 0 && !animBottomHeightPx && !isAnimationPlaying
+                  //   - mode séquence (sequencePlayheadIdx !== null) → idem
+                  //     mais persistant entre 2 pellicules consécutives :
+                  //     évite le flicker haut/bas dû aux onPause des <video>
+                  //     qui se re-mountent entre 2 pellicules de la séquence.
+                  animationSelectedCharIds.length > 0
+                    && !animBottomHeightPx
+                    && !isAnimationPlaying
+                    && sequencePlayheadIdx === null
                     ? ' dz-anim-bottom-expanded'
                     : ''
                 }`}
