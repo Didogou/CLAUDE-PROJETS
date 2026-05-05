@@ -184,11 +184,28 @@ export interface PlanTags {
  *
  *  Les types image_static / conversation viendront en Phase C avec un champ
  *  `type: 'animation' | 'image_static' | 'conversation'` (V1 implicite = 'animation'). */
+/** Choix joueur Phase E3 — option dans un exit de type 'choices'. */
+export interface ChoiceOptionPersisted {
+  id: string
+  label: string
+  /** ID de la pellicule cible dans la même Section, ou null = fin de section. */
+  targetPelliculeId: string | null
+}
+
+/** Exit pellicule Phase E3 — drive le comportement à la fin de lecture séquence.
+ *  Optionnel pour back-compat (default 'auto' à l'hydratation). */
+export type PelliculeExitPersisted =
+  | { kind: 'auto' }
+  | { kind: 'choices'; options: ChoiceOptionPersisted[] }
+  | { kind: 'end_section' }
+
 export interface PelliculePersisted {
   id: string
   /** Type de pellicule (Phase E 2026-05-05). Optionnel pour back-compat —
    *  saves d'avant Phase E sont rehydratés avec type='animation' par défaut. */
   type?: 'animation' | 'image_static' | 'conversation'
+  /** Exit (Phase E3). Optionnel pour back-compat — default 'auto' à l'hydrate. */
+  exit?: PelliculeExitPersisted
   duration: number
   shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
   camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'

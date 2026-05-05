@@ -13,8 +13,8 @@
 
 import React, { useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { X } from 'lucide-react'
-import { useEditorState, type AnimationPellicule, type PelliculeType } from '@/components/image-editor/EditorStateContext'
+import { X, Plus, Trash2 } from 'lucide-react'
+import { useEditorState, type AnimationPellicule, type PelliculeType, type PelliculeExit, type ChoiceOption } from '@/components/image-editor/EditorStateContext'
 import { SHOT_LABELS, CAMERA_LABELS, DURATION_OPTIONS } from './labels'
 
 /** Labels FR pour les types de pellicule (UI). */
@@ -29,8 +29,57 @@ interface AnimationOptionsModalProps {
   onClose: () => void
 }
 
+/** Helpers pour l'édition de l'exit. */
+function genChoiceId(): string {
+  return `ch-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+}
+
 export default function AnimationOptionsModal({ pellicule, onClose }: AnimationOptionsModalProps) {
-  const { updateAnimationPellicule } = useEditorState()
+  const { updateAnimationPellicule, animationPellicules } = useEditorState()
+
+  /** Change le kind d'exit, en réinitialisant les options si on passe à choices. */
+  function setExitKind(kind: PelliculeExit['kind']) {
+    let newExit: PelliculeExit
+    if (kind === 'choices') {
+      // Si déjà choices, garde les options existantes ; sinon démarre avec 2 choix vides
+      newExit = pellicule.exit.kind === 'choices'
+        ? pellicule.exit
+        : { kind: 'choices', options: [
+            { id: genChoiceId(), label: '', targetPelliculeId: null },
+            { id: genChoiceId(), label: '', targetPelliculeId: null },
+          ] }
+    } else {
+      newExit = { kind } as PelliculeExit
+    }
+    updateAnimationPellicule(pellicule.id, { exit: newExit })
+  }
+
+  function updateChoice(choiceId: string, patch: Partial<ChoiceOption>) {
+    if (pellicule.exit.kind !== 'choices') return
+    const newOptions = pellicule.exit.options.map(c =>
+      c.id === choiceId ? { ...c, ...patch } : c
+    )
+    updateAnimationPellicule(pellicule.id, { exit: { kind: 'choices', options: newOptions } })
+  }
+
+  function addChoice() {
+    if (pellicule.exit.kind !== 'choices') return
+    const newOptions = [
+      ...pellicule.exit.options,
+      { id: genChoiceId(), label: '', targetPelliculeId: null },
+    ]
+    updateAnimationPellicule(pellicule.id, { exit: { kind: 'choices', options: newOptions } })
+  }
+
+  function removeChoice(choiceId: string) {
+    if (pellicule.exit.kind !== 'choices') return
+    const newOptions = pellicule.exit.options.filter(c => c.id !== choiceId)
+    updateAnimationPellicule(pellicule.id, { exit: { kind: 'choices', options: newOptions } })
+  }
+
+  // Liste des pellicules disponibles comme target de choix (toutes sauf
+  // la pellicule courante elle-même = évite les loops triviaux).
+  const targetCandidates = animationPellicules.filter(p => p.id !== pellicule.id)
 
   // Esc ferme la modal
   useEffect(() => {
@@ -124,6 +173,90 @@ export default function AnimationOptionsModal({ pellicule, onClose }: AnimationO
               {DURATION_OPTIONS.map(d => <option key={d} value={d}>{d} secondes</option>)}
             </select>
           </label>
+
+          {/* Phase E3 — section Sortie : drive ce qui se passe à la fin de
+           *  cette pellicule en lecture séquence. */}
+          <div className="dz-anim-options-exit-section">
+            <label className="dz-anim-options-field">
+              <span>Sortie de cette pellicule</span>
+              <select
+                value={pellicule.exit.kind}
+                onChange={e => setExitKind(e.target.value as PelliculeExit['kind'])}
+              >
+                <option value="auto">▶ Enchaîner sur la pellicule suivante</option>
+                <option value="choices">◆ Choix joueur (branching)</option>
+                <option value="end_section">⏹ Fin de section (déclenche les choix de Section)</option>
+              </select>
+            </label>
+
+            {pellicule.exit.kind === 'choices' && (
+              <div className="dz-anim-options-choices">
+                <div className="dz-anim-options-choices-header">
+                  <span>Choix proposés au joueur ({pellicule.exit.options.length})</span>
+                  <button
+                    type="button"
+                    className="dz-anim-options-add-choice"
+                    onClick={addChoice}
+                    title="Ajouter un choix"
+                  >
+                    <Plus size={11} />
+                    <span>Ajouter</span>
+                  </button>
+                </div>
+                {pellicule.exit.options.map((choice, idx) => (
+                  <div key={choice.id} className="dz-anim-options-choice">
+                    <div className="dz-anim-options-choice-num">R{idx + 1}</div>
+                    <input
+                      type="text"
+                      className="dz-anim-options-choice-label"
+                      placeholder="Texte du choix (ex: Engager la conversation)"
+                      value={choice.label}
+                      onChange={e => updateChoice(choice.id, { label: e.target.value })}
+                    />
+                    <select
+                      className="dz-anim-options-choice-target"
+                      value={choice.targetPelliculeId ?? ''}
+                      onChange={e => updateChoice(choice.id, {
+                        targetPelliculeId: e.target.value || null,
+                      })}
+                      title="Pellicule cible si l'auteur sélectionne ce choix"
+                    >
+                      <option value="">→ Fin de section</option>
+                      {targetCandidates.map(p => {
+                        const targetIdx = animationPellicules.findIndex(x => x.id === p.id)
+                        return (
+                          <option key={p.id} value={p.id}>
+                            → P{targetIdx + 1}
+                          </option>
+                        )
+                      })}
+                    </select>
+                    <button
+                      type="button"
+                      className="dz-anim-options-choice-remove"
+                      onClick={() => removeChoice(choice.id)}
+                      disabled={pellicule.exit.kind === 'choices' && pellicule.exit.options.length <= 1}
+                      title="Supprimer ce choix"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                ))}
+                {pellicule.exit.options.length === 0 && (
+                  <div className="dz-anim-options-choices-empty">
+                    Aucun choix — clique <strong>Ajouter</strong> pour en créer un.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {pellicule.exit.kind === 'end_section' && (
+              <div className="dz-anim-options-exit-info">
+                Cette pellicule termine la Section. Les choix configurés dans le
+                Studio Creator (Section.choices) seront affichés au joueur.
+              </div>
+            )}
+          </div>
         </div>
 
         <footer className="dz-anim-options-footer">

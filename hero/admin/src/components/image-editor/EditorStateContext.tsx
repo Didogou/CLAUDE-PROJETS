@@ -118,6 +118,25 @@ export interface SceneDetection {
  *  - 'conversation' : arbre de dialogues branching (réservé Studio Creator) */
 export type PelliculeType = 'animation' | 'image_static' | 'conversation'
 
+/** Choix joueur — option dans un exit de type 'choices'. Pointe vers une
+ *  autre pellicule (intra-section) ou null = fin de section (déclenchera
+ *  Section.choices côté Studio Creator au runtime joueur). */
+export interface ChoiceOption {
+  id: string
+  label: string
+  /** ID de la pellicule cible dans la même Section, ou null = fin de section. */
+  targetPelliculeId: string | null
+}
+
+/** Exit configuration d'une pellicule (Phase E3 2026-05-05) :
+ *  - 'auto'        : enchaîne sur la pellicule suivante (= comportement V1)
+ *  - 'choices'     : affiche N choix au joueur, chaque choix → pellicule cible
+ *  - 'end_section' : termine la Section, déclenche Section.choices Studio Creator */
+export type PelliculeExit =
+  | { kind: 'auto' }
+  | { kind: 'choices'; options: ChoiceOption[] }
+  | { kind: 'end_section' }
+
 /** Pellicule = 1 segment de la timeline d'animation.
  *  Phase E (2026-05-05) : ajout du champ `type` qui détermine le comportement.
  *  Default 'animation' (= 1 wf LTX 2.3 par pellicule). */
@@ -126,6 +145,9 @@ export interface AnimationPellicule {
   id: string
   /** Type de pellicule (Phase E). Default 'animation' (rétro-compat). */
   type: PelliculeType
+  /** Exit (Phase E3 2026-05-05) : que faire à la fin de cette pellicule en
+   *  lecture séquence. Default { kind: 'auto' } (= enchaîner suivante). */
+  exit: PelliculeExit
   /** Durée cible en secondes (3-8, défaut 5).
    *  - type='animation' : durée du wf LTX
    *  - type='image_static' : durée d'affichage en lecture séquence */
@@ -792,6 +814,7 @@ function reducer(state: State, action: Action): State {
       // déjà sélectionnés). Override possible si caller fournit characterIds.
       const newPell: AnimationPellicule = {
         type: 'animation',
+        exit: { kind: 'auto' },  // Phase E3 default
         duration: 5,
         shot: 'medium',
         camera: 'static',
@@ -907,9 +930,14 @@ function reducer(state: State, action: Action): State {
     }
     // ── Phase C — Lecture séquence (chaînage pellicules) ───────────────────
     case 'start_sequence': {
-      // Démarre sur la 1ère pellicule générée (skip celles sans videoUrl).
-      // Aucune générée → no-op (le bouton ▶ Lire séquence sera disabled de toute façon).
-      const firstIdx = state.animationPellicules.findIndex(p => p.videoUrl)
+      // Démarre sur la 1ère pellicule "playable" :
+      //  - animation : a un videoUrl
+      //  - image_static : a un firstFrameUrl (= image fixe choisie)
+      // (E2.5 — 2026-05-05 : étendu pour inclure image_static)
+      const firstIdx = state.animationPellicules.findIndex(p =>
+        (p.type === 'animation' && p.videoUrl) ||
+        (p.type === 'image_static' && p.firstFrameUrl)
+      )
       if (firstIdx === -1) return state
       const first = state.animationPellicules[firstIdx]
       return {
@@ -928,14 +956,23 @@ function reducer(state: State, action: Action): State {
       return { ...state, sequencePlayheadIdx: null }
     }
     case 'advance_sequence_playhead': {
-      // Appelé par Canvas onEnded quand sequencePlayheadIdx !== null.
-      // Cherche la prochaine pellicule générée après la position courante.
+      // Appelé par Canvas onEnded (animation) ou timer image_static.
+      // Cherche la prochaine pellicule playable après la position courante.
       // Si aucune trouvée → fin de séquence, reset playhead.
       if (state.sequencePlayheadIdx === null) return state
+      // Phase E3 : si la pellicule courante a un exit non-auto (choices ou
+      // end_section), la séquence s'arrête ici (pas d'enchaînement automatique).
+      // L'UI affichera les choix joueur (E3.5) ou le saut de section.
+      const currentPell = state.animationPellicules[state.sequencePlayheadIdx]
+      if (currentPell && currentPell.exit && currentPell.exit.kind !== 'auto') {
+        return { ...state, sequencePlayheadIdx: null }
+      }
       const startIdx = state.sequencePlayheadIdx + 1
       let nextIdx = -1
       for (let i = startIdx; i < state.animationPellicules.length; i++) {
-        if (state.animationPellicules[i].videoUrl) {
+        const p = state.animationPellicules[i]
+        if ((p.type === 'animation' && p.videoUrl) ||
+            (p.type === 'image_static' && p.firstFrameUrl)) {
           nextIdx = i
           break
         }

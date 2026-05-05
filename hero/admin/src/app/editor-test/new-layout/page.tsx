@@ -237,6 +237,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
           addAnimationPellicule({
             id: p.id,  // préserve l'id DB
             type: p.type ?? 'animation',  // Phase E : back-compat saves anciens
+            exit: p.exit ?? { kind: 'auto' },  // Phase E3 : back-compat
             duration: p.duration,
             shot: p.shot,
             camera: p.camera,

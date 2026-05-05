@@ -22,7 +22,7 @@
 
 import React, { useState } from 'react'
 import { Reorder, motion, AnimatePresence } from 'framer-motion'
-import { Plus, Play, Pause, Trash2, Film, Settings2, Link2, AlertTriangle, Image as ImageIcon, MessageSquare } from 'lucide-react'
+import { Plus, Play, Pause, Trash2, Film, Settings2, Link2, AlertTriangle, Image as ImageIcon, MessageSquare, GitBranch, StopCircle } from 'lucide-react'
 import { useEditorState, type AnimationPellicule } from '@/components/image-editor/EditorStateContext'
 import { SHOT_LABELS, CAMERA_LABELS } from './labels'
 import AnimationOptionsModal from './AnimationOptionsModal'
@@ -52,9 +52,13 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
     : null
 
   const totalDuration = animationPellicules.reduce((acc, p) => acc + p.duration, 0)
-  const generatedCount = animationPellicules.filter(p => p.videoUrl).length
+  // Count "playable" : animation avec video OU image_static avec image
+  const playableCount = animationPellicules.filter(p =>
+    (p.type === 'animation' && p.videoUrl) ||
+    (p.type === 'image_static' && p.firstFrameUrl)
+  ).length
   const isSequencePlaying = sequencePlayheadIdx !== null
-  const canPlaySequence = generatedCount > 0
+  const canPlaySequence = playableCount > 0
 
   function handleToggleSequence() {
     if (isSequencePlaying) {
@@ -97,7 +101,7 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
         <div className="dz-anim-timeline-meta">
           {animationPellicules.length === 0
             ? 'Aucune pellicule — clique + pour commencer'
-            : `${animationPellicules.length} pellicule${animationPellicules.length > 1 ? 's' : ''} · ${totalDuration}s · ${generatedCount} générée${generatedCount > 1 ? 's' : ''}`}
+            : `${animationPellicules.length} pellicule${animationPellicules.length > 1 ? 's' : ''} · ${totalDuration}s · ${playableCount} prête${playableCount > 1 ? 's' : ''}`}
         </div>
         {/* Bouton ▶ Lire séquence : chaîne toutes les pellicules générées dans
          *  le canvas. Disabled si aucune générée. Toggle play/stop. */}
@@ -248,6 +252,23 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
                       </button>
                     )}
                   </div>
+                  {/* Phase E3 — Badge exit en haut-droite si non-auto.
+                   *  GitBranch icon pour choices, StopCircle pour end_section. */}
+                  {p.exit && p.exit.kind !== 'auto' && (
+                    <div
+                      className={`dz-anim-cell-exit-badge dz-anim-cell-exit-${p.exit.kind}`}
+                      title={
+                        p.exit.kind === 'choices'
+                          ? `Sortie : ${p.exit.options.length} choix joueur (branching). La lecture séquence s'arrête ici jusqu'au choix.`
+                          : 'Sortie : fin de Section (déclenche les choix de Section au runtime).'
+                      }
+                    >
+                      {p.exit.kind === 'choices'
+                        ? <GitBranch size={9} />
+                        : <StopCircle size={9} />}
+                    </div>
+                  )}
+
                   {/* Bouton Options + Supprimer côte à côte sous le thumbnail.
                    *  stopPropagation pour ne pas re-sélectionner la pellicule au clic. */}
                   <div className="dz-anim-cell-actions-row">

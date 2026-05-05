@@ -86,6 +86,24 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
     return null  // tombe sur l'imageUrl base via le rendu standard
   }, [animationSelectedPelliculeId, animationPellicules])
 
+  // E2.5 — Timer pour image_static en lecture séquence.
+  // Quand sequencePlayheadIdx pointe sur une pellicule de type image_static,
+  // le Canvas affiche déjà l'image (via displayedImageUrl + setCurrentVideo
+  // null dans le reducer). Reste à programmer l'avance auto après duration.
+  // Cleanup obligatoire si le playhead change ou le composant unmount → évite
+  // les advance fantômes d'anciennes timers.
+  useEffect(() => {
+    if (sequencePlayheadIdx === null) return
+    const currentPell = animationPellicules[sequencePlayheadIdx]
+    if (!currentPell || currentPell.type !== 'image_static') return
+    // image_static dans séquence → timer pour avancer après duration secondes
+    const ms = currentPell.duration * 1000
+    const timer = setTimeout(() => {
+      advanceSequencePlayhead()
+    }, ms)
+    return () => clearTimeout(timer)
+  }, [sequencePlayheadIdx, animationPellicules, advanceSequencePlayhead])
+
   // L'image affichée dans Canvas. Priorité :
   //   1. animationStaticImageUrl si pellicule sélectionnée (et pas de vidéo qui joue)
   //   2. imageUrl base sinon
