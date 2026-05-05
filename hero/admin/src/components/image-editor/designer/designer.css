@@ -5085,6 +5085,45 @@ body.theme-dark .dz-cut-tile,
 .dz-anim-timeline-meta {
   font-style: italic;
   font-variant-numeric: tabular-nums;
+  flex: 1 1 auto;  /* push button to the right */
+}
+
+/* Bouton ▶ Lire séquence — chaîne toutes les pellicules dans le canvas.
+ * État playing → fond rose accent + label "Arrêter". */
+.dz-anim-timeline-play-seq {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 140ms;
+  flex: 0 0 auto;
+}
+.dz-anim-timeline-play-seq:hover:not(:disabled) {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 6%, var(--ie-surface));
+}
+.dz-anim-timeline-play-seq:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.dz-anim-timeline-play-seq.playing {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  color: #fff;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+.dz-anim-timeline-play-seq.playing:hover {
+  background: color-mix(in srgb, #000 10%, var(--ie-accent));
+  color: #fff;
 }
 .dz-anim-timeline-strip {
   display: flex;
@@ -5135,6 +5174,25 @@ body.theme-dark .dz-cut-tile,
   border-color: var(--ie-accent);
   background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
   box-shadow: 0 0 0 1px var(--ie-accent);
+}
+/* Phase C : highlight pulsant pour la pellicule en cours de lecture séquence.
+ * Halo rose qui pulse de 0 → 8px pour signaler "is now playing". */
+.dz-anim-cell.playing-sequence {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 12%, transparent);
+  animation: dz-anim-cell-playing-pulse 1.4s ease-in-out infinite;
+}
+@keyframes dz-anim-cell-playing-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px var(--ie-accent),
+      0 0 0 0 color-mix(in srgb, var(--ie-accent) 45%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px var(--ie-accent),
+      0 0 0 8px color-mix(in srgb, var(--ie-accent) 0%, transparent);
+  }
 }
 .dz-anim-cell.pending .dz-anim-cell-thumb img { opacity: 0.65; }
 /* Titre cellule : "P1 — Plan moyen, Caméra fixe, 5s · à générer"

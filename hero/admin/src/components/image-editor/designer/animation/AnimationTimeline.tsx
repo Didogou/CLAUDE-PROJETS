@@ -22,7 +22,7 @@
 
 import React, { useState } from 'react'
 import { Reorder, motion, AnimatePresence } from 'framer-motion'
-import { Plus, Play, Trash2, Film, Settings2 } from 'lucide-react'
+import { Plus, Play, Pause, Trash2, Film, Settings2 } from 'lucide-react'
 import { useEditorState, type AnimationPellicule } from '@/components/image-editor/EditorStateContext'
 import { SHOT_LABELS, CAMERA_LABELS } from './labels'
 import AnimationOptionsModal from './AnimationOptionsModal'
@@ -42,6 +42,7 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
     removeAnimationPellicule,
     setAnimationPelliculesOrder,
     imageUrl,  // base image du plan — fallback racine pour vignettes non générées
+    sequencePlayheadIdx, startSequence, stopSequence,  // Phase C
   } = useEditorState()
 
   // ID de la pellicule dont on édite les options (modal). null = aucun ouvert.
@@ -52,6 +53,16 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
 
   const totalDuration = animationPellicules.reduce((acc, p) => acc + p.duration, 0)
   const generatedCount = animationPellicules.filter(p => p.videoUrl).length
+  const isSequencePlaying = sequencePlayheadIdx !== null
+  const canPlaySequence = generatedCount > 0
+
+  function handleToggleSequence() {
+    if (isSequencePlaying) {
+      stopSequence()
+    } else if (canPlaySequence) {
+      startSequence()
+    }
+  }
 
   // framer-motion Reorder donne directement la nouvelle permutation complète.
   // On la passe au reducer qui valide que c'est bien une permutation stricte.
@@ -88,6 +99,24 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
             ? 'Aucune pellicule — clique + pour commencer'
             : `${animationPellicules.length} pellicule${animationPellicules.length > 1 ? 's' : ''} · ${totalDuration}s · ${generatedCount} générée${generatedCount > 1 ? 's' : ''}`}
         </div>
+        {/* Bouton ▶ Lire séquence : chaîne toutes les pellicules générées dans
+         *  le canvas. Disabled si aucune générée. Toggle play/stop. */}
+        <button
+          type="button"
+          className={`dz-anim-timeline-play-seq ${isSequencePlaying ? 'playing' : ''}`}
+          onClick={handleToggleSequence}
+          disabled={!canPlaySequence && !isSequencePlaying}
+          title={
+            !canPlaySequence ? 'Génère au moins une pellicule pour pouvoir lire la séquence'
+            : isSequencePlaying ? 'Arrêter la lecture séquence'
+            : 'Lire toutes les pellicules à la suite'
+          }
+        >
+          {isSequencePlaying
+            ? <><Pause size={12} fill="currentColor" /><span>Arrêter</span></>
+            : <><Play size={12} fill="currentColor" /><span>Lire séquence</span></>
+          }
+        </button>
       </div>
 
       <div className="dz-anim-timeline-strip">
@@ -103,6 +132,9 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
             {animationPellicules.map((p, idx) => {
               const selected = p.id === animationSelectedPelliculeId
               const generated = !!p.videoUrl
+              // True si cette pellicule est en cours de lecture séquence.
+              // Drive un highlight pulsant pour signaler "is now playing".
+              const isPlayingInSequence = sequencePlayheadIdx === idx
               // Image affichée dans la vignette = "image de départ" de la pellicule.
               // Même règle que le Canvas : firstFrame > prev.lastFrame > baseImage.
               // Garantit une cohérence visuelle quand on scanne la timeline (chaque
@@ -113,8 +145,11 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
                 <Reorder.Item
                   key={p.id}
                   value={p}
-                  className={`dz-anim-cell ${selected ? 'selected' : ''} ${generated ? 'generated' : 'pending'}`}
+                  className={`dz-anim-cell ${selected ? 'selected' : ''} ${generated ? 'generated' : 'pending'} ${isPlayingInSequence ? 'playing-sequence' : ''}`}
                   onClick={() => {
+                    // Si une séquence est en cours → la stopper d'abord (le user
+                    // veut prendre le contrôle manuel d'une pellicule isolée).
+                    if (sequencePlayheadIdx !== null) stopSequence()
                     // Sélectionne la pellicule + auto-play si vidéo dispo.
                     // Comportement design 2026-05-05 : 1 clic = je veux voir
                     // la vidéo jouer 1× puis revenir à l'état initial (firstFrame)

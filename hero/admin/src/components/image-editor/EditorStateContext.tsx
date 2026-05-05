@@ -305,6 +305,12 @@ interface State {
    *  IC LoRA Dual Characters). Partagé entre toutes les pellicules de la timeline
    *  (même 2 persos d'un bout à l'autre par défaut, raffinable plus tard). */
   animationSelectedCharIds: string[]
+  /** Phase C — Lecture séquence : index de la pellicule en cours de lecture
+   *  dans le mode "▶ Lire séquence" (chaînage P1→P2→...→PN). null = pas
+   *  en mode séquence (lecture isolée ou statique).
+   *  Le Canvas onEnded déclenche advanceSequencePlayhead → set au prochain
+   *  index avec videoUrl ou reset null à la fin. */
+  sequencePlayheadIdx: number | null
   /** Compteur incrémenté à chaque clic sur le fond image — la Sidebar
    *  l'écoute pour fermer tous ses folds (même si rien n'était sélectionné). */
   backgroundClickTick: number
@@ -380,6 +386,9 @@ type Action =
   | { type: 'set_animation_pellicules_order'; pellicules: AnimationPellicule[] }
   | { type: 'set_animation_selected_pellicule'; id: string | null }
   | { type: 'set_animation_selected_chars'; ids: string[] }
+  | { type: 'start_sequence' }
+  | { type: 'stop_sequence' }
+  | { type: 'advance_sequence_playhead' }
   /** Remplace la base courante par une nouvelle (sélection d'une variante,
    *  pick depuis la banque, etc.). Distinct de `set_image_url` car cascade
    *  delete : on jette tous les calques + cut state + scene analysis liés
@@ -880,6 +889,57 @@ function reducer(state: State, action: Action): State {
           : state.animationPellicules,
       }
     }
+    // ── Phase C — Lecture séquence (chaînage pellicules) ───────────────────
+    case 'start_sequence': {
+      // Démarre sur la 1ère pellicule générée (skip celles sans videoUrl).
+      // Aucune générée → no-op (le bouton ▶ Lire séquence sera disabled de toute façon).
+      const firstIdx = state.animationPellicules.findIndex(p => p.videoUrl)
+      if (firstIdx === -1) return state
+      const first = state.animationPellicules[firstIdx]
+      return {
+        ...state,
+        sequencePlayheadIdx: firstIdx,
+        animationSelectedPelliculeId: first.id,
+        animationSelectedCharIds: [...first.characterIds],
+        currentVideoUrl: first.videoUrl,
+        currentVideoFirstFrameUrl: first.firstFrameUrl,
+        currentVideoLastFrameUrl: first.lastFrameUrl,
+        currentVideoPlayId: state.currentVideoPlayId + 1,
+      }
+    }
+    case 'stop_sequence': {
+      if (state.sequencePlayheadIdx === null) return state
+      return { ...state, sequencePlayheadIdx: null }
+    }
+    case 'advance_sequence_playhead': {
+      // Appelé par Canvas onEnded quand sequencePlayheadIdx !== null.
+      // Cherche la prochaine pellicule générée après la position courante.
+      // Si aucune trouvée → fin de séquence, reset playhead.
+      if (state.sequencePlayheadIdx === null) return state
+      const startIdx = state.sequencePlayheadIdx + 1
+      let nextIdx = -1
+      for (let i = startIdx; i < state.animationPellicules.length; i++) {
+        if (state.animationPellicules[i].videoUrl) {
+          nextIdx = i
+          break
+        }
+      }
+      if (nextIdx === -1) {
+        // Fin séquence — reste sur la lastFrame de la dernière pellicule jouée
+        return { ...state, sequencePlayheadIdx: null }
+      }
+      const next = state.animationPellicules[nextIdx]
+      return {
+        ...state,
+        sequencePlayheadIdx: nextIdx,
+        animationSelectedPelliculeId: next.id,
+        animationSelectedCharIds: [...next.characterIds],
+        currentVideoUrl: next.videoUrl,
+        currentVideoFirstFrameUrl: next.firstFrameUrl,
+        currentVideoLastFrameUrl: next.lastFrameUrl,
+        currentVideoPlayId: state.currentVideoPlayId + 1,
+      }
+    }
 
     case 'replace_base': {
       // Cascade delete : nouvelle base → on jette tout ce qui était lié à
@@ -917,6 +977,7 @@ function reducer(state: State, action: Action): State {
         animationPellicules: [],
         animationSelectedPelliculeId: null,
         animationSelectedCharIds: [],
+        sequencePlayheadIdx: null,
       }
     }
 
@@ -1218,6 +1279,17 @@ interface EditorStateContextValue {
   setAnimationSelectedPellicule: (id: string | null) => void
   /** Set les persos sélectionnés (max 2 — IC LoRA Dual limit). */
   setAnimationSelectedChars: (ids: string[]) => void
+  /** Phase C — index pellicule en cours de lecture séquence (null si pas en mode séquence). */
+  sequencePlayheadIdx: number | null
+  /** Démarre la lecture séquence à partir de la 1ère pellicule générée.
+   *  No-op si aucune pellicule n'a videoUrl. */
+  startSequence: () => void
+  /** Stop manuel de la séquence (clic ailleurs, re-clic ▶, etc.). Reste sur la
+   *  vidéo en cours sans avancer. */
+  stopSequence: () => void
+  /** Avance le playhead à la prochaine pellicule générée. Appelé par Canvas onEnded.
+   *  Si aucune suivante générée → reset playhead = fin séquence. */
+  advanceSequencePlayhead: () => void
   /** Marque l'analyse comme en cours pour une image donnée (busy=true).
    *  Le hook usePreAnalyzeImage l'appelle au début de l'API call. */
   setSceneAnalysisBusy: (busy: boolean, imageUrl: string | null) => void
@@ -1339,6 +1411,7 @@ export function EditorStateProvider({
     animationPellicules: [],
     animationSelectedPelliculeId: null,
     animationSelectedCharIds: [],
+    sequencePlayheadIdx: null,
     backgroundClickTick: 0,
     history: [{ layers: initialLayers, imageUrl: initialImageUrl }],
     historyIndex: 0,
@@ -1460,6 +1533,9 @@ export function EditorStateProvider({
     dispatch({ type: 'set_animation_selected_pellicule', id }), [])
   const setAnimationSelectedChars = useCallback((ids: string[]) =>
     dispatch({ type: 'set_animation_selected_chars', ids }), [])
+  const startSequence = useCallback(() => dispatch({ type: 'start_sequence' }), [])
+  const stopSequence = useCallback(() => dispatch({ type: 'stop_sequence' }), [])
+  const advanceSequencePlayhead = useCallback(() => dispatch({ type: 'advance_sequence_playhead' }), [])
   const reorderLayers = useCallback((from: number, to: number) =>
     dispatch({ type: 'reorder_layers', from, to }), [])
   const setLayers = useCallback((layers: EditorLayer[], activeIdx?: number) =>
@@ -1543,6 +1619,10 @@ export function EditorStateProvider({
     setAnimationPelliculesOrder,
     setAnimationSelectedPellicule,
     setAnimationSelectedChars,
+    sequencePlayheadIdx: state.sequencePlayheadIdx,
+    startSequence,
+    stopSequence,
+    advanceSequencePlayhead,
     setSceneAnalysisBusy,
     setSceneAnalysisResult,
     setSceneAnalysisError,
@@ -1578,6 +1658,7 @@ export function EditorStateProvider({
     addAnimationPellicule, updateAnimationPellicule, updateAnimationPelliculeCharData,
     removeAnimationPellicule, reorderAnimationPellicules, setAnimationPelliculesOrder,
     setAnimationSelectedPellicule, setAnimationSelectedChars,
+    startSequence, stopSequence, advanceSequencePlayhead,
     setSceneAnalysisBusy, setSceneAnalysisResult, setSceneAnalysisError, clearSceneAnalysis, removeSceneDetection, setSelectedDetection, setZoomLoupeManualOpen,
     addNpc, updateNpc, removeNpc, reorderNpcs, setNpcs,
     addItem, updateItem, removeItem, reorderItems, setItems,

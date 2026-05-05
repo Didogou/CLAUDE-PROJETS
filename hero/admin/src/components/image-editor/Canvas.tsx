@@ -67,6 +67,7 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
     currentVideoUrl, currentVideoFirstFrameUrl, currentVideoPlayId,
     animationPellicules, animationSelectedPelliculeId,
     setAnimationPlaying,
+    sequencePlayheadIdx, advanceSequencePlayhead,
   } = useEditorState()
 
   // Animation Phase A : si une pellicule est sélectionnée et qu'aucune vidéo
@@ -187,17 +188,28 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
                 /* onPlay : signale que la lecture commence → DesignerLayout
                  * rétracte temporairement la bande basse (canvas redevient visible). */
                 onPlay={() => setAnimationPlaying(true)}
-                /* À la fin de lecture : seek à 0 + pause → la vidéo affiche
-                 * la firstFrame statique. L'auteur voit "l'état de départ" et
-                 * peut modifier l'image base / régénérer / re-cliquer pour
-                 * re-jouer (cf design 2026-05-05).
-                 * setAnimationPlaying(false) → bande basse remonte à sa
-                 * hauteur expanded (si chars sélectionnés). */
+                /* À la fin de lecture, 2 comportements possibles :
+                 * - Mode séquence (sequencePlayheadIdx !== null) : advance directement
+                 *   à la prochaine pellicule générée → pas de seek 0 (évite flash
+                 *   firstFrame entre 2 vidéos). advanceSequencePlayhead set le nouvel
+                 *   currentVideoUrl + playId++ → re-mount video → autoplay.
+                 *   setAnimationPlaying NE PAS faire false ici → la bande basse
+                 *   reste rétractée pendant toute la séquence.
+                 * - Mode lecture isolée (sequencePlayheadIdx === null) : seek 0 + pause
+                 *   → affiche firstFrame statique. setAnimationPlaying(false). */
                 onEnded={(e) => {
-                  const v = e.currentTarget
-                  v.pause()
-                  try { v.currentTime = 0 } catch {/* edge case browsers */}
-                  setAnimationPlaying(false)
+                  if (sequencePlayheadIdx !== null) {
+                    advanceSequencePlayhead()
+                    // Note : si advance reset playhead à null (= fin séquence),
+                    // setAnimationPlaying restera true jusqu'au prochain onEnded
+                    // de la dernière vidéo. À ce moment, sequencePlayheadIdx est
+                    // déjà null donc on tombe dans la branche else → seek 0 + pause.
+                  } else {
+                    const v = e.currentTarget
+                    v.pause()
+                    try { v.currentTime = 0 } catch {/* edge case browsers */}
+                    setAnimationPlaying(false)
+                  }
                 }}
                 onPause={() => setAnimationPlaying(false)}
                 style={{
