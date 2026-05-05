@@ -238,10 +238,16 @@ export default function DesignerLayout({
       const idx = animationPellicules.findIndex(p => p.id === pelliculeId)
       const prev = idx > 0 ? animationPellicules[idx - 1] : null
       let sourceImage: string
+      // Track si on a utilisé prev.lastFrame comme input (= continuité avec
+      // la pellicule précédente). Si oui, on force firstFrameUrl = même URL
+      // après gen → permet la détection visuelle de continuité par simple
+      // comparaison d'URL côté timeline (badge ✓ vs ⚠).
+      let usedPrevAsContinuityInput = false
       if (pell.firstFrameUrl) {
         sourceImage = pell.firstFrameUrl
       } else if (prev?.lastFrameUrl) {
         sourceImage = prev.lastFrameUrl
+        usedPrevAsContinuityInput = true
       } else if (imageUrl) {
         setGeneratingProgressLabel('Composition de l\'image source…')
         sourceImage = await flattenLayersToImage({
@@ -263,9 +269,17 @@ export default function DesignerLayout({
         onProgress: p => setGeneratingProgressLabel(p.label ?? p.stage),
       })
 
+      // Si gen en continuité → on force firstFrameUrl = prev.lastFrameUrl
+      // (même URL Supabase) au lieu de la frame extraite par extract-frames.
+      // Bénéfice : la timeline détecte la continuité par URL strict equality
+      // → badge ✓ apparait entre P_(N-1) et P_N. Micro-jitter au play start
+      // possible (LTX peut s'écarter de l'input image), acceptable car LTX
+      // est très fidèle en mode I2V.
       updateAnimationPellicule(pelliculeId, {
         videoUrl: result.video_url,
-        firstFrameUrl: result.first_frame_url,
+        firstFrameUrl: usedPrevAsContinuityInput
+          ? prev!.lastFrameUrl
+          : result.first_frame_url,
         lastFrameUrl: result.last_frame_url,
       })
       // Auto-play après gen pour montrer le résultat

@@ -5195,6 +5195,38 @@ body.theme-dark .dz-cut-tile,
   }
 }
 .dz-anim-cell.pending .dz-anim-cell-thumb img { opacity: 0.65; }
+
+/* Phase D1 — Badge continuité visuelle entre 2 pellicules.
+ * Position : flottant sur le bord gauche de la cellule, déborde dans le gap
+ * → appartient visuellement aux 2 cellules adjacentes. */
+.dz-anim-cell-continuity-badge {
+  position: absolute;
+  left: -0.45rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ie-bg);
+  border: 1.5px solid currentColor;
+  z-index: 4;
+  pointer-events: auto;  /* permet le tooltip natif */
+  cursor: help;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 140ms;
+}
+.dz-anim-cell-continuity-badge:hover {
+  transform: translateY(-50%) scale(1.15);
+}
+.dz-anim-cell-continuity-continuous {
+  color: #16a34a;  /* vert success */
+}
+.dz-anim-cell-continuity-broken {
+  color: #f59e0b;  /* ambre warning */
+}
 /* Titre cellule : "P1 — Plan moyen, Caméra fixe, 5s · à générer"
  * Layout inline-wrap, ID en accent rose, params en regular, pending en italique. */
 .dz-anim-cell-num {

@@ -22,7 +22,7 @@
 
 import React, { useState } from 'react'
 import { Reorder, motion, AnimatePresence } from 'framer-motion'
-import { Plus, Play, Pause, Trash2, Film, Settings2 } from 'lucide-react'
+import { Plus, Play, Pause, Trash2, Film, Settings2, Link2, AlertTriangle } from 'lucide-react'
 import { useEditorState, type AnimationPellicule } from '@/components/image-editor/EditorStateContext'
 import { SHOT_LABELS, CAMERA_LABELS } from './labels'
 import AnimationOptionsModal from './AnimationOptionsModal'
@@ -141,6 +141,21 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
               // vignette montre par où la pellicule commence/commencera).
               const prev = idx > 0 ? animationPellicules[idx - 1] : null
               const startImage = p.firstFrameUrl ?? prev?.lastFrameUrl ?? imageUrl ?? null
+              // Phase D1 — Détection continuité avec la pellicule précédente.
+              // Continu = firstFrameUrl strictement === prev.lastFrameUrl (gen
+              // l'a forcé en mode continuité, cf handleGeneratePellicule).
+              // Status :
+              //   - first cell (idx 0) → pas d'indicateur
+              //   - both pellicules générées + URL match → continu (✓ vert)
+              //   - both générées + URL mismatch → rupture (⚠ ambre)
+              //   - l'une n'est pas générée → neutre (pas d'indicateur, pas
+              //     pertinent tant que pas de média à comparer)
+              const continuityStatus: 'continuous' | 'broken' | 'na' =
+                idx === 0 ? 'na'
+                : (!p.videoUrl || !prev?.videoUrl) ? 'na'
+                : p.firstFrameUrl && prev.lastFrameUrl && p.firstFrameUrl === prev.lastFrameUrl
+                  ? 'continuous'
+                  : 'broken'
               return (
                 <Reorder.Item
                   key={p.id}
@@ -162,6 +177,23 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
                   // Layout shared pour animation fluide au drag/drop
                   layout
                 >
+                  {/* Phase D1 — Badge continuité visuelle (chevauche le bord
+                   *  gauche de la cellule, apparait dans le gap entre cellules).
+                   *  ✓ vert si firstFrame == prev.lastFrame, ⚠ ambre si rupture. */}
+                  {continuityStatus !== 'na' && (
+                    <div
+                      className={`dz-anim-cell-continuity-badge dz-anim-cell-continuity-${continuityStatus}`}
+                      title={
+                        continuityStatus === 'continuous'
+                          ? `Continuité visuelle OK avec P${idx} (cette pellicule démarre depuis la dernière frame de la précédente).`
+                          : `⚠ Rupture visuelle avec P${idx} — la lecture séquence aura un saut ici. Régénère cette pellicule pour rétablir la continuité (efface la firstFrame avant de cliquer Régénérer).`
+                      }
+                    >
+                      {continuityStatus === 'continuous'
+                        ? <Link2 size={9} />
+                        : <AlertTriangle size={9} />}
+                    </div>
+                  )}
                   {/* Titre cellule : "P1 — Plan moyen, Caméra fixe, 5s" + tag à générer
                    *  Permet à l'auteur de scanner les params de chaque pellicule en
                    *  un coup d'œil sans cliquer (édition via bouton Options ci-dessous). */}
