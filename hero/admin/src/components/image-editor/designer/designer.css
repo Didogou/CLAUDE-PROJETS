@@ -5856,6 +5856,53 @@ body.theme-dark .dz-cut-tile,
   margin-bottom: 0.4rem;
 }
 
+/* Phase E — section Effets ambiance pour image_static dans l'éditeur. */
+.dz-anim-editor-effects {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.5rem 0.6rem;
+  background: color-mix(in srgb, var(--ie-text) 3%, transparent);
+  border-radius: 0.4rem;
+}
+.dz-anim-editor-effects-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text-muted);
+}
+.dz-anim-editor-effects-row {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+.dz-anim-editor-effect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text-muted);
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 140ms;
+}
+.dz-anim-editor-effect-btn:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 5%, var(--ie-bg));
+}
+.dz-anim-editor-effect-btn.active {
+  border-color: var(--ie-accent);
+  background: var(--ie-accent);
+  color: #fff;
+}
+
 /* Phase E — image_static preview dans l'éditeur. */
 .dz-anim-editor-image-preview {
   position: relative;

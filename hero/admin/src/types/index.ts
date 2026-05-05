@@ -218,6 +218,8 @@ export interface PelliculePersisted {
   videoUrl: string | null
   firstFrameUrl: string | null
   lastFrameUrl: string | null
+  /** Phase E (2026-05-05) — Preset effet ambiance pour image_static. Optional. */
+  effectPreset?: string | null
 }
 
 export interface SectionImage {

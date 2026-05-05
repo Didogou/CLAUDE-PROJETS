@@ -22,6 +22,7 @@ import LightningEffect from './LightningEffect'
 import RainyDayGlassLayer from './RainyDayGlassLayer'
 import { useEditorState } from './EditorStateContext'
 import { formatToAspectRatio } from './GenerationPanel'
+import { WEATHER_PRESETS } from './types'
 
 /**
  * Sous-composant pour les calques vidéo — gère le playbackRate en fonction
@@ -109,6 +110,22 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
   //   2. imageUrl base sinon
   // Le rendu <video> (si currentVideoUrl) reste au-dessus de l'<img>.
   const displayedImageUrl = (!currentVideoUrl && animationStaticImageUrl) || imageUrl
+
+  // Phase E — Effet ambiance image_static : si la pellicule sélectionnée
+  // (ou en cours de lecture séquence) est de type image_static avec un preset
+  // effet, on render la couche particules par-dessus l'image. Pas de vidéo
+  // qui joue en parallèle (image_static n'a pas de videoUrl).
+  const activeImageEffectParams = useMemo(() => {
+    if (currentVideoUrl) return null  // priorité vidéo, pas d'effet
+    const activeIdx = sequencePlayheadIdx ?? animationPellicules.findIndex(p => p.id === animationSelectedPelliculeId)
+    if (activeIdx < 0) return null
+    const pell = animationPellicules[activeIdx]
+    if (!pell || pell.type !== 'image_static' || !pell.effectPreset) return null
+    const preset = WEATHER_PRESETS.find(p => p.key === pell.effectPreset)
+    return preset
+      ? { params: preset.defaults, opacity: preset.defaultOpacity }
+      : null
+  }, [currentVideoUrl, sequencePlayheadIdx, animationPellicules, animationSelectedPelliculeId])
   const imgRef = useRef<HTMLImageElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   // Taille rendue du wrapper en CSS px (pas DPR-multiplied). Utilisée par
@@ -191,6 +208,27 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
               affiche la 1ère frame pendant le chargement → pas de flash blanc.
               `pointerEvents: none` laisse passer les clics aux overlays (npcs, items).
             */}
+            {/* Phase E — couche effet ambiance pour pellicule image_static.
+             *  Rendue par-dessus l'image (z-index 1) mais sous la vidéo si une
+             *  vidéo joue (currentVideoUrl prioritaire). pointerEvents: none
+             *  pour laisser passer les clics aux overlays NPC/items. */}
+            {activeImageEffectParams && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  zIndex: 1,
+                  pointerEvents: 'none',
+                  opacity: activeImageEffectParams.opacity,
+                }}
+              >
+                <ParticleLayer
+                  weather={activeImageEffectParams.params}
+                  style={{ width: '100%', height: '100%' }}
+                />
+              </div>
+            )}
+
             {currentVideoUrl && (
               <video
                 /* key sur playId → re-mount du <video> à CHAQUE setCurrentVideo

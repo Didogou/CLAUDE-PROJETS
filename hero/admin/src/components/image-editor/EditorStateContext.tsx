@@ -172,6 +172,10 @@ export interface AnimationPellicule {
   /** Dernière frame du MP4 (= image affichée dans Canvas pour la pellicule
    *  N+1 sélectionnée si N+1 pas encore générée — "preview point de départ"). */
   lastFrameUrl: string | null
+  /** Phase E (2026-05-05) — Preset d'effet ambiance (rain / snow / fog / cloud)
+   *  appliqué par-dessus l'image au render Canvas. UNIQUEMENT pour type='image_static'.
+   *  null = aucun effet. Référence une key de WEATHER_PRESETS. */
+  effectPreset?: string | null
 }
 
 export interface SceneAnalysisState {

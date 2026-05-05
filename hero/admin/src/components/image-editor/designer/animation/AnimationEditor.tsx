@@ -16,6 +16,14 @@ import React, { useMemo, useRef, useState } from 'react'
 import { Loader2, Upload, Image as ImageIcon, MessageSquare } from 'lucide-react'
 import { useCharacterStore, type Character } from '@/lib/character-store'
 import { useEditorState } from '@/components/image-editor/EditorStateContext'
+import { WEATHER_PRESETS } from '@/components/image-editor/types'
+
+/** V1 — sous-ensemble des presets WEATHER applicables comme effet ambiance
+ *  sur une image_static (rain/snow/fog/cloud — pas lightning qui demande un
+ *  composant à part). Ordre = ordre d'affichage dans la palette. */
+const IMAGE_EFFECT_PRESETS = WEATHER_PRESETS.filter(p =>
+  p.kind === 'rain' || p.kind === 'snow' || p.kind === 'fog' || p.kind === 'cloud'
+)
 
 interface AnimationEditorProps {
   /** Callback de génération LTX — câblé dans le parent car nécessite l'image
@@ -153,7 +161,38 @@ export default function AnimationEditor({
           </div>
         ) : (
           <div className="dz-anim-editor-guide">
-            Aucune image — choisis une image fixe à afficher pendant {pell.duration}s.
+            Aucune image — choisis-en une dans la banque (panneau de gauche)
+            ou importe-la depuis ton ordinateur (bouton ci-dessous).
+          </div>
+        )}
+
+        {/* Phase E — Section Effets : presets ambiance par-dessus l'image */}
+        {pell.firstFrameUrl && (
+          <div className="dz-anim-editor-effects">
+            <div className="dz-anim-editor-effects-label">Effet ambiance</div>
+            <div className="dz-anim-editor-effects-row">
+              <button
+                type="button"
+                className={`dz-anim-editor-effect-btn ${!pell.effectPreset ? 'active' : ''}`}
+                onClick={() => updateAnimationPellicule(pell.id, { effectPreset: null })}
+                title="Aucun effet"
+              >
+                <span style={{ fontSize: '0.75rem' }}>∅</span>
+                <span>Aucun</span>
+              </button>
+              {IMAGE_EFFECT_PRESETS.map(preset => (
+                <button
+                  key={preset.key}
+                  type="button"
+                  className={`dz-anim-editor-effect-btn ${pell.effectPreset === preset.key ? 'active' : ''}`}
+                  onClick={() => updateAnimationPellicule(pell.id, { effectPreset: preset.key })}
+                  title={preset.hint}
+                >
+                  <span style={{ fontSize: '0.85rem' }}>{preset.icon}</span>
+                  <span>{preset.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -172,7 +211,7 @@ export default function AnimationEditor({
             {uploading ? (
               <><Loader2 size={14} className="dza-spin" /><span>Upload…</span></>
             ) : (
-              <><Upload size={14} /><span>{pell.firstFrameUrl ? 'Changer l\'image' : 'Choisir une image'}</span></>
+              <><Upload size={14} /><span>{pell.firstFrameUrl ? 'Changer l\'image' : 'Importer depuis l\'ordi'}</span></>
             )}
           </button>
           <input

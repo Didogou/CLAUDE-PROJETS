@@ -249,6 +249,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
             videoUrl: p.videoUrl,
             firstFrameUrl: p.firstFrameUrl,
             lastFrameUrl: p.lastFrameUrl,
+            effectPreset: p.effectPreset ?? null,  // Phase E
           })
         })
         // Set la dernière pellicule générée comme currentVideoUrl pour que
