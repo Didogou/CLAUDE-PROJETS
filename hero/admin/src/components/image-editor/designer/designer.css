@@ -5296,31 +5296,45 @@ body.theme-dark .dz-cut-tile,
   font-variant-numeric: tabular-nums;
 }
 
-/* Bouton "Options" sous le thumbnail — déclenche la modale pour modifier
- * Cadrage / Caméra / Durée. Style minimal pour ne pas voler la vedette au
- * thumbnail film strip. */
-.dz-anim-cell-options-btn {
+/* Row Options + Supprimer sous le thumbnail. */
+.dz-anim-cell-actions-row {
+  display: flex;
+  gap: 0.3rem;
+  margin-top: 0.1rem;
+}
+.dz-anim-cell-options-btn,
+.dz-anim-cell-delete-btn {
+  flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem 0.4rem;
   background: transparent;
   border: 1px solid var(--ie-border);
   border-radius: 0.3rem;
-  color: var(--ie-text-muted);
   font-family: inherit;
   font-size: 0.65rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 140ms;
-  margin-top: 0.1rem;
-  align-self: center;
+}
+.dz-anim-cell-options-btn {
+  color: var(--ie-text-muted);
 }
 .dz-anim-cell-options-btn:hover {
   border-color: var(--ie-accent);
   color: var(--ie-accent);
   background: color-mix(in srgb, var(--ie-accent) 5%, transparent);
+}
+/* Supprimer = action destructive → couleur rouge au hover, signalée. */
+.dz-anim-cell-delete-btn {
+  color: color-mix(in srgb, #dc2626 70%, var(--ie-text-muted));
+}
+.dz-anim-cell-delete-btn:hover {
+  border-color: #dc2626;
+  color: #fff;
+  background: #dc2626;
 }
 
 /* Modal AnimationOptionsModal — petite boîte centrée avec backdrop blur.

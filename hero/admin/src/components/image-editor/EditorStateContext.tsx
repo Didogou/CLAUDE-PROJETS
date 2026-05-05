@@ -126,6 +126,11 @@ export interface AnimationPellicule {
   /** Mouvement caméra. Voir CAMERA_PROMPT pour le mapping LTX. */
   camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'
        | 'pan_left' | 'pan_right' | 'dolly_in' | 'dolly_out' | 'handheld'
+  /** IDs des Characters featured DANS cette pellicule (max 2 — IC LoRA Dual).
+   *  Chaque pellicule a sa propre sélection (ex: P1 = Duke seul, P2 = Duke+Epsi).
+   *  Au save, est persisté → au reload, reselectionné quand la pellicule devient
+   *  active. Vide [] = pas encore configuré. */
+  characterIds: string[]
   /** Action + dialogue par perso (clé = character.id). Vide si perso non utilisé
    *  dans cette pellicule (sera nettoyé à la sérialisation). */
   perCharacter: Record<string, { action: string; dialogue: string }>
@@ -758,10 +763,14 @@ function reducer(state: State, action: Action): State {
         : `pell-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
       // Defaults d'abord, puis overrides du caller, puis id final en dernier
       // pour garantir le bon id (preserved or generated).
+      // characterIds : par défaut hérite de la sélection globale courante
+      // (= continuité — l'auteur ajoute une pellicule, elle reprend les chars
+      // déjà sélectionnés). Override possible si caller fournit characterIds.
       const newPell: AnimationPellicule = {
         duration: 5,
         shot: 'medium',
         camera: 'static',
+        characterIds: [...state.animationSelectedCharIds],
         perCharacter: {},
         videoUrl: null,
         firstFrameUrl: null,
@@ -837,12 +846,39 @@ function reducer(state: State, action: Action): State {
       return { ...state, animationPellicules: action.pellicules }
     }
     case 'set_animation_selected_pellicule': {
-      return { ...state, animationSelectedPelliculeId: action.id }
+      // Sync : quand on sélectionne une pellicule, le global animationSelectedCharIds
+      // se met à jour avec les chars de cette pellicule. L'éditeur reflète
+      // immédiatement la config de la pellicule active.
+      const newSelectedPell = action.id
+        ? state.animationPellicules.find(p => p.id === action.id) ?? null
+        : null
+      return {
+        ...state,
+        animationSelectedPelliculeId: action.id,
+        // Si pellicule trouvée → sync chars. Sinon (déselection) → laisse global tel quel.
+        animationSelectedCharIds: newSelectedPell
+          ? [...newSelectedPell.characterIds]
+          : state.animationSelectedCharIds,
+      }
     }
     case 'set_animation_selected_chars': {
       // Limite dure 2 (IC LoRA Dual Characters) — on garde les 2 derniers ajoutés
       const trimmed = action.ids.slice(-2)
-      return { ...state, animationSelectedCharIds: trimmed }
+      // Sync inverse : quand on change les chars du global, on met à jour aussi
+      // ceux de la pellicule actuellement sélectionnée → persisté avec elle.
+      // Sans cette sync : les chars seraient saved au section level mais pas
+      // par-pellicule (chaque pellicule garderait son ancien characterIds).
+      return {
+        ...state,
+        animationSelectedCharIds: trimmed,
+        animationPellicules: state.animationSelectedPelliculeId
+          ? state.animationPellicules.map(p =>
+              p.id === state.animationSelectedPelliculeId
+                ? { ...p, characterIds: trimmed }
+                : p
+            )
+          : state.animationPellicules,
+      }
     }
 
     case 'replace_base': {

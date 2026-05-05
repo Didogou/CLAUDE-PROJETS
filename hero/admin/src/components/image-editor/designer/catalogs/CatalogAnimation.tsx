@@ -65,6 +65,9 @@ export default function CatalogAnimation({
     animationSelectedCharIds,
     setAnimationSelectedChars,
     addAnimationPellicule,
+    updateAnimationPellicule,  // smart fill : remplit la pellicule sélectionnée si vide
+    animationPellicules,
+    animationSelectedPelliculeId,
     setCurrentVideo,  // pour auto-play dans Canvas après upload (cohérent avec gen LTX)
   } = useEditorState()
 
@@ -167,12 +170,28 @@ export default function CatalogAnimation({
         console.warn('[CatalogAnimation] frame extraction failed (non-bloquant):', frameErr)
       }
 
-      // Crée une pellicule avec le contenu uploadé. Auto-select via le reducer.
-      addAnimationPellicule({
-        videoUrl,
-        firstFrameUrl,
-        lastFrameUrl,
-      })
+      // Smart fill (2026-05-05) : si la pellicule sélectionnée est VIDE
+      // (pas encore générée/uploadée), on la remplit avec le contenu uploadé
+      // au lieu de créer une nouvelle pellicule. Évite l'effet "pellicule
+      // vide oubliée au milieu" quand l'auteur clique + puis Choisir une vidéo.
+      const selectedPell = animationSelectedPelliculeId
+        ? animationPellicules.find(p => p.id === animationSelectedPelliculeId)
+        : null
+      if (selectedPell && !selectedPell.videoUrl) {
+        // Remplit la pellicule vide sélectionnée
+        updateAnimationPellicule(selectedPell.id, {
+          videoUrl,
+          firstFrameUrl,
+          lastFrameUrl,
+        })
+      } else {
+        // Sinon ajoute une nouvelle pellicule (auto-select via reducer)
+        addAnimationPellicule({
+          videoUrl,
+          firstFrameUrl,
+          lastFrameUrl,
+        })
+      }
       // Sync currentVideoUrl → Canvas joue automatiquement la vidéo
       // ET le Save Ctrl+S persiste base_video_url + frames + kind='animation'.
       // Sans ça : pellicule visible dans la timeline mais perdue au reload.

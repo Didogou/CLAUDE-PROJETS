@@ -190,6 +190,9 @@ export interface PelliculePersisted {
   shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
   camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'
        | 'pan_left' | 'pan_right' | 'dolly_in' | 'dolly_out' | 'handheld'
+  /** IDs des Characters featured dans cette pellicule (max 2 — IC LoRA Dual).
+   *  Optionnel pour back-compat avec les saves Phase B initiale (sans ce champ). */
+  characterIds?: string[]
   /** Action + dialogue par perso (clé = character.id). Vide si perso pas utilisé. */
   perCharacter: Record<string, { action: string; dialogue: string }>
   videoUrl: string | null

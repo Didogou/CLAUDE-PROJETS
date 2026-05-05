@@ -159,30 +159,32 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
                         <Play size={14} fill="currentColor" />
                       </button>
                     )}
-                    {/* Bouton supprimer (visible au hover) */}
+                  </div>
+                  {/* Bouton Options + Supprimer côte à côte sous le thumbnail.
+                   *  stopPropagation pour ne pas re-sélectionner la pellicule au clic. */}
+                  <div className="dz-anim-cell-actions-row">
                     <button
                       type="button"
-                      className="dz-anim-cell-remove"
+                      className="dz-anim-cell-options-btn"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setOptionsForPelliculeId(p.id)
+                      }}
+                      title="Modifier cadrage, caméra, durée"
+                    >
+                      <Settings2 size={11} />
+                      <span>Options</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="dz-anim-cell-delete-btn"
                       onClick={(e) => handleRemove(e, p.id)}
                       title="Supprimer cette pellicule"
                     >
                       <Trash2 size={11} />
+                      <span>Supprimer</span>
                     </button>
                   </div>
-                  {/* Bouton Options : ouvre une modal avec Cadrage/Caméra/Durée.
-                   *  stopPropagation pour ne pas re-sélectionner la pellicule au clic. */}
-                  <button
-                    type="button"
-                    className="dz-anim-cell-options-btn"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setOptionsForPelliculeId(p.id)
-                    }}
-                    title="Modifier cadrage, caméra, durée"
-                  >
-                    <Settings2 size={11} />
-                    <span>Options</span>
-                  </button>
                 </Reorder.Item>
               )
             })}

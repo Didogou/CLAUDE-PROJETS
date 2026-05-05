@@ -217,8 +217,9 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
     persisted.forEach(id => addBakedCharacter(id))
     if (picked.plan.kind === 'animation') {
       // Phase B : restaure aussi la sélection persos timeline (1-2 chars).
-      // Sans ça : pellicules + paramètres OK mais l'éditeur affiche
-      // "Sélectionne 1-2 personnages" → friction inutile au reload.
+      // Section-level (legacy fallback) — sera écrasé par la sync pellicule
+      // sélectionnée si l'array pellicules est présent (cf set_animation_selected_pellicule
+      // sync chars dans le reducer).
       const persistedSelectedChars = picked.plan.animation_selected_chars
       if (persistedSelectedChars && persistedSelectedChars.length > 0) {
         setAnimationSelectedChars(persistedSelectedChars)
@@ -238,6 +239,10 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
             duration: p.duration,
             shot: p.shot,
             camera: p.camera,
+            // characterIds : par pellicule depuis 2026-05-05. Fallback sur
+            // animation_selected_chars (section-level) pour les saves anciens
+            // qui n'avaient pas le champ par-pellicule.
+            characterIds: p.characterIds ?? persistedSelectedChars ?? [],
             perCharacter: p.perCharacter,
             videoUrl: p.videoUrl,
             firstFrameUrl: p.firstFrameUrl,
@@ -296,73 +301,79 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
   // "aucun message explicite de sauvegarde -> à faire un message discret")
   const [savedToastVisible, setSavedToastVisible] = useState(false)
 
-  // Ctrl+S : sauvegarde le plan en cours dans Supabase (sections.images[planIndex])
-  // via PATCH /api/sections/[id]/plans en mode UPDATE (planIndex fourni).
-  // Plus de localStorage — décision 2026-05-03 : tout en DB.
+  /** Save unifié : appelé par Ctrl+S, handleCommencer ET l'auto-save débouncé.
+   *  Construit le body avec tout l'état du plan (image + animation + tags) puis
+   *  POST /api/sections/[id]/plans en mode UPDATE. Toast au succès. */
+  const savePlanToDb = useCallback(async (showToast: boolean = true) => {
+    const isAnimation = animationPellicules.length > 0 || !!currentVideoUrl
+    const lastGenerated = [...animationPellicules].reverse().find(p => p.videoUrl)
+    const body = {
+      planIndex: picked.planIndex,
+      url: currentImageUrl ?? undefined,
+      kind: isAnimation ? ('animation' as const) : ('image' as const),
+      base_video_url: isAnimation
+        ? (lastGenerated?.videoUrl ?? currentVideoUrl ?? undefined)
+        : undefined,
+      first_frame_url: isAnimation
+        ? (lastGenerated?.firstFrameUrl ?? currentVideoFirstFrameUrl ?? undefined)
+        : undefined,
+      last_frame_url: isAnimation
+        ? (lastGenerated?.lastFrameUrl ?? currentVideoLastFrameUrl ?? undefined)
+        : undefined,
+      pellicules: animationPellicules.length > 0 ? animationPellicules : undefined,
+      animation_selected_chars: animationSelectedCharIds.length > 0
+        ? animationSelectedCharIds : undefined,
+      tags: { characters: allPresentCharacterIds },
+    }
+    try {
+      const res = await fetch(`/api/sections/${picked.sectionId}/plans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? `save HTTP ${res.status}`)
+      console.log('[savePlan] saved plan to DB:', picked.sectionId, picked.planIndex)
+      if (showToast) {
+        setSavedToastVisible(true)
+        setTimeout(() => setSavedToastVisible(false), 2000)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[savePlan] failed:', msg)
+    }
+  }, [
+    picked.sectionId, picked.planIndex, currentImageUrl, allPresentCharacterIds,
+    currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl,
+    animationPellicules, animationSelectedCharIds,
+  ])
+
+  // Ctrl+S : raccourci clavier global qui appelle savePlanToDb avec toast.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        // Body = état actuel du plan (image + prompts). Les calques (overlays)
-        // ne sont PAS encore persistés ici — V2 quand on branchera plan_layers.
-        // Mais on persiste plan.tags.characters (ID des persos baked + layers)
-        // pour que CatalogAnimation retrouve les persos au reload.
-        // Plan animation = au moins 1 pellicule existe (générée OU pas).
-        // Phase B : on persiste l'array complet `pellicules` en DB. Les champs
-        // legacy base_video_url/frames sont remplis avec la dernière pellicule
-        // GÉNÉRÉE (rétro-compat banque + hover preview qui ne lisent que ces
-        // champs). Si aucune pellicule générée encore → champs legacy null.
-        const isAnimation = animationPellicules.length > 0 || !!currentVideoUrl
-        const lastGenerated = [...animationPellicules].reverse().find(p => p.videoUrl)
-        const body = {
-          planIndex: picked.planIndex,
-          url: currentImageUrl ?? undefined,
-          kind: isAnimation ? ('animation' as const) : ('image' as const),
-          // Legacy : remplis avec lastGenerated || currentVideoUrl (fallback)
-          base_video_url: isAnimation
-            ? (lastGenerated?.videoUrl ?? currentVideoUrl ?? undefined)
-            : undefined,
-          first_frame_url: isAnimation
-            ? (lastGenerated?.firstFrameUrl ?? currentVideoFirstFrameUrl ?? undefined)
-            : undefined,
-          last_frame_url: isAnimation
-            ? (lastGenerated?.lastFrameUrl ?? currentVideoLastFrameUrl ?? undefined)
-            : undefined,
-          // Phase B : timeline complète (toutes les pellicules, générées ou pas)
-          pellicules: animationPellicules.length > 0 ? animationPellicules : undefined,
-          animation_selected_chars: animationSelectedCharIds.length > 0
-            ? animationSelectedCharIds : undefined,
-          tags: {
-            characters: allPresentCharacterIds,
-          },
-        }
-        ;(async () => {
-          try {
-            const res = await fetch(`/api/sections/${picked.sectionId}/plans`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            })
-            const data = await res.json()
-            if (!res.ok) throw new Error(data.error ?? `save HTTP ${res.status}`)
-            console.log('[Ctrl+S] saved plan to DB:', picked.sectionId, picked.planIndex)
-            setSavedToastVisible(true)
-            setTimeout(() => setSavedToastVisible(false), 2000)
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err)
-            console.error('[Ctrl+S] save failed:', msg)
-            // TODO V2 : afficher un toast d'erreur
-          }
-        })()
+        void savePlanToDb(true)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [
-    picked.sectionId, picked.planIndex, currentImageUrl, allPresentCharacterIds,
-    currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl,
-    animationPellicules, animationSelectedCharIds,  // Phase B : timeline + chars sélectionnés
-  ])
+  }, [savePlanToDb])
+
+  // Auto-save débouncé : à chaque changement de pellicules / chars sélectionnés
+  // (add, update, remove, reorder, char selection), trigger un save silencieux
+  // après 800ms d'inactivité. Garantit que les modifications de timeline
+  // (notamment les suppressions) sont persistées sans avoir à Ctrl+S explicite.
+  //
+  // Note : déclenche aussi 1× après l'hydratation au mount → save no-op qui
+  // ré-écrit la même data en DB. Acceptable (1 network call ≈ 100ms côté serveur).
+  // Pour optimiser plus tard : tracker un hash du dernier state sauvé.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void savePlanToDb(false)  // pas de toast, save silencieux
+    }, 800)
+    return () => clearTimeout(timer)
+  }, [animationPellicules, animationSelectedCharIds, savePlanToDb])
 
   // Banque dynamique : MOCK_BANK statique + uploads de l'utilisateur (V1
   // local state, persistance Supabase via Phase 3b vraie intégration).
