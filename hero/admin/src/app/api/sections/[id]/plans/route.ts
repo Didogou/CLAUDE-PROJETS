@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import type { SectionImage, PlanTags } from '@/types'
+import type { SectionImage, PlanTags, PelliculePersisted } from '@/types'
 
 export const maxDuration = 30
 
@@ -46,6 +46,7 @@ export async function POST(
       base_video_url?: string
       first_frame_url?: string
       last_frame_url?: string
+      pellicules?: PelliculePersisted[]  // Phase B : timeline complète
       prompt_fr?: string
       tags?: Partial<PlanTags>
       description?: string
@@ -121,6 +122,7 @@ export async function POST(
         ...(body.base_video_url !== undefined && { base_video_url: body.base_video_url }),
         ...(body.first_frame_url !== undefined && { first_frame_url: body.first_frame_url }),
         ...(body.last_frame_url !== undefined && { last_frame_url: body.last_frame_url }),
+        ...(body.pellicules !== undefined && { pellicules: body.pellicules }),
         ...(body.prompt_fr !== undefined && { prompt_fr: body.prompt_fr }),
         ...(body.description !== undefined && { description: body.description }),
         ...(body.comfyui_settings !== undefined && { comfyui_settings: body.comfyui_settings }),
@@ -147,6 +149,7 @@ export async function POST(
         base_video_url: body.base_video_url,
         first_frame_url: body.first_frame_url,
         last_frame_url: body.last_frame_url,
+        pellicules: body.pellicules,
         prompt_fr: body.prompt_fr,
         description: body.description,
         comfyui_settings: body.comfyui_settings,

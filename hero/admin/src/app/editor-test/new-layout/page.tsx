@@ -178,7 +178,8 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
     setCutMode, setCutTool, clearSceneAnalysis,
     addLayer, setBakeStatus, addBakedCharacter, bakedCharacterIds,
     currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl, setCurrentVideo,
-    addAnimationPellicule,  // hydratation : restaure la pellicule unique au reload
+    addAnimationPellicule,
+    animationPellicules,  // Phase B : persiste tout l'array timeline en DB
   } = useEditorState()
 
   // Liste UNION des Characters présents dans le plan en cours :
@@ -212,21 +213,49 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
 
     const persisted = picked.plan.tags?.characters ?? []
     persisted.forEach(id => addBakedCharacter(id))
-    if (picked.plan.kind === 'animation' && picked.plan.base_video_url) {
-      // Canvas affiche la vidéo immédiatement
-      setCurrentVideo(
-        picked.plan.base_video_url,
-        picked.plan.first_frame_url ?? null,
-        picked.plan.last_frame_url ?? null,
-      )
-      // Phase A : restaure aussi UNE pellicule dans la timeline pour que
-      // l'auteur puisse continuer à éditer (régénérer, supprimer, ajouter
-      // d'autres pellicules à la suite). Phase B : array complet en DB.
-      addAnimationPellicule({
-        videoUrl: picked.plan.base_video_url,
-        firstFrameUrl: picked.plan.first_frame_url ?? null,
-        lastFrameUrl: picked.plan.last_frame_url ?? null,
-      })
+    if (picked.plan.kind === 'animation') {
+      // Phase B (2026-05-05) : si l'array `pellicules` est présent en DB,
+      // c'est la source de vérité → on restaure tout d'un coup via setOrder.
+      // Sinon fallback legacy (single video stored in base_video_url) →
+      // on crée 1 pellicule à partir de ces champs.
+      const persistedPellicules = picked.plan.pellicules
+      if (persistedPellicules && persistedPellicules.length > 0) {
+        // Restore l'array complet — le reducer add_animation_pellicule préserve
+        // l'id si fourni (cas hydratation), génère un nouveau si collision.
+        // On itère pour add chacune et garder l'ordre persisté.
+        persistedPellicules.forEach(p => {
+          addAnimationPellicule({
+            id: p.id,  // préserve l'id DB
+            duration: p.duration,
+            shot: p.shot,
+            camera: p.camera,
+            perCharacter: p.perCharacter,
+            videoUrl: p.videoUrl,
+            firstFrameUrl: p.firstFrameUrl,
+            lastFrameUrl: p.lastFrameUrl,
+          })
+        })
+        // Set la dernière pellicule générée comme currentVideoUrl pour que
+        // Canvas affiche immédiatement la vidéo (même comportement que legacy).
+        const lastGen = [...persistedPellicules].reverse().find(p => p.videoUrl)
+        if (lastGen) {
+          setCurrentVideo(lastGen.videoUrl, lastGen.firstFrameUrl, lastGen.lastFrameUrl)
+        }
+      } else if (picked.plan.base_video_url) {
+        // Legacy : pas d'array pellicules mais base_video_url présent (= save
+        // d'avant Phase B). On reconstruit 1 pellicule à partir des champs
+        // legacy pour back-compat.
+        setCurrentVideo(
+          picked.plan.base_video_url,
+          picked.plan.first_frame_url ?? null,
+          picked.plan.last_frame_url ?? null,
+        )
+        addAnimationPellicule({
+          videoUrl: picked.plan.base_video_url,
+          firstFrameUrl: picked.plan.first_frame_url ?? null,
+          lastFrameUrl: picked.plan.last_frame_url ?? null,
+        })
+      }
     }
     // Volontairement pas dans deps : on hydrate UNE FOIS au mount + au switch de plan.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -269,16 +298,29 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
         // ne sont PAS encore persistés ici — V2 quand on branchera plan_layers.
         // Mais on persiste plan.tags.characters (ID des persos baked + layers)
         // pour que CatalogAnimation retrouve les persos au reload.
-        // Si une vidéo de plan animation est en cours → on switch kind='animation'
-        // + on persiste base_video_url + frames. Sinon kind='image' (ou hérité).
-        const isAnimation = !!currentVideoUrl
+        // Plan animation = au moins 1 pellicule existe (générée OU pas).
+        // Phase B : on persiste l'array complet `pellicules` en DB. Les champs
+        // legacy base_video_url/frames sont remplis avec la dernière pellicule
+        // GÉNÉRÉE (rétro-compat banque + hover preview qui ne lisent que ces
+        // champs). Si aucune pellicule générée encore → champs legacy null.
+        const isAnimation = animationPellicules.length > 0 || !!currentVideoUrl
+        const lastGenerated = [...animationPellicules].reverse().find(p => p.videoUrl)
         const body = {
           planIndex: picked.planIndex,
           url: currentImageUrl ?? undefined,
           kind: isAnimation ? ('animation' as const) : ('image' as const),
-          base_video_url: isAnimation ? currentVideoUrl : undefined,
-          first_frame_url: isAnimation ? (currentVideoFirstFrameUrl ?? undefined) : undefined,
-          last_frame_url: isAnimation ? (currentVideoLastFrameUrl ?? undefined) : undefined,
+          // Legacy : remplis avec lastGenerated || currentVideoUrl (fallback)
+          base_video_url: isAnimation
+            ? (lastGenerated?.videoUrl ?? currentVideoUrl ?? undefined)
+            : undefined,
+          first_frame_url: isAnimation
+            ? (lastGenerated?.firstFrameUrl ?? currentVideoFirstFrameUrl ?? undefined)
+            : undefined,
+          last_frame_url: isAnimation
+            ? (lastGenerated?.lastFrameUrl ?? currentVideoLastFrameUrl ?? undefined)
+            : undefined,
+          // Phase B : timeline complète (toutes les pellicules, générées ou pas)
+          pellicules: animationPellicules.length > 0 ? animationPellicules : undefined,
           tags: {
             characters: allPresentCharacterIds,
           },
@@ -308,6 +350,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
   }, [
     picked.sectionId, picked.planIndex, currentImageUrl, allPresentCharacterIds,
     currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl,
+    animationPellicules,  // Phase B : déclenche re-bind quand timeline change
   ])
 
   // Banque dynamique : MOCK_BANK statique + uploads de l'utilisateur (V1
@@ -441,7 +484,9 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
     if (!currentImageUrl) return
     ;(async () => {
       try {
-        const isAnimation = !!currentVideoUrl
+        // Cohérent avec Save Ctrl+S : Phase B persistance pellicules complète
+        const isAnimation = animationPellicules.length > 0 || !!currentVideoUrl
+        const lastGenerated = [...animationPellicules].reverse().find(p => p.videoUrl)
         await fetch(`/api/sections/${picked.sectionId}/plans`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -449,9 +494,16 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
             planIndex: picked.planIndex,
             url: currentImageUrl,
             kind: isAnimation ? 'animation' : 'image',
-            base_video_url: isAnimation ? currentVideoUrl : undefined,
-            first_frame_url: isAnimation ? (currentVideoFirstFrameUrl ?? undefined) : undefined,
-            last_frame_url: isAnimation ? (currentVideoLastFrameUrl ?? undefined) : undefined,
+            base_video_url: isAnimation
+              ? (lastGenerated?.videoUrl ?? currentVideoUrl ?? undefined)
+              : undefined,
+            first_frame_url: isAnimation
+              ? (lastGenerated?.firstFrameUrl ?? currentVideoFirstFrameUrl ?? undefined)
+              : undefined,
+            last_frame_url: isAnimation
+              ? (lastGenerated?.lastFrameUrl ?? currentVideoLastFrameUrl ?? undefined)
+              : undefined,
+            pellicules: animationPellicules.length > 0 ? animationPellicules : undefined,
             tags: { characters: allPresentCharacterIds },
           }),
         })
@@ -463,6 +515,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
   }, [
     currentImageUrl, picked.sectionId, picked.planIndex, allPresentCharacterIds,
     currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl,
+    animationPellicules,
   ])
 
   /** "Nouvelle base" en Phase B : reset et revient en Phase A.

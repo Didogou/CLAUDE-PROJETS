@@ -175,6 +175,28 @@ export interface PlanTags {
   manual_overrides?: Array<keyof Omit<PlanTags, 'manual_overrides'>>
 }
 
+/** Pellicule persistée (Phase B 2026-05-05) — segment vidéo de la timeline
+ *  d'animation. Mirror du type AnimationPellicule côté EditorState mais figé
+ *  pour la sérialisation DB (pas de méthodes, juste data).
+ *
+ *  Tous les fields sauf `id` et `duration` sont optionnels pour permettre les
+ *  pellicules en attente de génération (`videoUrl: null`).
+ *
+ *  Les types image_static / conversation viendront en Phase C avec un champ
+ *  `type: 'animation' | 'image_static' | 'conversation'` (V1 implicite = 'animation'). */
+export interface PelliculePersisted {
+  id: string
+  duration: number
+  shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
+  camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'
+       | 'pan_left' | 'pan_right' | 'dolly_in' | 'dolly_out' | 'handheld'
+  /** Action + dialogue par perso (clé = character.id). Vide si perso pas utilisé. */
+  perCharacter: Record<string, { action: string; dialogue: string }>
+  videoUrl: string | null
+  firstFrameUrl: string | null
+  lastFrameUrl: string | null
+}
+
 export interface SectionImage {
   url?: string
   description?: string
@@ -197,6 +219,14 @@ export interface SectionImage {
   /** URL Supabase de la dernière frame du MP4 (capturée à la gen) — UNIQUEMENT si kind='animation'.
    *  Utilisée par la banque (mini-galerie vignette) et la modale "Image fin" lors de la copie. */
   last_frame_url?: string
+  /** Phase B (2026-05-05) : timeline complète multi-pellicules.
+   *  Si présent, est la SOURCE DE VÉRITÉ pour le storyboard d'animation.
+   *  Les champs base_video_url / first_frame_url / last_frame_url restent
+   *  remplis avec les valeurs de la DERNIÈRE pellicule jouée (pour rétro-compat
+   *  avec les vues qui ne lisent que ces champs : banque, hover preview, etc).
+   *  Vide ou absent → plan kind='image' OU legacy single-video → fallback sur
+   *  base_video_url. */
+  pellicules?: PelliculePersisted[]
   /** Tags du plan (auto + manuel). Voir PlanTags. Indispensable pour la banque (recherche, filtre, ordre). */
   tags?: PlanTags
 

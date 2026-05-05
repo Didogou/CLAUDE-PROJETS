@@ -747,9 +747,17 @@ function reducer(state: State, action: Action): State {
 
     // ── Animation Phase A ─────────────────────────────────────────────────
     case 'add_animation_pellicule': {
-      const newId = `pell-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
-      // Defaults d'abord, puis overrides du caller, puis id forcé en dernier
-      // pour garantir l'unicité (un caller ne peut pas réutiliser un id externe).
+      // Si le caller fournit un id (cas hydratation depuis DB) → le préserver.
+      // Sinon (cas normal "user clic +") → générer un id frais.
+      // Garde-fou : si l'id fourni existe déjà dans la timeline (collision),
+      // on génère quand même un id frais pour ne pas corrompre le state.
+      const providedId = action.pellicule?.id
+      const idCollision = providedId && state.animationPellicules.some(p => p.id === providedId)
+      const newId = providedId && !idCollision
+        ? providedId
+        : `pell-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+      // Defaults d'abord, puis overrides du caller, puis id final en dernier
+      // pour garantir le bon id (preserved or generated).
       const newPell: AnimationPellicule = {
         duration: 5,
         shot: 'medium',
