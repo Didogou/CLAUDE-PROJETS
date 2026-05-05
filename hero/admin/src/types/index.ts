@@ -227,6 +227,11 @@ export interface SectionImage {
    *  Vide ou absent → plan kind='image' OU legacy single-video → fallback sur
    *  base_video_url. */
   pellicules?: PelliculePersisted[]
+  /** IDs des Characters sélectionnés pour le timeline animation (max 2 — limite
+   *  IC LoRA Dual Characters). Persisté pour qu'au reload l'auteur retrouve sa
+   *  sélection et puisse continuer à éditer/régénérer sans re-sélectionner.
+   *  Doit être un sous-ensemble de `tags.characters` (chars présents dans la scène). */
+  animation_selected_chars?: string[]
   /** Tags du plan (auto + manuel). Voir PlanTags. Indispensable pour la banque (recherche, filtre, ordre). */
   tags?: PlanTags
 

@@ -180,6 +180,8 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
     currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl, setCurrentVideo,
     addAnimationPellicule,
     animationPellicules,  // Phase B : persiste tout l'array timeline en DB
+    animationSelectedCharIds,  // Phase B : persiste la sélection 1-2 chars
+    setAnimationSelectedChars,  // hydratation : restore la sélection au reload
   } = useEditorState()
 
   // Liste UNION des Characters présents dans le plan en cours :
@@ -214,6 +216,13 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
     const persisted = picked.plan.tags?.characters ?? []
     persisted.forEach(id => addBakedCharacter(id))
     if (picked.plan.kind === 'animation') {
+      // Phase B : restaure aussi la sélection persos timeline (1-2 chars).
+      // Sans ça : pellicules + paramètres OK mais l'éditeur affiche
+      // "Sélectionne 1-2 personnages" → friction inutile au reload.
+      const persistedSelectedChars = picked.plan.animation_selected_chars
+      if (persistedSelectedChars && persistedSelectedChars.length > 0) {
+        setAnimationSelectedChars(persistedSelectedChars)
+      }
       // Phase B (2026-05-05) : si l'array `pellicules` est présent en DB,
       // c'est la source de vérité → on restaure tout d'un coup via setOrder.
       // Sinon fallback legacy (single video stored in base_video_url) →
@@ -321,6 +330,8 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
             : undefined,
           // Phase B : timeline complète (toutes les pellicules, générées ou pas)
           pellicules: animationPellicules.length > 0 ? animationPellicules : undefined,
+          animation_selected_chars: animationSelectedCharIds.length > 0
+            ? animationSelectedCharIds : undefined,
           tags: {
             characters: allPresentCharacterIds,
           },
@@ -350,7 +361,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
   }, [
     picked.sectionId, picked.planIndex, currentImageUrl, allPresentCharacterIds,
     currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl,
-    animationPellicules,  // Phase B : déclenche re-bind quand timeline change
+    animationPellicules, animationSelectedCharIds,  // Phase B : timeline + chars sélectionnés
   ])
 
   // Banque dynamique : MOCK_BANK statique + uploads de l'utilisateur (V1
@@ -504,6 +515,8 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
               ? (lastGenerated?.lastFrameUrl ?? currentVideoLastFrameUrl ?? undefined)
               : undefined,
             pellicules: animationPellicules.length > 0 ? animationPellicules : undefined,
+            animation_selected_chars: animationSelectedCharIds.length > 0
+              ? animationSelectedCharIds : undefined,
             tags: { characters: allPresentCharacterIds },
           }),
         })
@@ -515,7 +528,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
   }, [
     currentImageUrl, picked.sectionId, picked.planIndex, allPresentCharacterIds,
     currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl,
-    animationPellicules,
+    animationPellicules, animationSelectedCharIds,
   ])
 
   /** "Nouvelle base" en Phase B : reset et revient en Phase A.

@@ -47,6 +47,7 @@ export async function POST(
       first_frame_url?: string
       last_frame_url?: string
       pellicules?: PelliculePersisted[]  // Phase B : timeline complète
+      animation_selected_chars?: string[]  // Phase B : 1-2 chars sélectionnés timeline
       prompt_fr?: string
       tags?: Partial<PlanTags>
       description?: string
@@ -123,6 +124,7 @@ export async function POST(
         ...(body.first_frame_url !== undefined && { first_frame_url: body.first_frame_url }),
         ...(body.last_frame_url !== undefined && { last_frame_url: body.last_frame_url }),
         ...(body.pellicules !== undefined && { pellicules: body.pellicules }),
+        ...(body.animation_selected_chars !== undefined && { animation_selected_chars: body.animation_selected_chars }),
         ...(body.prompt_fr !== undefined && { prompt_fr: body.prompt_fr }),
         ...(body.description !== undefined && { description: body.description }),
         ...(body.comfyui_settings !== undefined && { comfyui_settings: body.comfyui_settings }),
@@ -150,6 +152,7 @@ export async function POST(
         first_frame_url: body.first_frame_url,
         last_frame_url: body.last_frame_url,
         pellicules: body.pellicules,
+        animation_selected_chars: body.animation_selected_chars,
         prompt_fr: body.prompt_fr,
         description: body.description,
         comfyui_settings: body.comfyui_settings,
