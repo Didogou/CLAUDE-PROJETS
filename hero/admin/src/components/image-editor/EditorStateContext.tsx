@@ -763,13 +763,18 @@ function reducer(state: State, action: Action): State {
     case 'add_animation_pellicule': {
       // Si le caller fournit un id (cas hydratation depuis DB) → le préserver.
       // Sinon (cas normal "user clic +") → générer un id frais.
-      // Garde-fou : si l'id fourni existe déjà dans la timeline (collision),
-      // on génère quand même un id frais pour ne pas corrompre le state.
+      //
+      // ⚠ IDEMPOTENCE (2026-05-05) : si un id est fourni ET déjà présent → NO-OP.
+      // Sécurise l'hydratation contre tout double-fire de useEffect (React
+      // StrictMode dev, key change parent, ref guard contourné, etc). Sans ce
+      // check : chaque refresh ajoutait des pellicules dupliquées car le code
+      // précédent générait un nouvel id en cas de collision → growth permanent.
       const providedId = action.pellicule?.id
-      const idCollision = providedId && state.animationPellicules.some(p => p.id === providedId)
-      const newId = providedId && !idCollision
-        ? providedId
-        : `pell-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+      if (providedId && state.animationPellicules.some(p => p.id === providedId)) {
+        return state  // pellicule déjà présente avec cet id → no-op
+      }
+      const newId = providedId
+        ?? `pell-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
       // Defaults d'abord, puis overrides du caller, puis id final en dernier
       // pour garantir le bon id (preserved or generated).
       // characterIds : par défaut hérite de la sélection globale courante
