@@ -114,6 +114,9 @@ interface DesignerLayoutProps {
   personnageMode?: PersonnageMode
   /** Phase B — Callback "Ajouter ce perso à la scène" depuis CatalogCharacters. */
   onAddCharacter?: (character: Character, placementPrompt: string, asLayer: boolean) => Promise<void> | void
+  /** Phase E (2026-05-05) — Banque d'images affichée dans CatalogAnimation
+   *  quand la pellicule sélectionnée est de type 'image_static'. */
+  bankImages?: import('./types').BankImage[]
 }
 
 export default function DesignerLayout({
@@ -145,6 +148,7 @@ export default function DesignerLayout({
   previewChoices,
   personnageMode = null,
   onAddCharacter,
+  bankImages,
 }: DesignerLayoutProps) {
   const [activeCategory, setActiveCategory] = useState<RailCategory | null>(null)
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false)
@@ -483,6 +487,7 @@ export default function DesignerLayout({
                 onAddCharacter={onAddCharacter}
                 onNavigateToBanks={() => setActiveCategory('banks')}
                 presentCharacterIds={presentCharacterIds}
+                bankImages={bankImages}
               />
             </motion.div>
           )}

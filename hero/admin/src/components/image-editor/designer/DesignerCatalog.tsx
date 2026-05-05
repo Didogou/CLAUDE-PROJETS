@@ -40,12 +40,16 @@ interface DesignerCatalogProps {
    *  avec character_id renseigné OU bakedCharacterIds). Filtre le sélecteur
    *  de CatalogAnimation. */
   presentCharacterIds?: string[]
+  /** Phase E (2026-05-05) — Banque d'images affichée dans CatalogAnimation
+   *  quand pellicule sélectionnée = image_static. */
+  bankImages?: import('./types').BankImage[]
 }
 
 export default function DesignerCatalog({
   category, onClose, storagePathPrefix,
   personnageMode = null, onAddCharacter, onNavigateToBanks,
   presentCharacterIds,
+  bankImages,
 }: DesignerCatalogProps) {
   switch (category) {
     case 'effects':
@@ -90,12 +94,15 @@ export default function DesignerCatalog({
         // Refonte 2026-05-05 : CatalogAnimation est désormais un drawer minimal
         // (Import vidéo + Persos). Le storyboard (timeline + éditeur) vit dans
         // la bande basse de DesignerLayout, indépendamment de ce drawer.
+        // Phase E (2026-05-05) : la banque d'images est affichée dans le
+        // drawer quand une pellicule image_static est sélectionnée.
         return (
           <CatalogAnimation
             onClose={onClose}
             onNavigateToBanks={onNavigateToBanks}
             storagePathPrefix={storagePathPrefix}
             presentCharacterIds={presentCharacterIds ?? []}
+            bankImages={bankImages ?? []}
           />
         )
       }

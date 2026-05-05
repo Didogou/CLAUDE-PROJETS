@@ -5227,6 +5227,68 @@ body.theme-dark .dz-cut-tile,
 .dz-anim-cell-continuity-broken {
   color: #f59e0b;  /* ambre warning */
 }
+
+/* Phase E (2026-05-05) — Grille banque d'images dans CatalogAnimation
+ * (mode image_static). Vignettes 2 colonnes, click pour set comme image
+ * de la pellicule courante. */
+.dza-bank-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.5rem;
+}
+.dza-bank-thumb {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  transition: border-color 140ms, transform 140ms;
+  overflow: hidden;
+}
+.dza-bank-thumb img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 0.25rem;
+  display: block;
+}
+.dza-bank-thumb:hover {
+  border-color: var(--ie-accent);
+  transform: translateY(-1px);
+}
+.dza-bank-thumb.picked {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 12%, var(--ie-surface));
+  box-shadow: 0 0 0 1px var(--ie-accent);
+}
+.dza-bank-thumb-check {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  background: var(--ie-accent);
+  color: #fff;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+}
+.dza-bank-thumb-label {
+  font-size: 0.625rem;
+  color: var(--ie-text-muted);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 0.2rem 0.15rem;
+}
 /* Titre cellule : "P1 — Plan moyen, Caméra fixe, 5s · à générer"
  * Layout inline-wrap, ID en accent rose, params en regular, pending en italique. */
 .dz-anim-cell-num {

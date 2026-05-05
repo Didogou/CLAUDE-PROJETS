@@ -20,11 +20,12 @@
  */
 
 import React, { useRef, useState, useMemo } from 'react'
-import { ChevronRight, Loader2, Check, Upload } from 'lucide-react'
+import { ChevronRight, Loader2, Check, Upload, Image as ImageIcon } from 'lucide-react'
 import CatalogShell from './CatalogShell'
 import { useCharacterStore, type Character } from '@/lib/character-store'
 import { useEditorState } from '@/components/image-editor/EditorStateContext'
 import { extractFramesFromVideo } from '@/lib/extract-frames'
+import type { BankImage } from '../types'
 
 interface CatalogAnimationProps {
   onClose: () => void
@@ -34,6 +35,10 @@ interface CatalogAnimationProps {
    *  calques avec character_id renseigné OU bakedCharacterIds).
    *  Liste vide => fallback B (l'auteur sélectionne manuellement parmi tous). */
   presentCharacterIds?: string[]
+  /** Phase E (2026-05-05) : banque d'images affichée dans le drawer quand
+   *  la pellicule sélectionnée est de type 'image_static'. Click sur une
+   *  image = la set comme firstFrame/lastFrame de la pellicule courante. */
+  bankImages?: BankImage[]
 }
 
 function BreadcrumbTitle({ onNavigateToBanks }: { onNavigateToBanks?: () => void }) {
@@ -58,6 +63,7 @@ function BreadcrumbTitle({ onNavigateToBanks }: { onNavigateToBanks?: () => void
 
 export default function CatalogAnimation({
   onClose, onNavigateToBanks, presentCharacterIds = [],
+  bankImages = [],
 }: CatalogAnimationProps) {
   const { characters } = useCharacterStore()
   const {
@@ -70,6 +76,27 @@ export default function CatalogAnimation({
     animationSelectedPelliculeId,
     setCurrentVideo,  // pour auto-play dans Canvas après upload (cohérent avec gen LTX)
   } = useEditorState()
+
+  // Phase E : pellicule sélectionnée → drive le contenu du drawer.
+  // Si type='image_static' → drawer affiche la banque d'images au lieu des
+  // sections vidéo + persos (qui ne s'appliquent pas à une image fixe).
+  const selectedPellicule = useMemo(
+    () => animationSelectedPelliculeId
+      ? animationPellicules.find(p => p.id === animationSelectedPelliculeId) ?? null
+      : null,
+    [animationSelectedPelliculeId, animationPellicules],
+  )
+  const isImageStaticMode = selectedPellicule?.type === 'image_static'
+
+  /** Click sur une image de la banque → set comme image de la pellicule
+   *  image_static courante. firstFrame == lastFrame (statique). */
+  function pickBankImage(img: BankImage) {
+    if (!selectedPellicule || selectedPellicule.type !== 'image_static') return
+    updateAnimationPellicule(selectedPellicule.id, {
+      firstFrameUrl: img.url,
+      lastFrameUrl: img.url,
+    })
+  }
 
   // Upload manuel : ref input + busy flag (bloque les double-clics)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -217,6 +244,64 @@ export default function CatalogAnimation({
     const file = e.target.files?.[0]
     if (file) void handleVideoUpload(file)
     e.target.value = ''
+  }
+
+  // Phase E — Mode image_static : drawer affiche la banque d'images au lieu
+  // des sections vidéo + persos. Ces sections n'ont pas de sens pour une image
+  // fixe (pas de gen LTX, pas de chars actifs).
+  if (isImageStaticMode) {
+    return (
+      <CatalogShell
+        title={<BreadcrumbTitle onNavigateToBanks={onNavigateToBanks} />}
+        onClose={onClose}
+        showSearch={false}
+      >
+        <div className="dza-section">
+          <div className="dza-section-title">
+            <span>Banque d'images</span>
+            <span className="dza-hint">{bankImages.length} disponible{bankImages.length > 1 ? 's' : ''}</span>
+          </div>
+          {bankImages.length === 0 ? (
+            <div className="dza-empty">
+              La banque est vide. Upload une image dans la banque depuis la Phase A,
+              ou utilise le bouton <strong>Choisir une image</strong> dans l'éditeur en bas
+              pour importer directement depuis ton ordinateur.
+            </div>
+          ) : (
+            <div className="dza-bank-grid">
+              {bankImages.map(img => {
+                const isPicked = selectedPellicule?.firstFrameUrl === img.url
+                return (
+                  <button
+                    key={img.id}
+                    type="button"
+                    className={`dza-bank-thumb ${isPicked ? 'picked' : ''}`}
+                    onClick={() => pickBankImage(img)}
+                    title={img.label ?? img.tags?.join(', ') ?? 'Image de la banque'}
+                  >
+                    <img src={img.thumbnailUrl ?? img.url} alt={img.label ?? ''} />
+                    {isPicked && (
+                      <span className="dza-bank-thumb-check">
+                        <Check size={11} strokeWidth={3} />
+                      </span>
+                    )}
+                    {img.label && <span className="dza-bank-thumb-label">{img.label}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="dza-section">
+          <div className="dza-hint" style={{ textAlign: 'center', padding: '0.5rem' }}>
+            <ImageIcon size={11} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.25rem' }} />
+            Pellicule fixe — l'image s'affichera pendant la durée configurée.
+            Tu peux aussi importer une image depuis ton ordinateur via le bouton dans l'éditeur en bas.
+          </div>
+        </div>
+      </CatalogShell>
+    )
   }
 
   return (

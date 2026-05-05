@@ -685,6 +685,7 @@ function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerPr
         } satisfies DesignerAction,
       ]}
       personnageMode={personnageMode}
+      bankImages={fullBankImages}
       onAddCharacter={async (character: Character, placementPrompt: string, asLayer: boolean) => {
         if (!currentImageUrl) {
           throw new Error('Aucune scène active — sélectionne une variante d\'abord')
