@@ -69,7 +69,18 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
     animationPellicules, animationSelectedPelliculeId,
     setAnimationPlaying,
     sequencePlayheadIdx, advanceSequencePlayhead,
+    sequenceWaitingForChoice, pickSequenceChoice,
   } = useEditorState()
+
+  // Phase E3.5 — Pellicule en attente de choix joueur (overlay sur canvas).
+  // Si la séquence est en pause sur une pellicule avec exit='choices',
+  // on affiche les boutons des choix par-dessus le canvas.
+  const choicesOverlay = useMemo(() => {
+    if (!sequenceWaitingForChoice || sequencePlayheadIdx === null) return null
+    const pell = animationPellicules[sequencePlayheadIdx]
+    if (!pell || !pell.exit || pell.exit.kind !== 'choices') return null
+    return pell.exit.options
+  }, [sequenceWaitingForChoice, sequencePlayheadIdx, animationPellicules])
 
   // Animation Phase A : si une pellicule est sélectionnée et qu'aucune vidéo
   // ne joue, le Canvas affiche l'"état initial" de la pellicule selon la table :
@@ -278,6 +289,31 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
                   zIndex: 1,
                 }}
               />
+            )}
+
+            {/* Phase E3.5 — Overlay choix joueur : la séquence est en attente,
+             *  l'utilisateur clique un choix → la séquence reprend sur la
+             *  pellicule cible. Z-index élevé pour passer par-dessus tout
+             *  (vidéo, effects, layers). */}
+            {choicesOverlay && choicesOverlay.length > 0 && (
+              <div className="dz-canvas-choices-overlay">
+                <div className="dz-canvas-choices-prompt">Que choisis-tu ?</div>
+                <div className="dz-canvas-choices-buttons">
+                  {choicesOverlay.map((choice, idx) => (
+                    <button
+                      key={choice.id}
+                      type="button"
+                      className="dz-canvas-choice-btn"
+                      onClick={() => pickSequenceChoice(choice.targetPelliculeId)}
+                    >
+                      <span className="dz-canvas-choice-num">R{idx + 1}</span>
+                      <span className="dz-canvas-choice-label">
+                        {choice.label || <em>(choix sans texte)</em>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
 
             {/*

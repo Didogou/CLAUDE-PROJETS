@@ -346,6 +346,10 @@ interface State {
    *  Le Canvas onEnded déclenche advanceSequencePlayhead → set au prochain
    *  index avec videoUrl ou reset null à la fin. */
   sequencePlayheadIdx: number | null
+  /** Phase E3.5 — True quand la lecture séquence est ARRÊTÉE sur une pellicule
+   *  avec exit.kind='choices' et attend que le joueur clique un choix.
+   *  Le Canvas affiche alors un overlay avec les boutons des choix. */
+  sequenceWaitingForChoice: boolean
   /** Compteur incrémenté à chaque clic sur le fond image — la Sidebar
    *  l'écoute pour fermer tous ses folds (même si rien n'était sélectionné). */
   backgroundClickTick: number
@@ -424,6 +428,7 @@ type Action =
   | { type: 'start_sequence' }
   | { type: 'stop_sequence' }
   | { type: 'advance_sequence_playhead' }
+  | { type: 'pick_sequence_choice'; targetPelliculeId: string | null }
   /** Remplace la base courante par une nouvelle (sélection d'une variante,
    *  pick depuis la banque, etc.). Distinct de `set_image_url` car cascade
    *  delete : on jette tous les calques + cut state + scene analysis liés
@@ -956,20 +961,27 @@ function reducer(state: State, action: Action): State {
       }
     }
     case 'stop_sequence': {
-      if (state.sequencePlayheadIdx === null) return state
-      return { ...state, sequencePlayheadIdx: null }
+      if (state.sequencePlayheadIdx === null && !state.sequenceWaitingForChoice) return state
+      return { ...state, sequencePlayheadIdx: null, sequenceWaitingForChoice: false }
     }
     case 'advance_sequence_playhead': {
       // Appelé par Canvas onEnded (animation) ou timer image_static.
       // Cherche la prochaine pellicule playable après la position courante.
       // Si aucune trouvée → fin de séquence, reset playhead.
       if (state.sequencePlayheadIdx === null) return state
-      // Phase E3 : si la pellicule courante a un exit non-auto (choices ou
-      // end_section), la séquence s'arrête ici (pas d'enchaînement automatique).
-      // L'UI affichera les choix joueur (E3.5) ou le saut de section.
+      // Phase E3 : si la pellicule courante a un exit non-auto, on ne saute pas.
+      //  - exit='choices' (E3.5) → set waitingForChoice = true, l'overlay
+      //    affichera les boutons. La pellicule reste sélectionnée (= image
+      //    ou lastFrame visible) jusqu'au choix joueur.
+      //  - exit='end_section' → fin propre de la séquence
       const currentPell = state.animationPellicules[state.sequencePlayheadIdx]
-      if (currentPell && currentPell.exit && currentPell.exit.kind !== 'auto') {
-        return { ...state, sequencePlayheadIdx: null }
+      if (currentPell && currentPell.exit) {
+        if (currentPell.exit.kind === 'choices') {
+          return { ...state, sequenceWaitingForChoice: true }
+        }
+        if (currentPell.exit.kind === 'end_section') {
+          return { ...state, sequencePlayheadIdx: null, sequenceWaitingForChoice: false }
+        }
       }
       const startIdx = state.sequencePlayheadIdx + 1
       let nextIdx = -1
@@ -994,6 +1006,34 @@ function reducer(state: State, action: Action): State {
         currentVideoUrl: next.videoUrl,
         currentVideoFirstFrameUrl: next.firstFrameUrl,
         currentVideoLastFrameUrl: next.lastFrameUrl,
+        currentVideoPlayId: state.currentVideoPlayId + 1,
+      }
+    }
+    case 'pick_sequence_choice': {
+      // Phase E3.5 — joueur a cliqué un choix dans l'overlay du Canvas.
+      // targetPelliculeId === null = choix "→ Fin de section" → arrête séquence.
+      // Sinon → jump à la pellicule cible et reprend la lecture séquence.
+      if (!state.sequenceWaitingForChoice) return state
+      const targetId = action.targetPelliculeId
+      if (!targetId) {
+        return { ...state, sequencePlayheadIdx: null, sequenceWaitingForChoice: false }
+      }
+      const targetIdx = state.animationPellicules.findIndex(p => p.id === targetId)
+      if (targetIdx < 0) {
+        // Target supprimée depuis l'authoring → stop graceful
+        console.warn('[pick_sequence_choice] target pellicule introuvable:', targetId)
+        return { ...state, sequencePlayheadIdx: null, sequenceWaitingForChoice: false }
+      }
+      const target = state.animationPellicules[targetIdx]
+      return {
+        ...state,
+        sequenceWaitingForChoice: false,
+        sequencePlayheadIdx: targetIdx,
+        animationSelectedPelliculeId: target.id,
+        animationSelectedCharIds: [...target.characterIds],
+        currentVideoUrl: target.videoUrl,
+        currentVideoFirstFrameUrl: target.firstFrameUrl,
+        currentVideoLastFrameUrl: target.lastFrameUrl,
         currentVideoPlayId: state.currentVideoPlayId + 1,
       }
     }
@@ -1035,6 +1075,7 @@ function reducer(state: State, action: Action): State {
         animationSelectedPelliculeId: null,
         animationSelectedCharIds: [],
         sequencePlayheadIdx: null,
+        sequenceWaitingForChoice: false,
       }
     }
 
@@ -1347,6 +1388,11 @@ interface EditorStateContextValue {
   /** Avance le playhead à la prochaine pellicule générée. Appelé par Canvas onEnded.
    *  Si aucune suivante générée → reset playhead = fin séquence. */
   advanceSequencePlayhead: () => void
+  /** Phase E3.5 — True quand la séquence est en attente d'un choix joueur. */
+  sequenceWaitingForChoice: boolean
+  /** Phase E3.5 — Joueur a cliqué un choix : jump à la pellicule cible
+   *  (ou stop si null = "Fin de section"). */
+  pickSequenceChoice: (targetPelliculeId: string | null) => void
   /** Marque l'analyse comme en cours pour une image donnée (busy=true).
    *  Le hook usePreAnalyzeImage l'appelle au début de l'API call. */
   setSceneAnalysisBusy: (busy: boolean, imageUrl: string | null) => void
@@ -1469,6 +1515,7 @@ export function EditorStateProvider({
     animationSelectedPelliculeId: null,
     animationSelectedCharIds: [],
     sequencePlayheadIdx: null,
+    sequenceWaitingForChoice: false,
     backgroundClickTick: 0,
     history: [{ layers: initialLayers, imageUrl: initialImageUrl }],
     historyIndex: 0,
@@ -1593,6 +1640,8 @@ export function EditorStateProvider({
   const startSequence = useCallback(() => dispatch({ type: 'start_sequence' }), [])
   const stopSequence = useCallback(() => dispatch({ type: 'stop_sequence' }), [])
   const advanceSequencePlayhead = useCallback(() => dispatch({ type: 'advance_sequence_playhead' }), [])
+  const pickSequenceChoice = useCallback((targetPelliculeId: string | null) =>
+    dispatch({ type: 'pick_sequence_choice', targetPelliculeId }), [])
   const reorderLayers = useCallback((from: number, to: number) =>
     dispatch({ type: 'reorder_layers', from, to }), [])
   const setLayers = useCallback((layers: EditorLayer[], activeIdx?: number) =>
@@ -1680,6 +1729,8 @@ export function EditorStateProvider({
     startSequence,
     stopSequence,
     advanceSequencePlayhead,
+    sequenceWaitingForChoice: state.sequenceWaitingForChoice,
+    pickSequenceChoice,
     setSceneAnalysisBusy,
     setSceneAnalysisResult,
     setSceneAnalysisError,
@@ -1715,7 +1766,7 @@ export function EditorStateProvider({
     addAnimationPellicule, updateAnimationPellicule, updateAnimationPelliculeCharData,
     removeAnimationPellicule, reorderAnimationPellicules, setAnimationPelliculesOrder,
     setAnimationSelectedPellicule, setAnimationSelectedChars,
-    startSequence, stopSequence, advanceSequencePlayhead,
+    startSequence, stopSequence, advanceSequencePlayhead, pickSequenceChoice,
     setSceneAnalysisBusy, setSceneAnalysisResult, setSceneAnalysisError, clearSceneAnalysis, removeSceneDetection, setSelectedDetection, setZoomLoupeManualOpen,
     addNpc, updateNpc, removeNpc, reorderNpcs, setNpcs,
     addItem, updateItem, removeItem, reorderItems, setItems,
