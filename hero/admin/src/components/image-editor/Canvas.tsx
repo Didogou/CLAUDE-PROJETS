@@ -62,7 +62,10 @@ interface CanvasProps {
 }
 
 export default function Canvas({ imageUrl, npcs, items, choices, format }: CanvasProps) {
-  const { signalBackgroundClick, cutMode, layers, activeLayerIdx } = useEditorState()
+  const {
+    signalBackgroundClick, cutMode, layers, activeLayerIdx,
+    currentVideoUrl, currentVideoFirstFrameUrl,
+  } = useEditorState()
   const imgRef = useRef<HTMLImageElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   // Taille rendue du wrapper en CSS px (pas DPR-multiplied). Utilisée par
@@ -130,11 +133,40 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
                 objectFit: 'cover',
                 userSelect: 'none',
                 // Base invisible → on garde l'<img> en DOM (pour que imgRef reste
-                // valide pour les mesures de CanvasOverlay) mais on le masque visuellement
-                visibility: baseVisible ? 'visible' : 'hidden',
+                // valide pour les mesures de CanvasOverlay) mais on le masque visuellement.
+                // Si une vidéo de plan animation joue par-dessus, on cache aussi l'img
+                // pour ne pas voir un flash de l'image de base avant le 1er frame vidéo.
+                visibility: (baseVisible && !currentVideoUrl) ? 'visible' : 'hidden',
               }}
               draggable={false}
             />
+
+            {/*
+              Plan animation (kind='animation') : <video> superposée sur l'image base.
+              Joue 1× puis fige sur la dernière frame (cf décision 2026-05-03 — la
+              vidéo n'est pas un loop d'ambiance, c'est un plan narratif). Le poster
+              affiche la 1ère frame pendant le chargement → pas de flash blanc.
+              `pointerEvents: none` laisse passer les clics aux overlays (npcs, items).
+            */}
+            {currentVideoUrl && (
+              <video
+                src={currentVideoUrl}
+                poster={currentVideoFirstFrameUrl ?? undefined}
+                autoPlay
+                muted
+                playsInline
+                onError={(e) => console.error('[Canvas] Plan animation video failed:', currentVideoUrl, e)}
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                  pointerEvents: 'none',
+                  zIndex: 1,
+                }}
+              />
+            )}
 
             {/*
               Composition des calques non-base : chaque calque additionnel
@@ -231,6 +263,20 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
 
               const url = layer.baked_url ?? layer.media_url
               if (!url) return null
+              // Filet de sécurité : si l'URL est une blob: (éphémère, morte au
+              // refresh), on skip le render → évite onError fail loop. Cf bug
+              // 2026-05-03 : layers transparents via image-diff retournaient des
+              // blob URL avant le fix d'upload Supabase. Le sanitize au load
+              // (EditorStateContext) couvre l'hydratation, ce check couvre les
+              // calques ajoutés en mémoire pendant la session (ex: fallback
+              // upload Supabase échoué).
+              if (url.startsWith('blob:')) {
+                if (typeof window !== 'undefined' && !((layer as { _blob_warned?: boolean })._blob_warned)) {
+                  console.warn('[Canvas] Skipping layer with ephemeral blob URL:', layer.name, url)
+                  ;(layer as { _blob_warned?: boolean })._blob_warned = true
+                }
+                return null
+              }
               // Détection vidéo : regex lenient qui matche `.mp4` / `.webm` n'importe
               // où dans l'URL (y compris dans un query param filename=...mp4, cas
               // des URLs proxy /api/comfyui/media?filename=X.mp4).

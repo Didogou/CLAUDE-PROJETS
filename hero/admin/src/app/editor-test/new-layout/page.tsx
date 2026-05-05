@@ -41,16 +41,17 @@ import {
   type DesignerPhase,
   type DesignerVariant,
 } from '../../../components/image-editor/designer/types'
-import SceneTestPicker, {
-  saveSceneState,
-  type TestScene,
-  type SavedSceneState,
-} from './SceneTestPicker'
+import DevStudioPicker, { type PickedPlan } from './DevStudioPicker'
+// Import local conservé pour compat des types dans DesignerInner (le picker
+// SceneTestPicker n'est plus utilisé dans le render — TestScene est utilisé
+// comme structure proxy dans DesignerInner pour minimiser le refactor).
+import { type TestScene } from './SceneTestPicker'
 import type { Npc, Item, Section, Choice } from '@/types'
 import { CharacterStoreProvider, type Character } from '@/lib/character-store'
 import type { PersonnageMode } from '../../../components/image-editor/designer/DesignerCatalog'
 import { runFluxKontext } from '@/lib/comfyui-flux-kontext'
 import { extractCharacterByDiff } from '@/lib/image-diff'
+import { flattenLayersToImage } from '@/lib/flatten-layers'
 
 // ── Mocks NPC / Item / Section / Choice (pour les folds) ─────────────────
 const MOCK_NPC: Npc = {
@@ -89,32 +90,27 @@ const MOCK_BANK: BankImage[] = [
 // ── Page ─────────────────────────────────────────────────────────────────
 
 export default function NewLayoutTestPage() {
-  // Scène en cours (null = on affiche le picker)
-  const [scene, setScene] = useState<TestScene | null>(null)
-  /** State initial à hydrater dans le Designer si la scène avait été sauvegardée */
-  const [initialState, setInitialState] = useState<SavedSceneState | null>(null)
+  // Plan sélectionné (null = on affiche le picker grille 4×3)
+  const [picked, setPicked] = useState<PickedPlan | null>(null)
 
-  const handlePickScene = useCallback((s: TestScene, saved: SavedSceneState | null) => {
-    setScene(s)
-    setInitialState(saved)
+  const handlePickPlan = useCallback((p: PickedPlan) => {
+    setPicked(p)
   }, [])
 
   const handleBackToPicker = useCallback(() => {
-    setScene(null)
-    setInitialState(null)
+    setPicked(null)
   }, [])
 
   // CharacterStore wrappe la page entière → persos partagés entre toutes les
-  // scènes test (et plus tard, entre Designer et autres parties du Studio).
+  // scènes (et plus tard, entre Designer et autres parties du Studio).
   return (
     <CharacterStoreProvider>
-      {!scene ? (
-        <SceneTestPicker onPick={handlePickScene} />
+      {!picked ? (
+        <DevStudioPicker onPick={handlePickPlan} />
       ) : (
         <DesignerHost
-          key={scene.id}
-          scene={scene}
-          initialState={initialState}
+          key={`${picked.sectionId}_${picked.planIndex}`}
+          picked={picked}
           onBack={handleBackToPicker}
         />
       )}
@@ -125,28 +121,23 @@ export default function NewLayoutTestPage() {
 // ── Designer hôte (rend le Designer pour une scène donnée) ───────────────
 
 interface DesignerHostProps {
-  scene: TestScene
-  initialState: SavedSceneState | null
+  picked: PickedPlan
   onBack: () => void
 }
 
-function DesignerHost({ scene, initialState, onBack }: DesignerHostProps) {
+function DesignerHost({ picked, onBack }: DesignerHostProps) {
   const { theme, toggle: toggleTheme } = useEditorTheme()
 
   return (
     <div className="image-editor-root" data-theme={theme}>
       <EditorStateProvider
-        initialImageUrl={initialState?.committedImageUrl ?? null}
-        // Restaure les calques d'édition (atmosphère, découpe, NPCs placés…)
-        // au reload d'une scène déjà éditée. C'est ce qui permet à l'utilisateur
-        // de retrouver ses calques + effets après reload.
-        initialLayers={initialState?.layers && initialState.layers.length > 0
-          ? initialState.layers
-          : undefined}
+        initialImageUrl={picked.plan.url ?? null}
+        // V1 : pas de hydratation des calques persistés (les sections.images[]
+        // n'ont qu'un objet plan, les calques arriveront via plan_layers JSONB
+        // en V2 quand on branchera le full save plan_layers en DB).
       >
         <DesignerInner
-          scene={scene}
-          initialState={initialState}
+          picked={picked}
           onBack={onBack}
           theme={theme}
           onToggleTheme={toggleTheme}
@@ -162,23 +153,63 @@ function DesignerHost({ scene, initialState, onBack }: DesignerHostProps) {
 // ── Designer inner (a accès à useEditorState) ────────────────────────────
 
 interface DesignerInnerProps {
-  scene: TestScene
-  initialState: SavedSceneState | null
+  picked: PickedPlan
   onBack: () => void
   theme: 'light' | 'dark'
   onToggleTheme: () => void
 }
 
-function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: DesignerInnerProps) {
-  const STORAGE_PREFIX = `test/new-layout/scene-${scene.id}`
+function DesignerInner({ picked, onBack, theme, onToggleTheme }: DesignerInnerProps) {
+  // Compatibilité avec le code existant qui s'attend à `scene: TestScene` —
+  // on construit un proxy minimal depuis le picked plan.
+  const scene: TestScene = useMemo(() => ({
+    id: `${picked.sectionId}_p${picked.planIndex}`,
+    name: picked.plan.description ?? `${picked.sectionName} · Plan ${picked.planIndex + 1}`,
+    prompt: picked.plan.prompt_en ?? picked.plan.prompt_fr ?? '',
+    negative: picked.plan.comfyui_settings?.negative ?? '',
+    usage: [],
+  }), [picked])
+  const STORAGE_PREFIX = `studio/section_${picked.sectionId}/plan_${picked.planIndex}`
   const npcs = [MOCK_NPC]
   const items = [MOCK_ITEM]
   const choices = [MOCK_CHOICE]
   const {
     undo, redo, imageUrl: currentImageUrl, setImageUrl, replaceBase, layers: currentLayers,
     setCutMode, setCutTool, clearSceneAnalysis,
-    addLayer,
+    addLayer, setBakeStatus, addBakedCharacter, bakedCharacterIds,
+    currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl, setCurrentVideo,
   } = useEditorState()
+
+  // Liste UNION des Characters présents dans le plan en cours :
+  // - bakedCharacterIds : persos aplatis dans la base (pas de calque)
+  // - layers[].character_id : persos en calques transparents
+  // Persistée au save dans plan.tags.characters → reload OK au refresh.
+  const allPresentCharacterIds = useMemo(() => {
+    const fromLayers = currentLayers
+      .filter(l => l.character_id != null)
+      .map(l => l.character_id!) as string[]
+    return Array.from(new Set([...fromLayers, ...bakedCharacterIds]))
+  }, [currentLayers, bakedCharacterIds])
+
+  // Hydrate bakedCharacterIds + animation depuis la DB au mount.
+  // Au reload, picked.plan.tags?.characters contient l'UNION layer+baked du save
+  // précédent. V1 : on push tout dans bakedCharacterIds (les layers ne sont pas
+  // encore reload depuis DB en V1, ce sera Phase plan_layers V2).
+  // Si plan kind='animation', restaure la vidéo + frames pour que Canvas
+  // l'affiche immédiatement (sinon reload = perte de la vidéo).
+  useEffect(() => {
+    const persisted = picked.plan.tags?.characters ?? []
+    persisted.forEach(id => addBakedCharacter(id))
+    if (picked.plan.kind === 'animation' && picked.plan.base_video_url) {
+      setCurrentVideo(
+        picked.plan.base_video_url,
+        picked.plan.first_frame_url ?? null,
+        picked.plan.last_frame_url ?? null,
+      )
+    }
+    // Volontairement pas dans deps : on hydrate UNE FOIS au mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picked.sectionId, picked.planIndex])
   const [format, setFormat] = useState('16:9')
   const [genFormCollapsed, setGenFormCollapsed] = useState(false)
   // Mode actif sur l'action Personnage (drive le contenu rendu dans le catalog
@@ -189,35 +220,82 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
   // statuses[] mis à jour au fil de l'eau, on les transforme en variants via useEffect plus bas.
   const { statuses: genStatuses, isRunning: genIsRunning, start: startGeneration } = useImageGeneration()
 
-  // ── Phase et state Variants : initialisé depuis le saved state si existant
-  const [phase, setPhase] = useState<DesignerPhase>(initialState?.phase ?? 'creation')
-  const [variants, setVariants] = useState<DesignerVariant[]>(initialState?.variants ?? [])
-  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
-    initialState?.selectedVariantId ?? null
-  )
+  // ── Phase et state Variants : initialisé selon si le plan a déjà une URL
+  // (image generée → Phase B editing) ou pas (vide → Phase A creation).
+  // V1 : pas de hydratation des variants persistées, l'auteur regen au besoin.
+  const [phase, setPhase] = useState<DesignerPhase>(picked.plan.url ? 'editing' : 'creation')
+  const [variants, setVariants] = useState<DesignerVariant[]>([])
+  const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null)
 
-  // ── Persistance : extrait le state actuel pour sauvegarde
-  const buildSnapshot = useCallback((): Omit<SavedSceneState, 'savedAt'> => ({
-    committedImageUrl: phase === 'editing' ? currentImageUrl : null,
-    variants,
-    selectedVariantId,
-    layers: currentLayers,    // ← inclut les calques pour restoration au reload
-    phase,
-  }), [phase, currentImageUrl, variants, selectedVariantId, currentLayers])
+  // Note : `buildSnapshot` legacy (qui retournait SavedSceneState pour
+  // localStorage) supprimé après migration DB 2026-05-03. Save direct via
+  // POST /api/sections/[id]/plans dans le handler Ctrl+S et handleCommencer.
+  // Le SAFEGUARD blob URL des calques sera réintroduit en V2 quand on branchera
+  // sections.plan_layers en DB (V1 = juste sauve l'image base, pas les calques).
 
-  // Ctrl+S : sauvegarde la session de la scène en localStorage
+  // Toast discret pour confirmer la sauvegarde (demande UX 2026-05-03 :
+  // "aucun message explicite de sauvegarde -> à faire un message discret")
+  const [savedToastVisible, setSavedToastVisible] = useState(false)
+
+  // Ctrl+S : sauvegarde le plan en cours dans Supabase (sections.images[planIndex])
+  // via PATCH /api/sections/[id]/plans en mode UPDATE (planIndex fourni).
+  // Plus de localStorage — décision 2026-05-03 : tout en DB.
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
         e.preventDefault()
-        const snap = buildSnapshot()
-        saveSceneState(scene.id, snap)
-        console.log('[scene-test] Ctrl+S → saved', scene.id, snap)
+        // Body = état actuel du plan (image + prompts). Les calques (overlays)
+        // ne sont PAS encore persistés ici — V2 quand on branchera plan_layers.
+        // Mais on persiste plan.tags.characters (ID des persos baked + layers)
+        // pour que CatalogAnimation retrouve les persos au reload.
+        // Si une vidéo de plan animation est en cours → on switch kind='animation'
+        // + on persiste base_video_url + frames. Sinon kind='image' (ou hérité).
+        const isAnimation = !!currentVideoUrl
+        const body = {
+          planIndex: picked.planIndex,
+          url: currentImageUrl ?? undefined,
+          kind: isAnimation ? ('animation' as const) : ('image' as const),
+          base_video_url: isAnimation ? currentVideoUrl : undefined,
+          first_frame_url: isAnimation ? (currentVideoFirstFrameUrl ?? undefined) : undefined,
+          last_frame_url: isAnimation ? (currentVideoLastFrameUrl ?? undefined) : undefined,
+          tags: {
+            characters: allPresentCharacterIds,
+          },
+        }
+        ;(async () => {
+          try {
+            const res = await fetch(`/api/sections/${picked.sectionId}/plans`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            })
+            const data = await res.json()
+            if (!res.ok) throw new Error(data.error ?? `save HTTP ${res.status}`)
+            console.log('[Ctrl+S] saved plan to DB:', picked.sectionId, picked.planIndex)
+            setSavedToastVisible(true)
+            setTimeout(() => setSavedToastVisible(false), 2000)
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            console.error('[Ctrl+S] save failed:', msg)
+            // TODO V2 : afficher un toast d'erreur
+          }
+        })()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [scene.id, buildSnapshot])
+  }, [
+    picked.sectionId, picked.planIndex, currentImageUrl, allPresentCharacterIds,
+    currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl,
+  ])
+
+  // Banque dynamique : MOCK_BANK statique + uploads de l'utilisateur (V1
+  // local state, persistance Supabase via Phase 3b vraie intégration).
+  const [uploadedBankImages, setUploadedBankImages] = useState<BankImage[]>([])
+  const fullBankImages = useMemo(
+    () => [...uploadedBankImages, ...MOCK_BANK],
+    [uploadedBankImages],
+  )
 
   // ── Pick depuis la banque ────────────────────────────────────────────
   // Tous les changements de variante passent par `replaceBase` (cascade
@@ -235,6 +313,46 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
     setSelectedVariantId(newVariant.id)
     replaceBase(newVariant.url)
   }, [variants, replaceBase])
+
+  // ── Upload externe (depuis PC) → pousse dans la banque locale ──────
+  // Lit le file en base64, POST vers /api/storage/upload-image, crée une
+  // BankImage pointant vers l'URL Supabase, push dans uploadedBankImages.
+  // Le composant DesignerBankPanel appelle ensuite onPick(image) pour la
+  // sélectionner automatiquement comme base courante.
+  const handleBankUpload = useCallback(async (file: File): Promise<BankImage> => {
+    // Lit en data URL
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error('Lecture du fichier échouée'))
+      reader.readAsDataURL(file)
+    })
+    // Upload Supabase
+    const res = await fetch('/api/storage/upload-image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data_url: dataUrl,
+        path: `${STORAGE_PREFIX}_bank_upload/${Date.now()}_${file.name}`,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok || !data.url) {
+      throw new Error(data.error ?? `upload HTTP ${res.status}`)
+    }
+    // Construit la BankImage et push
+    const fileNameNoExt = file.name.replace(/\.[^/.]+$/, '')
+    const newImage: BankImage = {
+      id: `upload-${Date.now()}`,
+      url: data.url,
+      thumbnailUrl: data.url,  // pas de thumbnail séparé V1, full image OK
+      label: fileNameNoExt,
+      tags: ['upload'],
+      source: 'upload',
+    }
+    setUploadedBankImages(prev => [newImage, ...prev])
+    return newImage
+  }, [])
 
   const handleSelectVariant = useCallback((v: DesignerVariant) => {
     setSelectedVariantId(v.id)
@@ -295,20 +413,36 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
     await startGeneration(req)
   }, [startGeneration])
 
-  /** Bouton "Commencer l'édition" : passe en Phase B + sauvegarde */
+  /** Bouton "Commencer l'édition" : passe en Phase B + sauvegarde DB */
   const handleCommencer = useCallback(() => {
     setPhase('editing')
-    // Sauvegarde immédiate (sans attendre Ctrl+S) — Commencer = commit explicite
-    const snap: Omit<SavedSceneState, 'savedAt'> = {
-      committedImageUrl: currentImageUrl,
-      variants,
-      selectedVariantId,
-      layers: currentLayers,
-      phase: 'editing',
-    }
-    saveSceneState(scene.id, snap)
-    console.log('[scene-test] Commencer → saved', scene.id, snap)
-  }, [currentImageUrl, variants, selectedVariantId, currentLayers, scene.id])
+    // Sauvegarde immédiate du plan en DB (commit de l'image base sélectionnée)
+    if (!currentImageUrl) return
+    ;(async () => {
+      try {
+        const isAnimation = !!currentVideoUrl
+        await fetch(`/api/sections/${picked.sectionId}/plans`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            planIndex: picked.planIndex,
+            url: currentImageUrl,
+            kind: isAnimation ? 'animation' : 'image',
+            base_video_url: isAnimation ? currentVideoUrl : undefined,
+            first_frame_url: isAnimation ? (currentVideoFirstFrameUrl ?? undefined) : undefined,
+            last_frame_url: isAnimation ? (currentVideoLastFrameUrl ?? undefined) : undefined,
+            tags: { characters: allPresentCharacterIds },
+          }),
+        })
+        console.log('[Commencer] saved plan to DB:', picked.sectionId, picked.planIndex)
+      } catch (err) {
+        console.error('[Commencer] save failed:', err)
+      }
+    })()
+  }, [
+    currentImageUrl, picked.sectionId, picked.planIndex, allPresentCharacterIds,
+    currentVideoUrl, currentVideoFirstFrameUrl, currentVideoLastFrameUrl,
+  ])
 
   /** "Nouvelle base" en Phase B : reset et revient en Phase A.
    *  Supprime aussi l'analyse de scène (mask PNGs Supabase + ligne DB) pour
@@ -350,6 +484,30 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
     const v = variants.find(x => x.id === selectedVariantId)
     return !!v && !!v.url
   }, [variants, selectedVariantId])
+
+  // Toast discret de confirmation Ctrl+S — rendu via portal pattern (overlay
+  // fixed, hors flow normal donc pas besoin de wrapper fragment).
+  const savedToast = savedToastVisible ? (
+    <div
+      style={{
+        position: 'fixed',
+        bottom: 24,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: 'rgba(16, 185, 129, 0.95)',  // emerald-500
+        color: '#fff',
+        padding: '10px 18px',
+        borderRadius: 8,
+        fontSize: 13,
+        fontWeight: 600,
+        boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
+        zIndex: 10000,
+        pointerEvents: 'none',
+      }}
+    >
+      ✓ Sauvegardé
+    </div>
+  ) : null
 
   return (
     <DesignerLayout
@@ -416,7 +574,7 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
         } satisfies DesignerAction,
       ]}
       personnageMode={personnageMode}
-      onAddCharacter={async (character: Character, placementPrompt: string) => {
+      onAddCharacter={async (character: Character, placementPrompt: string, asLayer: boolean) => {
         if (!currentImageUrl) {
           throw new Error('Aucune scène active — sélectionne une variante d\'abord')
         }
@@ -425,6 +583,15 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
         if (!refUrl) {
           throw new Error(`${character.name} n'a aucune image générée`)
         }
+        // Active BakeProgressModal — bloque l'UI pendant ~40-60s (Kontext
+        // compose + remove + image diff). Sinon clic ailleurs = perte du state.
+        setBakeStatus({
+          startedAt: Date.now(),
+          phase: `Insertion de ${character.name}…`,
+          kind: 'insert_character',
+          estimatedTotalSec: 60,
+        })
+        try {
         // Translate FR → EN (Flux Kontext = T5 préfère anglais)
         let placementEn = placementPrompt.trim()
         if (placementEn) {
@@ -441,26 +608,103 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
           } catch {/* fallback raw FR */}
         }
         // Instruction renforcée pour minimiser la dérive du décor :
-        // - Verbe ONLY (vs "preserve the rest") plus directif
-        // - Liste explicite des éléments à NE PAS toucher
-        // - Caps lock + repetition (Flux Kontext répond aux instructions
-        //   emphatiques per la doc BFL)
+        // - Verbe ONLY directif
+        // - Caps lock + repetition (Flux Kontext répond aux instructions emphatiques)
+        // - Contrainte SCALE explicite (Flux a tendance à agrandir le sujet ajouté)
+        // - Anti-spawn personnage : toute référence humaine dans le placement
+        //   (woman, man, person…) doit pointer un perso EXISTANT, pas en créer
+        //   un nouveau. Best practice Flux Kontext 2025 : nommer les existants
+        //   comme "existing" + interdire explicitement l'ajout de nouveaux sujets.
+        const SCALE_CONSTRAINT =
+          'The character must be at REALISTIC scale relative to the furniture and existing scene proportions ' +
+          '(e.g. a seated person occupies about half the sofa height, a standing person fits naturally between floor and ceiling). ' +
+          'Do NOT enlarge or magnify the character beyond what physics allows in this room. ' +
+          'Keep depth, perspective and proportions of the original scene unchanged.'
+        const ANTI_SPAWN_CONSTRAINT =
+          `The ONLY new character to add is ${character.name}. ` +
+          `Any reference in the placement description to other people (woman, man, person, character, them, her, him…) ` +
+          `MUST be interpreted as an EXISTING character ALREADY present in the source image — DO NOT create new people. ` +
+          `Do NOT add any other humans, animals, or characters besides ${character.name}. ` +
+          `Existing characters in the source image must keep their exact pose, position, appearance and clothing unchanged.`
         const instruction = placementEn
-          ? `ONLY add ${character.name} ${placementEn}. Do NOT modify the existing furniture, lighting, walls, plants, or background composition. The scene must remain identical except for the new character being added.`
-          : `ONLY add ${character.name} to the scene naturally. Do NOT modify the existing furniture, lighting, walls, plants, or background composition. The scene must remain identical except for the new character being added.`
+          ? `ONLY add ${character.name} ${placementEn}. ${ANTI_SPAWN_CONSTRAINT} ${SCALE_CONSTRAINT} Do NOT modify the existing furniture, lighting, walls, plants, or background composition. The scene must remain identical except for ${character.name} being added at correct scale.`
+          : `ONLY add ${character.name} to the scene naturally. ${ANTI_SPAWN_CONSTRAINT} ${SCALE_CONSTRAINT} Do NOT modify the existing furniture, lighting, walls, plants, or background composition. The scene must remain identical except for ${character.name} being added at correct scale.`
+
+        // FLATTEN AVANT envoi à Flux Kontext : si la scène a déjà des persos
+        // en calques transparents par-dessus la base, Kontext ne les voit
+        // pas et peut les "inventer" (bug 2026-05-03 : prompt référençant
+        // "the woman" → Kontext crée une nouvelle femme à côté de Duke).
+        // En aplatissant base + calques, Kontext voit la scène COMPLÈTE et
+        // place Duke en cohérence avec les persos existants.
+        let flatSourceUrl = currentImageUrl
+        if (currentLayers.length > 1) {  // au moins 1 calque overlay (base = layers[0])
+          try {
+            flatSourceUrl = await flattenLayersToImage({
+              baseImageUrl: currentImageUrl,
+              layers: currentLayers,
+              storagePathPrefix: `${STORAGE_PREFIX}_flatten_for_insert`,
+            })
+            console.log('[Insertion] flatten composite (base+layers) →', flatSourceUrl)
+          } catch (flatErr) {
+            console.warn('[Insertion] flatten failed, fallback base only:', flatErr)
+            // Fallback : on continue avec base seule (risque que Kontext invente
+            // les persos comme avant, mais ne bloque pas le flow)
+          }
+        }
+
+        // ── DEBUG : log explicite de ce qu'on envoie à Flux Kontext ──────
+        // Permet de vérifier le prompt + refUrl + sourceUrl avant chaque gen.
+        // Critique pour debug bug "perso trop grand" (HF Kontext bug connu si
+        // refUrl est un portrait cropped → head/legs distordus).
+        console.group('🎬 [Flux Kontext insert] DEBUG envoi')
+        console.log('character.name :', character.name)
+        console.log('refUrl (image perso) :', refUrl)
+        console.log('  → est-ce fullbody ?', !!character.fullbodyUrl, character.fullbodyUrl ? '(OK fullbody)' : '(⚠ portrait seulement = risque scale)')
+        console.log('sourceUrl (scène) :', flatSourceUrl)
+        console.log('  → flatten déclenché ?', currentLayers.length > 1 ? `OUI (${currentLayers.length} calques)` : 'NON (base seule)')
+        console.log('guidance :', 2.5)
+        console.log('PROMPT ENVOYÉ :')
+        console.log(instruction)
+        console.groupEnd()
+
+        // Warning si refUrl est un portrait (crop visage) → risque scale connu Flux Kontext
+        if (!character.fullbodyUrl && character.portraitUrl) {
+          console.warn(
+            '⚠ [Flux Kontext insert] refUrl est un PORTRAIT (visage seul). ' +
+            'Bug connu Flux Kontext : si la réf est cropped face, le perso généré ' +
+            'aura souvent une tête trop grande / jambes trop courtes. ' +
+            'Génère un fullbody pour ' + character.name + ' pour de meilleurs résultats.'
+          )
+        }
 
         const compositeWithDuke = await runFluxKontext({
-          sourceUrl: currentImageUrl,
+          sourceUrl: flatSourceUrl,
           refUrl,
           prompt: instruction,
-          // Guidance baissée 2.5 → 1.8 : moins de "force créative" sur Flux,
-          // plus de respect du source. Recommandation BFL pour edits chirurgicaux.
-          guidance: 1.8,
+          // Guidance bumpée 1.8 → 2.5 : 1.8 trop bas pour faire passer les
+          // contraintes scale/anti-spawn du prompt. 2.5 = défaut BFL recommandé,
+          // bon compromis fidélité décor / obéissance instructions.
+          guidance: 2.5,
           storagePathPrefix: `${STORAGE_PREFIX}_kontext_insert`,
           // Pas de onProgress ici — le feedback est dans CatalogCharacters via
           // son state local (le bouton Ajouter passe en busy pendant l'await).
         })
 
+        // ── MODE BAKED (asLayer=false, défaut) : on aplatit le perso dans
+        //    la base directement. 1 seul Kontext call, pas de Kontext-remove
+        //    ni image-diff. Plus rapide, pas de risque distorsion bord.
+        //    Trade-off : le perso n'est plus séparable individuellement.
+        //    On track quand même son ID via addBakedCharacter pour que
+        //    CatalogAnimation sache qu'il est dans la scène (option A
+        //    décision 2026-05-04).
+        if (!asLayer) {
+          console.log('[Insertion] mode BAKED — perso aplati dans la base directement')
+          replaceBase(compositeWithDuke)
+          addBakedCharacter(character.id)
+          return
+        }
+
+        // ── MODE CALQUE (asLayer=true) : pipeline complet 3 étapes ──────
         // ─── Kontext-remove : produit le clean BG (calque base) ──────────
         // Stratégie prompt symétrique à l'insertion (insight Didier 2026-05-02) :
         // le modèle a le même contexte placement + mêmes contraintes anti-drift.
@@ -492,16 +736,20 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
         let transparentLayerUrl: string | null = null
         if (cleanBgUrl) {
           try {
-            console.log('[image-diff] extracting character...')
-            transparentLayerUrl = await extractCharacterByDiff(
-              compositeWithDuke,
+            console.log('[image-diff] extracting character + uploading Supabase...')
+            // extractCharacterByDiff garantit upload Supabase (cf
+            // feedback_always_persist_to_supabase.md). Retourne URL HTTPS
+            // persistante directement, plus de blob URL exposée.
+            transparentLayerUrl = await extractCharacterByDiff({
+              compositeUrl: compositeWithDuke,
               cleanBgUrl,
-              25, // threshold RGB Euclidean — tunable
-            )
-            console.log('[image-diff] transparent character URL (blob):', transparentLayerUrl)
+              threshold: 25,
+              storagePathPrefix: `${STORAGE_PREFIX}_char_transparent_${character.name.replace(/[^a-z0-9]/gi, '_')}`,
+            })
+            console.log('[image-diff] persisted Supabase URL:', transparentLayerUrl)
           } catch (diffErr) {
             const msg = diffErr instanceof Error ? diffErr.message : String(diffErr)
-            console.warn('[image-diff] failed, fallback to composite layer:', msg)
+            console.warn('[image-diff] failed (extract or upload), fallback to composite layer:', msg)
           }
         }
 
@@ -519,6 +767,9 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
             visible: true,
             opacity: 1,
             blend: 'normal',
+            // Lien vers le store Character → permet à CatalogAnimation de
+            // filtrer le sélecteur perso (cf project_plan_kind_data_model.md)
+            character_id: character.id,
           })
         } else if (cleanBgUrl) {
           // Diff a échoué mais on a quand même le clean BG → fallback composite layer
@@ -530,10 +781,17 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
             visible: true,
             opacity: 1,
             blend: 'normal',
+            character_id: character.id,
           })
         } else {
-          // Tout a échoué → fallback historique (composite as base)
+          // Tout a échoué → fallback historique (composite as base : perso fusionné)
+          // Note : pas de calque dédié → le character_id n'est pas trackable.
+          // CatalogAnimation ne pourra pas reconnaître ce perso dans la scène.
           setImageUrl(compositeWithDuke)
+        }
+        } finally {
+          // Ferme BakeProgressModal global même en cas d'erreur (sinon UI bloquée)
+          setBakeStatus(null)
         }
       }}
 
@@ -544,9 +802,10 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
       // Phase A
       bankPanel={
         <DesignerBankPanel
-          images={MOCK_BANK}
+          images={fullBankImages}
           pickedId={pickedBankId}
           onPick={handleBankPick}
+          onUpload={handleBankUpload}
         />
       }
       bottomDrawer={
@@ -612,6 +871,7 @@ function DesignerInner({ scene, initialState, onBack, theme, onToggleTheme }: De
         choices={choices}
         format={format}
       />
+      {savedToast}
     </DesignerLayout>
   )
 }

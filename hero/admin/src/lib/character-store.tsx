@@ -22,7 +22,15 @@ export type CharacterStyle =
   | 'bd'           // 📖 BD franco-belge (Tintin, Astérix)
   | 'comic'        // 🦸 Comic américain (Marvel, DC)
   | 'concept_art'  // 🖌 Concept art jeu vidéo (Diablo, Dishonored)
+  | 'dark_fantasy' // 🗡 Dark fantasy peinture (Frazetta, Brom, Souls)
   | 'animated'     // [legacy] = anime_modern, pour compat localStorage
+
+/** Apparence du perso. Utilisée par les pipelines qui ont des slots typés
+ *  (LTX 2.3 IC LoRA Dual entraîné sur les labels `Male:` / `Female:`).
+ *  Limité à 2 valeurs : c'est un mapping technique vers les slots du LoRA,
+ *  pas une déclaration sociale. Optionnel pour back-compat (persos créés
+ *  avant le champ → fallback 'female' à la lecture). */
+export type CharacterGender = 'male' | 'female'
 
 export interface Character {
   id: string
@@ -30,6 +38,10 @@ export interface Character {
   /** Style visuel choisi à la création — utile pour relancer une génération
    *  cohérente (ex : portrait alternatif). Optionnel pour back-compat. */
   style?: CharacterStyle
+  /** Apparence du perso (homme/femme) — drive les slots typés des modèles
+   *  dual (LTX IC LoRA Dual `Male:`/`Female:`). Optionnel pour back-compat ;
+   *  si manquant ou valeur héritée invalide, défaut 'female'. */
+  gender?: CharacterGender
   /** Description visuelle qui a servi à générer / ou note libre. */
   prompt?: string
   /** URL portrait (cadrage tête/épaules) — null si pas encore généré. */

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isServerRunning, queuePrompt, getHistory, getImage, uploadUrlToComfyUI, generateMaskPng, uploadImageToComfyUI, STYLE_SUFFIXES } from '@/lib/comfyui'
+import { isServerRunning, queuePrompt, getHistory, getImage, uploadUrlToComfyUI, generateMaskPng, uploadImageToComfyUI, STYLE_SUFFIXES, freeComfyVram } from '@/lib/comfyui'
 import { buildPanorama360Workflow, type Panorama360Character } from '@/lib/comfyui-panorama360'
 import { createClient } from '@supabase/supabase-js'
 
@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
       style_suffix,
       characters,
     })
+    // Free VRAM conditionnel géré dans queuePrompt() (lib/comfyui.ts)
     const result = await queuePrompt(workflow)
 
     if (result.node_errors && Object.keys(result.node_errors).length > 0) {

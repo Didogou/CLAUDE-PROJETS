@@ -97,18 +97,19 @@ def is_widget_input(input_type, options: dict) -> bool:
 
     Convention ComfyUI :
     - type str primitive (INT, FLOAT, STRING, BOOLEAN) -> widget
-    - type list (combo dropdown) -> widget
+    - type str "COMBO" (nouveau format API ComfyUI 2024+) -> widget dropdown
+    - type list ([options...], format ancien combo) -> widget dropdown
     - type str non-primitive (MODEL, CLIP, VAE, IMAGE, LATENT, ...) -> input connectable
-    Mais en pratique, tous peuvent etre BOTH si le node accepte le force_input.
+
     L'info reelle vient du fait que le node GUI a un input avec le meme nom :
     -> si oui, c'est connecte, pas un widget
     -> sinon, c'est un widget
     """
-    PRIMITIVE_TYPES = {'INT', 'FLOAT', 'STRING', 'BOOLEAN'}
+    WIDGET_TYPES = {'INT', 'FLOAT', 'STRING', 'BOOLEAN', 'COMBO'}
     if isinstance(input_type, list):
-        return True  # combo dropdown
+        return True  # ancien format combo dropdown
     if isinstance(input_type, str):
-        if input_type in PRIMITIVE_TYPES:
+        if input_type in WIDGET_TYPES:
             return True
         return False
     return False
@@ -200,32 +201,49 @@ def convert(gui: dict, object_info: dict) -> dict:
             continue
 
         ordered_inputs = get_input_order(ntype, object_info)
-        connected = {i['name']: i for i in node.get('inputs', []) if i.get('link') is not None}
+        # Tous les inputs declares dans le node GUI (avec ou sans link)
+        gui_inputs_with_link = {i['name']: i for i in node.get('inputs', []) if i.get('link') is not None}
+        gui_input_names = {i.get('name') for i in node.get('inputs', []) if i.get('name')}
 
         api_inputs: dict = {}
+
+        # Etape 1 : injecte tous les inputs avec link depuis le GUI.
+        # Important pour les nodes "dynamiques" (Any Switch rgthree, etc.)
+        # dont le schema declare des inputs vides : seul le GUI a la verite.
+        for name, inp in gui_inputs_with_link.items():
+            src = resolve_link_source(inp['link'], nodes, links)
+            if src is not None:
+                api_inputs[name] = src
+            # Si src is None (chaine entierement bypassed), on omet l'input
+            # -> ComfyUI utilisera le defaut si c'est optional
+
+        # Etape 2 : widgets dans l'ordre du schema.
+        # IMPORTANT : ComfyUI garde une valeur dans widgets_values pour CHAQUE
+        # widget du schema, MEME si l'input est lie via un link. La valeur
+        # fallback est conservee. Donc l'index wi avance pour TOUS les widgets,
+        # qu'ils soient lies ou pas. Sinon les widgets sont desynchronises
+        # (ex: batch_size recoit la valeur de width).
         widgets_values = node.get('widgets_values') or []
         wi = 0  # index dans widgets_values
-
         for name, opts in ordered_inputs:
             input_type = get_input_type(ntype, name, object_info)
-
-            if name in connected:
-                src = resolve_link_source(connected[name]['link'], nodes, links)
-                if src is not None:
-                    api_inputs[name] = src
-                # Si src est None (chaine entierement bypassed), on omet
-                # l'input -> ComfyUI utilisera le defaut si c'est optional
+            if not is_widget_input(input_type, opts):
+                # Input connectable pur (MODEL/IMAGE/CLIP/...) : pas dans widgets_values.
+                # Si lie -> deja dans api_inputs (etape 1). Si pas lie -> on omet.
                 continue
 
-            # Pas connecte -> widget si type est primitif ou combo
-            if is_widget_input(input_type, opts):
-                if wi < len(widgets_values):
-                    api_inputs[name] = widgets_values[wi]
-                    wi += 1
-                    # Skip extra slot pour control_after_generate
-                    extra = widgets_count_for_input(input_type, opts) - 1
-                    wi += extra
-            # Sinon : input connectable non connecte -> on omet (comme ComfyUI)
+            # C'est un widget-type input : consomme widgets_values[wi]
+            slots = widgets_count_for_input(input_type, opts)
+            if wi < len(widgets_values):
+                value = widgets_values[wi]
+                # Si l'input est lie (etape 1 a fait le job), on garde le link.
+                # Sinon on utilise la valeur du widget.
+                if name not in api_inputs:
+                    # Et seulement si l'input n'est pas declare comme liable sans link
+                    # (ce qui voudrait dire que le user l'a force_input mais sans connecter)
+                    if name not in gui_input_names:
+                        api_inputs[name] = value
+                wi += slots  # avance toujours, meme si on n'utilise pas la valeur
 
         api[str(nid)] = {
             '_meta': {'title': node.get('title') or ntype},

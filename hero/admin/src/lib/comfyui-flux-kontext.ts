@@ -69,10 +69,7 @@ export async function runFluxKontext(opts: FluxKontextOptions): Promise<string> 
 
   onProgress?.({ stage: 'upload', label: 'Préparation…' })
 
-  // Free VRAM avant ce workflow lourd
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-  await new Promise(r => setTimeout(r, 1500))
-
+  // Free VRAM AVANT/APRÈS centralisé dans queuePrompt() (cache UNet conditionnel)
   const upSrc = await uploadToComfy(sourceUrl, 'kontext_src')
   const upRef = refUrl ? await uploadToComfy(refUrl, 'kontext_ref') : undefined
 
@@ -118,8 +115,7 @@ export async function runFluxKontext(opts: FluxKontextOptions): Promise<string> 
   ).then(r => r.json())
   if (!iData.image_url) throw new Error(iData.error ?? 'flux_kontext image_url manquante')
 
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-
+  // Free APRÈS supprimé : cache UNet géré centralement dans queuePrompt
   onProgress?.({ stage: 'done' })
   return iData.image_url as string
 }

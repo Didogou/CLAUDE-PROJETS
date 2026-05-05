@@ -254,8 +254,52 @@ export async function freeComfyVram(opts?: { unload?: boolean }): Promise<void> 
   }
 }
 
-/** Queue a workflow on the ComfyUI server */
+// ── Cache UNet pour skipper le free VRAM si même modèle ────────────────────
+// Module-scope (vit pendant la durée du process Next dev). Permet d'éviter
+// le reload coûteux du modèle entre 2 régen consécutives qui utilisent le
+// même UNet. Si le modèle change → free + reload. Centralisé ici dans
+// queuePrompt pour que TOUTES les routes (POST principal + erase/inpaint/
+// florence-sam/etc.) en bénéficient automatiquement.
+let lastLoadedUnetFilename: string | null = null
+
+/** Scanne le workflow pour trouver le 1er node UNet/Checkpoint loader.
+ *  Retourne le filename du modèle ou null si non trouvé. */
+function extractUnetFilename(workflow: Record<string, unknown>): string | null {
+  for (const node of Object.values(workflow)) {
+    if (typeof node !== 'object' || node === null) continue
+    const n = node as { class_type?: string; inputs?: Record<string, unknown> }
+    const ct = n.class_type
+    const inputs = n.inputs ?? {}
+    if (ct === 'UnetLoaderGGUF' && typeof inputs.unet_name === 'string') return inputs.unet_name
+    if (ct === 'UNETLoader' && typeof inputs.unet_name === 'string') return inputs.unet_name
+    if (ct === 'CheckpointLoaderSimple' && typeof inputs.ckpt_name === 'string') return inputs.ckpt_name
+  }
+  return null
+}
+
+/** Queue a workflow on the ComfyUI server.
+ *  Free VRAM AVANT le queue UNIQUEMENT si le modèle UNet du wf est différent
+ *  du dernier chargé (cache UNet) → évite reload coûteux pour les régen
+ *  consécutives. */
 export async function queuePrompt(workflow: Record<string, unknown>): Promise<ComfyUIPromptResponse> {
+  // Décide si on doit free avant cette queue
+  const currentUnet = extractUnetFilename(workflow)
+  const sameModel = currentUnet !== null && currentUnet === lastLoadedUnetFilename
+  if (!sameModel) {
+    if (currentUnet && lastLoadedUnetFilename) {
+      console.log(`[queuePrompt] Modèle UNet change : ${lastLoadedUnetFilename} → ${currentUnet}, free VRAM`)
+    } else if (currentUnet) {
+      console.log(`[queuePrompt] Premier load UNet : ${currentUnet}, free VRAM (clean state)`)
+    } else {
+      console.log(`[queuePrompt] Workflow sans UNet loader détecté → free VRAM (sécurité)`)
+    }
+    await freeComfyVram({ unload: true }).catch(() => {})
+    await new Promise(r => setTimeout(r, 1500))
+    lastLoadedUnetFilename = currentUnet
+  } else {
+    console.log(`[queuePrompt] Skip free VRAM : modèle UNet déjà chargé (${currentUnet})`)
+  }
+
   const res = await fetch(`${COMFYUI_URL}/api/prompt`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -301,7 +345,8 @@ export async function isServerRunning(): Promise<boolean> {
  */
 export async function uploadImageToComfyUI(imageBuffer: Buffer, originalFilename: string): Promise<string> {
   const formData = new FormData()
-  const blob = new Blob([imageBuffer], { type: 'image/png' })
+  // Buffer → Uint8Array pour compat BlobPart strict (TS 5+)
+  const blob = new Blob([new Uint8Array(imageBuffer)], { type: 'image/png' })
   formData.append('image', blob, originalFilename)
   formData.append('overwrite', 'true')
 
@@ -3444,59 +3489,83 @@ export function buildLtx23DualWorkflow(params: ComfyUIGenerateParams): Record<st
   if (!params.source_image) throw new Error('ltx_2_3_dual requires source_image')
   if (!params.prompt_positive) throw new Error('ltx_2_3_dual requires prompt_positive')
 
-  // Tentative de load du template JSON (à venir une fois exporté)
+  // require() du JSON template. Note importante :
+  // require() cache le JSON en mémoire au boot du serveur Next.js. Quand on
+  // régénère le template (via `python scripts/comfyui_gui_to_api.py`), il faut
+  // RESTART le serveur Next (Ctrl+C / npm run dev) pour qu'il recharge.
+  // On ne peut pas utiliser readFileSync ici car ce fichier est aussi importé
+  // côté client (GenerationPanel.tsx) → import node:fs casse le build.
+  // La solution propre = extraire ce builder dans un fichier server-only dédié
+  // (TODO Phase 5).
   let template: Record<string, unknown>
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     template = require('./workflows/ltx_2_3_dual.api.json') as Record<string, unknown>
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
     throw new Error(
-      '[ltx_2_3_dual] Workflow JSON template manquant. ' +
+      '[ltx_2_3_dual] Workflow JSON template indisponible. ' +
       'Action requise : exporter le workflow depuis ComfyUI en API Format ' +
       'puis le placer dans src/lib/workflows/ltx_2_3_dual.api.json. ' +
-      'Voir page POC `/editor-test/ltx-dual-characters` pour les instructions.'
+      `Voir page POC /editor-test/ltx-dual-characters. Détail : ${msg}`
     )
   }
 
   // Deep clone pour éviter de muter le template entre les requêtes
   const wf = JSON.parse(JSON.stringify(template)) as Record<string, Record<string, unknown>>
 
+  // Mots-clés caractéristiques d'un prompt négatif. Si le texte courant en contient
+  // un, on identifie comme le node négatif. Sinon, c'est le positif.
+  const NEGATIVE_KEYWORDS = [
+    'blurry', 'low quality', 'worst quality', 'jpeg', 'artifact',
+    'deformed', 'distorted', 'ugly', 'nsfw', 'watermark',
+    'out of focus', 'bad anatomy', 'bad hands',
+  ]
+  const isNegativePrompt = (text: string): boolean => {
+    const t = text.toLowerCase()
+    return NEGATIVE_KEYWORDS.some(kw => t.includes(kw))
+  }
+
+  const newSeed = (): number =>
+    params.seed === -1 || params.seed == null
+      ? Math.floor(Math.random() * 2 ** 32)
+      : params.seed
+
   // Substitution des valeurs paramétriques
-  // On parcourt les nodes pour trouver ceux à patcher selon leur class_type
   for (const [_nodeId, node] of Object.entries(wf)) {
     const classType = node.class_type as string | undefined
     const inputs = node.inputs as Record<string, unknown> | undefined
     if (!classType || !inputs) continue
 
-    // LoadImage → image source
+    // LoadImage → image source (V1 wf Vantage est T2V donc pas de LoadImage,
+    // mais on garde le patch pour les futurs wf I2V)
     if (classType === 'LoadImage' && 'image' in inputs) {
       inputs.image = params.source_image
     }
 
-    // CLIPTextEncode positif vs négatif : heuristique simple = on met le
-    // positif partout (comme la plupart des wf n'ont qu'un seul prompt
-    // utilisateur). Pour distinguer pos/neg, le user devra m'indiquer
-    // les node IDs dans le JSON exporté → je l'ajusterai en hardcode.
-    // TODO : identifier les 2 nodes CLIPTextEncode et les patcher différemment
-    // une fois qu'on aura le JSON exporté.
+    // CLIPTextEncode : distingue positif vs négatif via mots-clés du texte
+    // courant. Plus robuste qu'une simple détection 'ugly' (le négatif Vantage
+    // commence par 'blurry, out of focus...').
     if (classType === 'CLIPTextEncode' && 'text' in inputs) {
-      // Stratégie temporaire : on détecte par l'ancien texte du widget
-      const currentText = inputs.text as string
-      if (currentText && currentText.toLowerCase().includes('ugly')) {
-        // Probablement le négatif (contient des mots négatifs)
-        inputs.text = params.prompt_negative ?? currentText
+      const currentText = (inputs.text as string) ?? ''
+      if (isNegativePrompt(currentText)) {
+        if (params.prompt_negative) inputs.text = params.prompt_negative
+        // Sinon on garde le default Vantage (négatif raisonnable)
       } else {
-        // Probablement le positif
         inputs.text = params.prompt_positive
       }
     }
 
-    // KSampler / random seed → on injecte un seed aléatoire si demandé
+    // RandomNoise (Comfy Custom Advanced) : seed est dans `noise_seed`
+    // PAS dans `seed`. Le wf Vantage utilise RandomNoise + SamplerCustomAdvanced
+    // et pas de KSampler classique → on doit patcher noise_seed ici.
+    if (classType === 'RandomNoise' && 'noise_seed' in inputs) {
+      inputs.noise_seed = newSeed()
+    }
+
+    // KSampler / KSamplerAdvanced classique : seed dans `seed` (legacy compat)
     if (classType.includes('Sampler') && 'seed' in inputs) {
-      const seed = params.seed === -1 || params.seed == null
-        ? Math.floor(Math.random() * 2 ** 32)
-        : params.seed
-      inputs.seed = seed
+      inputs.seed = newSeed()
     }
   }
 

@@ -225,10 +225,33 @@ interface State {
      *  - motion_brush / cinemagraph : bake d'animation Wan
      *  - sam_cut : analyse SAM pour découpe (étape de détection des objets)
      *  - grabcut : compute GrabCut (OpenCV) — éventuellement précédé du
-     *    chargement initial de la lib OpenCV.js (~10 MB) */
+     *    chargement initial de la lib OpenCV.js (~10 MB)
+     *  - portrait / fullbody : génération character creator (Z-Image, Flux Dev,
+     *    FaceDetailer). Bloque l'UI pendant 25-120s pour éviter perte de state.
+     *  - insert_character : insertion perso dans la scène (Kontext compose +
+     *    remove + image diff). ~40-60s.
+     *  - animation : génération vidéo plan animation (LTX 2.3 + IC LoRA).
+     *    ~17 min sur 8 GB. Bloque IMPÉRATIVEMENT l'UI vu la durée. */
     kind: 'motion_brush' | 'cinemagraph' | 'sam_cut' | 'grabcut'
+        | 'portrait' | 'fullbody' | 'insert_character' | 'animation'
     estimatedTotalSec: number
   } | null
+  /** IDs des Characters insérés en mode "baked" (perso aplati dans la base,
+   *  pas de calque dédié). Permet à CatalogAnimation de connaître les persos
+   *  présents dans la scène même quand asLayer=false (pas de layer.character_id
+   *  à scanner). Cf décision 2026-05-04 (option A : tracking explicite).
+   *  Reset au changement de plan / replaceBase. */
+  bakedCharacterIds: string[]
+  /** Plan animation : URL Supabase du MP4 généré (LTX 2.3) à afficher dans le
+   *  Canvas À la place de l'image base. null = plan kind='image' (rendu img).
+   *  Reset au changement de plan / replaceBase. Cf project_plan_kind_data_model.md. */
+  currentVideoUrl: string | null
+  /** Plan animation : 1ère frame du MP4 (capturée par extract-frames). Sert de
+   *  poster pour le <video> et de vignette banque. null si pas d'animation. */
+  currentVideoFirstFrameUrl: string | null
+  /** Plan animation : dernière frame du MP4. Utilisée par la modale "Image fin"
+   *  lors de la copie d'animation. null si pas d'animation. */
+  currentVideoLastFrameUrl: string | null
   /** Compteur incrémenté à chaque clic sur le fond image — la Sidebar
    *  l'écoute pour fermer tous ses folds (même si rien n'était sélectionné). */
   backgroundClickTick: number
@@ -282,6 +305,8 @@ type Action =
   | { type: 'set_editing_weather_zone'; target: 'main' | 'impact'; impactZoneId?: string | null }
   | { type: 'set_weather_brush_engaged'; engaged: boolean }
   | { type: 'set_bake_status'; status: State['bakeStatus'] }
+  | { type: 'add_baked_character'; characterId: string }
+  | { type: 'clear_baked_characters' }
   | { type: 'signal_background_click' }
   // ── Calques ──
   | { type: 'add_layer'; layer?: Partial<EditorLayer>; insertAt?: number }
@@ -292,6 +317,7 @@ type Action =
   | { type: 'reorder_layers'; from: number; to: number }
   | { type: 'set_layers'; layers: EditorLayer[]; activeIdx?: number }
   | { type: 'set_image_url'; url: string | null }
+  | { type: 'set_current_video'; videoUrl: string | null; firstFrameUrl?: string | null; lastFrameUrl?: string | null }
   /** Remplace la base courante par une nouvelle (sélection d'une variante,
    *  pick depuis la banque, etc.). Distinct de `set_image_url` car cascade
    *  delete : on jette tous les calques + cut state + scene analysis liés
@@ -617,6 +643,14 @@ function reducer(state: State, action: Action): State {
       return { ...state, weatherBrushEngaged: action.engaged }
     case 'set_bake_status':
       return { ...state, bakeStatus: action.status }
+    case 'add_baked_character': {
+      // Évite les doublons (idempotent : ajouter 2× le même perso = 1 entry)
+      if (state.bakedCharacterIds.includes(action.characterId)) return state
+      return { ...state, bakedCharacterIds: [...state.bakedCharacterIds, action.characterId] }
+    }
+    case 'clear_baked_characters':
+      if (state.bakedCharacterIds.length === 0) return state
+      return { ...state, bakedCharacterIds: [] }
     case 'signal_background_click':
       // Incrémente le tick. La Sidebar s'abonne via useEffect pour fermer tous ses folds.
       return { ...state, backgroundClickTick: state.backgroundClickTick + 1, selected: [] }
@@ -634,6 +668,17 @@ function reducer(state: State, action: Action): State {
     case 'set_image_url': {
       if (state.imageUrl === action.url) return state
       return pushHistory(state, state.layers, action.url)
+    }
+
+    case 'set_current_video': {
+      // Hors historique : la vidéo n'est pas un edit destructif de l'image base.
+      // L'undo restaure l'imageUrl de référence, pas la vidéo générée.
+      return {
+        ...state,
+        currentVideoUrl: action.videoUrl,
+        currentVideoFirstFrameUrl: action.firstFrameUrl ?? null,
+        currentVideoLastFrameUrl: action.lastFrameUrl ?? null,
+      }
     }
 
     case 'replace_base': {
@@ -662,6 +707,11 @@ function reducer(state: State, action: Action): State {
         weatherBrushEngaged: false,
         sceneAnalysis: { imageUrl: null, detections: [], busy: false, error: null, analyzedAt: null },
         selectedDetectionId: null,
+        // Cascade : nouvelle base = nouveau plan = persos baked + animation obsolètes
+        bakedCharacterIds: [],
+        currentVideoUrl: null,
+        currentVideoFirstFrameUrl: null,
+        currentVideoLastFrameUrl: null,
       }
     }
 
@@ -909,6 +959,28 @@ interface EditorStateContextValue {
   setEditingWeatherZone: (target: 'main' | 'impact', impactZoneId?: string | null) => void
   setWeatherBrushEngaged: (engaged: boolean) => void
   setBakeStatus: (status: State['bakeStatus']) => void
+  /** Liste des Characters insérés en mode baked (pas de calque). Lue par
+   *  CatalogAnimation pour proposer ces persos à l'animation même sans calque. */
+  bakedCharacterIds: string[]
+  /** Ajoute un perso baked dans le state (idempotent). */
+  addBakedCharacter: (characterId: string) => void
+  /** Reset la liste (utilisé au changement de plan). */
+  clearBakedCharacters: () => void
+  /** URL Supabase du MP4 du plan animation (null si plan kind='image').
+   *  Lue par Canvas pour rendre <video> au lieu de <img>. */
+  currentVideoUrl: string | null
+  /** Vignette 1ère frame du MP4 (poster du <video> + banque). */
+  currentVideoFirstFrameUrl: string | null
+  /** Vignette dernière frame du MP4 (modale "Image fin" lors copie). */
+  currentVideoLastFrameUrl: string | null
+  /** Set la vidéo courante du plan (typiquement appelé après gen LTX 2.3 réussie).
+   *  Pour basculer un plan en kind='animation' → passer videoUrl ; pour revenir
+   *  en kind='image' → passer null. Hors historique (un undo restaure l'image base). */
+  setCurrentVideo: (
+    videoUrl: string | null,
+    firstFrameUrl?: string | null,
+    lastFrameUrl?: string | null,
+  ) => void
   /** Marque l'analyse comme en cours pour une image donnée (busy=true).
    *  Le hook usePreAnalyzeImage l'appelle au début de l'API call. */
   setSceneAnalysisBusy: (busy: boolean, imageUrl: string | null) => void
@@ -968,8 +1040,23 @@ export function EditorStateProvider({
   // Si des calques persistés sont fournis (reprise de session), on les hydrate
   // tels quels. Sinon on crée le calque Base par défaut à partir de la
   // composition initiale. L'éditeur a TOUJOURS au moins un calque.
-  const initialLayers: EditorLayer[] = hydratedLayers && hydratedLayers.length > 0
-    ? hydratedLayers.map(l => ({
+  // SANITIZE : on FILTRE les calques dont media_url ou baked_url est une blob:
+  // URL — ces URLs sont éphémères (révoquées par le browser, mortes au refresh)
+  // et causent des erreurs Canvas onError au render. Bug constaté 2026-05-03 :
+  // d'anciens calques persistés en localStorage avant le fix d'upload Supabase
+  // ressuscitent avec des blob URL cassées. Le filter garantit qu'on n'hydrate
+  // que des URLs persistantes (Supabase HTTPS, data:, ou null).
+  const isBrokenUrl = (url: string | undefined | null): boolean =>
+    typeof url === 'string' && url.startsWith('blob:')
+  const sanitizedHydrated = (hydratedLayers ?? []).filter(l => {
+    const broken = isBrokenUrl(l.media_url) || isBrokenUrl(l.baked_url)
+    if (broken) {
+      console.warn('[EditorState] Skipping persisted layer with blob URL (ephemeral, dead at refresh):', l.name, l.media_url ?? l.baked_url)
+    }
+    return !broken
+  })
+  const initialLayers: EditorLayer[] = sanitizedHydrated.length > 0
+    ? sanitizedHydrated.map(l => ({
         ...l,
         // Garantit un _uid sur les calques chargés (back-compat si absent)
         _uid: l._uid ?? genUid(),
@@ -1006,6 +1093,10 @@ export function EditorStateProvider({
     selectedDetectionId: null,
     zoomLoupeManualOpen: false,
     bakeStatus: null,
+    bakedCharacterIds: [],
+    currentVideoUrl: null,
+    currentVideoFirstFrameUrl: null,
+    currentVideoLastFrameUrl: null,
     backgroundClickTick: 0,
     history: [{ layers: initialLayers, imageUrl: initialImageUrl }],
     historyIndex: 0,
@@ -1076,6 +1167,8 @@ export function EditorStateProvider({
     [],
   )
   const setBakeStatus = useCallback((status: State['bakeStatus']) => dispatch({ type: 'set_bake_status', status }), [])
+  const addBakedCharacter = useCallback((characterId: string) => dispatch({ type: 'add_baked_character', characterId }), [])
+  const clearBakedCharacters = useCallback(() => dispatch({ type: 'clear_baked_characters' }), [])
   const setSceneAnalysisBusy = useCallback(
     (busy: boolean, imageUrl: string | null) => dispatch({ type: 'set_scene_analysis_busy', busy, imageUrl }), [])
   const setSceneAnalysisResult = useCallback(
@@ -1103,6 +1196,9 @@ export function EditorStateProvider({
     dispatch({ type: 'set_image_url', url }), [])
   const replaceBase = useCallback((url: string | null) =>
     dispatch({ type: 'replace_base', url }), [])
+  const setCurrentVideo = useCallback(
+    (videoUrl: string | null, firstFrameUrl?: string | null, lastFrameUrl?: string | null) =>
+      dispatch({ type: 'set_current_video', videoUrl, firstFrameUrl, lastFrameUrl }), [])
   const reorderLayers = useCallback((from: number, to: number) =>
     dispatch({ type: 'reorder_layers', from, to }), [])
   const setLayers = useCallback((layers: EditorLayer[], activeIdx?: number) =>
@@ -1165,6 +1261,13 @@ export function EditorStateProvider({
     setEditingWeatherZone,
     setWeatherBrushEngaged,
     setBakeStatus,
+    bakedCharacterIds: state.bakedCharacterIds,
+    addBakedCharacter,
+    clearBakedCharacters,
+    currentVideoUrl: state.currentVideoUrl,
+    currentVideoFirstFrameUrl: state.currentVideoFirstFrameUrl,
+    currentVideoLastFrameUrl: state.currentVideoLastFrameUrl,
+    setCurrentVideo,
     setSceneAnalysisBusy,
     setSceneAnalysisResult,
     setSceneAnalysisError,
@@ -1195,6 +1298,8 @@ export function EditorStateProvider({
     addBrushStroke, undoBrushStroke, clearBrushStrokes, setBrushSize, setBrushMode,
     setEditingWeatherZone, setWeatherBrushEngaged,
     setBakeStatus,
+    addBakedCharacter, clearBakedCharacters,
+    setCurrentVideo,
     setSceneAnalysisBusy, setSceneAnalysisResult, setSceneAnalysisError, clearSceneAnalysis, removeSceneDetection, setSelectedDetection, setZoomLoupeManualOpen,
     addNpc, updateNpc, removeNpc, reorderNpcs, setNpcs,
     addItem, updateItem, removeItem, reorderItems, setItems,

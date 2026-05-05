@@ -61,10 +61,7 @@ export async function runFaceDetailer(opts: FaceDetailerOptions): Promise<string
 
   onProgress?.({ stage: 'upload', label: 'Préparation…' })
 
-  // Free VRAM avant ce workflow lourd (anti-OOM 8 GB)
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-  await new Promise(r => setTimeout(r, 1500))
-
+  // Free VRAM AVANT/APRÈS centralisé dans queuePrompt() (cache UNet conditionnel)
   const upSrc = await uploadToComfy(sourceUrl, 'cc_fd_src')
   const upRef = await uploadToComfy(refUrl, 'cc_fd_ref')
 
@@ -110,9 +107,7 @@ export async function runFaceDetailer(opts: FaceDetailerOptions): Promise<string
   ).then(r => r.json())
   if (!iData.image_url) throw new Error(iData.error ?? 'face_detailer image_url manquante')
 
-  // Free VRAM après (anti-OOM run suivant)
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-
+  // Free APRÈS supprimé : cache UNet géré centralement dans queuePrompt
   onProgress?.({ stage: 'done' })
   return iData.image_url as string
 }

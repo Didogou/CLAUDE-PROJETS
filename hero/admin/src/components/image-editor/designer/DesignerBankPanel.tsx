@@ -9,8 +9,8 @@
  * Pour l'instant : reçoit un BankImage[] depuis le parent (mock ou réel).
  */
 
-import React, { useMemo, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import React, { useMemo, useRef, useState } from 'react'
+import { Search, X, Upload, Loader2 } from 'lucide-react'
 import type { BankImage } from './types'
 
 interface DesignerBankPanelProps {
@@ -22,12 +22,40 @@ interface DesignerBankPanelProps {
   onPick: (image: BankImage) => void
   /** Callback pour fermer manuellement le panel (X header) */
   onClose?: () => void
+  /** Callback d'upload depuis le PC. Reçoit le file et doit retourner la
+   *  BankImage créée (URL Supabase + métadonnées) qui sera ensuite ajoutée
+   *  à la liste affichée par le parent. Si non fourni → bouton upload caché. */
+  onUpload?: (file: File) => Promise<BankImage>
 }
 
 export default function DesignerBankPanel({
-  images, pickedId, onPick, onClose,
+  images, pickedId, onPick, onClose, onUpload,
 }: DesignerBankPanelProps) {
   const [query, setQuery] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''  // reset pour permettre re-upload même fichier
+    if (!file || !onUpload) return
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Format invalide (image uniquement)')
+      return
+    }
+    setUploading(true); setUploadError(null)
+    try {
+      const newImage = await onUpload(file)
+      // Sélectionne auto l'image fraîchement uploadée pour confort UX
+      onPick(newImage)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setUploadError(msg)
+    } finally {
+      setUploading(false)
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -68,6 +96,30 @@ export default function DesignerBankPanel({
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
+
+      {onUpload && (
+        <div className="dz-bank-upload">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleFileSelected}
+          />
+          <button
+            type="button"
+            className="dz-bank-upload-btn"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            title="Upload une image depuis ton PC"
+          >
+            {uploading
+              ? <><Loader2 size={12} className="dz-bank-upload-spin" /><span>Upload…</span></>
+              : <><Upload size={12} /><span>Upload depuis PC</span></>}
+          </button>
+          {uploadError && <div className="dz-bank-upload-err">{uploadError}</div>}
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="dz-bank-empty">

@@ -111,6 +111,7 @@ export async function POST(req: NextRequest) {
         weight: styleWeight,
       } : undefined,
     })
+    // Free VRAM conditionnel géré dans queuePrompt() (lib/comfyui.ts)
     const result = await queuePrompt(workflow)
     if (result.node_errors && Object.keys(result.node_errors).length > 0) {
       return NextResponse.json({ error: 'Workflow inpaint rejeté par ComfyUI', details: result.node_errors }, { status: 500 })

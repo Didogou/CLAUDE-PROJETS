@@ -41,6 +41,7 @@ import DesignerActionsToolbar, { type DesignerAction, type DesignerSecondaryActi
 import { useEditorState } from '../EditorStateContext'
 import { AICutCommandProvider } from '../AICutCommandContext'
 import { usePreAnalyzeImage } from '../hooks/usePreAnalyzeImage'
+import SceneAnalysisPrompt from '../SceneAnalysisPrompt'
 import type { DesignerPhase } from './types'
 
 interface DesignerLayoutProps {
@@ -106,7 +107,7 @@ interface DesignerLayoutProps {
    *  dans le catalog 'generate'). null = pas d'action Personnage active. */
   personnageMode?: PersonnageMode
   /** Phase B — Callback "Ajouter ce perso à la scène" depuis CatalogCharacters. */
-  onAddCharacter?: (character: Character, placementPrompt: string) => Promise<void> | void
+  onAddCharacter?: (character: Character, placementPrompt: string, asLayer: boolean) => Promise<void> | void
 }
 
 export default function DesignerLayout({
@@ -148,6 +149,7 @@ export default function DesignerLayout({
   const {
     activeLayerIdx,
     imageUrl,
+    layers,
     cutTool,
     wandMasks,
     selectedWandUrls,
@@ -159,15 +161,27 @@ export default function DesignerLayout({
     clearCutResult,
     selectedDetectionId,
     setSelectedDetection,
+    bakedCharacterIds,
   } = useEditorState()
 
-  // Pré-analyse automatique de l'image courante (background, ne bloque pas l'UI).
-  // Alimente state.sceneAnalysis avec le catalogue d'objets détectés.
+  // IDs des persos présents dans la scène — UNION de 2 sources :
+  // 1. Calques avec character_id renseigné (mode asLayer=true à l'insertion)
+  // 2. bakedCharacterIds du state (mode asLayer=false, perso aplati dans base)
+  // Cf décision 2026-05-04 (option A : tracking explicite des persos baked).
+  const presentCharacterIds = useMemo(() => {
+    const fromLayers = layers
+      .filter(l => l.character_id != null)
+      .map(l => l.character_id!) as string[]
+    // Dedupe via Set (évite doublons si un perso est à la fois en calque et baked)
+    return Array.from(new Set([...fromLayers, ...bakedCharacterIds]))
+  }, [layers, bakedCharacterIds])
+
+  // Pré-analyse de l'image courante (opt-in via popup 2026-05-04).
+  // Si cache DB existe → load direct (rapide). Sinon → popup demande confirmation
+  // utilisateur avant de lancer l'analyse (~50s + BakeProgressModal).
   // Stratégie validée : f_qwen_sam1hq (Florence + Qwen + DINO + SAM 1 HQ).
-  // ⚠ ACTIF UNIQUEMENT EN PHASE B (editing) — l'utilisateur explore librement
-  // les variantes en Phase A sans coût d'analyse. L'analyse démarre au passage
-  // en édition (clic "Commencer l'édition" → setPhase('editing')).
-  usePreAnalyzeImage(phase === 'editing')
+  // ⚠ ACTIF UNIQUEMENT EN PHASE B (editing) — Phase A = exploration libre.
+  const sceneAnalyzePrompt = usePreAnalyzeImage(phase === 'editing')
 
   // ── Actions secondaires (Copier / Supprimer / Calque / Personnage / Objet)
   // Affichées à droite de l'icône Découper, désactivées tant qu'il n'y a rien
@@ -310,6 +324,9 @@ export default function DesignerLayout({
                 personnageMode={personnageMode}
                 onAddCharacter={onAddCharacter}
                 onNavigateToBanks={() => setActiveCategory('banks')}
+                currentBaseImageUrl={imageUrl}
+                presentCharacterIds={presentCharacterIds}
+                currentLayers={layers}
               />
             </motion.div>
           )}
@@ -386,6 +403,14 @@ export default function DesignerLayout({
         imageUrl={previewImageUrl ?? null}
         sectionText={previewSectionText}
         choices={previewChoices}
+      />
+
+      {/* Popup demande analyse scène (opt-in) — affiché si pas de cache DB
+       *  pour l'image courante. Cf usePreAnalyzeImage / SceneAnalysisPrompt. */}
+      <SceneAnalysisPrompt
+        open={sceneAnalyzePrompt.needsConfirmation}
+        onConfirm={sceneAnalyzePrompt.confirm}
+        onSkip={sceneAnalyzePrompt.skip}
       />
     </div>
     </AICutCommandProvider>

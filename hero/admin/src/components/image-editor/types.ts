@@ -320,6 +320,12 @@ export interface EditorLayer {
    *  pas de GPU IA — juste du canvas 2D à 60 fps.
    *  Les paramètres sont ajustables en live via le fold Atmosphère. */
   weather?: WeatherParams
+  /** Si présent, ce calque représente un Personnage du store `character-store`.
+   *  Permet à CatalogAnimation de lister les persos réellement dans la scène
+   *  (filtre du sélecteur dual-character). Posé au moment de l'insertion via
+   *  Insert Anything (cf onAddCharacter dans new-layout/page.tsx).
+   *  Cf décision 2026-05-03 : sélecteur perso = persos du plan en cours. */
+  character_id?: string | null
 }
 
 export type WeatherKind = 'rain' | 'snow' | 'fog' | 'cloud' | 'lightning'

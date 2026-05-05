@@ -20,16 +20,34 @@
  * Backend : helper `runLtx23Sequence({ pellicules, characters })` à venir.
  */
 
-import React, { useState, useMemo } from 'react'
-import { ChevronRight, Plus, X, Loader2, Check } from 'lucide-react'
+import React, { useState, useMemo, useRef } from 'react'
+import { ChevronRight, Plus, X, Loader2, Check, Upload } from 'lucide-react'
 import CatalogShell from './CatalogShell'
 import { useCharacterStore, type Character } from '@/lib/character-store'
 import { runLtx23Dual } from '@/lib/comfyui-ltx-dual'
+import { useEditorState } from '@/components/image-editor/EditorStateContext'
+import { flattenLayersToImage } from '@/lib/flatten-layers'
+import { extractFramesFromVideo } from '@/lib/extract-frames'
+import type { EditorLayer } from '@/components/image-editor/types'
 
 interface CatalogAnimationProps {
   onClose: () => void
   onNavigateToBanks?: () => void
   storagePathPrefix: string
+  /** URL de l'image de base du plan en cours dans le canvas Designer.
+   *  Si fournie, sera utilisée comme image source LTX I2V (animation qui
+   *  démarre depuis ta scène existante). Sinon, fallback sur le portrait du
+   *  1er perso sélectionné (V0 T2V mode pseudo-I2V). */
+  baseImageUrl?: string | null
+  /** IDs des Characters réellement présents dans le plan en cours (extraits
+   *  des calques avec character_id renseigné). Le sélecteur n'affiche que
+   *  ces persos — l'auteur ne peut animer que les persos déjà dans la scène.
+   *  Liste vide => message "Aucun perso dans la scène, insère-en un d'abord". */
+  presentCharacterIds?: string[]
+  /** Calques actuels du plan (base + overlays persos + effets). Utilisés pour
+   *  flatten en 1 image source LTX (sinon LTX reçoit la base seule sans persos
+   *  = perte d'identité). Cf décision 2026-05-03. */
+  currentLayers?: EditorLayer[]
 }
 
 /** Type de plan (cadrage). */
@@ -57,22 +75,44 @@ interface Pellicule {
   videoUrl: string | null
 }
 
+/** Labels affichés en UI (FR). Pour l'envoi au prompt LTX EN, voir SHOT_PROMPT. */
 const SHOT_LABELS: Record<ShotType, string> = {
-  wide: 'Wide shot',
-  medium: 'Medium shot',
-  close_up: 'Close-up',
-  extreme_close_up: 'Extreme CU',
+  wide: 'Plan large',
+  medium: 'Plan moyen',
+  close_up: 'Gros plan',
+  extreme_close_up: 'Très gros plan',
 }
 
+/** Termes EN injectés dans le prompt LTX (le modèle est entraîné en EN). */
+const SHOT_PROMPT: Record<ShotType, string> = {
+  wide: 'wide shot',
+  medium: 'medium shot',
+  close_up: 'close-up',
+  extreme_close_up: 'extreme close-up',
+}
+
+/** Labels affichés en UI (FR). Pour l'envoi au prompt LTX EN, voir CAMERA_PROMPT. */
 const CAMERA_LABELS: Record<CameraMotion, string> = {
-  static: 'Static',
-  slow_zoom_in: 'Slow zoom in',
-  slow_zoom_out: 'Slow zoom out',
-  pan_left: 'Pan left',
-  pan_right: 'Pan right',
-  dolly_in: 'Dolly in',
-  dolly_out: 'Dolly out',
-  handheld: 'Handheld',
+  static: 'Caméra fixe',
+  slow_zoom_in: 'Zoom avant lent',
+  slow_zoom_out: 'Zoom arrière lent',
+  pan_left: 'Panoramique gauche',
+  pan_right: 'Panoramique droite',
+  dolly_in: 'Travelling avant',
+  dolly_out: 'Travelling arrière',
+  handheld: 'Caméra portée',
+}
+
+/** Termes EN injectés dans le prompt LTX (le modèle est entraîné en EN). */
+const CAMERA_PROMPT: Record<CameraMotion, string> = {
+  static: 'static',
+  slow_zoom_in: 'slow zoom in',
+  slow_zoom_out: 'slow zoom out',
+  pan_left: 'pan left',
+  pan_right: 'pan right',
+  dolly_in: 'dolly in',
+  dolly_out: 'dolly out',
+  handheld: 'handheld',
 }
 
 const QUALITY_OPTIONS: { value: Quality; emoji: string; label: string; time: string }[] = [
@@ -92,43 +132,75 @@ function genId(): string {
 
 /**
  * Construit le prompt structuré au format Vantage (LTX 2.3 + IC LoRA Dual).
- * Le format attendu par le custom node :
+ *
+ * Format attendu par le LoRA (LTX2.3-IC-LoRA-Dual-Character v0.1, Civitai 2500098) :
  *   [Scene] description du décor
- *   [Characters] Female: ... | Male: ...
- *   [Shot N] (cadrage, caméra)
- *   <CharName>: action / "dialogue"
+ *   [Characters]
+ *   Female: ... description courte
+ *   Male: ... description courte
+ *   [Shot N] (Cadrage, durée)
+ *   Female: action.
+ *   Male: action.
+ *
+ * ⚠ Le LoRA est entraîné sur les LABELS GÉNÉRIQUES `Male:` / `Female:`,
+ *    PAS sur les noms propres. Utiliser `Duke:` / `Epsi:` force des tokens
+ *    hors-distribution → identité dégradée. C'est pourquoi on mappe via
+ *    `c.gender` (champ ajouté 2026-05-04, simplifié à 2 valeurs 2026-05-05).
+ *
+ * Cas particuliers :
+ *   - Plusieurs persos du même genre → suffixe d'index (`Female:` puis `Female 2:`)
+ *   - `c.gender` manquant (legacy) → défaut 'female'
  *
  * Pour le mode light test : 1 pellicule = 1 shot.
  */
 function buildVantagePrompt(pell: Pellicule, chars: Character[]): string {
   const lines: string[] = []
 
-  // [Scene] : on n'a pas de scene globale dans CatalogAnimation pour l'instant.
-  // À enrichir post-validation (extraire du plan parent ?).
+  // ── Mapping perso → label Vantage ─────────────────────────────────────
+  // Compteur par bucket (female / male) pour gérer les collisions multi-persos.
+  // Legacy 'other' / undefined → 'female' (sanitization au load + ici en filet).
+  const counts = { female: 0, male: 0 }
+  const labelByCharId = new Map<string, string>()
+  for (const c of chars) {
+    const g: 'female' | 'male' = c.gender === 'male' ? 'male' : 'female'
+    counts[g] += 1
+    const base = g === 'female' ? 'Female' : 'Male'
+    const label = counts[g] === 1 ? base : `${base} ${counts[g]}`
+    labelByCharId.set(c.id, label)
+  }
+
+  // [Scene] : placeholder tant que la scène n'est pas extraite du plan parent.
+  // TODO Phase 4 : passer une description de scène depuis Designer.
   lines.push('[Scene] Cinematic scene with two characters interacting.')
   lines.push('')
 
-  // [Characters] : description physique courte par perso
+  // [Characters] : description physique courte par perso, indexée par label
   if (chars.length > 0) {
     lines.push('[Characters]')
     for (const c of chars) {
       const desc = c.prompt?.trim() || 'a person'
-      lines.push(`${c.name}: ${desc}`)
+      const label = labelByCharId.get(c.id) ?? c.name
+      // On garde le nom propre en commentaire fin de ligne pour la lisibilité
+      // humaine quand on debug le prompt — le LoRA ignore le `#` final.
+      lines.push(`${label}: ${desc}  # ${c.name}`)
     }
     lines.push('')
   }
 
-  // [Shot 1] : cadrage + caméra + actions/dialogues
-  const cameraDesc = CAMERA_LABELS[pell.camera]
-  const shotDesc = SHOT_LABELS[pell.shot]
-  lines.push(`[Shot 1] (${shotDesc}, ${cameraDesc} camera)`)
+  // [Shot 1] : cadrage + caméra + actions
+  // ⚠ Utilise _PROMPT (EN) ici, pas _LABELS (FR UI) — LTX est entraîné en EN.
+  // Format Civitai : `(Wide Shot, 5s)` — on inclut la durée de la pellicule.
+  const cameraDesc = CAMERA_PROMPT[pell.camera]
+  const shotDesc = SHOT_PROMPT[pell.shot]
+  lines.push(`[Shot 1] (${shotDesc}, ${pell.duration}s, ${cameraDesc} camera)`)
   for (const c of chars) {
     const data = pell.perCharacter[c.id]
     if (!data) continue
     const action = data.action.trim()
     const dialogue = data.dialogue.trim()
     if (!action && !dialogue) continue
-    let line = `${c.name}:`
+    const label = labelByCharId.get(c.id) ?? c.name
+    let line = `${label}:`
     if (action) line += ` ${action}.`
     if (dialogue) line += ` "${dialogue}"`
     lines.push(line)
@@ -170,9 +242,15 @@ function BreadcrumbTitle({ onNavigateToBanks }: { onNavigateToBanks?: () => void
 }
 
 export default function CatalogAnimation({
-  onClose, onNavigateToBanks,
+  onClose, onNavigateToBanks, baseImageUrl, presentCharacterIds = [],
+  currentLayers = [],
 }: CatalogAnimationProps) {
   const { characters } = useCharacterStore()
+  // BakeProgressModal global pour bloquer l'UI pendant les ~17 min de gen
+  // LTX (sinon clic ailleurs = perte du state pellicule + animation perdue).
+  // setCurrentVideo : pousse la vidéo générée dans EditorState pour que Canvas
+  // l'affiche immédiatement à la place de l'image base.
+  const { setBakeStatus, setCurrentVideo } = useEditorState()
   // Sélection de persos (max 2)
   const [selectedCharIds, setSelectedCharIds] = useState<string[]>([])
   // Storyboard : array de pellicules
@@ -183,6 +261,10 @@ export default function CatalogAnimation({
   const [generatingId, setGeneratingId] = useState<string | null>(null)
   // Label de progression (en cours de génération)
   const [progressLabel, setProgressLabel] = useState<string>('')
+  // Upload manuel : ref input + busy flag (bloque les double-clics)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const totalDuration = useMemo(
     () => pellicules.reduce((acc, p) => acc + p.duration, 0),
@@ -244,35 +326,64 @@ export default function CatalogAnimation({
 
     setGeneratingId(pelliculeId)
     setProgressLabel('Préparation…')
+    // Active BakeProgressModal — bloque IMPÉRATIVEMENT l'UI : LTX 2.3 prend
+    // ~17 min sur 8 GB. Si clic ailleurs en cours de route = perte du state.
+    setBakeStatus({
+      startedAt: Date.now(),
+      phase: 'Préparation…',
+      kind: 'animation',
+      estimatedTotalSec: 1020,  // 17 min en secondes
+    })
     try {
-      // Le wf Vantage est en mode T2V (chaîne LoadImage bypassée), mais le
-      // helper exige une URL d'image. On passe le portrait du 1er perso en
-      // satisfaction du contrat — le wf l'ignorera côté ComfyUI.
-      const placeholderImage =
-        selectedChars[0]?.fullbodyUrl ?? selectedChars[0]?.portraitUrl
-      if (!placeholderImage) {
-        throw new Error('Le 1er perso sélectionné n\'a ni portrait ni fullbody.')
+      // Source image LTX I2V : on FLATTEN base + calques visibles (persos,
+      // effets) en 1 image composite avant de soumettre. Sinon LTX reçoit la
+      // base seule SANS les persos posés en calques = perte d'identité visuelle.
+      // Cf décision 2026-05-03 (option β + flatten on-demand).
+      let sourceImage: string
+      if (baseImageUrl) {
+        setProgressLabel('Composition de l\'image source…')
+        try {
+          sourceImage = await flattenLayersToImage({
+            baseImageUrl,
+            layers: currentLayers,
+            storagePathPrefix: `test/animation_source/${Date.now()}`,
+          })
+        } catch (flatErr) {
+          console.warn('[CatalogAnimation] flatten failed, fallback baseImageUrl:', flatErr)
+          sourceImage = baseImageUrl  // fallback : on perd les persos calques mais on génère quand même
+        }
+      } else {
+        // Pas d'image base → fallback sur fullbody/portrait du 1er perso
+        const fallback = selectedChars[0]?.fullbodyUrl ?? selectedChars[0]?.portraitUrl
+        if (!fallback) {
+          throw new Error('Aucune image source : ni base de plan, ni perso avec image.')
+        }
+        sourceImage = fallback
       }
 
       const positivePrompt = buildVantagePrompt(pell, selectedChars)
 
       const result = await runLtx23Dual({
-        imageUrl: placeholderImage,
+        imageUrl: sourceImage,
         positivePrompt,
         seed: -1,
+        // BakeProgressModal a son chrono auto, on update juste le label local
         onProgress: p => setProgressLabel(p.label ?? p.stage),
       })
 
-      // result.first_frame_url / .last_frame_url seront utilisées Phase 4
-      // (persistance plan + vignette banque). Pour l'instant on garde juste
-      // la vidéo affichée dans la pellicule.
+      // Stocke dans la pellicule (preview catalogue) ET pousse dans EditorState
+      // pour que le Canvas affiche immédiatement la vidéo à la place de l'image.
+      // Les frames first/last servent de poster + vignette banque (Phase 4).
       updatePellicule(pelliculeId, { videoUrl: result.video_url })
+      setCurrentVideo(result.video_url, result.first_frame_url, result.last_frame_url)
     } catch (err) {
       console.error('[CatalogAnimation] gen pellicule failed:', err)
       alert('Erreur génération : ' + (err instanceof Error ? err.message : String(err)))
     } finally {
       setGeneratingId(null)
       setProgressLabel('')
+      // Ferme BakeProgressModal global même en cas d'erreur
+      setBakeStatus(null)
     }
   }
 
@@ -283,8 +394,119 @@ export default function CatalogAnimation({
     }
   }
 
+  /**
+   * Upload manuel d'une vidéo existante depuis le PC.
+   * Comportement identique à une gen LTX réussie :
+   *   1. Read file → data URL → POST /api/storage/upload-video → URL Supabase
+   *   2. Extract first/last frames côté client (poster + vignette banque)
+   *   3. updatePellicule(currentPellicule.videoUrl) → preview catalogue
+   *   4. setCurrentVideo(...) → Canvas affiche la vidéo
+   *   Au save Ctrl+S suivant, la vidéo + frames + kind='animation' sont persistées.
+   */
+  async function handleVideoUpload(file: File) {
+    if (!file.type.startsWith('video/')) {
+      setUploadError(`Format non supporté : ${file.type || 'inconnu'} (attendu : video/mp4, webm, mov…)`)
+      return
+    }
+    // Pellicule cible : la 1ère sans video. Si toutes ont déjà une vidéo → on
+    // remplace celle de la 1ère pellicule (UX simple V1, on peut affiner après).
+    const target = pellicules.find(p => !p.videoUrl) ?? pellicules[0]
+    if (!target) return
+
+    setUploading(true); setUploadError(null)
+    setBakeStatus({
+      startedAt: Date.now(),
+      phase: 'Lecture du fichier…',
+      kind: 'animation',
+      estimatedTotalSec: 30,  // upload + frames extraction est rapide
+    })
+    try {
+      // 1. Read file → data URL
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('Lecture du fichier échouée'))
+        reader.readAsDataURL(file)
+      })
+      setBakeStatus({
+        startedAt: Date.now(),
+        phase: 'Upload Supabase…',
+        kind: 'animation',
+        estimatedTotalSec: 30,
+      })
+      // 2. Upload Supabase
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'mp4'
+      const path = `studio/uploads/video_${Date.now()}.${ext}`
+      const upRes = await fetch('/api/storage/upload-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_url: dataUrl, path }),
+      })
+      const upData = await upRes.json() as { url?: string; error?: string }
+      if (!upRes.ok || !upData.url) {
+        throw new Error(upData.error ?? `HTTP ${upRes.status}`)
+      }
+      const videoUrl = upData.url
+
+      // 3. Extract frames (best-effort — si échoue, vidéo OK quand même, juste pas de poster)
+      setBakeStatus({
+        startedAt: Date.now(),
+        phase: 'Capture des miniatures…',
+        kind: 'animation',
+        estimatedTotalSec: 15,
+      })
+      let firstFrameUrl: string | null = null
+      let lastFrameUrl: string | null = null
+      try {
+        const frames = await extractFramesFromVideo({
+          videoUrl,
+          storagePathPrefix: 'studio/uploads/frames',
+        })
+        firstFrameUrl = frames.first_frame_url
+        lastFrameUrl = frames.last_frame_url
+      } catch (frameErr) {
+        console.warn('[CatalogAnimation] frame extraction failed (non-bloquant):', frameErr)
+      }
+
+      // 4. Comportement = gen LTX réussie : pellicule preview + EditorState
+      updatePellicule(target.id, { videoUrl })
+      setCurrentVideo(videoUrl, firstFrameUrl, lastFrameUrl)
+      console.log('[CatalogAnimation] manual video upload OK:', videoUrl)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[CatalogAnimation] video upload failed:', msg)
+      setUploadError(msg)
+    } finally {
+      setUploading(false)
+      setBakeStatus(null)
+    }
+  }
+
+  function pickVideoFile() {
+    if (uploading) return
+    fileInputRef.current?.click()
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) void handleVideoUpload(file)
+    e.target.value = ''  // reset pour permettre re-upload du même fichier
+  }
+
   const canGenerate = selectedChars.length >= 1 && pellicules.length >= 1
-  const persosInScene = characters // TODO : filtrer par layers de la scène quand character_id sera lié
+  // Source des persos dans le sélecteur :
+  // - Si presentCharacterIds non vide → on filtre (auto-detect via calques OU
+  //   bakedCharacterIds, cf option A décision 2026-05-04)
+  // - Sinon → fallback B : on affiche TOUS les persos de la banque, l'auteur
+  //   sélectionne manuellement ceux qu'il a mis dans la scène.
+  const persosInScene = useMemo(
+    () => presentCharacterIds.length > 0
+      ? characters.filter(c => presentCharacterIds.includes(c.id))
+      : characters,  // fallback B : tous les persos
+    [characters, presentCharacterIds],
+  )
+  /** True si on est en mode fallback B (sélection manuelle). */
+  const fallbackManual = presentCharacterIds.length === 0 && characters.length > 0
 
   return (
     <CatalogShell
@@ -292,15 +514,59 @@ export default function CatalogAnimation({
       onClose={onClose}
       showSearch={false}
     >
+      {/* Upload manuel d'une vidéo existante (alternative à la gen LTX) */}
+      <div className="dza-section">
+        <div className="dza-section-title">
+          <span>Importer une vidéo existante</span>
+          <span className="dza-hint">MP4, WebM, MOV</span>
+        </div>
+        <button
+          type="button"
+          className="dza-upload-btn"
+          onClick={pickVideoFile}
+          disabled={uploading}
+          title="Importe une vidéo depuis ton ordinateur. Elle sera affichée dans le Studio comme une animation générée."
+        >
+          {uploading ? (
+            <>
+              <Loader2 size={14} className="dza-spin" />
+              <span>{progressLabel || 'Upload en cours…'}</span>
+            </>
+          ) : (
+            <>
+              <Upload size={14} />
+              <span>Choisir une vidéo</span>
+            </>
+          )}
+        </button>
+        {uploadError && (
+          <div className="dza-upload-error" title={uploadError}>
+            ⚠ {uploadError.length > 90 ? uploadError.slice(0, 90) + '…' : uploadError}
+          </div>
+        )}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="video/mp4,video/webm,video/quicktime,video/x-matroska"
+          onChange={onFileChange}
+          style={{ display: 'none' }}
+        />
+      </div>
+
       {/* Sélecteur de persos */}
       <div className="dza-section">
         <div className="dza-section-title">
-          <span>Personnages dans la scène</span>
+          <span>{fallbackManual ? 'Personnages disponibles' : 'Personnages dans la scène'}</span>
           <span className="dza-hint">2 max</span>
         </div>
+        {fallbackManual && (
+          <div className="dza-empty" style={{ marginBottom: 8, fontSize: 10, fontStyle: 'italic' }}>
+            Aucun perso identifié auto. Sélectionne ceux que tu vois dans la scène.
+          </div>
+        )}
         <div className="dza-char-row">
           {persosInScene.length === 0 ? (
-            <div className="dza-empty">Aucun perso dans la scène. Insère d'abord un perso via Personnage → Ajouter.</div>
+            <div className="dza-empty">Aucun perso dans la banque. Crée-en un d&apos;abord (Personnage → Ajouter → Nouveau).</div>
           ) : persosInScene.map(c => {
             const checked = selectedCharIds.includes(c.id)
             const thumbUrl = c.portraitUrl ?? c.fullbodyUrl

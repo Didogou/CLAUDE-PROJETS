@@ -58,10 +58,9 @@ export async function runFluxDev(opts: FluxDevOptions): Promise<string> {
     onProgress,
   } = opts
 
-  // Free VRAM avant (anti-OOM 8 GB)
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-  await new Promise(r => setTimeout(r, 1500))
-
+  // Free VRAM AVANT : déjà géré par /api/comfyui POST de manière conditionnelle
+  // (skip si même modèle UNet → évite reload model coûteux). On NE PAS faire
+  // de free ici sinon on annule l'optim de cache.
   onProgress?.({ stage: 'queuing', label: 'Génération Flux Dev…' })
 
   const queueRes = await fetch('/api/comfyui', {
@@ -106,9 +105,9 @@ export async function runFluxDev(opts: FluxDevOptions): Promise<string> {
   ).then(r => r.json())
   if (!iData.image_url) throw new Error(iData.error ?? 'flux_dev image_url manquante')
 
-  // Free VRAM après
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-
+  // Free VRAM APRÈS supprimé : on garde le modèle en VRAM pour les régen
+  // suivantes (cache UNet via /api/comfyui POST conditionnel). Si le user
+  // bascule vers un autre modèle, le free se fera automatiquement à ce moment.
   onProgress?.({ stage: 'done' })
   return iData.image_url as string
 }

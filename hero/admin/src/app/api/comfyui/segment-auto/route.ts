@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       pred_iou_thresh,
       stability_score_thresh,
     })
+    // Free VRAM conditionnel géré dans queuePrompt() (lib/comfyui.ts)
     const result = await queuePrompt(workflow)
 
     if (result.node_errors && Object.keys(result.node_errors).length > 0) {

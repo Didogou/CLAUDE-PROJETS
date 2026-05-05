@@ -22,8 +22,8 @@ function getSupabaseAdmin() {
   )
 }
 
-// Libération VRAM : utilise le helper partagé dans lib/comfyui.ts
-// (`freeComfyVram` avec mode aggressive par défaut pour GPU ≤ 8 Go).
+// Free VRAM conditionnel : géré centralement dans queuePrompt() (lib/comfyui.ts)
+// via cache UNet. Toute route qui appelle queuePrompt en bénéficie automatiquement.
 
 // ── POST — queue a ComfyUI generation ─────────────────────────────────────
 
@@ -113,7 +113,10 @@ export async function POST(req: NextRequest) {
     // Build the workflow
     const workflow = buildWorkflow(params)
 
-    // Queue on ComfyUI
+    // Queue on ComfyUI — le free VRAM conditionnel (cache UNet) est désormais
+    // géré DANS queuePrompt() pour que TOUTES les routes (POST principal +
+    // erase/inpaint/florence-sam/etc.) bénéficient du même mécanisme sans
+    // duplication.
     const result = await queuePrompt(workflow)
 
     if (result.node_errors && Object.keys(result.node_errors).length > 0) {
@@ -209,17 +212,22 @@ export async function GET(req: NextRequest) {
               'video/mp4'
             const fullPath = `${storagePath}.${ext}`
 
+            // Bucket : GIF (= image animée) → `images` ; MP4/WebM → `videos`
+            // (bucket dédié, configuré pour autoriser les MIME video/*).
+            const bucket = ext === 'gif' ? 'images' : 'videos'
+
             const supabase = getSupabaseAdmin()
-            console.log(`[comfyui] Uploading video to Supabase: ${fullPath} (${contentType}, ${buffer.length} bytes)`)
-            const { error: uploadError } = await supabase.storage.from('images').upload(fullPath, buffer, {
+            console.log(`[comfyui] Uploading video to Supabase: ${bucket}/${fullPath} (${contentType}, ${buffer.length} bytes)`)
+            const { error: uploadError } = await supabase.storage.from(bucket).upload(fullPath, buffer, {
               contentType,
               upsert: true,
             })
             if (uploadError) throw new Error(`Upload Supabase échoué: ${uploadError.message}`)
 
-            const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(fullPath)
-            // Vide le cache VRAM de ComfyUI (torch.cuda.empty_cache) après chaque workflow
-            void freeComfyVram()
+            const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fullPath)
+            // Free APRÈS supprimé : le free conditionnel AVANT (POST route)
+            // s'occupe de libérer si le prochain wf utilise un modèle différent.
+            // Sinon on garde le modèle en VRAM = cache pour régen consécutive.
             return NextResponse.json({ filename: media.filename, gif_url: publicUrl, video_url: publicUrl, persisted: true })
           } catch (uploadErr: unknown) {
             const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr)
@@ -286,9 +294,8 @@ export async function GET(req: NextRequest) {
         .from('images')
         .getPublicUrl(fullPath)
 
-      // Vide le cache VRAM de ComfyUI (torch.cuda.empty_cache) après chaque workflow
-      void freeComfyVram()
-
+      // Free APRÈS supprimé : le free conditionnel AVANT (POST route) gère
+      // le cache UNet pour les régen consécutives.
       return NextResponse.json({ status: 'succeeded', image_url: publicUrl })
     }
 
@@ -329,7 +336,33 @@ export async function GET(req: NextRequest) {
     }
 
     if (history.status.status_str === 'error') {
-      return NextResponse.json({ status: 'failed', error: 'Erreur ComfyUI' })
+      // Extrait les execution_error des messages pour donner du contexte au front
+      // (sinon "Erreur ComfyUI" générique = impossible à debugger sans regarder
+      // les logs serveur).
+      const messages = ((history.status as unknown as { messages?: unknown }).messages ?? []) as Array<[string, Record<string, unknown>]>
+      const errors: Array<{ node_id: string; node_type: string; exception_type: string; exception_message: string }> = []
+      for (const m of messages) {
+        if (m[0] === 'execution_error') {
+          const p = m[1] as Record<string, unknown>
+          errors.push({
+            node_id: String(p.node_id ?? '?'),
+            node_type: String(p.node_type ?? '?'),
+            exception_type: String(p.exception_type ?? '?'),
+            exception_message: String(p.exception_message ?? '').slice(0, 500),
+          })
+        }
+      }
+      // Premier error en message principal pour visibilité côté browser
+      const firstErr = errors[0]
+      const summary = firstErr
+        ? `[${firstErr.node_type}] ${firstErr.exception_type}: ${firstErr.exception_message.split('\n')[0]}`
+        : 'Erreur ComfyUI (pas de détail dans history)'
+      console.error('[comfyui] Execution error:', JSON.stringify(errors))
+      return NextResponse.json({
+        status: 'failed',
+        error: summary,
+        execution_errors: errors,
+      })
     }
 
     return NextResponse.json({ status: 'processing' })

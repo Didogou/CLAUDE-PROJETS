@@ -93,10 +93,7 @@ export async function runInstantId(opts: InstantIdOptions): Promise<string> {
 
   onProgress?.({ stage: 'upload', label: 'Préparation…' })
 
-  // Free VRAM avant ce workflow lourd (anti-OOM 8 GB)
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-  await new Promise(r => setTimeout(r, 1500))
-
+  // Free VRAM AVANT/APRÈS centralisé dans queuePrompt() (cache UNet conditionnel)
   const upRef = await uploadToComfy(refUrl, 'cc_instantid_ref')
 
   onProgress?.({ stage: 'queuing', label: 'Génération InstantID…' })
@@ -146,9 +143,7 @@ export async function runInstantId(opts: InstantIdOptions): Promise<string> {
   ).then(r => r.json())
   if (!iData.image_url) throw new Error(iData.error ?? 'instant_id image_url manquante')
 
-  // Free VRAM après (anti-OOM run suivant)
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-
+  // Free APRÈS supprimé : cache UNet géré centralement dans queuePrompt
   onProgress?.({ stage: 'done' })
   return iData.image_url as string
 }

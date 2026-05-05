@@ -44,9 +44,23 @@ function captureCurrentFrame(video: HTMLVideoElement, jpegQuality: number): stri
   return canvas.toDataURL('image/jpeg', jpegQuality)
 }
 
+/** Wrap une promise avec un timeout. Si pas résolue/rejetée à temps → reject.
+ *  Indispensable pour les events DOM qui peuvent ne jamais firer (CORS partiel,
+ *  décodeur stallé, vidéo corrompue). Sans ça, extract-frames peut hanger
+ *  indéfiniment et la BakeProgressModal de l'appelant ne se ferme jamais. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      (e) => { clearTimeout(timer); reject(e) },
+    )
+  })
+}
+
 /** Avance la vidéo à `targetTime` (en secondes) et résout quand le seek est terminé. */
 function seekTo(video: HTMLVideoElement, targetTime: number): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return withTimeout(new Promise<void>((resolve, reject) => {
     const onSeeked = () => {
       video.removeEventListener('seeked', onSeeked)
       video.removeEventListener('error', onError)
@@ -60,12 +74,12 @@ function seekTo(video: HTMLVideoElement, targetTime: number): Promise<void> {
     video.addEventListener('seeked', onSeeked)
     video.addEventListener('error', onError)
     video.currentTime = targetTime
-  })
+  }), 10_000, `seekTo(${targetTime}s)`)
 }
 
 /** Charge la vidéo (metadata + premier frame disponible). */
 function loadVideo(videoUrl: string): Promise<HTMLVideoElement> {
-  return new Promise((resolve, reject) => {
+  return withTimeout(new Promise<HTMLVideoElement>((resolve, reject) => {
     const video = document.createElement('video')
     video.crossOrigin = 'anonymous'
     video.preload = 'auto'
@@ -84,7 +98,7 @@ function loadVideo(videoUrl: string): Promise<HTMLVideoElement> {
     video.addEventListener('loadeddata', onReady)
     video.addEventListener('error', onError)
     video.src = videoUrl
-  })
+  }), 15_000, `loadVideo(${videoUrl.slice(0, 80)})`)
 }
 
 /** Upload une dataURL JPG via /api/storage/upload-image et retourne l'URL publique. */

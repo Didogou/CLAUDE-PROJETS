@@ -22,10 +22,14 @@ import { useCharacterStore, type Character } from '@/lib/character-store'
 
 interface CatalogCharactersProps {
   onClose: () => void
-  /** Callback à l'ajout — reçoit le perso sélectionné + le prompt de placement.
+  /** Callback à l'ajout — reçoit le perso sélectionné + le prompt de placement
+   *  + un flag `asLayer` indiquant si on doit créer un calque transparent
+   *  (édition souple multi-perso) ou aplatir le perso dans la base (rapide,
+   *  bon défaut quand l'animation finale = vidéo LTX qui rend tous les persos
+   *  ensemble — décision 2026-05-03).
    *  Async : on attend la fin du pipeline d'insertion (Flux Kontext multi-image,
-   *  3-7 min sur 8 GB). Si rejette → l'erreur est affichée dans la card. */
-  onAdd?: (character: Character, placementPrompt: string) => Promise<void> | void
+   *  3-7 min sur 8 GB en mode calque ; 1-3 min en mode baked). */
+  onAdd?: (character: Character, placementPrompt: string, asLayer: boolean) => Promise<void> | void
   /** Callback "remonter d'un niveau" dans la hiérarchie Banques → Personnages.
    *  Click sur "Banques" dans la breadcrumb du titre. */
   onNavigateToBanks?: () => void
@@ -61,6 +65,12 @@ export default function CatalogCharacters({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [placementPrompt, setPlacementPrompt] = useState('')
   const [creatorOpen, setCreatorOpen] = useState(false)
+  /** Toggle "Créer un calque" : OFF par défaut = perso baked dans la base
+   *  (1 seul Kontext call, plus rapide, pas de risque distorsion image-diff,
+   *  cohérent avec l'animation vidéo finale qui rend tous les persos ensemble).
+   *  ON = pipeline complet 3 étapes (compose + remove + diff) → calque
+   *  transparent éditable individuellement. */
+  const [asLayer, setAsLayer] = useState(false)
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,12 +83,17 @@ export default function CatalogCharacters({
 
   const selected = characters.find(c => c.id === selectedId) ?? null
   const canAdd = !!selected && !busy
+  /** Bug Flux Kontext connu : si la réf est un portrait cropped (visage seul),
+   *  le perso généré aura tête trop grande / jambes courtes. Le fullbody
+   *  donne des proportions correctes. Cf
+   *  https://huggingface.co/black-forest-labs/FLUX.1-Kontext-dev/discussions/23 */
+  const missingFullbody = selected !== null && !selected.fullbodyUrl
 
   async function handleAdd() {
     if (!selected || busy) return
     setBusy(true); setError(null)
     try {
-      await onAdd?.(selected, placementPrompt.trim())
+      await onAdd?.(selected, placementPrompt.trim(), asLayer)
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[CatalogCharacters] insertion failed:', msg)
@@ -108,6 +123,28 @@ export default function CatalogCharacters({
             rows={2}
           />
         </div>
+
+        {/* Toggle : créer un calque (édition souple) vs bake direct (rapide) */}
+        <label className="dzc-layer-toggle" title={
+          asLayer
+            ? 'Mode calque : pipeline 3 étapes (~3-7 min). Le perso reste éditable individuellement après insertion.'
+            : 'Mode rapide : 1 seule étape (~1-3 min). Le perso est aplati dans la base, pas séparable après.'
+        }>
+          <input
+            type="checkbox"
+            checked={asLayer}
+            onChange={e => setAsLayer(e.target.checked)}
+            disabled={busy}
+          />
+          <span className="dzc-layer-toggle-text">
+            <strong>Créer un calque</strong>
+            <span className="dzc-layer-toggle-hint">
+              {asLayer
+                ? 'Éditable séparément · ~3-7 min'
+                : 'Rapide, baked dans la base · ~1-3 min'}
+            </span>
+          </span>
+        </label>
 
         {/* Header section + bouton "+ Nouveau" */}
         <div className="dzc-section-title">
@@ -181,6 +218,12 @@ export default function CatalogCharacters({
         <div className="dzc-add-bar">
           {error && (
             <div className="dzc-add-error" title={error}>⚠ {error.slice(0, 80)}…</div>
+          )}
+          {missingFullbody && (
+            <div className="dzc-add-error" title="Bug Flux Kontext connu : sans fullbody, la tête sera trop grande et les proportions distordues">
+              ⚠ {selected?.name} n&apos;a pas de plein pied — proportions distordues attendues.
+              Modifie le perso (crayon) → onglet Plein pied → Régénérer pour fix.
+            </div>
           )}
           <button
             type="button"

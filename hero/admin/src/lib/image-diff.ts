@@ -29,24 +29,35 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   })
 }
 
+export interface ExtractCharacterOptions {
+  /** URL Supabase de l'image avec le perso (Kontext compose) */
+  compositeUrl: string
+  /** URL Supabase de l'image sans le perso (Kontext remove) */
+  cleanBgUrl: string
+  /** Préfixe path Supabase pour le PNG transparent uploadé.
+   *  Ex: `test/scene-42_char_transparent` → fichier final
+   *  `test/scene-42_char_transparent/{timestamp}.png` */
+  storagePathPrefix: string
+  /** Distance RGB Euclidienne min pour pixel "différent". Défaut 25.
+   *  Plus haut = moins de noise BG mais perso plus rongé bords. */
+  threshold?: number
+}
+
 /**
- * Extrait le perso (différences pixel) entre `compositeUrl` et `cleanBgUrl`.
+ * Extrait le perso (différences pixel) entre `compositeUrl` et `cleanBgUrl`,
+ * uploade le PNG transparent dans Supabase Storage, retourne l'URL Supabase.
  *
- * @param compositeUrl URL Supabase de l'image avec le perso (Kontext compose)
- * @param cleanBgUrl   URL Supabase de l'image sans le perso (Kontext remove)
- * @param threshold    Distance RGB Euclidienne min pour considérer un pixel
- *                     comme "différent" = appartenant au perso. Défaut 25.
- *                     Plus haut = moins de bruit BG mais perso plus rongé sur
- *                     les bords doux. Plus bas = perso plus complet mais
- *                     potentiellement du noise BG inclus.
- * @returns Blob URL d'un PNG transparent (ne survit pas au refresh — usage
- *          POC immédiat, à uploader Supabase pour persistance long terme).
+ * GARANTIE : retourne TOUJOURS une URL HTTPS Supabase persistante. Pas de
+ * blob URL exposée au caller (cf `feedback_always_persist_to_supabase.md`).
+ *
+ * @returns URL Supabase HTTPS du PNG transparent (persistant, survit refresh).
+ * @throws Error si l'upload Supabase échoue (le caller doit gérer pour ne PAS
+ *               créer un calque sans média).
  */
 export async function extractCharacterByDiff(
-  compositeUrl: string,
-  cleanBgUrl: string,
-  threshold: number = 25,
+  opts: ExtractCharacterOptions,
 ): Promise<string> {
+  const { compositeUrl, cleanBgUrl, storagePathPrefix, threshold = 25 } = opts
   const [compositeImg, cleanImg] = await Promise.all([
     loadImage(compositeUrl),
     loadImage(cleanBgUrl),
@@ -104,10 +115,33 @@ export async function extractCharacterByDiff(
 
   ctx.putImageData(result, 0, 0)
 
-  return new Promise<string>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (!blob) return reject(new Error('Canvas toBlob failed'))
-      resolve(URL.createObjectURL(blob))
-    }, 'image/png')
+  // ── Upload Supabase intégré (garantie no-blob-url-leakage) ──
+  // Le canvas → PNG blob → data URL → POST upload-image → URL Supabase.
+  // On utilise data URL car la route /api/storage/upload-image accepte ce format.
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((b) => b ? resolve(b) : reject(new Error('Canvas toBlob failed')), 'image/png')
   })
+
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('FileReader failed'))
+    reader.readAsDataURL(blob)
+  })
+
+  const res = await fetch('/api/storage/upload-image', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data_url: dataUrl,
+      path: `${storagePathPrefix}/${Date.now()}.png`,
+    }),
+  })
+  const data = await res.json()
+  if (!res.ok || !data.url) {
+    throw new Error(data.error ?? `image-diff: Supabase upload failed (HTTP ${res.status})`)
+  }
+
+  console.log('[image-diff] uploaded to Supabase:', data.url)
+  return data.url as string
 }

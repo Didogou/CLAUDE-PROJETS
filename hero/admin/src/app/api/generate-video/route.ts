@@ -84,14 +84,14 @@ export async function GET(req: NextRequest) {
     const contentType = videoRes.headers.get('content-type') ?? 'video/mp4'
     const finalPath = `${storagePath}.mp4`
 
-    // Upload dans Supabase Storage (bucket "images")
+    // Upload dans Supabase Storage (bucket dédié "videos" — Veo retourne du MP4)
     const { error: uploadError } = await supabaseAdmin.storage
-      .from('images')
+      .from('videos')
       .upload(finalPath, buffer, { contentType, upsert: true })
 
     if (uploadError) throw new Error(`Erreur upload Supabase : ${uploadError.message}`)
 
-    const { data: { publicUrl } } = supabaseAdmin.storage.from('images').getPublicUrl(finalPath)
+    const { data: { publicUrl } } = supabaseAdmin.storage.from('videos').getPublicUrl(finalPath)
 
     return NextResponse.json({ status: 'succeeded', video_url: publicUrl })
 

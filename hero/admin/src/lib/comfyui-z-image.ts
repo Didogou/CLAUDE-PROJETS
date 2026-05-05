@@ -54,10 +54,8 @@ export async function runZImage(opts: ZImageOptions): Promise<string> {
     onProgress,
   } = opts
 
-  // Free VRAM avant (anti-OOM 8 GB)
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-  await new Promise(r => setTimeout(r, 1000))
-
+  // Free VRAM AVANT/APRÈS désormais centralisé dans queuePrompt() côté serveur
+  // (lib/comfyui.ts) avec cache UNet → skip si même modèle qu'à la dernière gen.
   onProgress?.({ stage: 'queuing', label: 'Génération Z-Image…' })
 
   const queueRes = await fetch('/api/comfyui', {
@@ -101,9 +99,9 @@ export async function runZImage(opts: ZImageOptions): Promise<string> {
   ).then(r => r.json())
   if (!iData.image_url) throw new Error(iData.error ?? 'z_image image_url manquante')
 
-  // Free VRAM après
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-
+  // Free APRÈS supprimé : le cache UNet de queuePrompt évite le reload
+  // pour la prochaine régen même modèle. Si switch de modèle, le free se
+  // déclenchera automatiquement à ce moment.
   onProgress?.({ stage: 'done' })
   return iData.image_url as string
 }

@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
       mask_filename: maskFilename,
       inpaint_model: body.inpaint_model,
     })
+    // Free VRAM conditionnel géré dans queuePrompt() (lib/comfyui.ts)
     const result = await queuePrompt(workflow)
     if (result.node_errors && Object.keys(result.node_errors).length > 0) {
       const detailsStr = JSON.stringify(result.node_errors)

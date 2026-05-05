@@ -17,7 +17,7 @@
  */
 import React, { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Film, Loader2, AlertCircle, X, Scissors } from 'lucide-react'
+import { Film, Loader2, AlertCircle, X, Scissors, User, UserPlus, Image as ImageIcon } from 'lucide-react'
 import { useEditorState } from './EditorStateContext'
 
 export default function BakeProgressModal() {
@@ -108,6 +108,12 @@ export default function BakeProgressModal() {
             />
             {kind === 'sam_cut' || kind === 'grabcut'
               ? <Scissors size={24} style={{ color: 'var(--ie-accent)', zIndex: 1 }} />
+              : kind === 'portrait' || kind === 'fullbody'
+              ? <User size={24} style={{ color: 'var(--ie-accent)', zIndex: 1 }} />
+              : kind === 'insert_character'
+              ? <UserPlus size={24} style={{ color: 'var(--ie-accent)', zIndex: 1 }} />
+              : kind === 'animation'
+              ? <Film size={24} style={{ color: 'var(--ie-accent)', zIndex: 1 }} />
               : <Film size={24} style={{ color: 'var(--ie-accent)', zIndex: 1 }} />}
           </div>
 
@@ -122,6 +128,10 @@ export default function BakeProgressModal() {
               {kind === 'cinemagraph' ? 'Génération Cinemagraph'
                 : kind === 'sam_cut' ? 'SAM analyse l\'image'
                 : kind === 'grabcut' ? 'GrabCut extrait l\'objet'
+                : kind === 'portrait' ? 'Génération du portrait'
+                : kind === 'fullbody' ? 'Génération du plein pied'
+                : kind === 'insert_character' ? 'Insertion du personnage'
+                : kind === 'animation' ? 'Génération de l\'animation'
                 : 'Génération Motion Brush'}
             </div>
             <div style={{
@@ -215,7 +225,21 @@ export default function BakeProgressModal() {
             color: 'var(--ie-text-faint)',
           }}>
             <Loader2 size={12} className="ie-spin" />
-            <span>GPU : AnimateDiff + VAE encode + VideoCombine…</span>
+            <span>
+              {kind === 'cinemagraph' || kind === 'motion_brush'
+                ? 'GPU : AnimateDiff + VAE encode + VideoCombine…'
+                : kind === 'portrait'
+                ? 'GPU : Z-Image / Flux Dev + KSampler + VAE decode…'
+                : kind === 'fullbody'
+                ? 'GPU : Vision (Qwen) + Z-Image/Flux Dev + FaceDetailer…'
+                : kind === 'insert_character'
+                ? 'GPU : Flux Kontext compose + remove + diff browser…'
+                : kind === 'animation'
+                ? 'GPU : LTX 2.3 (22B GGUF) + IC LoRA Dual + VAE decode…'
+                : kind === 'sam_cut' || kind === 'grabcut'
+                ? 'CPU/GPU : segmentation + extraction…'
+                : 'GPU : génération en cours…'}
+            </span>
           </div>
 
           {/* Bouton d'annulation d'urgence — visible en overtime (2× l'estimé).

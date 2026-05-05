@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isServerRunning, uploadUrlToComfyUI, queuePrompt, getHistory, getImage } from '@/lib/comfyui'
+import { isServerRunning, uploadUrlToComfyUI, queuePrompt, getHistory, getImage, freeComfyVram } from '@/lib/comfyui'
 import { buildFlorenceSAM2Workflow } from '@/lib/comfyui-florence-sam2'
 import { buildGroundedSAMWorkflow } from '@/lib/comfyui-grounded-sam'
 import { createClient } from '@supabase/supabase-js'
@@ -136,6 +136,7 @@ async function runFlorenceRES(
     florence_model,
     mode: 'res',
   })
+  // Free VRAM conditionnel géré dans queuePrompt() (lib/comfyui.ts)
   const result = await queuePrompt(workflow)
   if (result.node_errors && Object.keys(result.node_errors).length > 0) {
     const errStr = JSON.stringify(result.node_errors)
@@ -203,6 +204,7 @@ async function runGroundedSAM(imageFilename: string, phrase: string): Promise<st
     prompt_text: phrase,
     threshold: 0.30,
   })
+  // Free VRAM conditionnel géré dans queuePrompt() (lib/comfyui.ts)
   const result = await queuePrompt(workflow)
   if (result.node_errors && Object.keys(result.node_errors).length > 0) {
     const errStr = JSON.stringify(result.node_errors)

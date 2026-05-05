@@ -31,11 +31,12 @@
 
 import React, { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, ImagePlus, Loader2, Check } from 'lucide-react'
-import { useCharacterStore, type CharacterStyle, type Character } from '@/lib/character-store'
+import { X, ImagePlus, Loader2, Check, Upload, Maximize2 } from 'lucide-react'
+import { useCharacterStore, type CharacterStyle, type CharacterGender, type Character } from '@/lib/character-store'
 import { runZImage } from '@/lib/comfyui-z-image'
 import { runFluxDev } from '@/lib/comfyui-flux-dev'
 import { runFaceDetailer } from '@/lib/comfyui-face-detailer'
+import { useEditorState } from '../EditorStateContext'
 
 /** Moteur T2I à utiliser pour le portrait.
  *  - z_image       : ⚡ Z-Image Turbo NVFP4 (~25s, peu de variance entre seeds)
@@ -71,6 +72,7 @@ const STYLE_SUFFIX: Record<CharacterStyle, string> = {
   bd:           'franco-belgian comic book style, ligne claire, flat clean colors, bande dessinée illustration, Tintin Asterix style, crisp outlines',
   comic:        'american comic book art, clean inking, vibrant full color palette, dynamic composition, Marvel DC modern style, sharp linework, full saturation',
   concept_art:  'video game concept art, painterly style, cinematic lighting, detailed character design, Diablo Dishonored aesthetic, digital painting',
+  dark_fantasy: 'dark fantasy oil painting, gothic horror illustration, Frank Frazetta and Brom influence, dramatic chiaroscuro lighting, weathered worn armor, brooding atmosphere, Souls series aesthetic, painterly textures, desaturated palette with deep blacks',
   // Legacy alias : anciens persos avec style 'animated' → traités comme anime moderne
   animated:     'modern anime film aesthetic, soft cel shading, painterly background, atmospheric lighting, art style of contemporary anime films, semi-realistic anime',
 }
@@ -83,13 +85,14 @@ const STYLE_LABELS: Record<CharacterStyle, string> = {
   bd:           '📖 BD franco-belge (Tintin, Astérix)',
   comic:        '🦸 Comic américain (Marvel, DC)',
   concept_art:  '🖌 Concept art (Dishonored, Diablo)',
+  dark_fantasy: '🗡 Dark fantasy peinture (Frazetta, Brom, Souls)',
   animated:     '🎨 Anime moderne (Ghibli, Makoto Shinkai)',
 }
 
 /** Ordre d'affichage du dropdown (legacy 'animated' exclu pour ne pas
  *  doublonner avec 'anime_modern' dans la liste). */
 const STYLE_ORDER: CharacterStyle[] = [
-  'realistic', 'anime_modern', 'manga', 'bd', 'comic', 'concept_art',
+  'realistic', 'anime_modern', 'manga', 'bd', 'comic', 'concept_art', 'dark_fantasy',
 ]
 
 /** Tags injectés en TÊTE pour cadrage swap-friendly (visage de face, sans hood,
@@ -97,7 +100,11 @@ const STYLE_ORDER: CharacterStyle[] = [
  *  FaceDetailer ensuite. */
 const PORTRAIT_FRAMING = 'portrait headshot, head and shoulders centered, front view, looking directly at camera, face fully visible and well lit, eyes open and visible, neutral expression, neutral background'
 const FULLBODY_FRAMING = 'full body shot, head to toes visible, standing pose, character centered in frame, front view, facing camera, face fully visible, neutral background'
-const FULLBODY_NEGATIVE = 'close-up, headshot, cropped, face only, head only, zoom on face'
+// Negative renforcé 2026-05-03 : le mot "arrière" du userPrompt FR pouvait
+// se traduire "back" et biaiser Flux vers vue de dos. Désormais userPrompt
+// est ignoré en faveur de l'analyse vision du portrait (cf generateFullbody),
+// mais on garde back-view dans le négatif comme ceinture+bretelles.
+const FULLBODY_NEGATIVE = 'close-up, headshot, cropped, face only, head only, zoom on face, back view, rear view, from behind, viewed from back, profile view, side view'
 
 /** État du pipeline plein pied. T2I + face_detailer en chaîne (2 phases). */
 type FullbodyPhase = 'idle' | 't2i' | 'facedetailer' | 'done' | 'error'
@@ -109,9 +116,15 @@ export default function CharacterCreatorModal({
   open, onClose, onCreated, storagePathPrefix, editingCharacter,
 }: CharacterCreatorModalProps) {
   const { addCharacter, updateCharacter } = useCharacterStore()
+  // BakeProgressModal global pour bloquer l'UI pendant les gens longues —
+  // sinon clic n'importe où = perte du state local + crash silencieux.
+  const { setBakeStatus } = useEditorState()
   const isEditMode = !!editingCharacter
   const [name, setName] = useState('')
   const [style, setStyle] = useState<CharacterStyle>('anime_modern')
+  /** Apparence du perso — pilote les slots typés LTX IC LoRA Dual (Male:/Female:).
+   *  Défaut 'female' = arbitraire, l'auteur ajuste au besoin. */
+  const [gender, setGender] = useState<CharacterGender>('female')
   const [engine, setEngine] = useState<PortraitEngine>('z_image')
   const [prompt, setPrompt] = useState('')
 
@@ -127,11 +140,17 @@ export default function CharacterCreatorModal({
   const [fullbodyError, setFullbodyError] = useState<string | null>(null)
   const [fullbodyProgressLabel, setFullbodyProgressLabel] = useState<string>('')
 
+  // ── Lightbox : preview agrandi quand on clique sur une slot image ───────
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
+  // Upload manuel : true le temps de l'upload pour bloquer les double-clics
+  const [portraitUploading, setPortraitUploading] = useState(false)
+  const [fullbodyUploading, setFullbodyUploading] = useState(false)
+
   // Reset complet au close
   useEffect(() => {
     if (!open) {
       // Reset complet à la fermeture
-      setName(''); setPrompt(''); setStyle('anime_modern'); setEngine('z_image')
+      setName(''); setPrompt(''); setStyle('anime_modern'); setGender('female'); setEngine('z_image')
       setPortraitPhase('idle'); setPortraitUrl(null); setPortraitError(null)
       setPortraitProgressLabel('')
       setFullbodyPhase('idle'); setFullbodyUrl(null); setFullbodyError(null)
@@ -144,6 +163,8 @@ export default function CharacterCreatorModal({
         ? 'anime_modern'
         : (editingCharacter.style ?? 'anime_modern')
       setStyle(styleKey)
+      // Persos legacy sans gender (ou héritage invalide 'other') → 'female' (l'auteur peut corriger)
+      setGender(editingCharacter.gender === 'male' ? 'male' : 'female')
       setPrompt(editingCharacter.prompt ?? '')
       setPortraitUrl(editingCharacter.portraitUrl)
       setFullbodyUrl(editingCharacter.fullbodyUrl)
@@ -178,6 +199,21 @@ export default function CharacterCreatorModal({
     if (!promptOk || portraitBusy) return
     setPortraitPhase('generating'); setPortraitError(null); setPortraitUrl(null)
     setPortraitProgressLabel('Préparation…')
+    // Active le BakeProgressModal global → bloque l'UI pendant ~25-75s pour
+    // éviter perte de state (clic ailleurs = unmount du modal = gen perdue).
+    setBakeStatus({
+      startedAt: Date.now(),
+      phase: 'Préparation…',
+      kind: 'portrait',
+      estimatedTotalSec: engine === 'z_image' ? 25 : engine === 'flux_dev_fast' ? 40 : 75,
+    })
+
+    // Helper local : sync le label local. Le BakeProgressModal a son propre
+    // chrono auto-incrémenté → on n'update PAS sa phase à chaque tick (le
+    // setBakeStatus n'accepte pas de callback de toute façon).
+    const updateLabel = (label: string) => {
+      setPortraitProgressLabel(label)
+    }
 
     try {
       let url: string
@@ -189,12 +225,12 @@ export default function CharacterCreatorModal({
           prompt: fullPrompt,
           width: 1024, height: 1024,
           storagePathPrefix: `${storagePathPrefix}_char_portrait_zimage`,
-          onProgress: (p) => { if (p.label) setPortraitProgressLabel(p.label) },
+          onProgress: (p) => { if (p.label) updateLabel(p.label) },
         })
       } else {
         // Flux Dev (Q5_K_S qualité OU Q4_K_S rapide) via T5 → préfère
         // l'anglais. On traduit le prompt user FR→EN via /api/translate-prompt.
-        setPortraitProgressLabel('Traduction du prompt…')
+        updateLabel('Traduction du prompt…')
         let userPromptEn = prompt.trim()
         try {
           const trRes = await fetch('/api/translate-prompt', {
@@ -216,7 +252,7 @@ export default function CharacterCreatorModal({
           // Q5_K_S (qualité, ~75s) ou Q4_K_S (rapide, ~40s, sweet spot 8 GB)
           unetFile: FLUX_DEV_FILES[engine],
           storagePathPrefix: `${storagePathPrefix}_char_portrait_flux`,
-          onProgress: (p) => { if (p.label) setPortraitProgressLabel(p.label) },
+          onProgress: (p) => { if (p.label) updateLabel(p.label) },
         })
       }
       setPortraitUrl(url); setPortraitPhase('done'); setPortraitProgressLabel('')
@@ -224,46 +260,102 @@ export default function CharacterCreatorModal({
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[CharacterCreator] portrait failed:', msg)
       setPortraitError(msg); setPortraitPhase('error'); setPortraitProgressLabel('')
+    } finally {
+      // Ferme le BakeProgressModal global même en cas d'erreur — sinon UI
+      // restée bloquée sur loader fantôme.
+      setBakeStatus(null)
     }
   }
 
   async function generateFullbody() {
     if (!canGenerateFullbody || !portraitUrl) return
     setFullbodyPhase('t2i'); setFullbodyError(null); setFullbodyUrl(null)
-    setFullbodyProgressLabel('Génération du corps…')
+    setFullbodyProgressLabel('Analyse du portrait…')
+    // Active BakeProgressModal — bloque l'UI pendant ~75-120s (vision +
+    // body T2I + FaceDetailer). Estimation conservative.
+    setBakeStatus({
+      startedAt: Date.now(),
+      phase: 'Analyse du portrait…',
+      kind: 'fullbody',
+      estimatedTotalSec: engine === 'z_image' ? 60 : engine === 'flux_dev_fast' ? 90 : 120,
+    })
+
+    // Helper local : sync le label local (BakeProgressModal a son chrono auto)
+    const updateLabel = (label: string) => {
+      setFullbodyProgressLabel(label)
+    }
 
     try {
+      // ── PHASE 0 : analyse vision du portrait pour cohérence visuelle ─
+      // Le userPrompt initial peut diverger du résultat portrait (modèle a
+      // ré-interprété "chapeau classique" différemment). Pour que le fullbody
+      // reproduise EXACTEMENT le perso visible dans le portrait (chapeau,
+      // costume, couleurs), on analyse le portrait via Qwen 2.5 VL local
+      // (gratuit, ~5-10s) → descripteurs SDXL-friendly EN.
+      // Décision 2026-05-03 : remplacer userPrompt par cette description vision
+      // pour le fullbody. userPrompt reste utilisé UNIQUEMENT pour le portrait.
+      let visionDescription: string | null = null
+      try {
+        const visRes = await fetch('/api/describe-portrait', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_url: portraitUrl, engine: 'qwen' }),
+        })
+        if (visRes.ok) {
+          const vd = await visRes.json() as { description?: string; engine_used?: string }
+          if (vd.description) {
+            visionDescription = vd.description
+            console.log('[CharacterCreator] portrait analyzed (' + (vd.engine_used ?? 'qwen') + '):', visionDescription)
+          }
+        }
+      } catch (visErr) {
+        console.warn('[CharacterCreator] vision analysis failed, fallback userPrompt:', visErr)
+      }
+
+      // Si vision a retourné une description NON-VIDE, on l'utilise. Sinon
+      // fallback userPrompt (résilience — la gen ne doit pas être bloquée par
+      // vision). On utilise || (pas ??) pour fallback aussi sur string vide.
+      const characterDescription = (visionDescription && visionDescription.trim()) || prompt.trim()
+
+      setFullbodyPhase('t2i'); updateLabel('Génération du corps…')
+
       // ── PHASE 1 : T2I body avec le MÊME moteur que le portrait ────────
       // → style cohérent portrait↔body (couleurs, anime/comic/etc. matchent)
       // Le visage généré ici est random — on le swap juste après avec FaceDetailer.
       let bodyT2IUrl: string
 
       if (engine === 'z_image') {
-        // Z-Image bilingue (FR direct, pas de translation)
-        const fullPrompt = `${FULLBODY_FRAMING}, ${prompt.trim()}, ${STYLE_SUFFIX[style]}`
+        // Z-Image bilingue : on lui passe direct la description (vision = EN, ou
+        // fallback userPrompt FR — Z-Image gère les deux).
+        const fullPrompt = `${FULLBODY_FRAMING}, ${characterDescription}, ${STYLE_SUFFIX[style]}`
         bodyT2IUrl = await runZImage({
           prompt: fullPrompt,
           width: 832, height: 1216,  // ~9:13 vertical, multiple de 64
           storagePathPrefix: `${storagePathPrefix}_char_fullbody_t2i_zimage`,
-          onProgress: (p) => { if (p.label) setFullbodyProgressLabel(`Corps · ${p.label}`) },
+          onProgress: (p) => { if (p.label) updateLabel(`Corps · ${p.label}`) },
         })
       } else {
-        // Flux Dev → translate FR→EN (T5 préfère l'anglais)
-        let userPromptEn = prompt.trim()
+        // Flux Dev : la description vient de Qwen (déjà EN). Si vision a fail
+        // et qu'on fallback sur userPrompt FR → on traduit. Sinon traduction
+        // inutile (vision EN déjà bon).
+        let descriptionEn = characterDescription
         let negativeEn = ''
-        try {
-          const trRes = await fetch('/api/translate-prompt', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt_fr: prompt.trim() }),
-          })
-          if (trRes.ok) {
-            const td = await trRes.json() as { positive?: string; negative?: string }
-            if (td.positive) userPromptEn = td.positive
-            if (td.negative) negativeEn = td.negative
-          }
-        } catch {/* fallback raw FR */}
-        const fullPrompt = `${FULLBODY_FRAMING}, ${userPromptEn}, ${STYLE_SUFFIX[style]}`
+        if (!visionDescription) {
+          // Fallback userPrompt → translate FR→EN
+          try {
+            const trRes = await fetch('/api/translate-prompt', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt_fr: characterDescription }),
+            })
+            if (trRes.ok) {
+              const td = await trRes.json() as { positive?: string; negative?: string }
+              if (td.positive) descriptionEn = td.positive
+              if (td.negative) negativeEn = td.negative
+            }
+          } catch {/* keep raw */}
+        }
+        const fullPrompt = `${FULLBODY_FRAMING}, ${descriptionEn}, ${STYLE_SUFFIX[style]}`
         const fullNegative = [FULLBODY_NEGATIVE, negativeEn].filter(Boolean).join(', ')
         bodyT2IUrl = await runFluxDev({
           prompt: fullPrompt,
@@ -271,21 +363,21 @@ export default function CharacterCreatorModal({
           width: 832, height: 1216,
           unetFile: FLUX_DEV_FILES[engine],
           storagePathPrefix: `${storagePathPrefix}_char_fullbody_t2i_flux`,
-          onProgress: (p) => { if (p.label) setFullbodyProgressLabel(`Corps · ${p.label}`) },
+          onProgress: (p) => { if (p.label) updateLabel(`Corps · ${p.label}`) },
         })
       }
 
       // ── PHASE 2 : FaceDetailer swap visage avec portrait_ref ──────────
       // → identité du portrait projetée sur le visage du body T2I
       setFullbodyPhase('facedetailer')
-      setFullbodyProgressLabel('Affinage du visage…')
+      updateLabel('Affinage du visage…')
 
       const finalUrl = await runFaceDetailer({
         sourceUrl: bodyT2IUrl,
         refUrl: portraitUrl,
         prompt: prompt.trim() || undefined,
         storagePathPrefix: `${storagePathPrefix}_char_fullbody_face`,
-        onProgress: (p) => { if (p.label) setFullbodyProgressLabel(`Visage · ${p.label}`) },
+        onProgress: (p) => { if (p.label) updateLabel(`Visage · ${p.label}`) },
       })
 
       setFullbodyUrl(finalUrl); setFullbodyPhase('done'); setFullbodyProgressLabel('')
@@ -293,6 +385,54 @@ export default function CharacterCreatorModal({
       const msg = err instanceof Error ? err.message : String(err)
       console.error('[CharacterCreator] fullbody pipeline failed:', msg)
       setFullbodyError(msg); setFullbodyPhase('error'); setFullbodyProgressLabel('')
+    } finally {
+      // Ferme BakeProgressModal global (résultat OU erreur — sinon UI bloquée)
+      setBakeStatus(null)
+    }
+  }
+
+  /** Upload manuel : lit le file en data URL puis POST /api/storage/upload-image.
+   *  Bypass total du pipeline IA — l'auteur a déjà l'image qu'il veut. */
+  async function uploadFile(file: File, slot: 'portrait' | 'fullbody') {
+    if (!file.type.startsWith('image/')) {
+      const msg = `Format non supporté : ${file.type || 'inconnu'}`
+      if (slot === 'portrait') setPortraitError(msg)
+      else setFullbodyError(msg)
+      return
+    }
+    const isPortrait = slot === 'portrait'
+    const setUploading = isPortrait ? setPortraitUploading : setFullbodyUploading
+    const setError = isPortrait ? setPortraitError : setFullbodyError
+    const setUrl = isPortrait ? setPortraitUrl : setFullbodyUrl
+
+    setUploading(true); setError(null)
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('Lecture du fichier échouée'))
+        reader.readAsDataURL(file)
+      })
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase()
+      const path = `${storagePathPrefix}_char_${slot}_upload_${Date.now()}.${ext === 'jpeg' ? 'jpg' : ext}`
+      const res = await fetch('/api/storage/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_url: dataUrl, path }),
+      })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !data.url) {
+        throw new Error(data.error ?? `HTTP ${res.status}`)
+      }
+      setUrl(data.url)
+      if (isPortrait) setPortraitPhase('done')
+      else setFullbodyPhase('done')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[CharacterCreator] upload ${slot} failed:`, msg)
+      setError(msg)
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -303,6 +443,7 @@ export default function CharacterCreatorModal({
       updateCharacter(editingCharacter.id, {
         name: name.trim(),
         style,
+        gender,
         prompt: prompt.trim() || undefined,
         portraitUrl,
         fullbodyUrl,
@@ -313,6 +454,7 @@ export default function CharacterCreatorModal({
       const created = addCharacter({
         name: name.trim(),
         style,
+        gender,
         prompt: prompt.trim() || undefined,
         portraitUrl,
         fullbodyUrl,
@@ -354,84 +496,111 @@ export default function CharacterCreatorModal({
             </header>
 
             <div className="ccm-body">
-              {/* Nom */}
-              <div className="ccm-field">
-                <label htmlFor="ccm-name">Nom</label>
-                <input
-                  id="ccm-name"
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="ex : Lyralia"
-                  className="ccm-input"
-                  autoFocus
-                />
-              </div>
+              {/* ── Colonne gauche : champs texte ──────────────────────── */}
+              <div className="ccm-col ccm-col-form">
+                {/* Nom */}
+                <div className="ccm-field">
+                  <label htmlFor="ccm-name">Nom</label>
+                  <input
+                    id="ccm-name"
+                    type="text"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="ex : Lyralia"
+                    className="ccm-input"
+                    autoFocus
+                  />
+                </div>
 
-              {/* Style — dropdown 6 options */}
-              <div className="ccm-field">
-                <label htmlFor="ccm-style-select">Style</label>
-                <select
-                  id="ccm-style-select"
-                  className="ccm-select"
-                  value={style}
-                  onChange={e => setStyle(e.target.value as CharacterStyle)}
-                >
-                  {STYLE_ORDER.map(key => (
-                    <option key={key} value={key}>{STYLE_LABELS[key]}</option>
-                  ))}
-                </select>
-              </div>
+                {/* Style — dropdown 7 options */}
+                <div className="ccm-field">
+                  <label htmlFor="ccm-style-select">Style</label>
+                  <select
+                    id="ccm-style-select"
+                    className="ccm-select"
+                    value={style}
+                    onChange={e => setStyle(e.target.value as CharacterStyle)}
+                  >
+                    {STYLE_ORDER.map(key => (
+                      <option key={key} value={key}>{STYLE_LABELS[key]}</option>
+                    ))}
+                  </select>
+                </div>
 
-              {/* Moteur portrait : 3 options (Z-Image rapide, Flux Dev rapide, Flux Dev qualité) */}
-              <div className="ccm-field">
-                <label>Moteur du portrait</label>
-                <div className="ccm-radio-row">
-                  <label className={`ccm-radio ${engine === 'z_image' ? 'active' : ''}`}>
-                    <input
-                      type="radio"
-                      name="ccm-engine"
-                      checked={engine === 'z_image'}
-                      onChange={() => setEngine('z_image')}
-                    />
-                    <span>⚡ Z-Image · ~25s</span>
-                  </label>
-                  <label className={`ccm-radio ${engine === 'flux_dev_fast' ? 'active' : ''}`}>
-                    <input
-                      type="radio"
-                      name="ccm-engine"
-                      checked={engine === 'flux_dev_fast'}
-                      onChange={() => setEngine('flux_dev_fast')}
-                    />
-                    <span>🚀 Flux rapide · ~40s</span>
-                  </label>
-                  <label className={`ccm-radio ${engine === 'flux_dev' ? 'active' : ''}`}>
-                    <input
-                      type="radio"
-                      name="ccm-engine"
-                      checked={engine === 'flux_dev'}
-                      onChange={() => setEngine('flux_dev')}
-                    />
-                    <span>✨ Flux qualité · ~75s</span>
-                  </label>
+                {/* Apparence — drive les slots typés LTX IC LoRA Dual (Male:/Female:) */}
+                <div className="ccm-field">
+                  <label>Apparence</label>
+                  <div className="ccm-radio-row ccm-radio-row-2">
+                    <label className={`ccm-radio ${gender === 'female' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="ccm-gender"
+                        checked={gender === 'female'}
+                        onChange={() => setGender('female')}
+                      />
+                      <span>♀ Femme</span>
+                    </label>
+                    <label className={`ccm-radio ${gender === 'male' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="ccm-gender"
+                        checked={gender === 'male'}
+                        onChange={() => setGender('male')}
+                      />
+                      <span>♂ Homme</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Moteur portrait : 3 options */}
+                <div className="ccm-field">
+                  <label>Moteur du portrait</label>
+                  <div className="ccm-radio-row">
+                    <label className={`ccm-radio ${engine === 'z_image' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="ccm-engine"
+                        checked={engine === 'z_image'}
+                        onChange={() => setEngine('z_image')}
+                      />
+                      <span>⚡ Z-Image · ~25s</span>
+                    </label>
+                    <label className={`ccm-radio ${engine === 'flux_dev_fast' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="ccm-engine"
+                        checked={engine === 'flux_dev_fast'}
+                        onChange={() => setEngine('flux_dev_fast')}
+                      />
+                      <span>🚀 Flux · ~40s</span>
+                    </label>
+                    <label className={`ccm-radio ${engine === 'flux_dev' ? 'active' : ''}`}>
+                      <input
+                        type="radio"
+                        name="ccm-engine"
+                        checked={engine === 'flux_dev'}
+                        onChange={() => setEngine('flux_dev')}
+                      />
+                      <span>✨ Flux · ~75s</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Prompt — flex:1 pour absorber l'espace restant et éviter le scroll */}
+                <div className="ccm-field ccm-field-grow">
+                  <label htmlFor="ccm-prompt">Description visuelle</label>
+                  <textarea
+                    id="ccm-prompt"
+                    value={prompt}
+                    onChange={e => setPrompt(e.target.value)}
+                    placeholder="ex : Jeune elfe aux cheveux blonds tressés, robe verte, diadème argenté"
+                    className="ccm-textarea"
+                  />
                 </div>
               </div>
 
-              {/* Prompt */}
-              <div className="ccm-field">
-                <label htmlFor="ccm-prompt">Description visuelle</label>
-                <textarea
-                  id="ccm-prompt"
-                  value={prompt}
-                  onChange={e => setPrompt(e.target.value)}
-                  placeholder="ex : Jeune elfe aux cheveux blonds tressés, robe verte, diadème argenté"
-                  rows={3}
-                  className="ccm-textarea"
-                />
-              </div>
-
-              {/* 2 slots image */}
-              <div className="ccm-slots">
+              {/* ── Colonne droite : 2 slots images empilés ────────────── */}
+              <div className="ccm-col ccm-col-slots">
                 <ImageSlot
                   label="Portrait"
                   hint={
@@ -440,20 +609,24 @@ export default function CharacterCreatorModal({
                                                   'Flux qualité · ~75s'
                   }
                   url={portraitUrl}
-                  busy={portraitBusy}
-                  busyLabel={portraitProgressLabel || 'Génération…'}
-                  disabled={!promptOk || portraitBusy}
+                  busy={portraitBusy || portraitUploading}
+                  busyLabel={portraitUploading ? 'Upload…' : (portraitProgressLabel || 'Génération…')}
+                  disabled={!promptOk || portraitBusy || portraitUploading}
                   onGenerate={generatePortrait}
+                  onUpload={(f) => uploadFile(f, 'portrait')}
+                  onPreview={() => portraitUrl && setLightboxUrl(portraitUrl)}
                   warning={portraitError ?? undefined}
                 />
                 <ImageSlot
                   label="Plein pied"
-                  hint={portraitUrl ? 'InstantID — visage du portrait' : 'génère d\'abord le portrait'}
+                  hint={portraitUrl ? 'FaceDetailer — visage du portrait' : 'génère d\'abord le portrait'}
                   url={fullbodyUrl}
-                  busy={fullbodyBusy}
-                  busyLabel={fullbodyProgressLabel || 'Génération…'}
-                  disabled={!canGenerateFullbody}
+                  busy={fullbodyBusy || fullbodyUploading}
+                  busyLabel={fullbodyUploading ? 'Upload…' : (fullbodyProgressLabel || 'Génération…')}
+                  disabled={!canGenerateFullbody && !fullbodyUploading}
                   onGenerate={generateFullbody}
+                  onUpload={(f) => uploadFile(f, 'fullbody')}
+                  onPreview={() => fullbodyUrl && setLightboxUrl(fullbodyUrl)}
                   warning={fullbodyError ?? undefined}
                 />
               </div>
@@ -474,13 +647,23 @@ export default function CharacterCreatorModal({
               </button>
             </footer>
           </motion.div>
+
+          {/* Lightbox preview agrandi (z-index supérieur au backdrop modal) */}
+          <AnimatePresence>
+            {lightboxUrl && (
+              <Lightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
     </AnimatePresence>
   )
 }
 
-function ImageSlot({ label, hint, url, busy, busyLabel = 'Génération…', disabled, onGenerate, warning }: {
+function ImageSlot({
+  label, hint, url, busy, busyLabel = 'Génération…', disabled,
+  onGenerate, onUpload, onPreview, warning,
+}: {
   label: string
   hint: string
   url: string | null
@@ -488,45 +671,136 @@ function ImageSlot({ label, hint, url, busy, busyLabel = 'Génération…', disa
   busyLabel?: string
   disabled: boolean
   onGenerate: () => void
+  /** Upload manuel — bypass IA, l'auteur fournit son image. */
+  onUpload: (file: File) => void
+  /** Click sur l'image affichée → ouvre la lightbox. */
+  onPreview: () => void
   /** Si fourni, affiché en bas de slot (ex: "FaceDetailer skipped — visage non détecté"). */
   warning?: string
 }) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  function pickFile() {
+    if (busy) return
+    fileInputRef.current?.click()
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) onUpload(file)
+    // Reset pour permettre re-upload du même fichier
+    e.target.value = ''
+  }
+
   return (
     <div className="ccm-slot">
       <div className="ccm-slot-header">
         <span className="ccm-slot-label">{label}</span>
         <span className="ccm-slot-hint">{hint}</span>
       </div>
-      <div className="ccm-slot-preview">
+      <div
+        className={`ccm-slot-preview ${url && !busy ? 'ccm-slot-preview-clickable' : ''}`}
+        onClick={url && !busy ? onPreview : undefined}
+        title={url && !busy ? 'Cliquer pour agrandir' : undefined}
+      >
         {url ? (
           <img src={url} alt={label} className="ccm-slot-img" />
         ) : busy ? (
           <div className="ccm-slot-busy">
-            <Loader2 size={20} className="ccm-spin" />
+            <Loader2 className="ccm-spin ccm-icon-md" />
             <span>{busyLabel}</span>
           </div>
         ) : (
           <div className="ccm-slot-empty">
-            <ImagePlus size={20} />
+            <ImagePlus className="ccm-icon-md" />
+            <span>Aucune image</span>
           </div>
         )}
         {url && !busy && (
-          <span className="ccm-slot-check" aria-label="Image générée">
-            <Check size={11} strokeWidth={3} />
-          </span>
+          <>
+            <span className="ccm-slot-check" aria-label="Image prête">
+              <Check className="ccm-icon-xs" strokeWidth={3} />
+            </span>
+            <span className="ccm-slot-zoom" aria-hidden="true">
+              <Maximize2 className="ccm-icon-xs" />
+            </span>
+          </>
         )}
       </div>
       {warning && (
-        <div className="ccm-slot-warning" title={warning}>⚠ Erreur : {warning.slice(0, 60)}…</div>
+        <div className="ccm-slot-warning" title={warning}>⚠ {warning.slice(0, 80)}{warning.length > 80 ? '…' : ''}</div>
       )}
+      <div className="ccm-slot-actions">
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={disabled || busy}
+          className="ccm-slot-btn ccm-slot-btn-primary"
+        >
+          {busy ? busyLabel : url ? 'Régénérer' : 'Générer'}
+        </button>
+        <button
+          type="button"
+          onClick={pickFile}
+          disabled={busy}
+          className="ccm-slot-btn ccm-slot-btn-ghost"
+          title="Importer une image depuis l'ordinateur"
+        >
+          <Upload className="ccm-icon-xs" />
+          <span>Importer</span>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          onChange={onFileChange}
+          style={{ display: 'none' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+/** Lightbox plein écran : preview agrandi de l'image. Click backdrop ou Esc ferme. */
+function Lightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <motion.div
+      className="ccm-lightbox-backdrop"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Aperçu de l'image"
+    >
+      <motion.img
+        src={url}
+        alt="Aperçu"
+        className="ccm-lightbox-img"
+        initial={{ scale: 0.92, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.96, opacity: 0 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 26 }}
+        onClick={e => e.stopPropagation()}
+      />
       <button
         type="button"
-        onClick={onGenerate}
-        disabled={disabled || busy}
-        className="ccm-slot-btn"
+        onClick={onClose}
+        className="ccm-lightbox-close"
+        aria-label="Fermer l'aperçu"
       >
-        {busy ? busyLabel : url ? 'Régénérer' : 'Générer'}
+        <X className="ccm-icon-md" />
       </button>
-    </div>
+    </motion.div>
   )
 }

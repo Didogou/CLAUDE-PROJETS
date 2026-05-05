@@ -53,9 +53,11 @@ export interface Ltx23DualResult {
 }
 
 const POLL_INTERVAL_MS = 5000
-// 12 min : LTX 2.3 sur 8 GB lowvram = lent (modèle 14 GB + Gemma 9.4 GB en
-// swap RAM/VRAM constant)
-const MAX_WAIT_MS = 12 * 60 * 1000
+// 25 min : LTX 2.3 sur 8 GB lowvram est lent (modèle 14 GB + Gemma 9.4 GB en
+// swap RAM/VRAM constant). Mesure réelle 2026-05-03 sur RTX 5060 8GB Blackwell
+// = ~16-17 min pour le wf Vantage Dual Characters complet (1 plan, T2V).
+// 25 min laisse une marge de sécurité ; sur GPU plus rapide ça finira plus tôt.
+const MAX_WAIT_MS = 25 * 60 * 1000
 
 /** Upload une image (URL Supabase) dans le file store de ComfyUI. */
 async function uploadToComfy(url: string, name: string): Promise<string> {
@@ -80,10 +82,9 @@ export async function runLtx23Dual(opts: Ltx23DualOptions): Promise<Ltx23DualRes
 
   onProgress?.({ stage: 'upload', label: 'Préparation…' })
 
-  // Free VRAM avant ce workflow ultra-lourd (~24 GB combinés)
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-  await new Promise(r => setTimeout(r, 2000))
-
+  // Free VRAM AVANT/APRÈS centralisé dans queuePrompt() (cache UNet conditionnel).
+  // Pour LTX 2.3 (~24 GB), le free se déclenchera automatiquement si on
+  // arrive depuis un autre modèle (Flux, Z-Image…), sinon skip = cache.
   const upImg = await uploadToComfy(imageUrl, 'ltx_dual_src')
 
   onProgress?.({ stage: 'queuing', label: 'Queue ComfyUI…' })
@@ -101,10 +102,23 @@ export async function runLtx23Dual(opts: Ltx23DualOptions): Promise<Ltx23DualRes
   }).then(r => r.json())
 
   if (!queueRes.prompt_id) {
-    throw new Error(queueRes.error ?? 'ltx_2_3_dual queue failed')
+    // Propage les détails de validation ComfyUI si présents (node_errors)
+    let detail = ''
+    if (queueRes.details && typeof queueRes.details === 'object' && !Array.isArray(queueRes.details)) {
+      const lines: string[] = []
+      for (const [nid, info] of Object.entries(queueRes.details as Record<string, { class_type?: string; errors?: Array<{ type?: string; message?: string; details?: unknown }> }>)) {
+        const ct = info.class_type ?? '?'
+        for (const e of info.errors ?? []) {
+          lines.push(`Node ${nid} (${ct}): ${e.type ?? '?'} — ${e.message ?? ''}${e.details ? ` (${JSON.stringify(e.details)})` : ''}`)
+        }
+      }
+      if (lines.length > 0) detail = '\n' + lines.join('\n')
+    }
+    console.error('[runLtx23Dual] queue failed:', queueRes)
+    throw new Error((queueRes.error ?? 'ltx_2_3_dual queue failed') + detail)
   }
 
-  onProgress?.({ stage: 'generating', label: 'Génération vidéo… (3-5 min sur 8 GB lowvram)' })
+  onProgress?.({ stage: 'generating', label: 'Génération vidéo… (15-20 min sur 8 GB lowvram, plus rapide sur GPU + grosse)' })
 
   const deadline = Date.now() + MAX_WAIT_MS
   let succeeded = false
@@ -126,8 +140,7 @@ export async function runLtx23Dual(opts: Ltx23DualOptions): Promise<Ltx23DualRes
   ).then(r => r.json())
   if (!vRes.video_url) throw new Error(vRes.error ?? 'video_url manquante (sortie pas une vidéo ?)')
 
-  await fetch('/api/comfyui/free', { method: 'POST' }).catch(() => {})
-
+  // Free APRÈS supprimé : cache UNet géré centralement dans queuePrompt
   // Capture des 2 frames (1ère + dernière) — vignette banque + modale copie.
   // Si l'extraction échoue (CORS, vidéo cassée), on log mais on retourne la
   // vidéo quand même : les frames sont un nice-to-have, pas un bloquant.

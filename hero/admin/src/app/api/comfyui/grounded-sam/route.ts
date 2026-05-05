@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { isServerRunning, uploadUrlToComfyUI, queuePrompt, getHistory, getImage } from '@/lib/comfyui'
+import { isServerRunning, uploadUrlToComfyUI, queuePrompt, getHistory, getImage, freeComfyVram } from '@/lib/comfyui'
 import { buildGroundedSAMWorkflow } from '@/lib/comfyui-grounded-sam'
 import { createClient } from '@supabase/supabase-js'
 
@@ -54,6 +54,7 @@ export async function POST(req: NextRequest) {
       prompt_text: prompt_text.trim(),
       threshold,
     })
+    // Free VRAM conditionnel géré dans queuePrompt() (lib/comfyui.ts)
     const result = await queuePrompt(workflow)
 
     if (result.node_errors && Object.keys(result.node_errors).length > 0) {
