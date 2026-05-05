@@ -173,18 +173,37 @@ export default function DesignerActionsToolbar({
     prevForceOpenRef.current = forceOpen
   }, [forceOpen])
 
+  // Reset openId quand le catalog est fermé EXTERNE (= clic X sur le catalog
+  // ou autre action qui set activeCategory=null). Sinon le bouton resterait
+  // visuellement actif alors que le catalog est fermé. Uniquement pour les
+  // actions SANS subTools (Animer) — pour celles AVEC subTools (Personnage),
+  // l'openId reste pour que le drawer subtools reste accessible même catalog fermé.
+  useEffect(() => {
+    if (!openId || activeCategory !== null) return
+    const action = actions.find(a => a.id === openId)
+    if (action && (!action.subTools || action.subTools.length === 0)) {
+      setOpenId(null)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeCategory, openId])
+
   // Détecte tout changement de drawer (close OU switch vers une autre action) :
   //   1. Ferme le catalog gauche du PRÉCÉDENT s'il était ouvert
   //   2. Notifie onDrawerClose → reset état d'extraction du précédent
   // Couvre 2 cas :
   //   - openId → null (re-clic icône, Escape, layer change, catalog mismatch)
   //   - openId 'decoupe' → 'personnage' (switch entre actions, mutual exclusion)
+  // ⚠ Skip si on switche entre 2 actions partageant la même opensCategory
+  //   (ex: Personnage → Animer, tous deux 'generate') — sinon on toggle off le
+  //   catalog alors que la nouvelle action veut justement l'utiliser.
   const prevOpenIdRef = useRef<string | null>(null)
   useEffect(() => {
     const prev = prevOpenIdRef.current
     if (prev && prev !== openId) {
       const prevAction = actions.find(a => a.id === prev)
-      if (prevAction && activeCategory === prevAction.opensCategory) {
+      const newAction = openId ? actions.find(a => a.id === openId) : null
+      const sameCategory = prevAction && newAction && prevAction.opensCategory === newAction.opensCategory
+      if (prevAction && activeCategory === prevAction.opensCategory && !sameCategory) {
         onActionClick(prevAction.opensCategory)
       }
       onDrawerClose?.()
@@ -206,8 +225,22 @@ export default function DesignerActionsToolbar({
       const willOpen = openId !== action.id
       setOpenId(willOpen ? action.id : null)
     } else {
-      action.onActivate?.()
-      onActionClick(action.opensCategory)
+      // Action sans subTools (ex: Animer). Toggle on/off :
+      //  - Re-clic sur action déjà active → désactive (close catalog)
+      //  - Sinon → active (set mode + open catalog) + track openId pour visual
+      const isCurrentlyActive = openId === action.id
+      if (isCurrentlyActive) {
+        setOpenId(null)
+        if (activeCategory === action.opensCategory) {
+          onActionClick(action.opensCategory)  // toggle off
+        }
+      } else {
+        action.onActivate?.()
+        setOpenId(action.id)  // track active for visual highlight
+        if (activeCategory !== action.opensCategory) {
+          onActionClick(action.opensCategory)  // open catalog
+        }
+      }
     }
   }
 
@@ -247,14 +280,24 @@ export default function DesignerActionsToolbar({
         layout
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
       >
-        {/* Toutes les icônes principales rendues côte à côte. La mutual
-         * exclusion vit dans openId (un seul drawer ouvert). */}
-        {actions.map(action => {
-          const isThisActive = !!activeAction && activeAction.id === action.id && (
-            activeCategory === action.opensCategory || drawerOpen
-          )
+        {/* Quand une action est active, on cache les autres icônes pour focus
+         * l'auteur sur l'action en cours. AnimatePresence anime fade+scale.
+         * Si aucune action active → toutes visibles. */}
+        <AnimatePresence mode="popLayout">
+        {actions
+          .filter(action => !activeAction || activeAction.id === action.id)
+          .map(action => {
+          const isThisActive = !!activeAction && activeAction.id === action.id
           return (
-            <motion.div key={action.id} layout className="dz-actions-stack">
+            <motion.div
+              key={action.id}
+              layout
+              className="dz-actions-stack"
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+            >
               <button
                 type="button"
                 className={`dz-actions-btn ${isThisActive ? 'active' : ''}`}
@@ -270,6 +313,7 @@ export default function DesignerActionsToolbar({
             </motion.div>
           )
         })}
+        </AnimatePresence>
 
         {/* Drawer content : sub-tools + (optionnel) séparateur + secondary
          * actions de l'action active, révélés en cascade. Un seul drawer à la
