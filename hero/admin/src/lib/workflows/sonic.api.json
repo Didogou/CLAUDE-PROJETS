@@ -1,0 +1,80 @@
+{
+  "10": {
+    "_meta": { "title": "Load SVD checkpoint" },
+    "class_type": "ImageOnlyCheckpointLoader",
+    "inputs": {
+      "ckpt_name": "svd_xt_1_1.safetensors"
+    }
+  },
+  "11": {
+    "_meta": { "title": "Load portrait image" },
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "sonic_input.png",
+      "upload": "image"
+    }
+  },
+  "12": {
+    "_meta": { "title": "Load audio" },
+    "class_type": "LoadAudio",
+    "inputs": {
+      "audio": "sonic_input.wav"
+    }
+  },
+  "13": {
+    "_meta": { "title": "Sonic Loader (UNet + RIFE + dtype)" },
+    "class_type": "SONICTLoader",
+    "inputs": {
+      "model": ["10", 0],
+      "sonic_unet": "unet.pth",
+      "ip_audio_scale": 1.0,
+      "use_interframe": true,
+      "dtype": "fp16"
+    }
+  },
+  "14": {
+    "_meta": { "title": "Sonic PreData (face crop + audio embed)" },
+    "class_type": "SONIC_PreData",
+    "inputs": {
+      "clip_vision": ["10", 1],
+      "vae": ["10", 2],
+      "audio": ["12", 0],
+      "image": ["11", 0],
+      "weight_dtype": ["13", 1],
+      "min_resolution": 512,
+      "duration": 5.0,
+      "expand_ratio": 0.5
+    }
+  },
+  "15": {
+    "_meta": { "title": "Sonic Sampler (denoise loop)" },
+    "class_type": "SONICSampler",
+    "inputs": {
+      "model": ["13", 0],
+      "data_dict": ["14", 0],
+      "seed": 0,
+      "inference_steps": 25,
+      "dynamic_scale": 1.0,
+      "fps": 25.0
+    }
+  },
+  "16": {
+    "_meta": { "title": "Compose video (frames + audio)" },
+    "class_type": "CreateVideo",
+    "inputs": {
+      "images": ["15", 0],
+      "audio": ["12", 0],
+      "fps": ["15", 1]
+    }
+  },
+  "17": {
+    "_meta": { "title": "Save video MP4 H264" },
+    "class_type": "SaveVideo",
+    "inputs": {
+      "video": ["16", 0],
+      "filename_prefix": "sonic/test",
+      "format": "mp4",
+      "codec": "h264"
+    }
+  }
+}

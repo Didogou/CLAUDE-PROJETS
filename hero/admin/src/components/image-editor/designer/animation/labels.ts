@@ -7,10 +7,10 @@
  * version EN qui part au modèle LTX.
  */
 
-import type { AnimationPellicule } from '@/components/image-editor/EditorStateContext'
+import type { Shot } from '@/components/image-editor/EditorStateContext'
 
 /** Cadrage du plan — labels affichés en UI. */
-export const SHOT_LABELS: Record<AnimationPellicule['shot'], string> = {
+export const SHOT_LABELS: Record<Shot['shot'], string> = {
   wide: 'Plan large',
   medium: 'Plan moyen',
   close_up: 'Gros plan',
@@ -18,7 +18,7 @@ export const SHOT_LABELS: Record<AnimationPellicule['shot'], string> = {
 }
 
 /** Mouvement caméra — labels affichés en UI. */
-export const CAMERA_LABELS: Record<AnimationPellicule['camera'], string> = {
+export const CAMERA_LABELS: Record<Shot['camera'], string> = {
   static: 'Caméra fixe',
   slow_zoom_in: 'Zoom avant lent',
   slow_zoom_out: 'Zoom arrière lent',

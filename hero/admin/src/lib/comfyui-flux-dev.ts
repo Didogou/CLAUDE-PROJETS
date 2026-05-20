@@ -50,8 +50,18 @@ const POLL_INTERVAL_MS = 3000
 // énormément. 60-90s sur 12+ GB, mais 4-8 min courant sur 8 GB lowvram.
 const MAX_WAIT_MS = 10 * 60 * 1000
 
-/** Lance le workflow flux_dev et attend le résultat (URL Supabase). */
+/** Lance le workflow flux_dev et attend le résultat (URL Supabase).
+ *  Wrap avec retry-on-OOM automatique (refonte 2026-05-12). */
 export async function runFluxDev(opts: FluxDevOptions): Promise<string> {
+  const { withOomRetry } = await import('./oom-retry')
+  return await withOomRetry(() => runFluxDevCore(opts), {
+    onOomDetected: () => {
+      opts.onProgress?.({ stage: 'queuing', label: 'Récupération mémoire CUDA, retry…' })
+    },
+  })
+}
+
+async function runFluxDevCore(opts: FluxDevOptions): Promise<string> {
   const {
     prompt, negativePrompt, storagePathPrefix,
     width, height, steps, guidance, seed, unetFile,

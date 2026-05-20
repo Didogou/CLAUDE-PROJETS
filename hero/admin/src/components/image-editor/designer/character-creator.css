@@ -1,0 +1,1328 @@
+/* ──────────────────────────────────────────────────────────────────────────
+ * CharacterCreatorModal — modale 2 colonnes sans scroll, tailles relatives.
+ * Refonte 2026-05-04 : layout 2 cols (form / slots), upload manuel par slot,
+ * lightbox au clic. Tout en rem/vh/vw — pas de pixel hardcodé pour rester
+ * lisible quel que soit le DPI / écran.
+ *
+ * Variables consommées (--ie-*) : doivent être définies par un parent (Designer
+ * = .ie-root, Studio Creator = .sc-root). Si le modal est ouvert hors de tout
+ * conteneur thémé (tests), un fallback minimal est défini en bas.
+ * ────────────────────────────────────────────────────────────────────────── */
+.ccm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(0.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5vh 1.5vw;
+}
+.ccm-modal {
+  /* Refonte 2026-05-19 v9 : modale 62→70rem × 42→50rem pour accueillir
+   * previews agrandis (Portrait 14rem, Plein pied 18rem). */
+  width: min(70rem, 96vw);
+  height: min(50rem, 94vh);
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.875rem;
+  box-shadow:
+    0 1.75rem 4rem rgba(0, 0, 0, 0.5),
+    0 0.5rem 1.5rem rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--ie-font);
+  color: var(--ie-text);
+}
+/* Header refondu (phase C 2026-05-12) : portrait identité cliquable + Nom +
+ * Type + Description visuelle. Toujours visible, layout horizontal compact. */
+.ccm-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid var(--ie-border);
+}
+
+.ccm-header-portrait {
+  flex: 0 0 auto;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--ie-surface);
+  border: 2px solid var(--ie-border);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-muted);
+  position: relative;
+  transition: border-color 160ms, transform 160ms;
+}
+.ccm-header-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ccm-header-portrait:not(:disabled):hover {
+  border-color: var(--ie-accent);
+  transform: scale(1.03);
+}
+.ccm-header-portrait:not(:disabled):hover::after {
+  content: '✨';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 1.4rem;
+}
+.ccm-header-portrait:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.ccm-header-fields {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.ccm-header-row1 {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+.ccm-header-name-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  font-family: inherit;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.375rem;
+  outline: none;
+  transition: border-color 120ms;
+}
+.ccm-header-name-input:focus {
+  border-color: var(--ie-accent);
+}
+.ccm-header-type-select {
+  flex: 0 0 auto;
+  padding: 0.45rem 1.6rem 0.45rem 0.6rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.375rem;
+  outline: none;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+}
+.ccm-header-type-select:focus {
+  border-color: var(--ie-accent);
+}
+.ccm-header-prompt {
+  width: 100%;
+  resize: none;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.78rem;
+  font-family: inherit;
+  line-height: 1.4;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.375rem;
+  outline: none;
+  transition: border-color 120ms;
+  box-sizing: border-box;
+}
+.ccm-header-prompt:focus {
+  border-color: var(--ie-accent);
+}
+.ccm-header-prompt::placeholder {
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+
+/* Refonte 2026-05-19 v2 — Wrapper textarea + boutons "✨ Améliorer / ↶ Annuler".
+ * Les boutons sont en LIGNE sous la textarea (vs absolute qui chevauchait le
+ * texte) → tout le texte enrichi reste lisible. */
+.ccm-prompt-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.ccm-prompt-wrap .ccm-header-prompt {
+  /* Hauteur min auto-grow pour textes longs (4 lignes par défaut + grow CSS). */
+  min-height: 4.5rem;
+  max-height: 12rem;
+  resize: vertical;
+  overflow-y: auto;
+}
+.ccm-prompt-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  justify-content: flex-end;
+}
+.ccm-prompt-enhance-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 12%, var(--ie-bg));
+  border: 1px solid color-mix(in srgb, var(--ie-accent) 35%, transparent);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 100ms ease;
+}
+.ccm-prompt-enhance-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent) 25%, var(--ie-bg));
+  border-color: var(--ie-accent);
+  transform: translateY(-0.0625rem);
+}
+.ccm-prompt-enhance-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ccm-prompt-revert-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.65rem;
+  font-family: inherit;
+  color: var(--ie-text-muted);
+  background: color-mix(in srgb, var(--ie-text) 5%, var(--ie-bg));
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease;
+}
+.ccm-prompt-revert-btn:hover {
+  background: color-mix(in srgb, var(--ie-text) 12%, var(--ie-bg));
+  color: var(--ie-text);
+}
+
+/* ── Modal AI Edit Portrait (phase B 2026-05-12) ──────────────────────── */
+.ccm-ai-edit-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 1rem;
+}
+.ccm-ai-edit-modal {
+  width: 100%;
+  max-width: 38rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.625rem;
+  box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+}
+.ccm-ai-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--ie-border);
+}
+.ccm-ai-edit-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.ccm-ai-edit-body {
+  display: grid;
+  grid-template-columns: 14rem 1fr;
+  gap: 1rem;
+  padding: 1rem;
+  overflow-y: auto;
+}
+.ccm-ai-edit-preview {
+  position: relative;
+  width: 14rem;
+  height: 14rem;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: var(--ie-surface);
+}
+.ccm-ai-edit-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ccm-ai-edit-busy-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 0.5rem;
+}
+.ccm-ai-edit-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ccm-ai-edit-controls label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--ie-text-muted);
+}
+.ccm-ai-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+@media (max-width: 32rem) {
+  .ccm-ai-edit-body {
+    grid-template-columns: 1fr;
+  }
+  .ccm-ai-edit-preview {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+  }
+}
+.ccm-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.ccm-close:hover {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+
+/* Body — single-column qui contient un onglet (Identité, Images, Caractéristiques).
+ * Padding latéral généreux (1.5rem), scroll interne uniquement si débordement. */
+.ccm-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* Refonte 2026-05-19 : padding réduit pour gagner de l'espace utile. */
+  padding: 0.9rem 1.1rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* Cache la scrollbar par défaut — n'apparaît qu'au hover, plus discret. */
+.ccm-body::-webkit-scrollbar { width: 0.4rem; }
+.ccm-body::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 0.4rem;
+  transition: background 200ms ease;
+}
+.ccm-body:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ie-text) 18%, transparent);
+}
+
+/* ── Tabs (refonte UX 2026-05-12) ─────────────────────────────────────────
+ * Plus d'air entre les onglets : gap 1.25rem, padding latéral généreux,
+ * underline animé sur l'actif. Hover fait apparaître un léger surlignage. */
+.ccm-tabs {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0.25rem 1.5rem 0;
+  border-bottom: 1px solid var(--ie-border);
+  background: color-mix(in srgb, var(--ie-surface) 35%, var(--ie-bg));
+}
+.ccm-tab {
+  position: relative;
+  padding: 0.75rem 0.25rem;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 0.825rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: color 160ms;
+}
+.ccm-tab::after {
+  /* Underline systématique mais transparent — réservé l'espace pour éviter
+   * le jump au switch et permettre une transition smooth. */
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 0.125rem;
+  background: var(--ie-accent);
+  border-radius: 0.125rem 0.125rem 0 0;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ccm-tab:hover {
+  color: var(--ie-text);
+}
+.ccm-tab.active {
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+.ccm-tab.active::after {
+  transform: scaleX(1);
+}
+
+/* Placeholder onglet Caractéristiques */
+.ccm-col-traits {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+.ccm-traits-placeholder {
+  max-width: 30rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  color: var(--ie-text);
+}
+.ccm-traits-placeholder h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.ccm-traits-placeholder p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+}
+.ccm-traits-placeholder-hint {
+  font-size: 0.75rem !important;
+  font-style: italic;
+  color: var(--ie-text-faint) !important;
+}
+.ccm-col {
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+.ccm-col-form {
+  /* Sous-grille respiratoire : champs en colonne avec gap généreux. */
+  gap: 1rem;
+}
+.ccm-col-slots {
+  /* Refonte UX 2026-05-12 : passage en grid 2 colonnes — Portrait à gauche,
+   * carousel Plein pied à droite. Élimine l'effet "carré géant" qui poussait
+   * le carousel hors écran. Cassé en colonne sous breakpoint compact.
+   * Refonte 2026-05-19 : gap réduit + alignement stretch pour égaliser la
+   * hauteur des 2 colonnes (sinon le wrapper carousel à droite est plus haut
+   * que le slot portrait à gauche → asymétrie visuelle). */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+  align-items: stretch;
+}
+
+.ccm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-height: 0;
+}
+.ccm-field-grow {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.ccm-field-grow .ccm-textarea {
+  flex: 1 1 auto;
+  min-height: 0;
+  resize: none;
+}
+.ccm-field label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text-muted);
+}
+.ccm-input,
+.ccm-textarea,
+.ccm-select {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.375rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.825rem;
+  outline: none;
+  transition: border-color 120ms;
+  box-sizing: border-box;
+}
+.ccm-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a0a0a0' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.625rem center;
+  padding-right: 1.875rem;
+  cursor: pointer;
+}
+.ccm-select:hover { border-color: color-mix(in srgb, var(--ie-accent) 40%, var(--ie-border)); }
+.ccm-select:focus { border-color: var(--ie-accent); }
+.ccm-textarea {
+  line-height: 1.45;
+}
+.ccm-input:focus,
+.ccm-textarea:focus {
+  border-color: var(--ie-accent);
+}
+
+/* État erreur (ex : nom doublon refonte 2026-05-11) */
+.ccm-input-error {
+  border-color: #ef4444;
+  background: color-mix(in srgb, #ef4444 5%, var(--ie-bg, #0F0F12));
+}
+.ccm-input-error:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 0.15rem color-mix(in srgb, #ef4444 25%, transparent);
+}
+.ccm-field-error {
+  margin-top: 0.3rem;
+  padding: 0.4rem 0.55rem;
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  border-radius: 0.3rem;
+  font-size: 0.7rem;
+  color: #fca5a5;
+  line-height: 1.4;
+}
+
+.ccm-radio-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+.ccm-radio-row-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.ccm-radio {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.625rem 0.5rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ie-text-muted);
+  transition: background 140ms ease, border-color 140ms ease,
+              color 140ms ease, transform 140ms ease;
+  user-select: none;
+  text-align: center;
+  min-width: 0;
+}
+.ccm-radio:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 40%, var(--ie-border));
+  color: var(--ie-text);
+  transform: translateY(-1px);
+}
+.ccm-radio.active {
+  background: color-mix(in srgb, var(--ie-accent) 14%, var(--ie-surface));
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+.ccm-radio input[type="radio"] { display: none; }
+
+/* Slot image : header + preview + warning + actions.
+ * Refonte 2026-05-19 : compactage paddings et gaps pour que les 2 slots tiennent
+ * dans la modale sans déborder en bas.
+ * Refonte 2026-05-19 v4 : `overflow: hidden` + `box-sizing` explicite — sans
+ * ça, dimensionner le preview en hauteur absolue (aspect-ratio depuis width)
+ * pouvait dépasser la hauteur attribuée par le grid `align-items: stretch`
+ * (carousel-wrapper plus haut) → preview qui sortait sous la card. */
+.ccm-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.55rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  min-height: 0;
+  box-sizing: border-box;
+  /* Refonte 2026-05-19 v4 : `overflow: visible` (vs hidden) pour permettre au
+   * popover Engine Picker (qui sort sous le bouton Générer) de s'afficher
+   * au-delà de la card. Le preview a une `height` fixe (11rem / 13rem) donc
+   * pas de risque de débordement comme avant. */
+  overflow: visible;
+  transition: border-color 160ms ease;
+}
+.ccm-slot:focus-within {
+  border-color: color-mix(in srgb, var(--ie-accent) 35%, var(--ie-border));
+}
+.ccm-slot-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 1.1rem;
+}
+.ccm-slot-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text);
+}
+.ccm-slot-hint {
+  font-size: 0.6rem;
+  color: var(--ie-text-muted);
+  font-style: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  padding: 0.1rem 0.3rem;
+  background: color-mix(in srgb, var(--ie-accent) 10%, transparent);
+  border-radius: 0.2rem;
+}
+.ccm-slot-preview {
+  position: relative;
+  /* Refonte 2026-05-19 v4 : sizing piloté par HEIGHT (pas width).
+   * Pourquoi : avec `flex: 0 0 auto` + `width: 100%` + `aspect-ratio`,
+   * la hauteur dérivait de la largeur de colonne → imprévisible et causait
+   * débordement quand le slot était étiré par `align-items: stretch` du grid.
+   * Désormais on fixe une `height` cappée et on laisse la width découler
+   * (`width: auto`) via `aspect-ratio`. Le preview reste un bloc autonome,
+   * `flex: 0 0 auto` garantit qu'il n'absorbe pas l'espace destiné aux actions
+   * sous lui, et le `.ccm-slot` parent (overflow:hidden) empêche tout dépassement. */
+  /* Refonte 2026-05-19 v9 : preview AGRANDI (user veut + de place visuelle).
+   * Portrait 8→14rem carré, Plein pied override 10→18rem (override + bas). */
+  flex: 0 0 auto;
+  height: 14rem;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  align-self: center;
+  background: color-mix(in srgb, var(--ie-text) 6%, var(--ie-bg));
+  border-radius: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* Bordure dashed plus marquée en light mode pour ne pas être invisible sur fond blanc. */
+  border: 1px dashed color-mix(in srgb, var(--ie-text) 22%, transparent);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+/* Plein pied : pieds-à-tête → PORTRAIT 3:4 (plus haut que large) un peu plus
+ * grand que le portrait carré. Width auto via aspect-ratio depuis la height. */
+.ccm-carousel-wrapper .ccm-slot-preview {
+  aspect-ratio: 3 / 4;
+  /* Refonte 2026-05-19 v10 : 18→14rem (mêmes que Portrait) pour pas déborder
+   * du body. Le format 3/4 reste portrait donc visuellement plus haut que large. */
+  height: 14rem;
+}
+.ccm-slot-preview-clickable:hover {
+  box-shadow: 0 0.25rem 0.875rem rgba(0, 0, 0, 0.2);
+}
+.ccm-slot-preview-clickable { cursor: zoom-in; }
+.ccm-slot-preview-clickable:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 50%, transparent);
+}
+.ccm-slot-preview-clickable:hover .ccm-slot-zoom {
+  opacity: 1;
+}
+.ccm-slot-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.ccm-slot-busy,
+.ccm-slot-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  /* Refonte 2026-05-19 : couleur muted plus contrastée (faint était quasi
+   * invisible en light mode). */
+  color: var(--ie-text-muted);
+  text-align: center;
+  padding: 0 0.5rem;
+  width: 100%;
+  height: 100%;
+}
+.ccm-icon-md  { width: 1.25rem;  height: 1.25rem; }
+.ccm-icon-xs  { width: 0.75rem;  height: 0.75rem; }
+.ccm-spin { animation: ccm-spin 1s linear infinite; }
+@keyframes ccm-spin { to { transform: rotate(360deg); } }
+
+.ccm-slot-check {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  width: 1.125rem;
+  height: 1.125rem;
+  background: var(--ie-accent);
+  color: #fff;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.35);
+}
+.ccm-slot-zoom {
+  position: absolute;
+  bottom: 0.4rem;
+  right: 0.4rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  background: color-mix(in srgb, #000 65%, transparent);
+  color: #fff;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 140ms;
+  pointer-events: none;
+}
+.ccm-slot-warning {
+  flex: 0 0 auto;
+  font-size: 0.625rem;
+  color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  text-align: center;
+  word-break: break-word;
+}
+.ccm-slot-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  /* Refonte 2026-05-19 : gap réduit pour 2-3 boutons côte à côte sans wrap. */
+  gap: 0.3rem;
+}
+.ccm-slot-actions > .ccm-slot-btn,
+.ccm-slot-actions > .ccm-split-btn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ccm-slot-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  /* Refonte 2026-05-19 v8 : encore plus compact pour pas chevaucher les dots
+   * du carousel (Face/Dos/Profil G/Profil D) en card étroite. */
+  padding: 0.25rem 0.45rem;
+  background: color-mix(in srgb, var(--ie-text) 8%, var(--ie-bg));
+  border: 1px solid color-mix(in srgb, var(--ie-text) 18%, transparent);
+  border-radius: 0.3rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.62rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-height: 1.55rem;
+  transition: background 140ms ease, border-color 140ms ease,
+              color 140ms ease, transform 140ms ease;
+}
+.ccm-slot-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent) 8%, var(--ie-bg));
+  border-color: var(--ie-accent);
+  transform: translateY(-1px);
+}
+.ccm-slot-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+/* Refonte 2026-05-19 v2 : opacity 0.5 → 0.7 (0.5 trop fort sur fond light,
+ * le bouton ressemble à un masque blanc opaque) + bg neutre pour les primaires
+ * disabled au lieu du rose plein qui se mélange mal avec le bg light. */
+.ccm-slot-btn:disabled { opacity: 0.7; cursor: not-allowed; }
+.ccm-slot-btn-primary:disabled {
+  background: color-mix(in srgb, var(--ie-accent) 30%, var(--ie-bg));
+  border-color: color-mix(in srgb, var(--ie-accent) 30%, var(--ie-border));
+  color: color-mix(in srgb, white 70%, var(--ie-accent));
+  box-shadow: none;
+}
+.ccm-slot-btn-primary {
+  font-weight: 600;
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  color: #fff;
+  box-shadow: 0 0.125rem 0.5rem color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+.ccm-slot-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, #000 8%, var(--ie-accent));
+  border-color: color-mix(in srgb, #000 8%, var(--ie-accent));
+  color: #fff;
+  box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, var(--ie-accent) 35%, transparent);
+}
+.ccm-slot-btn-ghost {
+  background: transparent;
+  color: var(--ie-text-muted);
+}
+.ccm-slot-btn-ghost:hover:not(:disabled) {
+  color: var(--ie-text);
+}
+.ccm-slot-btn-danger:hover:not(:disabled) {
+  color: var(--ie-danger, #f87171);
+  background: rgba(248, 113, 113, 0.1);
+  border-color: color-mix(in srgb, #f87171 50%, transparent);
+}
+
+/* ── Split-button pour génération Portrait (refonte UX 2026-05-12) ─────────
+ * Bouton principal "Générer/Régénérer" + chevron à droite qui ouvre un
+ * popover de sélection du moteur. Pattern GitHub/Vercel reconnaissable —
+ * l'auteur lance la gen ET peut changer de moteur sans quitter le contexte. */
+.ccm-split-btn {
+  position: relative;
+  display: inline-flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  border-radius: 0.4rem;
+  box-shadow: 0 0.125rem 0.5rem color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+.ccm-split-btn:hover {
+  box-shadow: 0 0.25rem 0.75rem color-mix(in srgb, var(--ie-accent) 35%, transparent);
+}
+.ccm-split-btn .ccm-split-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right: 1px solid color-mix(in srgb, #fff 22%, var(--ie-accent));
+  box-shadow: none;
+}
+.ccm-split-btn .ccm-split-main:hover:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+.ccm-split-btn .ccm-split-caret {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.5rem;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  border-left: 0;
+  box-shadow: none;
+}
+.ccm-split-btn .ccm-split-caret:hover:not(:disabled) {
+  box-shadow: none;
+  transform: none;
+}
+
+/* Popover sous le chevron — liste compacte des 3 moteurs.
+ * Refonte 2026-05-19 v5 : ouverture VERS LE HAUT (bottom anchor) au lieu de
+ * vers le bas. Le bouton Générer est en bas de la card Portrait, qui est elle-
+ * même en bas du body → popover qui s'ouvrait vers le bas se faisait clipper
+ * par le bord inférieur du body. Anchoré bottom: 100%+0.4rem, il pousse au-
+ * dessus du bouton, dans l'espace dispo de la card. */
+.ccm-engine-popover {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  z-index: 20;
+  /* Refonte 2026-05-19 v6 : compacté — width fixée à 10rem au lieu de min 14rem
+   * (labels sans emojis, hint courte → cale parfaitement). */
+  width: 10rem;
+  min-width: 0;
+  max-height: 16rem;
+  overflow-y: auto;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 0.75rem 2rem rgba(0, 0, 0, 0.35),
+    0 0.25rem 0.625rem rgba(0, 0, 0, 0.2);
+  padding: 0.375rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  animation: ccm-pop-in 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes ccm-pop-in {
+  /* Refonte 2026-05-19 v5 : monte au lieu de descendre (popover ancré bottom). */
+  from { opacity: 0; transform: translateY(0.25rem) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.ccm-engine-popover-head {
+  font-size: 0.55rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ie-text-faint);
+  padding: 0.3rem 0.45rem 0.2rem;
+}
+.ccm-engine-popover-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: baseline;
+  gap: 0.15rem 0.4rem;
+  padding: 0.3rem 0.45rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  color: var(--ie-text);
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.ccm-engine-popover-item:hover {
+  background: var(--ie-surface);
+  border-color: var(--ie-border);
+}
+.ccm-engine-popover-item.active {
+  background: color-mix(in srgb, var(--ie-accent) 10%, var(--ie-surface));
+  border-color: color-mix(in srgb, var(--ie-accent) 40%, var(--ie-border));
+}
+.ccm-engine-popover-item-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.ccm-engine-popover-item.active .ccm-engine-popover-item-label {
+  color: var(--ie-accent);
+}
+.ccm-engine-popover-item-hint {
+  font-size: 0.58rem;
+  color: var(--ie-text-muted);
+  grid-column: 1 / -1;
+  font-style: italic;
+}
+.ccm-engine-popover-item-check {
+  color: var(--ie-accent);
+  align-self: center;
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.ccm-footer {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.625rem;
+  padding: 0.875rem 1.5rem 1rem;
+  border-top: 1px solid var(--ie-border);
+  background: color-mix(in srgb, var(--ie-surface) 25%, var(--ie-bg));
+}
+.ccm-save-error {
+  margin-right: auto;
+  font-size: 0.7rem;
+  color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  padding: 0.3rem 0.6rem;
+  border-radius: 0.3rem;
+  max-width: 60%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ccm-btn-ghost,
+.ccm-btn-primary {
+  /* Refonte 2026-05-19 v10 : footer encore plus compact. */
+  padding: 0.3rem 0.75rem;
+  border-radius: 0.3rem;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease,
+              border-color 140ms ease, transform 140ms ease,
+              box-shadow 140ms ease;
+}
+.ccm-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  color: var(--ie-text-muted);
+}
+.ccm-btn-ghost:hover:not(:disabled) {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border-color: var(--ie-border-strong);
+}
+.ccm-btn-primary {
+  background: var(--ie-accent);
+  border: 1px solid var(--ie-accent);
+  color: #fff;
+  box-shadow: 0 0.25rem 0.875rem color-mix(in srgb, var(--ie-accent) 30%, transparent);
+}
+.ccm-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, #000 8%, var(--ie-accent));
+  border-color: color-mix(in srgb, #000 8%, var(--ie-accent));
+  transform: translateY(-1px);
+  box-shadow: 0 0.375rem 1.125rem color-mix(in srgb, var(--ie-accent) 45%, transparent);
+}
+.ccm-btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+.ccm-btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Lightbox — preview agrandi de l'image. Click backdrop ou Esc ferme. */
+.ccm-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: color-mix(in srgb, #000 80%, transparent);
+  backdrop-filter: blur(0.5rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3vh 3vw;
+  cursor: zoom-out;
+}
+.ccm-lightbox-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  box-shadow: 0 1.5rem 3.75rem rgba(0, 0, 0, 0.6);
+  cursor: default;
+}
+.ccm-lightbox-close {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, #fff 18%, transparent);
+  background: color-mix(in srgb, #000 60%, transparent);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 140ms, transform 140ms;
+}
+.ccm-lightbox-close:hover {
+  background: color-mix(in srgb, #000 80%, transparent);
+  transform: scale(1.06);
+}
+
+/* Responsive : sous ~50rem de large, on repasse les slots en 1 colonne.
+ * En dessous de 32rem, le split-button popover s'aligne à gauche pour rester
+ * dans la viewport. */
+@media (max-width: 50rem) {
+  .ccm-modal {
+    height: 96vh;
+    width: 96vw;
+  }
+  .ccm-col-slots {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 32rem) {
+  .ccm-engine-popover {
+    right: auto;
+    left: 0;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Carousel Plein pied (refonte 2026-05-09 — option B multi-vues)
+ * Wrap autour d'un ImageSlot existant, ajoute header avec arrows + dots
+ * ────────────────────────────────────────────────────────────────────────── */
+.ccm-carousel-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+/* L'ImageSlot interne (.ccm-slot) prend sa hauteur naturelle dans la grille
+ * 2-cols (refonte UX 2026-05-12). Plus de flex:1 — sinon le slot s'étire et
+ * crée un déséquilibre avec le Portrait à gauche. */
+.ccm-carousel-wrapper > .ccm-slot {
+  min-height: 0;
+}
+.ccm-carousel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0 0.2rem;
+}
+.ccm-carousel-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  font-weight: 600;
+  transition: all 120ms;
+}
+.ccm-carousel-arrow:hover {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.ccm-carousel-title {
+  flex: 1;
+  text-align: center;
+  font-size: 0.7rem;
+  color: var(--ie-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04rem;
+}
+.ccm-carousel-title strong {
+  color: var(--ie-text);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  font-size: 0.78rem;
+  margin-left: 0.25rem;
+}
+.ccm-carousel-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0 0.2rem;
+}
+.ccm-carousel-dot {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.3rem;
+  background: var(--ie-surface-2);
+  color: var(--ie-text-muted);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 0.58rem;
+  font-weight: 500;
+  transition: all 120ms;
+}
+.ccm-carousel-dot.active {
+  background: var(--ie-accent);
+  color: white;
+  border-color: var(--ie-accent);
+  font-weight: 600;
+}
+.ccm-carousel-dot:not(.active):hover {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.ccm-carousel-dot.empty:not(.active) {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Galerie variantes (refonte 2026-05-09 — option B)
+ * Section sous les 2 slots canoniques. Grid horizontal scrollable.
+ * ────────────────────────────────────────────────────────────────────────── */
+.ccm-gallery-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--ie-surface-2);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.625rem;
+  margin-top: 0.625rem;
+}
+.ccm-gallery-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+}
+.ccm-gallery-title {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ie-text);
+  text-transform: uppercase;
+  letter-spacing: 0.03rem;
+}
+.ccm-gallery-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--ie-accent);
+  color: white;
+  border: none;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 500;
+  transition: all 120ms;
+}
+.ccm-gallery-add-btn:hover:not(:disabled) {
+  background: var(--ie-accent-dark);
+}
+.ccm-gallery-add-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ccm-gallery-error {
+  font-size: 0.7rem;
+  color: #ef4444;
+  background: color-mix(in srgb, #ef4444 8%, transparent);
+  border: 1px solid color-mix(in srgb, #ef4444 25%, transparent);
+  border-radius: 0.3rem;
+  padding: 0.35rem 0.55rem;
+}
+.ccm-gallery-empty {
+  font-size: 0.72rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  padding: 0.75rem 0.4rem;
+  text-align: center;
+}
+.ccm-gallery-grid {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.25rem 0;
+  scrollbar-width: thin;
+}
+.ccm-gallery-item {
+  flex: 0 0 auto;
+  width: 5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  position: relative;
+}
+.ccm-gallery-thumb-btn {
+  width: 5rem;
+  height: 5rem;
+  padding: 0;
+  background: #000;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 120ms;
+}
+.ccm-gallery-thumb-btn:hover {
+  border-color: var(--ie-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 0.3rem 0.6rem rgba(0,0,0,0.2);
+}
+.ccm-gallery-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  background: #808080;  /* fond gris pour matcher la convention si transparent */
+}
+.ccm-gallery-label-input {
+  width: 100%;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.62rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  color: var(--ie-text);
+  text-align: center;
+}
+.ccm-gallery-label-input:focus {
+  outline: none;
+  border-color: var(--ie-accent);
+}
+.ccm-gallery-remove-btn {
+  position: absolute;
+  top: -0.4rem;
+  right: -0.4rem;
+  width: 1.2rem;
+  height: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: 1px solid white;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  font-weight: 700;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.ccm-gallery-item:hover .ccm-gallery-remove-btn {
+  opacity: 1;
+}
+.ccm-gallery-remove-btn:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+}
+.ccm-spin {
+  animation: ccm-spin-kf 900ms linear infinite;
+}
+@keyframes ccm-spin-kf {
+  to { transform: rotate(360deg); }
+}

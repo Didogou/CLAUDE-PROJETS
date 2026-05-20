@@ -1,0 +1,1640 @@
+/* ──────────────────────────────────────────────────────────────────────────
+ * Studio Section — CSS module autonome (préfixe ss-*).
+ *
+ * Phase 0 (2026-05-05) — port du mockup `public/studio-section-mockup.html`
+ * vers React. Définit ses PROPRES variables (pas de dépendance à editor.css
+ * du module image-editor). Préfixe --ss-* pour ne pas polluer le scope global.
+ *
+ * Theme dark par défaut (cohérence avec le visuel du mockup).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.ss-root {
+  /* ── Theme DARK par défaut (le mockup l'utilise) ── */
+  --ie-bg: #0F0F12;
+  --ie-surface: #17171B;
+  --ie-surface-2: #1F1F25;
+  --ie-surface-3: #2A2A32;
+  --ie-text: #F4F4F5;
+  --ie-text-muted: #A1A1AA;
+  --ie-text-faint: #71717A;
+  --ie-border: rgba(255, 255, 255, 0.08);
+  --ie-border-strong: rgba(255, 255, 255, 0.14);
+  --ie-accent: #F472B6;
+  --ie-accent-faint: rgba(244, 114, 182, 0.12);
+  --ie-accent-dark: #DB2777;
+
+  /* ── Couleurs par type de Plan (versions theme dark) ── */
+  --ss-static: #818cf8;
+  --ss-static-faint: rgba(129, 140, 248, 0.14);
+  --ss-anim: #F472B6;
+  --ss-anim-faint: rgba(244, 114, 182, 0.14);
+  --ss-conv: #A78BFA;
+  --ss-conv-faint: rgba(167, 139, 250, 0.14);
+  /* Plan choix (refonte 2026-05-11 Step 3) — moment décisionnel livre-jeu */
+  --ss-choice: #FBBF24;
+  --ss-choice-faint: rgba(251, 191, 36, 0.14);
+  --ss-music: #2DD4BF;
+
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 0.8125rem;
+  background: var(--ie-bg);
+  color: var(--ie-text);
+  overflow: hidden;
+}
+
+/* ── Defaults PreviewModal (recommandation agent design 2026-05-17) ─────
+ * Palette pensée pour visibilité maximale dans les 2 thèmes :
+ *   - body : gris décalé du device pour contraste net (chassis noir/clair)
+ *   - header : niveau différent du body (lecture hiérarchique)
+ *   - rose accent réservé au hover (signature subtile)
+ * Customisable via les CSS variables (override par .theme-light ci-dessous). */
+.ss-root {
+  --hero-preview-bg-lightness: 18%;
+  --hero-preview-header-bg: #15171c;
+  --hero-preview-header-text: #e4e4e7;
+  --hero-preview-header-btn: #a1a1aa;
+}
+
+/* ── Override THEME LIGHT si parent ou root explicite ── */
+.ss-root.theme-light,
+[data-theme="light"] .ss-root {
+  --ie-bg: #FAFAF9;
+  --ie-surface: #FFFFFF;
+  --ie-surface-2: #F4F4F2;
+  --ie-surface-3: #EDEDEB;
+  --ie-text: #18181B;
+  --ie-text-muted: #52525B;
+  --ie-text-faint: #A1A1AA;
+  --ie-border: rgba(0, 0, 0, 0.08);
+  --ie-border-strong: rgba(0, 0, 0, 0.14);
+  --ie-accent: #EC4899;
+  --ie-accent-faint: #FDF2F8;
+  --ie-accent-dark: #BE185D;
+
+  --ss-static: #6366f1;
+  --ss-static-faint: rgba(99, 102, 241, 0.10);
+  --ss-anim: #EC4899;
+  --ss-anim-faint: rgba(236, 72, 153, 0.10);
+  --ss-conv: #8B5CF6;
+  --ss-conv-faint: rgba(139, 92, 246, 0.10);
+  /* Plan choix (light theme) */
+  --ss-choice: #D97706;
+  --ss-choice-faint: rgba(217, 119, 6, 0.10);
+  --ss-music: #14B8A6;
+
+  /* PreviewModal — override mode clair (recommandation agent design 2026-05-17) */
+  --hero-preview-bg-lightness: 12%;
+  --hero-preview-header-bg: #f5f3f7;
+  --hero-preview-header-text: #1f1f23;
+  --hero-preview-header-btn: #52525b;
+}
+
+/* ── Top bar ────────────────────────────────────────────────────────────── */
+.ss-topbar {
+  flex-shrink: 0;
+  height: 3.25rem;
+  display: flex;
+  align-items: center;
+  padding: 0 1.125rem;
+  gap: 1rem;
+  background: var(--ie-surface);
+  border-bottom: 1px solid var(--ie-border);
+}
+.ss-breadcrumb {
+  font-size: 0.75rem;
+  color: var(--ie-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.ss-breadcrumb a {
+  color: var(--ie-text-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+.ss-breadcrumb a:hover { color: var(--ie-text); }
+.ss-breadcrumb strong {
+  color: var(--ie-text);
+  font-weight: 600;
+  font-size: 0.8125rem;
+}
+.ss-breadcrumb-id {
+  font-size: 0.625rem;
+  color: var(--ie-text-faint);
+  padding: 0.125rem 0.375rem;
+  background: var(--ie-surface-2);
+  border-radius: 0.25rem;
+  margin-left: 0.25rem;
+}
+.ss-topbar-spacer { flex: 1; }
+.ss-status {
+  font-size: 0.6875rem;
+  color: var(--ie-text-faint);
+  display: flex;
+  align-items: center;
+  gap: 0.3125rem;
+}
+.ss-status-dot {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 50%;
+  background: #10B981;
+}
+.ss-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4375rem 0.875rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.375rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 140ms;
+}
+.ss-topbar-btn:hover { background: var(--ie-surface-2); }
+.ss-topbar-btn-primary {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  color: white;
+}
+.ss-topbar-btn-primary:hover {
+  background: var(--ie-accent-dark, #BE185D);
+  border-color: var(--ie-accent-dark, #BE185D);
+}
+.ss-topbar-btn-icon {
+  padding: 0.4375rem 0.5625rem;  /* compact pour icône seule */
+}
+
+/* Bouton "Retour aux sections" — remplace breadcrumb + Aperçu/Publier */
+.ss-topbar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4375rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 140ms;
+}
+.ss-topbar-back:hover {
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+  border-color: var(--ie-border-strong);
+}
+
+/* ── Body : rail à gauche + main au centre (mimic DesignerLayout) ──────── */
+.ss-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ── Rail vertical à gauche (pattern Canva / Figma / Designer) ─────────── */
+.ss-rail {
+  flex-shrink: 0;
+  width: 3rem;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem 0;
+  gap: 0.125rem;
+}
+.ss-rail-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 auto;
+  background: transparent;
+  border: none;
+  border-radius: 0.375rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  font-family: inherit;
+  transition: all 120ms;
+}
+.ss-rail-btn:hover {
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+}
+.ss-rail-btn.active {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+}
+.ss-rail-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -0.25rem;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 0.1875rem;
+  background: var(--ie-accent);
+  border-radius: 0.125rem;
+}
+.ss-rail-badge {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  min-width: 0.875rem;
+  height: 0.875rem;
+  padding: 0 0.25rem;
+  background: var(--ie-accent);
+  color: white;
+  border-radius: 62.4375rem;
+  font-size: 0.5625rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* ── Main (zone centrale qui prend tout l'espace après le rail) ────────── */
+/* Refonte 2026-05-16 chantier 1 — overflow:auto → hidden + flex column +
+ * min-height:0 pour que les enfants (tab storyboard) puissent borner leur
+ * hauteur et permettre un scroll interne (BankPanel). Les autres tabs
+ * (PlaceholderTab) gèrent leur propre overflow si besoin. */
+.ss-main {
+  flex: 1;
+  overflow: hidden;
+  background: var(--ie-bg);
+  padding: 1.125rem 1.5rem;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Tab non-storyboard (placeholder) : autoriser scroll interne si dépassement. */
+.ss-main > :not(.ss-storyboard-fullwidth) {
+  overflow-y: auto;
+}
+
+/* ── Storyboard split : timeline gauche + sticky preview droite ────────
+ * Si l'utilisateur sélectionne un device large, le panel grandit et la
+ * timeline shrink (min-width: 0 pour autoriser le shrink). */
+.ss-storyboard-split {
+  display: flex;
+  gap: 1.25rem;
+  align-items: flex-start;
+  min-height: 0;
+}
+.ss-storyboard-main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Refonte 2026-05-13 : storyboard pleine largeur (timeline horizontale, plus
+ * de panel preview à droite — la prévisualisation se fera via le Renderer
+ * livre-joué dédié). */
+.ss-storyboard-fullwidth {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-height: 0;
+  height: 100%;
+}
+
+/* ── Sticky Preview Panel ────────────────────────────────────────────── */
+.ss-stickypv {
+  flex: 0 0 auto;
+  position: sticky;
+  top: 1.125rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.875rem;
+  padding: 0.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  max-height: calc(100vh - 6rem);
+}
+
+.ss-stickypv-picker { position: relative; }
+.ss-stickypv-picker-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--ie-surface-2);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: all 140ms;
+}
+.ss-stickypv-picker-trigger:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 40%, var(--ie-border));
+}
+.ss-stickypv-picker-trigger.open { border-color: var(--ie-accent); }
+.ss-stickypv-picker-name {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ss-stickypv-picker-chevron { transition: transform 140ms; }
+.ss-stickypv-picker-trigger.open .ss-stickypv-picker-chevron { transform: rotate(180deg); }
+.ss-stickypv-picker-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 0.25rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  padding: 0.25rem;
+  z-index: 20;
+  max-height: 18rem;
+  overflow-y: auto;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+.ss-stickypv-picker-group + .ss-stickypv-picker-group {
+  margin-top: 0.25rem;
+  padding-top: 0.25rem;
+  border-top: 1px dashed var(--ie-border);
+}
+.ss-stickypv-picker-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.5rem 0.2rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ie-text-faint);
+}
+.ss-stickypv-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.3rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  text-align: left;
+}
+.ss-stickypv-picker-item:hover { background: var(--ie-surface-2); }
+.ss-stickypv-picker-item.active {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+.ss-stickypv-picker-item-name { flex: 1; }
+.ss-stickypv-picker-item-dim {
+  font-size: 0.6rem;
+  color: var(--ie-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-stickypv-frame {
+  background: #1a1a1a;
+  border-radius: 1rem;
+  padding: 0.4rem;
+  flex-shrink: 1;
+  min-height: 0;
+}
+.ss-stickypv-frame-mobile  { width: 14rem; }
+.ss-stickypv-frame-tablet  { width: 22rem; }
+.ss-stickypv-frame-desktop { width: 30rem; }
+.ss-stickypv-screen {
+  width: 100%;
+  height: 100%;
+  background: #0a0a0c;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  justify-content: center;
+}
+/* Tous les médias (vidéo + image fallback) empilés en absolute pour permettre
+ *  le crossfade d'opacity entre séquences quand activeIdx change. object-fit:
+ *  contain → format YouTube (letterbox plutôt que crop, refonte 2026-05-09). */
+.ss-stickypv-screen .ss-stickypv-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  display: block;
+  transition: opacity 350ms cubic-bezier(0.2, 0, 0, 1);
+}
+.ss-stickypv-screen-empty {
+  color: var(--ie-text-faint);
+  font-size: 0.75rem;
+  font-style: italic;
+  text-align: center;
+}
+
+/* Overlay centré : icône Rejouer (fin de section) OU Play initial (arrivée).
+ *  pointer-events: none → le click passe au screen qui gère l'action.
+ *  Variantes is-replay / is-play partagent les styles de base. */
+.ss-stickypv-center-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 999px;
+  background: var(--ie-accent);
+  border: 0.125rem solid rgba(255, 255, 255, 0.4);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: ss-center-fadein 220ms cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.45);
+}
+.ss-stickypv-center-overlay.is-play {
+  /* L'icône Play a un decalage visuel à droite (forme triangulaire). On
+   *  pousse de 0.15rem pour que le triangle paraisse centré dans le rond. */
+  padding-left: 0.15rem;
+}
+@keyframes ss-center-fadein {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.ss-stickypv-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0 0.25rem;
+}
+.ss-stickypv-progress {
+  height: 0.25rem;
+  background: var(--ie-surface-3);
+  border-radius: 0.125rem;
+  cursor: pointer;
+  overflow: hidden;
+}
+.ss-stickypv-progress:hover { height: 0.375rem; transition: height 120ms; }
+.ss-stickypv-progress-fill {
+  height: 100%;
+  background: var(--ie-accent);
+  transition: width 80ms linear;
+}
+.ss-stickypv-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.65rem;
+  color: var(--ie-text-muted);
+}
+.ss-stickypv-time { font-variant-numeric: tabular-nums; flex-shrink: 0; }
+.ss-stickypv-time .muted { color: var(--ie-text-faint); }
+.ss-stickypv-plan-label {
+  flex: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ie-text);
+  font-weight: 500;
+}
+/* Compteur compact "S 2/15 · P 3/4" — tabular pour pas que ça shift */
+.ss-stickypv-counters {
+  flex: 1;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.65rem;
+  color: var(--ie-text-muted);
+  white-space: nowrap;
+  font-weight: 500;
+}
+/* 2e ligne meta : titre du plan + nom de section (commit C) */
+.ss-stickypv-plan-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.7rem;
+  color: var(--ie-text);
+  padding: 0.15rem 0;
+  min-width: 0;
+}
+.ss-stickypv-section-name {
+  font-size: 0.6rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ss-stickypv-plan-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Hint affiché sur image fixe (commit C). Discret, sous le bouton play. */
+.ss-stickypv-image-hint {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(0.4rem);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.02rem;
+  pointer-events: none;
+  animation: ss-hint-fadein 200ms cubic-bezier(0.2, 0, 0, 1);
+}
+.ss-stickypv-hint-sep {
+  color: rgba(255, 255, 255, 0.45);
+}
+@keyframes ss-hint-fadein {
+  from { opacity: 0; transform: translateX(-50%) translateY(0.25rem); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+/* Mute toggle compact à droite du label plan. */
+.ss-stickypv-mute-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 120ms;
+}
+.ss-stickypv-mute-btn:hover {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+
+/* Bouton "Ouvrir dans Studio Designer" sous la preview */
+.ss-stickypv-open-designer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.875rem;
+  background: var(--ie-accent);
+  border: none;
+  border-radius: 0.5rem;
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: background 140ms;
+}
+.ss-stickypv-open-designer:hover {
+  background: var(--ie-accent-dark, #BE185D);
+}
+
+/* ── Storyboard view ────────────────────────────────────────────────────── */
+/* Refonte 2026-05-14 : titre allégé (police plus petite, marges réduites). */
+.ss-sb-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.ss-sb-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  color: var(--ie-text-muted);
+}
+.ss-sb-title-sep {
+  color: var(--ie-text-faint);
+  font-weight: 400;
+}
+.ss-sb-title-section {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--ie-text-muted);
+}
+
+/* ── PreviewCard : 2 cards (image + infos) avec gap entre elles ──────── */
+.ss-preview-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 0 auto 1.125rem;
+  max-width: 28.75rem;  /* ~28.75rem : compact + centré pour laisser place à la timeline */
+  width: 100%;
+}
+.ss-preview-card {
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.875rem;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+.ss-preview-card-empty {
+  padding: 3.75rem 1.25rem;
+  text-align: center;
+  color: var(--ie-text-faint);
+  font-size: 0.8125rem;
+  font-style: italic;
+}
+.ss-preview-empty-msg { line-height: 1.6; }
+
+/* ── Card 1 : image encadrée + play overlay + progress bar ──────────── */
+.ss-preview-card-image {
+  display: flex;
+  flex-direction: column;
+}
+.ss-preview-image-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 13.75rem;  /* ~13.75rem */
+  background: #0a0a0c;   /* fond noir profond — l'image flotte dessus */
+  overflow: hidden;
+}
+.ss-preview-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.ss-preview-image-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--ie-text-faint);
+}
+.ss-preview-image-placeholder-icon {
+  font-size: 2.75rem;
+  opacity: 0.3;
+}
+.ss-preview-image-placeholder-label {
+  font-size: 0.625rem;
+  font-style: italic;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Bouton play (centré sur l'image) */
+.ss-preview-play-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 3rem;
+  height: 3rem;
+  border-radius: 62.4375rem;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(0.5rem);
+  border: 0.125rem solid rgba(255, 255, 255, 0.4);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-left: 0.2rem;
+  transition: all 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  opacity: 0.85;
+}
+.ss-preview-play-btn:hover {
+  transform: translate(-50%, -50%) scale(1.06);
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  opacity: 1;
+}
+.ss-preview-play-btn.is-playing {
+  padding-left: 0;
+  opacity: 1;
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+}
+
+/* Progress bar (sous l'image, dans la même card) */
+.ss-preview-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--ie-surface-2);
+  border-top: 1px solid var(--ie-border);
+}
+.ss-preview-progress-track {
+  flex: 1;
+  height: 0.25rem;
+  background: var(--ie-surface-3);
+  border-radius: 0.125rem;
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+}
+.ss-preview-progress-track:hover { height: 0.375rem; transition: height 120ms; }
+.ss-preview-progress-fill {
+  height: 100%;
+  background: var(--ie-accent);
+  transition: width 80ms linear;
+}
+.ss-preview-time {
+  font-size: 0.6875rem;
+  color: var(--ie-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ss-preview-time .muted { color: var(--ie-text-faint); }
+
+/* ── Card 2 : infos textuelles plan ───────────────────────────────────── */
+.ss-preview-card-info {
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.ss-preview-info-header {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex-wrap: wrap;
+}
+.ss-preview-info-num {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: var(--ie-text-faint);
+  letter-spacing: 0.06em;
+  background: var(--ie-surface-2);
+  padding: 0.1875rem 0.5rem;
+  border-radius: 0.3125rem;
+}
+.ss-preview-info-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1875rem 0.5625rem;
+  border-radius: 62.4375rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ss-preview-info-type.type-static       { color: var(--ss-static); background: var(--ss-static-faint); }
+.ss-preview-info-type.type-animation    { color: var(--ss-anim);   background: var(--ss-anim-faint); }
+.ss-preview-info-type.type-conversation { color: var(--ss-conv);   background: var(--ss-conv-faint); }
+.ss-preview-info-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ie-text);
+  flex: 1 1 100%;
+  letter-spacing: -0.01em;
+}
+.ss-preview-info-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  font-size: 0.6875rem;
+}
+.ss-preview-info-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1875rem 0.5625rem;
+  background: var(--ie-surface-2);
+  color: var(--ie-text-muted);
+  border-radius: 62.4375rem;
+  font-weight: 500;
+}
+.ss-preview-info-chip.primary {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+.ss-preview-info-chip.music   { color: var(--ss-music); }
+.ss-preview-info-chip.choice  { color: var(--ss-anim); }
+.ss-preview-info-chip.effect  { color: var(--ss-conv); }
+.ss-preview-info-chip.muted   { color: var(--ie-text-faint); font-style: italic; }
+.ss-sb-subtitle {
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--ie-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.ss-sb-pill {
+  padding: 0.125rem 0.5rem;
+  background: var(--ie-surface-2);
+  border-radius: 62.4375rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+}
+.ss-sb-pill.music { color: var(--ss-music); }
+.ss-sb-pill.choice { color: var(--ss-anim); }
+
+/* ── Timeline (table de mixage) ─────────────────────────────────────────── */
+.ss-timeline {
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.875rem;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.ss-timeline-track {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  position: relative;
+}
+.ss-timeline-track + .ss-timeline-track {
+  border-top: 1px dashed var(--ie-border);
+}
+.ss-track-label {
+  flex: 0 0 5.625rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ie-text-faint);
+  display: flex;
+  align-items: center;
+  gap: 0.3125rem;
+}
+.ss-track-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  min-width: 0;
+  overflow-x: auto;
+  /* Padding vertical pour que le translateY(-2px) du hover ne soit pas
+   * clip par overflow-x:auto (qui implique overflow-y:auto et clip top). */
+  padding: 0.25rem 0 0.5rem;
+}
+
+/* ── Plan cell ──────────────────────────────────────────────────────────── */
+.ss-plan-cell {
+  flex: 0 0 auto;
+  width: 12rem;
+  background: var(--ie-surface-2);
+  border: 0.125rem solid var(--ie-border);
+  border-radius: 0.625rem;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 180ms;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.ss-plan-cell:hover {
+  transform: translateY(-0.125rem);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
+  border-color: var(--ie-border-strong);
+}
+.ss-plan-cell.selected {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 3px var(--ie-accent-faint, rgba(236, 72, 153, 0.10));
+}
+
+/* Focus mode 2026-05-06 — quand un Plan est sélectionné, les autres
+ * (précédents + suivants) deviennent dimmed pour mettre en avant le
+ * Plan en cours d'édition. Restoration au hover. */
+.ss-track-content:has(.ss-plan-cell.selected) .ss-plan-cell:not(.selected) {
+  opacity: 0.45;
+  filter: grayscale(0.55);
+  transition: opacity 200ms, filter 200ms;
+}
+.ss-track-content:has(.ss-plan-cell.selected) .ss-plan-cell:not(.selected):hover {
+  opacity: 0.9;
+  filter: grayscale(0.15);
+}
+.ss-plan-cell.type-animation { border-color: var(--ss-anim); }
+.ss-plan-cell.type-static { border-color: var(--ss-static); }
+.ss-plan-cell.type-conversation { border-color: var(--ss-conv); }
+
+.ss-plan-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--ie-surface-3);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ss-plan-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ss-plan-thumb-placeholder {
+  font-size: 2rem;
+  color: var(--ie-text-faint);
+}
+
+/* ── Animation type : film strip aesthetic ──────────────────────────────
+ * Bandes noires top/bottom avec perforations SVG inline (rectangles arrondis
+ * blancs en repeat-x), image en sandwich au milieu. Métaphore visuelle
+ * "pellicule" cinéma — réservée au type animation pour signaler "c'est un
+ * shot animé, pas une image fixe". Reproduit le pattern .dz-anim-cell-thumb
+ * du Studio Designer (cf designer.css L5444+).
+ * ──────────────────────────────────────────────────────────────────────── */
+.ss-plan-cell.type-animation .ss-plan-thumb {
+  background: #1a1a1a;
+  border-radius: 0.15rem;
+}
+.ss-plan-cell.type-animation .ss-plan-thumb::before,
+.ss-plan-cell.type-animation .ss-plan-thumb::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0.85rem;
+  pointer-events: none;
+  z-index: 2;
+  background-color: #1a1a1a;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 14'><rect x='2' y='4' width='12' height='6' rx='1.5' fill='%23f5f5f5'/></svg>");
+  background-size: 1rem 0.85rem;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+.ss-plan-cell.type-animation .ss-plan-thumb::before { top: 0; }
+.ss-plan-cell.type-animation .ss-plan-thumb::after { bottom: 0; }
+/* L'image (ou le placeholder) doit être entre les 2 bandes — height calc
+ * pour ne pas se faire couvrir par les sprockets (cohérence pixel-perfect). */
+.ss-plan-cell.type-animation .ss-plan-thumb img,
+.ss-plan-cell.type-animation .ss-plan-thumb-placeholder {
+  width: 100%;
+  height: calc(100% - 1.7rem);
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2a2a2a;  /* gris foncé "écran cinéma vide" pour placeholders */
+  color: #888;
+}
+.ss-plan-cell.type-animation .ss-plan-thumb img {
+  object-fit: cover;
+  background: transparent;  /* override : pas de gris si l'image existe */
+}
+/* Badge type + durée doivent passer au-dessus des sprockets */
+.ss-plan-cell.type-animation .ss-plan-type-badge,
+.ss-plan-cell.type-animation .ss-plan-duration {
+  z-index: 3;
+}
+.ss-plan-thumb-conv {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  color: var(--ss-conv);
+}
+.ss-plan-thumb-conv-icon { font-size: 1.75rem; }
+.ss-plan-thumb-conv-label { font-size: 0.625rem; font-weight: 600; }
+
+.ss-plan-type-badge {
+  position: absolute;
+  top: 0.375rem;
+  left: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  border-radius: 62.4375rem;
+  font-size: 0.5625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.ss-plan-cell.type-animation .ss-plan-type-badge { background: var(--ss-anim); }
+.ss-plan-cell.type-static .ss-plan-type-badge { background: var(--ss-static); }
+.ss-plan-cell.type-conversation .ss-plan-type-badge { background: var(--ss-conv); }
+
+.ss-plan-duration {
+  position: absolute;
+  bottom: 0.375rem;
+  right: 0.375rem;
+  padding: 0.125rem 0.375rem;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 500;
+}
+
+/* Bouton supprimer Plan — top-right de la cellule, visible au hover. */
+.ss-plan-delete-btn {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 0.4rem;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(0.25rem);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 140ms;
+  z-index: 5;
+}
+.ss-plan-cell:hover .ss-plan-delete-btn,
+.ss-plan-cell.selected .ss-plan-delete-btn {
+  opacity: 1;
+}
+.ss-plan-delete-btn:hover {
+  background: #ef4444;
+  transform: scale(1.06);
+}
+
+/* Zone INFO de la cellule — visuellement dissociée de l'image (top border
+ * + tint background + plus de padding). Toujours montre titre + type + durée
+ * pour éviter les cellules "mortes" sur des plans fraîchement créés. */
+.ss-plan-meta {
+  padding: 0.625rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  background: var(--ie-surface);
+  border-top: 1px solid var(--ie-border);
+}
+.ss-plan-meta-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.ss-plan-num {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--ie-text-faint);
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+.ss-plan-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ie-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+/* Sous-titre : type colorisé + durée — toujours présent même sans chips */
+.ss-plan-meta-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.625rem;
+}
+.ss-plan-meta-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.5625rem;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.1875rem;
+}
+.ss-plan-meta-type.type-static       { color: var(--ss-static); background: var(--ss-static-faint); }
+.ss-plan-meta-type.type-animation    { color: var(--ss-anim);   background: var(--ss-anim-faint); }
+.ss-plan-meta-type.type-conversation { color: var(--ss-conv);   background: var(--ss-conv-faint); }
+.ss-plan-meta-dot {
+  color: var(--ie-text-faint);
+  opacity: 0.5;
+}
+.ss-plan-meta-duration {
+  font-size: 0.625rem;
+  color: var(--ie-text-muted);
+  font-weight: 500;
+}
+/* ── Zone info sous l'image (vignettes perso/objets + résumé) ──────────
+ * Apparaît uniquement si au moins 1 info à montrer. */
+.ss-plan-info {
+  padding: 0.5rem 0.625rem 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: var(--ie-surface);
+  border-top: 1px solid var(--ie-border);
+}
+.ss-plan-info-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+.ss-plan-info-chip-vignette {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.4rem 0.15rem 0.15rem;
+  background: var(--ie-surface-2);
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--ie-text);
+  max-width: 100%;
+  overflow: hidden;
+}
+.ss-plan-info-chip-vignette img,
+.ss-plan-info-vignette-fallback {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 999px;
+  object-fit: cover;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ie-surface-3);
+  color: var(--ie-text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+.ss-plan-info-chip-vignette.item img,
+.ss-plan-info-chip-vignette.item .ss-plan-info-vignette-fallback {
+  border-radius: 0.25rem;  /* objets = carré arrondi (vs perso = rond) */
+  background: var(--ie-bg);
+}
+.ss-plan-info-chip-vignette-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 6rem;
+}
+.ss-plan-info-summary {
+  font-size: 0.7rem;
+  color: var(--ie-text-muted);
+  line-height: 1.45;
+  font-style: italic;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 0.15rem;
+}
+
+/* ── ConfirmDialog (modal de confirmation actions destructrices) ────── */
+.ss-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(0.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2vh 2vw;
+  animation: ss-confirm-fadein 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ss-confirm-fadein {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ss-confirm-modal {
+  position: relative;
+  width: min(26rem, 92vw);
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 1rem;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.40);
+  padding: 1.5rem 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.75rem;
+  font-family: inherit;
+  color: var(--ie-text);
+  animation: ss-confirm-scalein 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes ss-confirm-scalein {
+  from { opacity: 0; transform: scale(0.94) translateY(0.5rem); }
+  to   { opacity: 1; transform: scale(1)    translateY(0); }
+}
+.ss-confirm-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.4rem;
+  color: var(--ie-text-faint);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms;
+}
+.ss-confirm-close:hover { background: var(--ie-surface-2); color: var(--ie-text); }
+.ss-confirm-close:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.ss-confirm-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+.ss-confirm-icon-danger {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+.ss-confirm-icon-primary {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+}
+.ss-confirm-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.ss-confirm-message {
+  font-size: 0.825rem;
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+  max-width: 22rem;
+}
+.ss-confirm-message strong { color: var(--ie-text); font-weight: 600; }
+.ss-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  width: 100%;
+  justify-content: center;
+}
+.ss-confirm-btn {
+  padding: 0.55rem 1.25rem;
+  border-radius: 0.5rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 140ms;
+  min-width: 6rem;
+}
+.ss-confirm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.ss-confirm-btn-cancel {
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+  border-color: var(--ie-border);
+}
+.ss-confirm-btn-cancel:hover:not(:disabled) {
+  background: var(--ie-surface-3);
+}
+.ss-confirm-btn-danger {
+  background: #ef4444;
+  color: white;
+}
+.ss-confirm-btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+.ss-confirm-btn-primary {
+  background: var(--ie-accent);
+  color: white;
+}
+.ss-confirm-btn-primary:hover:not(:disabled) {
+  background: var(--ie-accent-dark, #BE185D);
+}
+
+/* Bouton Éditer en bas de chaque PlanCell — neutre pour l'instant. */
+.ss-plan-edit-btn {
+  display: block;
+  width: 100%;
+  padding: 0.5rem;
+  background: var(--ie-surface);
+  border: none;
+  border-top: 1px solid var(--ie-border);
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: all 140ms;
+}
+.ss-plan-edit-btn:hover {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+}
+
+.ss-plan-stats {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.625rem;
+  color: var(--ie-text-faint);
+  flex-wrap: wrap;
+}
+.ss-plan-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+  padding: 1px 0.3125rem;
+  background: var(--ie-surface);
+  border-radius: 0.25rem;
+}
+.ss-plan-chip.music { color: var(--ss-music); }
+.ss-plan-chip.choice { color: var(--ss-anim); }
+.ss-plan-chip.effect { color: var(--ss-conv); }
+
+/* ── + Plan panel (Phase B.5 UX revamp) ─────────────────────────────────
+ * Tuile de création même largeur (12rem) qu'une PlanCell. Affiche les 3
+ * types directement (pas de dropdown). 1 clic = create immédiat. */
+.ss-plan-add-panel {
+  flex: 0 0 auto;
+  width: 12rem;
+  background: transparent;
+  border: 0.125rem dashed var(--ie-border-strong);
+  border-radius: 0.625rem;
+  padding: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  align-self: stretch;
+  transition: border-color 160ms;
+}
+.ss-plan-add-panel:hover {
+  border-color: color-mix(in srgb, var(--ie-accent) 50%, var(--ie-border-strong));
+}
+.ss-plan-add-panel-header {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ie-text-faint);
+  text-align: center;
+  padding: 0.25rem 0 0.125rem;
+}
+.ss-plan-add-panel-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+}
+.ss-plan-add-option {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.625rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4375rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+  transition: all 140ms;
+  min-height: 0;
+}
+.ss-plan-add-option:hover {
+  transform: translateY(-1px);
+  border-color: currentColor;
+}
+.ss-plan-add-option.static:hover       { color: var(--ss-static); background: var(--ss-static-faint); }
+.ss-plan-add-option.animation:hover    { color: var(--ss-anim);   background: var(--ss-anim-faint); }
+.ss-plan-add-option.conversation:hover { color: var(--ss-conv);   background: var(--ss-conv-faint); }
+.ss-plan-add-option-icon {
+  font-size: 1rem;
+  line-height: 1;
+  width: 1.375rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ss-plan-add-option-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Music track blocks ─────────────────────────────────────────────────── */
+.ss-music-block {
+  flex: 0 0 auto;
+  height: 2rem;
+  background: var(--ss-music);
+  opacity: 0.85;
+  border-radius: 0.375rem;
+  padding: 0 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 140ms;
+  white-space: nowrap;
+}
+.ss-music-block:hover { opacity: 1; }
+.ss-music-add {
+  flex: 0 0 auto;
+  height: 2rem;
+  padding: 0 0.75rem;
+  background: transparent;
+  border: 1px dashed var(--ie-border-strong);
+  border-radius: 0.375rem;
+  color: var(--ie-text-faint);
+  font-family: inherit;
+  font-size: 0.6875rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ss-music-add:hover { border-color: var(--ss-music); color: var(--ss-music); }
+
+/* ── Choice marker (track choix) ────────────────────────────────────────── */
+.ss-choice-marker {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.625rem;
+  background: var(--ss-anim);
+  color: white;
+  border-radius: 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3125rem;
+  cursor: pointer;
+}
+.ss-choice-marker-empty {
+  flex: 0 0 auto;
+  height: 1.25rem;
+  border-bottom: 1px dotted var(--ie-border-strong);
+  opacity: 0.4;
+}
+
+/* ── Plan inspector ─────────────────────────────────────────────────────── */
+.ss-plan-inspector {
+  margin-top: 1.5rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.875rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+.ss-insp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid var(--ie-border);
+  background: var(--ie-surface-2);
+}
+.ss-insp-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.ss-insp-header h3 {
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0;
+}
+.ss-insp-pill {
+  padding: 0.1875rem 0.625rem;
+  border-radius: 62.4375rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ss-insp-pill.type-animation { background: var(--ss-anim-faint); color: var(--ss-anim); }
+.ss-insp-pill.type-static { background: var(--ss-static-faint); color: var(--ss-static); }
+.ss-insp-pill.type-conversation { background: var(--ss-conv-faint); color: var(--ss-conv); }
+
+.ss-insp-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 0.875rem;
+  background: var(--ie-accent);
+  border: none;
+  border-radius: 0.375rem;
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: background 140ms;
+}
+.ss-insp-open:hover { background: var(--ie-accent-dark, #BE185D); }
+
+.ss-insp-body {
+  padding: 1rem 1.125rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13.75rem, 1fr));
+  gap: 0.875rem;
+}
+.ss-insp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.ss-insp-field-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ie-text-faint);
+}
+.ss-insp-field-value {
+  font-size: 0.8125rem;
+  color: var(--ie-text);
+}
+.ss-insp-field-value .muted { color: var(--ie-text-muted); font-size: 0.6875rem; }
+
+.ss-insp-empty {
+  padding: 2rem;
+  text-align: center;
+  color: var(--ie-text-faint);
+  font-size: 0.8125rem;
+  font-style: italic;
+}
+
+/* ── Tab placeholder ────────────────────────────────────────────────────── */
+.ss-placeholder {
+  padding: 3.75rem 2.5rem;
+  text-align: center;
+  color: var(--ie-text-faint);
+  font-size: 0.875rem;
+}
+.ss-placeholder-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--ie-text);
+  margin-bottom: 0.5rem;
+}
+.ss-placeholder-list {
+  margin-top: 1rem;
+  display: inline-block;
+  text-align: left;
+  font-size: 0.75rem;
+  line-height: 1.8;
+}

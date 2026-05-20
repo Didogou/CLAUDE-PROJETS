@@ -48,3 +48,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: err.message }, { status: 500 })
   }
 }
+
+/** GET d'une section seule + ses choix associés. Utilisé par Studio Section
+ *  (cf /editor-test/studio-section?sectionId=X) pour afficher le texte / titre
+ *  / numéro réels sans avoir à charger tout le livre. */
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+
+    const [{ data: section, error: sectionErr }, { data: choices }] = await Promise.all([
+      supabaseAdmin.from('sections').select('*').eq('id', id).single(),
+      supabaseAdmin.from('choices').select('*').eq('section_id', id).order('sort_order'),
+    ])
+
+    if (sectionErr || !section) {
+      return NextResponse.json({ error: sectionErr?.message ?? 'Section not found' }, { status: 404 })
+    }
+
+    return NextResponse.json({ section, choices: choices ?? [] })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}

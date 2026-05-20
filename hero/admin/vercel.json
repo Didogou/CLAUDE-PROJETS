@@ -1,4 +1,10 @@
 {
   "buildCommand": "npm run build",
-  "outputDirectory": ".next"
+  "outputDirectory": ".next",
+  "crons": [
+    {
+      "path": "/api/admin/cleanup-orphan-assets?minAge=60",
+      "schedule": "0 3 * * *"
+    }
+  ]
 }

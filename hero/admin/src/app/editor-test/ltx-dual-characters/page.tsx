@@ -19,8 +19,16 @@
  * ⚠ Workflow JSON template à exporter depuis ComfyUI en API format.
  */
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { runLtx23Dual, type Ltx23DualProgress } from '@/lib/comfyui-ltx-dual'
+
+interface ElevenVoice {
+  voice_id: string
+  name: string
+  category?: string
+  labels: Record<string, string>
+  preview_url: string | null
+}
 
 const COLORS = {
   bgPage:     '#0F0F12',
@@ -36,19 +44,23 @@ const COLORS = {
   warning:    '#F59E0B',
 }
 
-const DEFAULT_POSITIVE = `scene: A modern living room with floor-to-ceiling bay windows opening on a sunny garden, beige sofa and armchair around a wooden round table, warm sunlight streaming in.
+const DEFAULT_POSITIVE = `scene: A grand victorian library at golden hour, tall arched windows let warm afternoon light flood the room, dark wood bookshelves line the walls, a crystal chandelier hangs from the ceiling, an oxblood leather sofa with red embroidered cushions, a thick crimson rug on dark wood floor.
 
-characters: Duke is a young distinguished man wearing an elegant brown fedora hat, dark blue casual jacket, orange t-shirt. He sits on the left armchair holding a cigarette.
+characters: Duke is a tall man in a long brown leather duster coat and brown cowboy hat, white shirt, black bolo tie, holding a glass of amber whiskey in his right hand, standing on the left side of the room. Epsi is a young woman with short wavy black hair, wearing an elegant strapless emerald green dress, sitting upright on the leather sofa on the right side, hands folded in her lap.
 
-shot 1, medium close-up, 4 seconds, slow zoom in:
-  Duke takes a slow drag from his cigarette, exhales smoke, looks contemplatively out the window.
-shot 2, wide shot, 4 seconds, static camera:
-  Duke turns his head towards camera and gives a slight knowing smile.`
+shot 1, medium shot of Duke, 4 seconds, static camera:
+  Duke stands tall, raises his glass slightly toward Epsi on the sofa, looks at her with a faintly reproachful expression and says (in French):
+  "Je t'ai dit de revenir plus tôt, tu ne m'as pas écouté."
+
+shot 2, medium close-up on Epsi, 4 seconds, slow zoom in:
+  Epsi lifts her gaze to Duke, eyes calm but defiant, a soft sad smile, and replies (in French):
+  "J'avais peur de ce que j'allais trouver."`
 
 const DEFAULT_NEGATIVE = 'pc game, console game, video game, cartoon, childish, ugly, distorted face, deformed hands, watermark, text, blurry'
 
 export default function LtxDualCharactersPocPage() {
   const [imageUrl, setImageUrl] = useState('')
+  const [audioUrl, setAudioUrl] = useState('')
   const [positivePrompt, setPositivePrompt] = useState(DEFAULT_POSITIVE)
   const [negativePrompt, setNegativePrompt] = useState(DEFAULT_NEGATIVE)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
@@ -56,6 +68,152 @@ export default function LtxDualCharactersPocPage() {
   const [progressLabel, setProgressLabel] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState<number | null>(null)
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadingAudio, setUploadingAudio] = useState(false)
+
+  // ── ElevenLabs TTS state (multi-segments pour dialogue à plusieurs voix) ─
+  const [voices, setVoices] = useState<ElevenVoice[]>([])
+  const [voicesLoading, setVoicesLoading] = useState(false)
+  const [voicesError, setVoicesError] = useState<string | null>(null)
+  /** Liste de segments TTS à générer dans l'ordre. Chaque segment = 1 voix +
+   *  1 texte. Tous concaténés en 1 mp3 final qu'on passe à LTX. */
+  const [ttsSegments, setTtsSegments] = useState<{ voiceId: string; text: string }[]>([
+    { voiceId: '', text: '' },
+    { voiceId: '', text: '' },
+  ])
+  const [generatingTts, setGeneratingTts] = useState(false)
+
+  // Charge la liste des voix au mount + préselect la 1ère voix dans tous les
+  // segments (les segments sans voix sélectionnée prennent la défaut).
+  useEffect(() => {
+    let aborted = false
+    async function loadVoices() {
+      setVoicesLoading(true); setVoicesError(null)
+      try {
+        const res = await fetch('/api/elevenlabs/voices')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json() as { voices?: ElevenVoice[]; error?: string }
+        if (data.error) throw new Error(data.error)
+        if (aborted) return
+        const list = data.voices ?? []
+        setVoices(list)
+        if (list.length > 0) {
+          // Préselect 1ère voix dans tous les segments encore vides (UX —
+          // user n'a qu'à choisir s'il veut une autre voix)
+          setTtsSegments(prev => prev.map(s => s.voiceId ? s : { ...s, voiceId: list[0].voice_id }))
+        }
+      } catch (err) {
+        if (aborted) return
+        const msg = err instanceof Error ? err.message : String(err)
+        setVoicesError(msg)
+      } finally {
+        if (!aborted) setVoicesLoading(false)
+      }
+    }
+    void loadVoices()
+    return () => { aborted = true }
+  }, [])
+
+  function updateSegment(idx: number, patch: Partial<{ voiceId: string; text: string }>) {
+    setTtsSegments(prev => prev.map((s, i) => i === idx ? { ...s, ...patch } : s))
+  }
+  function addSegment() {
+    setTtsSegments(prev => [
+      ...prev,
+      { voiceId: voices[0]?.voice_id ?? '', text: '' },
+    ])
+  }
+  function removeSegment(idx: number) {
+    setTtsSegments(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  /** Génère N audios TTS en parallèle puis les concatène en 1 fichier final
+   *  qui devient l'audioUrl. Les segments vides (texte = '') sont ignorés. */
+  async function handleGenerateTts() {
+    const filled = ttsSegments
+      .map((s, i) => ({ ...s, originalIdx: i }))
+      .filter(s => s.voiceId && s.text.trim())
+    if (filled.length === 0 || generatingTts) return
+    setGeneratingTts(true); setError(null)
+    try {
+      const ts = Date.now()
+      // Génère tous les TTS en parallèle (ElevenLabs gère le concurrent)
+      const ttsResults = await Promise.all(filled.map(async (seg, i) => {
+        const r = await fetch('/api/elevenlabs/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            voice_id: seg.voiceId,
+            text: seg.text.trim(),
+            save_path: `test/ltx-dual/tts_${ts}_seg${i}`,
+          }),
+        })
+        const d = await r.json() as { url?: string; error?: string }
+        if (!r.ok || !d.url) throw new Error(`segment ${i + 1}: ${d.error ?? `HTTP ${r.status}`}`)
+        return d.url
+      }))
+
+      // Si 1 seul segment → on l'utilise direct (pas la peine de concat)
+      if (ttsResults.length === 1) {
+        setAudioUrl(ttsResults[0])
+        return
+      }
+
+      // Concat des N mp3 via la route serveur
+      const cRes = await fetch('/api/audio/concat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          urls: ttsResults,
+          path: `test/ltx-dual/concat_${ts}.mp3`,
+        }),
+      })
+      const cData = await cRes.json() as { url?: string; error?: string }
+      if (!cRes.ok || !cData.url) throw new Error(`concat: ${cData.error ?? `HTTP ${cRes.status}`}`)
+      setAudioUrl(cData.url)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[POC ltx-dual] TTS pipeline failed:', msg)
+      setError(`TTS / concat échoué : ${msg}`)
+    } finally {
+      setGeneratingTts(false)
+    }
+  }
+
+  /** Upload un File vers Supabase via la route adaptée et set l'URL résultat. */
+  async function uploadFile(
+    file: File,
+    kind: 'image' | 'audio',
+  ): Promise<void> {
+    const setUrl = kind === 'image' ? setImageUrl : setAudioUrl
+    const setUploading = kind === 'image' ? setUploadingImage : setUploadingAudio
+    const route = kind === 'image' ? '/api/storage/upload-image' : '/api/storage/upload-audio'
+    setUploading(true); setError(null)
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result as string)
+        reader.onerror = () => reject(new Error('Lecture du fichier échouée'))
+        reader.readAsDataURL(file)
+      })
+      const ext = (file.name.split('.').pop() || (kind === 'image' ? 'png' : 'mp3')).toLowerCase()
+      const path = `test/ltx-dual/${kind}_${Date.now()}.${ext}`
+      const res = await fetch(route, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data_url: dataUrl, path }),
+      })
+      const data = await res.json() as { url?: string; error?: string }
+      if (!res.ok || !data.url) throw new Error(data.error ?? `HTTP ${res.status}`)
+      setUrl(data.url)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error(`[POC ltx-dual] upload ${kind} failed:`, msg)
+      setError(`Upload ${kind} échoué : ${msg}`)
+    } finally {
+      setUploading(false)
+    }
+  }
 
   async function handleGenerate() {
     if (!imageUrl.trim() || !positivePrompt.trim()) return
@@ -68,6 +226,9 @@ export default function LtxDualCharactersPocPage() {
         imageUrl: imageUrl.trim(),
         positivePrompt,
         negativePrompt,
+        // Custom audio (lipsync) — si fourni, bascule le builder sur le
+        // workflow audio ; sinon mode foley généré.
+        audioUrl: audioUrl.trim() || undefined,
         // POC : skip extraction frames (page de test pure, pas de persistance)
         extractFrames: false,
         onProgress: (p: Ltx23DualProgress) => {
@@ -99,15 +260,32 @@ export default function LtxDualCharactersPocPage() {
           </p>
         </header>
 
-        {/* Image source */}
-        <Section title="Image source" hint="URL Supabase ou drag image-here-later (TODO)">
-          <input
-            type="text"
-            value={imageUrl}
-            onChange={e => setImageUrl(e.target.value)}
-            placeholder="https://...supabase.co/.../composite_duke.png"
-            style={inputStyle}
-          />
+        {/* Image source — upload local OU URL collée */}
+        <Section title="Image source" hint="Importe un fichier OU colle une URL Supabase">
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={fileBtnStyle(uploadingImage)}>
+              {uploadingImage ? 'Upload…' : '📁 Importer une image'}
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                disabled={uploadingImage}
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) void uploadFile(f, 'image')
+                  e.target.value = ''
+                }}
+              />
+            </label>
+            <span style={{ fontSize: 11, color: COLORS.textFaint }}>ou</span>
+            <input
+              type="text"
+              value={imageUrl}
+              onChange={e => setImageUrl(e.target.value)}
+              placeholder="https://...supabase.co/.../composite.png"
+              style={{ ...inputStyle, flex: 1 }}
+            />
+          </div>
           {imageUrl && (
             <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
               <img
@@ -144,6 +322,152 @@ export default function LtxDualCharactersPocPage() {
             rows={3}
             style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 12 }}
           />
+        </Section>
+
+        {/* Génération TTS multi-voix via ElevenLabs (auto-concat des segments) */}
+        <Section
+          title="Générer un audio via ElevenLabs (multi-voix)"
+          hint="Ajoute autant de segments que de répliques. Chaque segment = 1 voix + 1 texte. Tous concaténés dans l'ordre → 1 seul mp3 attaché."
+        >
+          {voicesLoading ? (
+            <div style={{ fontSize: 12, color: COLORS.textFaint }}>Chargement des voix…</div>
+          ) : voicesError ? (
+            <div style={{ fontSize: 12, color: '#FCA5A5' }}>⚠ {voicesError}</div>
+          ) : voices.length === 0 ? (
+            <div style={{ fontSize: 12, color: COLORS.textFaint }}>Aucune voix disponible (vérifie ELEVENLABS_API_KEY)</div>
+          ) : (
+            <>
+              {ttsSegments.map((seg, idx) => {
+                const v = voices.find(x => x.voice_id === seg.voiceId)
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: 10, marginBottom: 8,
+                      background: COLORS.bgSurface,
+                      border: `1px solid ${COLORS.border}`,
+                      borderRadius: 6,
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
+                      <span style={{
+                        fontSize: 10, fontWeight: 600, color: COLORS.accent,
+                        textTransform: 'uppercase', letterSpacing: 0.6,
+                        minWidth: 60,
+                      }}>
+                        Segment {idx + 1}
+                      </span>
+                      <select
+                        value={seg.voiceId}
+                        onChange={e => updateSegment(idx, { voiceId: e.target.value })}
+                        style={{ ...inputStyle, flex: 1, cursor: 'pointer', padding: '6px 10px' }}
+                        disabled={generatingTts}
+                      >
+                        {voices.map(vv => (
+                          <option key={vv.voice_id} value={vv.voice_id}>
+                            {vv.name}
+                            {vv.labels.gender ? ` · ${vv.labels.gender}` : ''}
+                            {vv.labels.accent ? ` · ${vv.labels.accent}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {v?.preview_url && (
+                        <audio controls src={v.preview_url} style={{ height: 28 }} />
+                      )}
+                      {ttsSegments.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeSegment(idx)}
+                          disabled={generatingTts}
+                          style={{
+                            ...fileBtnStyle(generatingTts),
+                            padding: '6px 10px',
+                            color: '#FCA5A5',
+                          }}
+                          title="Supprimer ce segment"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                    <textarea
+                      value={seg.text}
+                      onChange={e => updateSegment(idx, { text: e.target.value })}
+                      placeholder={
+                        idx === 0
+                          ? `Réplique ${idx + 1} — ex: « Je t'ai dit de revenir plus tôt, tu ne m'as pas écouté. »`
+                          : `Réplique ${idx + 1} — ex: « J'avais peur de ce que j'allais trouver. »`
+                      }
+                      rows={2}
+                      style={{ ...inputStyle, fontFamily: 'inherit' }}
+                      disabled={generatingTts}
+                    />
+                  </div>
+                )
+              })}
+
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => { void handleGenerateTts() }}
+                  disabled={generatingTts || ttsSegments.every(s => !s.text.trim())}
+                  style={fileBtnStyle(generatingTts || ttsSegments.every(s => !s.text.trim()))}
+                >
+                  {generatingTts ? 'Génération + concat…' : `🎤 Générer + concaténer (${ttsSegments.filter(s => s.text.trim()).length} segment${ttsSegments.filter(s => s.text.trim()).length > 1 ? 's' : ''})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={addSegment}
+                  disabled={generatingTts}
+                  style={fileBtnStyle(generatingTts)}
+                >
+                  + Ajouter un segment
+                </button>
+                <span style={{ fontSize: 11, color: COLORS.textFaint }}>
+                  L&apos;audio final sera placé automatiquement ci-dessous.
+                </span>
+              </div>
+            </>
+          )}
+        </Section>
+
+        {/* Custom audio (lipsync) — optionnel */}
+        <Section
+          title="Audio custom (lipsync) — optionnel"
+          hint="Importe un mp3/wav OU colle une URL. Si présent, active le workflow lipsync Vantage. Sinon mode foley généré."
+        >
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <label style={fileBtnStyle(uploadingAudio)}>
+              {uploadingAudio ? 'Upload…' : '🎵 Importer un audio'}
+              <input
+                type="file"
+                accept="audio/*"
+                style={{ display: 'none' }}
+                disabled={uploadingAudio}
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) void uploadFile(f, 'audio')
+                  e.target.value = ''
+                }}
+              />
+            </label>
+            <span style={{ fontSize: 11, color: COLORS.textFaint }}>ou</span>
+            <input
+              type="text"
+              value={audioUrl}
+              onChange={e => setAudioUrl(e.target.value)}
+              placeholder="https://...supabase.co/.../dialogue.mp3 (vide = mode foley)"
+              style={{ ...inputStyle, flex: 1 }}
+            />
+          </div>
+          {audioUrl && (
+            <div style={{ marginTop: 8, display: 'flex', gap: 12, alignItems: 'center' }}>
+              <audio controls src={audioUrl} style={{ height: 32 }} />
+              <span style={{ fontSize: 11, color: COLORS.warning }}>
+                ⚠ Mode lipsync activé
+              </span>
+            </div>
+          )}
         </Section>
 
         {/* Generate */}
@@ -266,4 +590,23 @@ const pageStyle: React.CSSProperties = {
   background: COLORS.bgPage,
   color: COLORS.textPrimary,
   fontFamily: 'Inter, -apple-system, sans-serif',
+}
+
+function fileBtnStyle(busy: boolean): React.CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '10px 14px',
+    background: busy ? COLORS.bgElevated : COLORS.bgSurface,
+    border: `1px solid ${COLORS.border}`,
+    borderRadius: 6,
+    color: busy ? COLORS.textFaint : COLORS.textPrimary,
+    fontFamily: 'inherit',
+    fontSize: 12,
+    fontWeight: 500,
+    cursor: busy ? 'not-allowed' : 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'all 120ms',
+  }
 }

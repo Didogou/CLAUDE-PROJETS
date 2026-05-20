@@ -24,15 +24,29 @@ import { Plus, Eye, EyeOff, X } from 'lucide-react'
 import type { EditorLayer } from './types'
 import { getWeatherLayerIcon } from './types'
 import { useEditorState } from './EditorStateContext'
+import LayerSourceModal from './designer/LayerSourceModal'
 
 const BASE_TRAIT_COLOR = 'var(--ie-accent)'
 const LAYER_TRAIT_COLOR = '#818CF8'
 const BASE_TINT_BG = 'rgba(236, 72, 153, 0.06)'
 
-export default function LayerTabs() {
-  const { layers, activeLayerIdx, addLayer, removeLayer, setActiveLayer, updateLayer, setLayers } = useEditorState()
+interface LayerTabsProps {
+  /** Book courant — alimente la source "Banque d'images" du LayerSourceModal.
+   *  Si non fourni, la source banque est désactivée (sources base + upload
+   *  restent dispo). */
+  bookId?: string | null
+  /** Section courante — utilisée pour ordonner la banque (plans de la section
+   *  courante en haut). Optionnel. */
+  sectionId?: string | null
+}
+
+export default function LayerTabs({ bookId = null, sectionId = null }: LayerTabsProps = {}) {
+  const { layers, activeLayerIdx, imageUrl, addLayer, removeLayer, setActiveLayer, updateLayer, setLayers } = useEditorState()
   const [editingUid, setEditingUid] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
+  /** Ouvre la modal "Choisir la source du calque" (refonte 2026-05-09).
+   *  Remplace l'appel direct à addLayer() qui créait un calque vide. */
+  const [layerSourceOpen, setLayerSourceOpen] = useState(false)
 
   function startRename(layer: EditorLayer) {
     setEditingUid(layer._uid)
@@ -136,7 +150,7 @@ export default function LayerTabs() {
       </Reorder.Group>
 
       <motion.button
-        onClick={() => addLayer()}
+        onClick={() => setLayerSourceOpen(true)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.94 }}
         title="Ajouter un calque"
@@ -156,6 +170,30 @@ export default function LayerTabs() {
       >
         <Plus size={14} />
       </motion.button>
+
+      <LayerSourceModal
+        open={layerSourceOpen}
+        onClose={() => setLayerSourceOpen(false)}
+        baseImageUrl={imageUrl ?? null}
+        bookId={bookId ?? null}
+        sectionId={sectionId ?? null}
+        onSourceSelected={({ url, label, source }) => {
+          // Mode du calque selon la source (refonte 2026-05-09) :
+          //   - source 'base' → 'compositing' (overlay sur la base, comportement
+          //     historique : sert à appliquer des effets sur l'image principale)
+          //   - source 'bank' / 'upload' → 'extraction' (workspace dédié, pas
+          //     overlay, image natural-size, outils limités à Ciseaux)
+          const mode = source === 'base' ? 'compositing' : 'extraction'
+          addLayer({
+            name: label,
+            type: 'image',
+            media_url: url,
+            visible: true,
+            opacity: 1,
+            mode,
+          })
+        }}
+      />
     </div>
   )
 }

@@ -2,28 +2,30 @@
 /**
  * AnimationEditor — éditeur inline sous la timeline pour la pellicule active.
  *
- * Phase E (2026-05-05) : rendu conditionnel selon `pell.type` :
- *   - 'animation'    : actions + dialogue par perso + bouton Générer (LTX)
- *   - 'image_static' : upload d'une image fixe + preview
- *   - 'conversation' : placeholder "à configurer dans Studio Creator"
+ * Refacto multi-shots β.1+ 2026-05-06 : la pellicule contient maintenant
+ * `shots: Shot[]` (1..N). Pour chaque shot, l'auteur définit cadrage / caméra
+ * (via AnimationOptionsModal) + perCharacter (action + dialogue inline ici).
+ * Les shots s'enchaînent dans 1 SEUL appel LTX qui produit 1 SEULE vidéo.
  *
- * Cadrage / Caméra / Durée sont dans le modal Options de la cellule timeline
- * (cf AnimationOptionsModal). L'éditeur en bas se concentre sur le contenu
- * spécifique au type.
+ * Cas usage :
+ *   - 1 shot   = pellicule simple (mono-perso ou cas 2 conversation interactive)
+ *   - N shots  = cas 1 conversation entre PNJ (alternance des plans)
+ *
+ * Description de la scène (visible/offscreen/characters_appearance) est en bas
+ * via SceneDescriptionAccordion (replié par défaut).
  */
 
 import React, { useMemo, useRef, useState } from 'react'
-import { Loader2, Upload, Image as ImageIcon, MessageSquare } from 'lucide-react'
+import { Loader2, Plus, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useCharacterStore, type Character } from '@/lib/character-store'
 import { useEditorState } from '@/components/image-editor/EditorStateContext'
-import { WEATHER_PRESETS } from '@/components/image-editor/types'
-
-/** V1 — sous-ensemble des presets WEATHER applicables comme effet ambiance
- *  sur une image_static (rain/snow/fog/cloud — pas lightning qui demande un
- *  composant à part). Ordre = ordre d'affichage dans la palette. */
-const IMAGE_EFFECT_PRESETS = WEATHER_PRESETS.filter(p =>
-  p.kind === 'rain' || p.kind === 'snow' || p.kind === 'fog' || p.kind === 'cloud'
-)
+import type { Shot } from '@/components/image-editor/EditorStateContext'
+import { SHOT_LABELS, CAMERA_LABELS } from './labels'
+import SceneDescriptionAccordion from './SceneDescriptionAccordion'
+import { resolveEffectiveScene, resolveSceneSourceImage, type SceneFields } from '@/lib/scene-description'
+import AudioTagPalette from '@/components/audio-tag-palette/AudioTagPalette'
+import '@/components/audio-tag-palette/audio-tag-palette.css'
 
 interface AnimationEditorProps {
   /** Callback de génération LTX — câblé dans le parent car nécessite l'image
@@ -33,24 +35,26 @@ interface AnimationEditorProps {
   generatingPelliculeId?: string | null
   /** Label de progression LTX courant (vide quand pas de gen). */
   generatingProgressLabel?: string
-  /** Préfixe Supabase pour les uploads image_static. */
-  storagePathPrefix: string
+  /** Préfixe Supabase pour les uploads (gardé pour back-compat — non utilisé
+   *  dans la version revert). */
+  storagePathPrefix?: string
 }
 
 export default function AnimationEditor({
   onGenerate,
   generatingPelliculeId = null,
   generatingProgressLabel = '',
-  storagePathPrefix,
 }: AnimationEditorProps) {
   const { characters } = useCharacterStore()
   const {
     animationPellicules,
     animationSelectedPelliculeId,
     animationSelectedCharIds,
-    updateAnimationPellicule,
     updateAnimationPelliculeCharData,
-    setBakeStatus,
+    updateAnimationPellicule,
+    addAnimationShot,
+    removeAnimationShot,
+    imageUrl: baseImageUrl,
   } = useEditorState()
 
   const pell = useMemo(
@@ -64,11 +68,6 @@ export default function AnimationEditor({
     [animationSelectedCharIds, characters],
   )
 
-  // Upload image_static — local state pour le file input + indicateur busy
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-
   // États guides : invitent l'auteur à compléter avant d'éditer
   if (!pell) {
     return (
@@ -81,210 +80,65 @@ export default function AnimationEditor({
   }
 
   const isGenerating = generatingPelliculeId === pell.id
-
-  // ────────────────────────────────────────────────────────────────────────
-  // Type 'image_static' — upload d'une image fixe
-  // ────────────────────────────────────────────────────────────────────────
-  async function handleImageUpload(file: File) {
-    if (!pell) return
-    if (!file.type.startsWith('image/')) {
-      setUploadError(`Format non supporté : ${file.type || 'inconnu'}`)
-      return
-    }
-    setUploading(true); setUploadError(null)
-    setBakeStatus({
-      startedAt: Date.now(),
-      phase: 'Upload image…',
-      kind: 'animation',
-      estimatedTotalSec: 10,
-    })
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result as string)
-        reader.onerror = () => reject(new Error('Lecture du fichier échouée'))
-        reader.readAsDataURL(file)
-      })
-      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
-      const path = `${storagePathPrefix}_pellicule_static_${pell.id}.${ext === 'jpeg' ? 'jpg' : ext}`
-      const res = await fetch('/api/storage/upload-image', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data_url: dataUrl, path }),
-      })
-      const data = await res.json() as { url?: string; error?: string }
-      if (!res.ok || !data.url) {
-        throw new Error(data.error ?? `HTTP ${res.status}`)
-      }
-      // Pour image_static : firstFrame == lastFrame (l'image est statique)
-      // → permet aussi la continuité visuelle avec la pellicule suivante.
-      updateAnimationPellicule(pell.id, {
-        firstFrameUrl: data.url,
-        lastFrameUrl: data.url,
-        // videoUrl reste null (pas de vidéo)
-      })
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err)
-      console.error('[AnimationEditor] image upload failed:', msg)
-      setUploadError(msg)
-    } finally {
-      setUploading(false)
-      setBakeStatus(null)
-    }
-  }
-
-  function pickImageFile() {
-    if (uploading) return
-    fileInputRef.current?.click()
-  }
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (file) void handleImageUpload(file)
-    e.target.value = ''
-  }
-
-  // ────────────────────────────────────────────────────────────────────────
-  // Render conditionnel par type
-  // ────────────────────────────────────────────────────────────────────────
-
-  if (pell.type === 'image_static') {
-    return (
-      <div className="dz-anim-editor">
-        <div className="dz-anim-editor-type-header">
-          <ImageIcon size={14} />
-          <span>Image fixe — {pell.duration}s d'affichage</span>
-        </div>
-
-        {pell.firstFrameUrl ? (
-          <div className="dz-anim-editor-image-preview">
-            <img src={pell.firstFrameUrl} alt="Image fixe" />
-          </div>
-        ) : (
-          <div className="dz-anim-editor-guide">
-            Aucune image — choisis-en une dans la banque (panneau de gauche)
-            ou importe-la depuis ton ordinateur (bouton ci-dessous).
-          </div>
-        )}
-
-        {/* Phase E — Section Effets : presets ambiance par-dessus l'image */}
-        {pell.firstFrameUrl && (
-          <div className="dz-anim-editor-effects">
-            <div className="dz-anim-editor-effects-label">Effet ambiance</div>
-            <div className="dz-anim-editor-effects-row">
-              <button
-                type="button"
-                className={`dz-anim-editor-effect-btn ${!pell.effectPreset ? 'active' : ''}`}
-                onClick={() => updateAnimationPellicule(pell.id, { effectPreset: null })}
-                title="Aucun effet"
-              >
-                <span style={{ fontSize: '0.75rem' }}>∅</span>
-                <span>Aucun</span>
-              </button>
-              {IMAGE_EFFECT_PRESETS.map(preset => (
-                <button
-                  key={preset.key}
-                  type="button"
-                  className={`dz-anim-editor-effect-btn ${pell.effectPreset === preset.key ? 'active' : ''}`}
-                  onClick={() => updateAnimationPellicule(pell.id, { effectPreset: preset.key })}
-                  title={preset.hint}
-                >
-                  <span style={{ fontSize: '0.85rem' }}>{preset.icon}</span>
-                  <span>{preset.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="dz-anim-editor-actions">
-          {uploadError && (
-            <div className="dza-upload-error" title={uploadError}>
-              ⚠ {uploadError.length > 90 ? uploadError.slice(0, 90) + '…' : uploadError}
-            </div>
-          )}
-          <button
-            type="button"
-            className="dz-anim-editor-gen-btn"
-            onClick={pickImageFile}
-            disabled={uploading}
-          >
-            {uploading ? (
-              <><Loader2 size={14} className="dza-spin" /><span>Upload…</span></>
-            ) : (
-              <><Upload size={14} /><span>{pell.firstFrameUrl ? 'Changer l\'image' : 'Importer depuis l\'ordi'}</span></>
-            )}
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={onFileChange}
-            style={{ display: 'none' }}
-          />
-        </div>
-      </div>
-    )
-  }
-
-  if (pell.type === 'conversation') {
-    return (
-      <div className="dz-anim-editor">
-        <div className="dz-anim-editor-type-header">
-          <MessageSquare size={14} />
-          <span>Conversation — branching dialogue</span>
-        </div>
-        <div className="dz-anim-editor-guide">
-          À venir : la pellicule conversation sera configurée depuis le Studio Creator
-          (arbre de dialogues avec choix joueur). Pour l'instant, change le type
-          dans Options pour Animation ou Image fixe.
-        </div>
-      </div>
-    )
-  }
-
-  // type === 'animation' — UI existante (chars + actions + generate)
   const noChars = selectedChars.length === 0
-  const promptOk = Object.values(pell.perCharacter).some(d => d.action.trim().length > 0)
+  // Génération possible si au moins un shot a au moins une action remplie
+  const promptOk = pell.shots.some(s =>
+    Object.values(s.perCharacter).some(d => d.action.trim().length > 0),
+  )
   const canGenerate = !noChars && promptOk && !isGenerating
 
   return (
     <div className="dz-anim-editor">
-      {/* Actions + dialogues par perso (1 ligne par perso sélectionné).
-       *  Cadrage / Caméra / Durée sont dans le modal Options de la cellule. */}
       {noChars ? (
         <div className="dz-anim-editor-guide">
           Sélectionne 1-2 personnages dans le panneau de gauche pour configurer leurs actions.
         </div>
       ) : (
-        <div className="dz-anim-editor-chars">
-          {selectedChars.map(c => {
-            const data = pell.perCharacter[c.id] ?? { action: '', dialogue: '' }
-            return (
-              <div key={c.id} className="dz-anim-editor-char">
-                <div className="dz-anim-editor-char-name">
-                  {c.gender === 'male' ? '♂' : '♀'} {c.name}
-                </div>
-                <input
-                  type="text"
-                  className="dz-anim-editor-input"
-                  placeholder="Action en anglais (ex: tilts his glass slightly toward the woman on the sofa, takes a slow sip)"
-                  value={data.action}
-                  onChange={e => updateAnimationPelliculeCharData(pell.id, c.id, 'action', e.target.value)}
-                  disabled={isGenerating}
-                />
-                <input
-                  type="text"
-                  className="dz-anim-editor-input"
-                  placeholder="Dialogue (optionnel — laisse vide pour V1, lipsync LTX faible)"
-                  value={data.dialogue}
-                  onChange={e => updateAnimationPelliculeCharData(pell.id, c.id, 'dialogue', e.target.value)}
-                  disabled={isGenerating}
-                />
-              </div>
-            )
-          })}
+        <div className="dz-anim-editor-shots">
+          {pell.shots.map((shot, idx) => (
+            <ShotBlock
+              key={shot.id}
+              shotIndex={idx}
+              shot={shot}
+              pelliculeId={pell.id}
+              selectedChars={selectedChars}
+              isGenerating={isGenerating}
+              canRemove={pell.shots.length > 1}
+              onUpdateCharData={(charId, field, value) =>
+                updateAnimationPelliculeCharData(pell.id, shot.id, charId, field, value)
+              }
+              onRemove={() => removeAnimationShot(pell.id, shot.id)}
+            />
+          ))}
+
+          {/* Bouton ajouter shot — pour le cas conversation à plusieurs plans */}
+          <button
+            type="button"
+            className="dz-anim-editor-add-shot"
+            onClick={() => addAnimationShot(pell.id)}
+            disabled={isGenerating}
+            title="Ajouter un shot (= un plan supplémentaire dans cette pellicule, pour faire alterner les angles entre persos)"
+          >
+            <Plus size={14} />
+            <span>Ajouter un shot</span>
+          </button>
         </div>
       )}
+
+      {/* Description de la scène — accordéon replié par défaut. Permet à
+       *  l'auteur de définir le décor, l'apparence des persos en scène, et
+       *  le décor hors caméra. Avec bouton 🪄 pour pré-remplir via Qwen VL. */}
+      <SceneDescriptionAccordion
+        ownFields={{
+          scene_visible: pell.scene_visible,
+          scene_offscreen: pell.scene_offscreen,
+          characters_appearance: pell.characters_appearance,
+        }}
+        effectiveFields={resolveEffectiveScene(pell, animationPellicules)}
+        isFirstPellicule={animationPellicules[0]?.id === pell.id}
+        imageSourceUrl={resolveSceneSourceImage(pell, animationPellicules, baseImageUrl)}
+        onChange={(patch: Partial<SceneFields>) => updateAnimationPellicule(pell.id, patch)}
+      />
 
       {/* Bouton Générer / Régénérer */}
       <div className="dz-anim-editor-actions">
@@ -295,7 +149,7 @@ export default function AnimationEditor({
           disabled={!canGenerate}
           title={
             noChars     ? 'Sélectionne 1-2 personnages d\'abord' :
-            !promptOk   ? 'Renseigne au moins une action' :
+            !promptOk   ? 'Renseigne au moins une action dans un shot' :
             isGenerating ? 'Génération en cours…' :
             pell.videoUrl ? 'Régénérer cette pellicule' : 'Générer cette pellicule'
           }
@@ -310,6 +164,160 @@ export default function AnimationEditor({
           )}
         </button>
       </div>
+    </div>
+  )
+}
+
+// ── Bloc shot individuel — extrait pour la lisibilité ─────────────────────
+
+interface ShotBlockProps {
+  shotIndex: number
+  shot: Shot
+  pelliculeId: string
+  selectedChars: Character[]
+  isGenerating: boolean
+  /** Affiche le bouton corbeille uniquement si la pellicule a > 1 shot
+   *  (refus de supprimer le dernier shot dans le reducer). */
+  canRemove: boolean
+  onUpdateCharData: (charId: string, field: 'action' | 'dialogue', value: string) => void
+  onRemove: () => void
+}
+
+function ShotBlock({
+  shotIndex, shot, selectedChars, isGenerating, canRemove,
+  onUpdateCharData, onRemove,
+}: ShotBlockProps) {
+  // Repliage : par défaut, le shot 1 est ouvert et les suivants fermés.
+  // Évite que la liste s'allonge à l'infini si la pellicule a 4-5 shots.
+  // L'auteur peut ouvrir n'importe quel shot pour l'éditer.
+  const [open, setOpen] = useState(shotIndex === 0)
+
+  // Aperçu du contenu : 1ère réplique non vide pour info dans le header replié
+  const preview = (() => {
+    for (const c of selectedChars) {
+      const d = shot.perCharacter[c.id]
+      if (d?.dialogue?.trim()) {
+        const txt = d.dialogue.trim()
+        return `${c.name}: « ${txt.length > 50 ? txt.slice(0, 50) + '…' : txt} »`
+      }
+      if (d?.action?.trim()) {
+        const txt = d.action.trim()
+        return `${c.name} · ${txt.length > 50 ? txt.slice(0, 50) + '…' : txt}`
+      }
+    }
+    return null
+  })()
+
+  return (
+    <div className="dz-anim-editor-shot">
+      <div className="dz-anim-editor-shot-header">
+        <button
+          type="button"
+          className="dz-anim-editor-shot-toggle"
+          onClick={() => setOpen(o => !o)}
+          aria-expanded={open}
+          aria-label={open ? 'Replier ce shot' : 'Déplier ce shot'}
+        >
+          {open ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+          <span className="dz-anim-editor-shot-label">Shot {shotIndex + 1}</span>
+        </button>
+        <span className="dz-anim-editor-shot-meta">
+          {SHOT_LABELS[shot.shot]} · {CAMERA_LABELS[shot.camera]} · {shot.duration}s
+          {!open && preview ? ` — ${preview}` : ''}
+        </span>
+        {canRemove && (
+          <button
+            type="button"
+            className="dz-anim-editor-shot-remove"
+            onClick={onRemove}
+            disabled={isGenerating}
+            title="Supprimer ce shot"
+            aria-label="Supprimer ce shot"
+          >
+            <Trash2 size={12} />
+          </button>
+        )}
+      </div>
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="shot-content"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 0.61, 0.36, 1] }}
+            style={{ overflow: 'hidden' }}
+          >
+            <div className="dz-anim-editor-chars">
+              {selectedChars.map(c => (
+                <CharRow
+                  key={c.id}
+                  char={c}
+                  data={shot.perCharacter[c.id] ?? { action: '', dialogue: '' }}
+                  isGenerating={isGenerating}
+                  onUpdateCharData={onUpdateCharData}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+// ── Bloc per-character (action + dialogue + palette intonations) ─────────
+// Refonte 2026-05-12 — extraction de la rangée perso pour permettre un ref
+// dédié à la textarea dialogue (cible de l'AudioTagPalette).
+
+interface CharRowProps {
+  char: Character
+  data: { action: string; dialogue: string }
+  isGenerating: boolean
+  onUpdateCharData: (charId: string, field: 'action' | 'dialogue', value: string) => void
+}
+
+function CharRow({ char, data, isGenerating, onUpdateCharData }: CharRowProps) {
+  const dialogueRef = useRef<HTMLInputElement | null>(null)
+  return (
+    <div className="dz-anim-editor-char">
+      <div className="dz-anim-editor-char-name">
+        {char.gender === 'male' ? '♂' : '♀'} {char.name}
+      </div>
+      <input
+        type="text"
+        className="dz-anim-editor-input"
+        placeholder="Action (FR ou EN — ex: « se tourne vers la femme sur le canapé, lève son verre »). Traduit auto en EN avant LTX."
+        value={data.action}
+        onChange={e => onUpdateCharData(char.id, 'action', e.target.value)}
+        disabled={isGenerating}
+      />
+      <input
+        ref={dialogueRef}
+        type="text"
+        className="dz-anim-editor-input"
+        placeholder="Dialogue (optionnel — si rempli, génère TTS via la voix du NPC + lipsync LTX. Le perso doit avoir une voix définie dans la banque)"
+        value={data.dialogue}
+        onChange={e => onUpdateCharData(char.id, 'dialogue', e.target.value)}
+        disabled={isGenerating}
+      />
+      {/* Palette d'intonations ElevenLabs v3 — insère [tag] à la position du
+       *  curseur dans le dialogue. Bascule auto sur le modèle eleven_v3 côté
+       *  serveur dès qu'un tag [...] est détecté dans le texte. */}
+      <AudioTagPalette
+        textareaRef={dialogueRef}
+        onInsert={() => {
+          // Le tag est déjà inséré dans la valeur du DOM via dispatch event
+          // (cf AudioTagPalette.handleInsert), mais on force aussi le state
+          // React pour rester synchro (l'event input du DOM est consommé par
+          // l'onChange standard, mais ici on doit aussi notifier le parent
+          // car l'input est controllé). On lit la nouvelle valeur du DOM.
+          if (dialogueRef.current) {
+            onUpdateCharData(char.id, 'dialogue', dialogueRef.current.value)
+          }
+        }}
+        disabled={isGenerating}
+      />
     </div>
   )
 }

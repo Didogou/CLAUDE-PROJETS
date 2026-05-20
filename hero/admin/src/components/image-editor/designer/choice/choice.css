@@ -1,0 +1,368 @@
+/* ────────────────────────────────────────────────────────────────────────
+ * Studio Designer — outil Choix (Plan choix)
+ * Imports : DesignerLeftRail icône Annotations + CatalogChoix + Markers overlay.
+ * ──────────────────────────────────────────────────────────────────────── */
+
+/* ── Toggle pin / preview dans le panneau gauche ───────────────────────── */
+.dz-choix-toggle {
+  padding: 0.625rem 0.75rem 0.875rem;
+  border-bottom: 1px solid var(--dz-border, rgba(255,255,255,0.08));
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.dz-choix-toggle-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--dz-muted, rgba(255,255,255,0.45));
+}
+.dz-choix-toggle-row {
+  display: flex;
+  gap: 0.375rem;
+  background: rgba(0,0,0,0.2);
+  padding: 0.1875rem;
+  border-radius: 0.5rem;
+}
+.dz-choix-toggle-btn {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.375rem 0.5rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: var(--dz-muted, rgba(255,255,255,0.6));
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.dz-choix-toggle-btn:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--dz-text, white);
+}
+.dz-choix-toggle-btn.active {
+  background: var(--ss-choice, #ec4899);
+  color: white;
+}
+
+/* ── Liste choix Section (drag source) ─────────────────────────────────── */
+.dz-choix-empty {
+  padding: 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--dz-muted, rgba(255,255,255,0.5));
+  font-style: italic;
+  background: rgba(255,255,255,0.02);
+  border-radius: 0.375rem;
+}
+.dz-choix-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.dz-choix-source-card {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  text-align: left;
+  color: var(--dz-text, white);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.dz-choix-source-card:hover:not(:disabled) {
+  background: rgba(236, 72, 153, 0.1);
+  border-color: rgba(236, 72, 153, 0.4);
+  transform: translateX(0.125rem);
+}
+.dz-choix-source-card:disabled,
+.dz-choix-source-card.placed {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.dz-choix-source-num {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ss-choice, #ec4899);
+  color: white;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 999px;
+}
+.dz-choix-source-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.dz-choix-source-label {
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dz-choix-source-target {
+  font-size: 0.6875rem;
+  color: var(--dz-muted, rgba(255,255,255,0.5));
+}
+.dz-choix-source-pill {
+  flex-shrink: 0;
+  padding: 0.125rem 0.375rem;
+  background: rgba(255,255,255,0.1);
+  color: var(--dz-muted, rgba(255,255,255,0.6));
+  font-size: 0.625rem;
+  border-radius: 999px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Bouton + form ajout choix Plan ────────────────────────────────────── */
+.dz-choix-add-plan-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  width: 100%;
+  padding: 0.5rem;
+  background: rgba(236, 72, 153, 0.08);
+  border: 1px dashed rgba(236, 72, 153, 0.4);
+  border-radius: 0.5rem;
+  color: var(--ss-choice, #ec4899);
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.dz-choix-add-plan-btn:hover {
+  background: rgba(236, 72, 153, 0.15);
+}
+.dz-choix-plan-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.625rem;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.5rem;
+}
+.dz-choix-plan-input {
+  width: 100%;
+  padding: 0.4375rem 0.5rem;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.375rem;
+  color: var(--dz-text, white);
+  font-size: 0.8125rem;
+  outline: none;
+  box-sizing: border-box;
+}
+.dz-choix-plan-input:focus {
+  border-color: var(--ss-choice, #ec4899);
+}
+.dz-choix-plan-form-actions {
+  display: flex;
+  gap: 0.375rem;
+  justify-content: flex-end;
+  margin-top: 0.125rem;
+}
+.dz-choix-plan-cancel,
+.dz-choix-plan-submit {
+  padding: 0.375rem 0.75rem;
+  border-radius: 0.375rem;
+  border: 0;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+.dz-choix-plan-cancel {
+  background: transparent;
+  color: var(--dz-muted, rgba(255,255,255,0.6));
+}
+.dz-choix-plan-cancel:hover {
+  color: var(--dz-text, white);
+}
+.dz-choix-plan-submit {
+  background: var(--ss-choice, #ec4899);
+  color: white;
+}
+.dz-choix-plan-submit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Liste markers déjà posés ──────────────────────────────────────────── */
+.dz-choix-placed-card {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.5625rem;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.dz-choix-placed-card:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(236, 72, 153, 0.4);
+}
+.dz-choix-placed-num {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ss-choice, #ec4899);
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 999px;
+}
+.dz-choix-placed-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.dz-choix-placed-label {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dz-choix-placed-target {
+  font-size: 0.625rem;
+  color: var(--dz-muted, rgba(255,255,255,0.5));
+}
+.dz-choix-placed-del {
+  flex-shrink: 0;
+  background: transparent;
+  border: 0;
+  color: var(--dz-muted, rgba(255,255,255,0.5));
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.dz-choix-placed-del:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ── Overlay markers sur canvas ────────────────────────────────────────── */
+/* L'overlay couvre le canvas mais reste TRANSPARENT aux clics par défaut
+ * (pointer-events: none) → le canvas en-dessous reste interactif (zoom,
+ * pan, banks/calques). Seuls les markers (boutons enfants) re-activent
+ * les events. Du coup pas de désélection au clic vide — l'utilisateur clique
+ * un autre marker pour switcher (acceptable V1). */
+.dz-choix-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Marker base : translate -50% pour centrer le pin sur la coordonnée x/y */
+.dz-choix-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 0;
+  cursor: grab;
+  user-select: none;
+  font-family: inherit;
+  padding: 0;
+  background: transparent;
+  z-index: 10;
+  /* Re-active les events (overlay parent est pointer-events: none) */
+  pointer-events: auto;
+}
+.dz-choix-marker.dragging {
+  cursor: grabbing;
+  z-index: 20;
+}
+
+/* ── Style 'pin' (pastille numérotée) ──────────────────────────────────── */
+.dz-choix-marker-pin {
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ss-choice, #ec4899);
+  color: white;
+  border-radius: 999px;
+  box-shadow: 0 0.125rem 0.375rem rgba(0,0,0,0.4),
+              0 0 0 0.1875rem rgba(255,255,255,0.85);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.dz-choix-marker-pin:hover {
+  transform: translate(-50%, -50%) scale(1.1);
+}
+.dz-choix-marker-pin.selected {
+  box-shadow: 0 0.125rem 0.5rem rgba(236, 72, 153, 0.6),
+              0 0 0 0.1875rem #fff,
+              0 0 0 0.375rem rgba(236, 72, 153, 0.5);
+}
+.dz-choix-marker-num {
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* ── Style 'preview' (bouton WYSIWYG) ──────────────────────────────────── */
+.dz-choix-marker-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  background: rgba(0, 0, 0, 0.78);
+  color: white;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.18);
+  box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.5);
+  max-width: 18rem;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.dz-choix-marker-preview:hover {
+  border-color: var(--ss-choice, #ec4899);
+}
+.dz-choix-marker-preview.selected {
+  border-color: var(--ss-choice, #ec4899);
+  box-shadow: 0 0.25rem 0.75rem rgba(236, 72, 153, 0.45),
+              0 0 0 0.125rem rgba(236, 72, 153, 0.4);
+}
+.dz-choix-marker-preview-num {
+  flex-shrink: 0;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ss-choice, #ec4899);
+  color: white;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  border-radius: 999px;
+}
+.dz-choix-marker-preview-label {
+  font-size: 0.875rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

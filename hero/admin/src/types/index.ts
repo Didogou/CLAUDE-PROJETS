@@ -159,7 +159,7 @@ export interface TextSequenceItem {
  *  V1 : `objects` peut être vide tant que Florence-2/Qwen VL n'a pas tourné. */
 export interface PlanTags {
   /** Type du plan, miroir de SectionImage.kind. Auto. */
-  kind?: 'image' | 'animation'
+  kind?: 'image' | 'animation' | 'choice'
   /** IDs des sections où ce plan apparaît (parent + transitions où réutilisé). Auto. */
   sections?: string[]
   /** ID Location de la section parente. Auto. */
@@ -199,6 +199,48 @@ export type PelliculeExitPersisted =
   | { kind: 'choices'; options: ChoiceOptionPersisted[] }
   | { kind: 'end_section' }
 
+/** Shot persisté (refacto multi-shots β.1+ 2026-05-06). 1 shot = 1 plan dans
+ *  une pellicule. Une pellicule peut contenir N shots (cas conversation entre
+ *  PNJ). Tous les shots d'une pellicule sont rendus dans 1 SEUL appel LTX. */
+export interface ShotPersisted {
+  id: string
+  shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
+  camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'
+       | 'pan_left' | 'pan_right' | 'dolly_in' | 'dolly_out' | 'handheld'
+  duration: number
+  /** Action + dialogue par perso pour ce shot. */
+  perCharacter: Record<string, { action: string; dialogue: string }>
+  /** IDs des persos featured dans CE shot (refonte 2026-05-07).
+   *  Optionnel pour back-compat saves d'avant la refonte (l'hydratation côté
+   *  caller fallback sur Object.keys(perCharacter)). */
+  characterIds?: string[]
+  /** Speaker du shot (refonte 2026-05-07). null = pas de speaker (= Action only).
+   *  Optionnel pour back-compat. */
+  speakerId?: string | null
+  /** Pan-and-scan keyframes par device (Palier D 2026-05-07).
+   *  La forme miroir de `Shot.cropKeyframes` (cf EditorStateContext) — gardée
+   *  inline ici pour ne pas créer un cycle d'imports types ↔ EditorStateContext. */
+  cropKeyframes?: Partial<Record<
+    'phone' | 'tabletPortrait' | 'tabletLandscape',
+    Array<{ time: number; x: number; y: number; scale: number }>
+  >>
+  /** Overlays texte rendus par-dessus la vidéo de ce shot (Phase 3 timeline
+   *  multi-pistes 2026-05-12). startSec/durationSec relatifs au shot. */
+  textOverlays?: Array<{
+    id: string
+    text: string
+    template: 'fade' | 'typewriter' | 'slide_up'
+    position: 'top' | 'center' | 'bottom'
+    startSec: number
+    durationSec: number
+    size: 'sm' | 'md' | 'lg' | 'xl'
+  }>
+  /** Action de scène — quand AUCUN perso n'est dans le shot. Décrit le
+   *  mouvement / l'animation de la scène (ex: plan aérien, travelling).
+   *  Refonte 2026-05-13. */
+  sceneAction?: string
+}
+
 export interface PelliculePersisted {
   id: string
   /** Type de pellicule (Phase E 2026-05-05). Optionnel pour back-compat —
@@ -206,20 +248,58 @@ export interface PelliculePersisted {
   type?: 'animation' | 'image_static' | 'conversation'
   /** Exit (Phase E3). Optionnel pour back-compat — default 'auto' à l'hydrate. */
   exit?: PelliculeExitPersisted
-  duration: number
-  shot: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
-  camera: 'static' | 'slow_zoom_in' | 'slow_zoom_out'
+  /** Refacto multi-shots β.1+ 2026-05-06 : nouveau champ source de vérité
+   *  pour cadrage/caméra/durée/perCharacter. Les saves antérieurs ont les
+   *  champs flat (duration/shot/camera/perCharacter) ci-dessous → hydratation
+   *  les wrap dans shots[0] (cf new-layout/page.tsx). */
+  shots?: ShotPersisted[]
+  /** @deprecated — utiliser shots[N] désormais. Gardé optionnel pour
+   *  back-compat des saves d'avant β.1+. */
+  duration?: number
+  /** @deprecated — utiliser shots[N].shot. */
+  shot?: 'wide' | 'medium' | 'close_up' | 'extreme_close_up'
+  /** @deprecated — utiliser shots[N].camera. */
+  camera?: 'static' | 'slow_zoom_in' | 'slow_zoom_out'
        | 'pan_left' | 'pan_right' | 'dolly_in' | 'dolly_out' | 'handheld'
   /** IDs des Characters featured dans cette pellicule (max 2 — IC LoRA Dual).
    *  Optionnel pour back-compat avec les saves Phase B initiale (sans ce champ). */
   characterIds?: string[]
-  /** Action + dialogue par perso (clé = character.id). Vide si perso pas utilisé. */
-  perCharacter: Record<string, { action: string; dialogue: string }>
+  /** @deprecated — utiliser shots[N].perCharacter désormais. */
+  perCharacter?: Record<string, { action: string; dialogue: string }>
   videoUrl: string | null
   firstFrameUrl: string | null
   lastFrameUrl: string | null
   /** Phase E (2026-05-05) — Preset effet ambiance pour image_static. Optional. */
   effectPreset?: string | null
+  /** Description scène (β.1+ 2026-05-06) — null = hérite pellicule 1. */
+  scene_visible?: string | null
+  /** Décor hors caméra (β.1+ 2026-05-06). */
+  scene_offscreen?: string | null
+  /** Apparence des persos dans la scène (≠ fiche NPC) — format Vantage. */
+  characters_appearance?: string | null
+  /** Pistes audio (SFX + musique) attachées à la pellicule (Phase 2 timeline
+   *  multi-pistes 2026-05-12). startMs/durationMs relatifs à la pellicule. */
+  audioTracks?: Array<{
+    id: string
+    kind: 'sfx' | 'music'
+    audioId: string
+    audioUrl: string
+    label: string
+    startMs: number
+    durationMs: number
+    volume: number
+    fadeInMs: number
+    fadeOutMs: number
+    loop?: boolean
+  }>
+  /** Nom personnalisable de la pellicule (refonte 2026-05-13). */
+  label?: string
+  /** Effets vidéo composites (LUT + modules + sliders + mouse track sniper).
+   *  Persisté en DB sous `assets_animation.effects_params` JSONB. Format =
+   *  ComposedEffectsState (cf. lib/video-effects/looks-catalog.ts) ou legacy
+   *  VideoEffectsParams. Le runtime applique via EffectsAwareVideo.
+   *  Refonte Phase C v2 2026-05-15cn. */
+  effects_params?: Record<string, unknown> | null
 }
 
 export interface SectionImage {
@@ -233,9 +313,66 @@ export interface SectionImage {
   bubble_positions?: Record<string, { x: number; y: number }> // speaker → position % sur l'image
 
   // ── Plan kind & animation (décision 2026-05-03, cf project_plan_kind_data_model.md) ──
-  /** Type du plan. `'image'` (défaut, rétro-compat : si absent → image) ou `'animation'` (vidéo LTX/Wan).
-   *  Drive l'UX (bouton "Animer la scène" masqué si 'animation') et le runtime (compositing video vs img). */
-  kind?: 'image' | 'animation'
+  /** Type du plan. `'image'` (défaut, rétro-compat : si absent → image), `'animation'`
+   *  (vidéo LTX/Wan) ou `'choice'` (Plan choix : moment narratif interactif où
+   *  l'auteur attend une décision — refonte 2026-05-11 Step 1).
+   *  Drive l'UX (bouton "Animer la scène" masqué si 'animation') et le runtime
+   *  (compositing video vs img vs overlay choix). */
+  kind?: 'image' | 'animation' | 'choice'
+  /** Données du Plan choix — UNIQUEMENT si kind='choice' (refonte 2026-05-11).
+   *  Variant 'image' = écran de choix avec image fixe + markers positionnés.
+   *  Variant 'conversation' = parqué V2+.
+   *  L'image est éditée via le Studio Designer (= même éditeur qu'un Plan static),
+   *  avec un nouvel outil "Choix" pour drag-drop des markers. */
+  choice_data?: {
+    /** Sous-type du Plan choix. */
+    variant: 'image' | 'conversation'
+    /** Pour variant='image' : URL Supabase de l'image affichée derrière les markers.
+     *  Pré-remplie auto à la création avec la last frame du Plan précédent (animation)
+     *  ou son image (static), modifiable ensuite via Studio Designer. */
+    image_url?: string
+    /** Pour variant='image' : effet visuel CSS appliqué à l'image. */
+    image_effect?: 'none' | 'blur' | 'vignette' | 'glow'
+    /** Liste des options proposées à l'auteur, positionnées sur l'image.
+     *  Chaque option = un marker drag-droppé sur l'image dans Studio Designer.
+     *  Au moins 1 option attendue. */
+    options: Array<{
+      id: string
+      /** Position normalisée du marker sur l'image (0-1). 0,0 = top-left, 1,1 = bottom-right.
+       *  Par défaut centré (0.5, 0.5) si l'auteur n'a pas drag-droppé. */
+      position: { x: number; y: number }
+      /** Source du choix :
+       *    - 'section' : référence à un Choice existant de la Section parente.
+       *      Le label est hérité du Choice (lecture seule) — modif depuis l'éditeur Section.
+       *    - 'plan' : choix interne au Plan, créé dans le Designer. Label custom +
+       *      cible vers un autre plan de la Section. */
+      source:
+        | { kind: 'section'; section_choice_id: string }
+        | { kind: 'plan'; label: string; target_plan_index: number }
+    }>
+  }
+  /** Objets positionnés sur cette image (refonte Objet 2026-05-12).
+   *  Chaque entry = 1 instance d'un item (de la table `items`) posée par
+   *  drag-drop. Multi-instance autorisée (même item_id peut apparaître
+   *  plusieurs fois avec des layer_id distincts). Le calque transparent
+   *  vit dans plan_layers[] avec le même item_id pour cohérence.
+   *  click_bounds = bbox auto du PNG transparent (alpha non-zéro), pour la
+   *  zone cliquable runtime. */
+  positioned_items?: Array<{
+    item_id: string
+    /** Position normalized 0..1 du centre de l'objet sur l'image. */
+    position: { x: number; y: number }
+    /** Échelle (1 = taille naturelle). */
+    scale: number
+    /** Référence vers le calque transparent (= plan_layers[].id). */
+    layer_id: string
+    /** Bbox cliquable, normalized 0..1. */
+    click_bounds: { x: number; y: number; w: number; h: number }
+    /** True si l'auteur a baked le calque dans la base (= flatten + sauve
+     *  PNG dans items.illustration_url). Le calque peut alors être supprimé
+     *  des plan_layers, mais positioned_items reste pour la zone cliquable. */
+    baked?: boolean
+  }>
   /** URL Supabase du MP4 — UNIQUEMENT si kind='animation'. La base joue 1× puis fige sur dernière frame. */
   base_video_url?: string
   /** URL Supabase de la 1ère frame du MP4 (capturée à la gen) — UNIQUEMENT si kind='animation'.
@@ -667,6 +804,23 @@ export interface Book {
 
 export type NpcType = 'ennemi' | 'boss' | 'allié' | 'neutre' | 'marchand'
 
+/** Item de la galerie images d'un NPC (refonte 2026-05-09).
+ *  Stocké dans npcs.images (jsonb[]). Tout sauf les 2 canoniques
+ *  (portrait_url, fullbody_gray_url) — vues alternatives, variantes
+ *  scéniques, uploads custom, extractions, etc. */
+export interface NpcImage {
+  /** UUID local généré côté client (= clé pour edit/delete). */
+  id: string
+  /** URL Supabase persistante (jamais blob URL). */
+  url: string
+  /** Nom affiché à l'auteur ("Vue de dos", "Cheveux rouges"…). Éditable. */
+  label: string
+  /** Origine de l'image (optionnel — info pour debug / re-génération). */
+  source?: 'qwen_multiangle' | 'upload' | 'extraction' | 'kontext_variant'
+  /** Tag sémantique (optionnel — utile pour filtrer la galerie plus tard). */
+  kind?: 'view_back' | 'view_profile_left' | 'view_profile_right' | 'variant' | 'custom'
+}
+
 export interface Npc {
   id: string
   book_id: string
@@ -696,6 +850,11 @@ export interface Npc {
   portrait_scenic_url?: string       // portrait avec décor (carte joueur immersive) — migration 071
   fullbody_gray_url?: string         // plein-pied fond gris (réf forte + fiche complète) — migration 071
   fullbody_scenic_url?: string       // plein-pied avec décor (image directe pour un plan) — migration 071
+  /** Galerie d'images additionnelles du perso (refonte 2026-05-09 — migration 079).
+   *  Vues alternatives, variantes scéniques, uploads, extractions. Tout sauf
+   *  les 2 canoniques (portrait_url, fullbody_gray_url) qui restent en colonnes
+   *  dédiées pour les pipelines downstream. */
+  images?: NpcImage[]
   character_illustrations?: string[] // 3 illustrations corps entier côte à côte
   name_image_url?: string            // image du nom stylisé (logo/graffiti)
   name_image_settings?: Record<string, unknown>

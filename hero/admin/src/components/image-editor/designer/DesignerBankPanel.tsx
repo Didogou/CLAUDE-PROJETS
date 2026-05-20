@@ -148,6 +148,10 @@ export default function DesignerBankPanel({
 function BankTile({
   image, isPicked, onPick,
 }: { image: BankImage; isPicked: boolean; onPick: () => void }) {
+  // Évite warning console "empty src" pour les assets V2 fraîchement créés
+  // (= url='' tant que pas généré). Affiche un placeholder à la place.
+  const src = image.thumbnailUrl ?? image.url
+  const hasValidSrc = !!src && src.trim().length > 0
   return (
     <button
       type="button"
@@ -155,11 +159,13 @@ function BankTile({
       onClick={onPick}
       title={image.label ?? 'Sélectionner cette image'}
     >
-      <img
-        src={image.thumbnailUrl ?? image.url}
-        alt={image.label ?? 'image banque'}
-        loading="lazy"
-      />
+      {hasValidSrc ? (
+        <img src={src} alt={image.label ?? 'image banque'} loading="lazy" />
+      ) : (
+        <div className="dz-bank-tile-placeholder">
+          <span>{image.label ?? 'Vide'}</span>
+        </div>
+      )}
       {image.tags && image.tags.length > 0 && (
         <span className="dz-bank-tile-tag">{image.tags[0]}</span>
       )}

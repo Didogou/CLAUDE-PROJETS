@@ -1,0 +1,321 @@
+/* VideoCutModal — modal frame-by-frame cut/split d'une pellicule vidéo.
+ * Refonte 2026-05-19. Toutes les tailles en rem/% pour respecter le DPI scaling.
+ * Pattern visuel aligné sur les autres modaux Hero (ccm, sfxg). */
+
+.vcm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(0.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5vh 1.5vw;
+}
+
+.vcm-modal {
+  width: min(48rem, 94vw);
+  height: min(42rem, 92vh);
+  background: var(--ie-bg, #0e0e12);
+  border: 1px solid var(--ie-border, #2a2a35);
+  border-radius: 0.6rem;
+  box-shadow:
+    0 1.5rem 3rem rgba(0, 0, 0, 0.55),
+    0 0.4rem 1rem rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--ie-text, #e4e4e7);
+  font-family: inherit;
+}
+
+.vcm-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--ie-border);
+}
+.vcm-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.vcm-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  color: var(--ie-text-muted, #a1a1aa);
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+.vcm-close:hover:not(:disabled) {
+  background: var(--ie-surface, #1a1a1f);
+  color: var(--ie-text);
+}
+
+.vcm-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  overflow-y: auto;
+}
+
+/* ── Lecteur vidéo ─────────────────────────────────────────────────────── */
+.vcm-player {
+  position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  background: #000;
+  border-radius: 0.45rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Hauteur cappée pour pas exploser : 22rem ou 50% modale. */
+  max-height: 22rem;
+}
+.vcm-video {
+  display: block;
+  max-width: 100%;
+  max-height: 22rem;
+  cursor: pointer;
+}
+.vcm-time-overlay {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  padding: 0.15rem 0.4rem;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  border-radius: 0.25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.65rem;
+  pointer-events: none;
+}
+
+/* ── Controls (play/pause/step) + scrubber ─────────────────────────────── */
+.vcm-controls {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+.vcm-ctrl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  background: var(--ie-surface, #1a1a1f);
+  border: 1px solid var(--ie-border, #2a2a35);
+  border-radius: 0.35rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+.vcm-ctrl-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent, #ec4899) 12%, var(--ie-surface));
+  border-color: var(--ie-accent);
+}
+.vcm-ctrl-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.vcm-ctrl-play {
+  background: var(--ie-accent, #ec4899);
+  color: #fff;
+  border-color: var(--ie-accent);
+}
+.vcm-ctrl-play:hover:not(:disabled) {
+  background: color-mix(in srgb, #000 10%, var(--ie-accent));
+}
+
+.vcm-scrubber {
+  flex: 1 1 auto;
+  height: 0.4rem;
+  accent-color: var(--ie-accent, #ec4899);
+  cursor: pointer;
+}
+.vcm-scrubber:disabled { opacity: 0.5; }
+
+/* ── Mode tabs (Cut / Split) ───────────────────────────────────────────── */
+.vcm-mode-row {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.2rem 0;
+}
+.vcm-mode-btn {
+  flex: 1 1 0;
+  padding: 0.4rem 0.6rem;
+  background: var(--ie-surface, #1a1a1f);
+  border: 1px solid var(--ie-border, #2a2a35);
+  border-radius: 0.35rem;
+  color: var(--ie-text-muted, #a1a1aa);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.vcm-mode-btn:hover:not(:disabled) {
+  color: var(--ie-text);
+  border-color: var(--ie-accent);
+}
+.vcm-mode-btn.is-active {
+  background: color-mix(in srgb, var(--ie-accent, #ec4899) 14%, var(--ie-surface));
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+.vcm-mode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Markers (start/end pour cut, split pour split) ────────────────────── */
+.vcm-markers {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  background: color-mix(in srgb, var(--ie-text, #fff) 4%, transparent);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+}
+.vcm-marker-block {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.vcm-marker-label {
+  flex: 0 0 8rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ie-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.vcm-marker-value {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  color: var(--ie-accent, #ec4899);
+  font-weight: 600;
+  min-width: 4rem;
+}
+.vcm-marker-btn {
+  padding: 0.3rem 0.55rem;
+  background: var(--ie-accent, #ec4899);
+  border: 1px solid var(--ie-accent);
+  border-radius: 0.3rem;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.vcm-marker-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, #000 10%, var(--ie-accent));
+}
+.vcm-marker-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.vcm-marker-btn-ghost {
+  background: transparent;
+  color: var(--ie-text-muted);
+  border-color: var(--ie-border);
+  font-size: 0.85rem;
+  padding: 0.2rem 0.45rem;
+}
+.vcm-marker-btn-ghost:hover:not(:disabled) {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border-color: var(--ie-accent);
+}
+.vcm-marker-summary {
+  font-size: 0.7rem;
+  color: var(--ie-text-muted);
+  font-style: italic;
+  padding: 0.25rem 0;
+  border-top: 1px dashed var(--ie-border);
+}
+.vcm-marker-summary strong {
+  color: var(--ie-text);
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* ── Progression + erreur ─────────────────────────────────────────────── */
+.vcm-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: color-mix(in srgb, var(--ie-accent, #ec4899) 12%, transparent);
+  border-radius: 0.3rem;
+  font-size: 0.72rem;
+  color: var(--ie-accent);
+}
+.vcm-error {
+  padding: 0.4rem 0.6rem;
+  background: color-mix(in srgb, #f87171 14%, transparent);
+  border-radius: 0.3rem;
+  color: #fca5a5;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+.vcm-spin {
+  animation: vcm-spin-anim 1s linear infinite;
+}
+@keyframes vcm-spin-anim {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Footer (Annuler / Appliquer) ─────────────────────────────────────── */
+.vcm-footer {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem;
+  border-top: 1px solid var(--ie-border);
+  background: color-mix(in srgb, var(--ie-surface, #1a1a1f) 25%, var(--ie-bg, #0e0e12));
+}
+.vcm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 0.3rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms, color 120ms;
+}
+.vcm-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--ie-border, #2a2a35);
+  color: var(--ie-text-muted, #a1a1aa);
+}
+.vcm-btn-ghost:hover:not(:disabled) {
+  background: var(--ie-surface, #1a1a1f);
+  color: var(--ie-text);
+}
+.vcm-btn-primary {
+  background: var(--ie-accent, #ec4899);
+  border: 1px solid var(--ie-accent);
+  color: #fff;
+}
+.vcm-btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, #000 10%, var(--ie-accent));
+}
+.vcm-btn:disabled { opacity: 0.5; cursor: not-allowed; }

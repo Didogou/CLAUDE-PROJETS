@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import './globals.css'
 import SystemServicesWidget from '@/components/SystemServicesWidget'
+import PromptInspector from '@/components/PromptInspector'
+import '@/components/prompt-inspector.css'
 
 export const metadata: Metadata = {
   title: 'HERO — Admin',
@@ -33,6 +35,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </div>
         {/* Widget flottant pour démarrer/arrêter ComfyUI, rembg, Kohya */}
         <SystemServicesWidget />
+        {/* Inspecteur de prompts/payloads — capte tous les fetch vers les
+         *  APIs AI/vidéo/audio pour debug. Bouton flottant bottom-right.
+         *  Mounté ici (root layout) pour être dispo sur TOUTES les pages. */}
+        <PromptInspector />
       </body>
     </html>
   )

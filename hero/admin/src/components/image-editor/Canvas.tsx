@@ -23,6 +23,9 @@ import RainyDayGlassLayer from './RainyDayGlassLayer'
 import { useEditorState } from './EditorStateContext'
 import { formatToAspectRatio } from './GenerationPanel'
 import { WEATHER_PRESETS } from './types'
+import { chromaKeyGrayToTransparent } from '@/lib/image-extraction-analysis'
+import { flattenLayersToImage } from '@/lib/flatten-layers'
+import { runFluxKontext } from '@/lib/comfyui-flux-kontext'
 
 /**
  * Sous-composant pour les calques vidéo — gère le playbackRate en fonction
@@ -40,11 +43,11 @@ function LayerVideo({ src, speed, style }: { src: string; speed: number; style: 
       src={src}
       autoPlay
       loop
-      muted
+      // muted retiré 2026-05-06 — les vidéos LTX 2.3 contiennent maintenant
+      // le lipsync TTS, l'auteur veut entendre. Si le browser bloque
+      // l'autoplay (politique anti-son), il faut un clic utilisateur préalable
+      // (ce qui est généralement le cas car l'auteur a cliqué pour générer).
       playsInline
-      // Pas de crossOrigin pour la vidéo : pas besoin de canvas readback
-      // et ça évite les échecs CORS si le serveur ne renvoie pas les
-      // headers exigés par l'anonymous mode.
       onLoadedMetadata={(e) => { e.currentTarget.playbackRate = speed }}
       onError={(e) => { console.error('[Canvas] Layer video failed to load:', src, e) }}
       style={style}
@@ -65,22 +68,14 @@ interface CanvasProps {
 export default function Canvas({ imageUrl, npcs, items, choices, format }: CanvasProps) {
   const {
     signalBackgroundClick, cutMode, layers, activeLayerIdx,
-    currentVideoUrl, currentVideoFirstFrameUrl, currentVideoPlayId,
+    currentVideoUrl, currentVideoFirstFrameUrl, currentVideoPlayId, currentVideoAutoplay,
     animationPellicules, animationSelectedPelliculeId,
     setAnimationPlaying,
     sequencePlayheadIdx, advanceSequencePlayhead,
-    sequenceWaitingForChoice, pickSequenceChoice,
+    addLayer, setBakeStatus,
+    updateLayer, setActiveLayer,
+    replaceBase,
   } = useEditorState()
-
-  // Phase E3.5 — Pellicule en attente de choix joueur (overlay sur canvas).
-  // Si la séquence est en pause sur une pellicule avec exit='choices',
-  // on affiche les boutons des choix par-dessus le canvas.
-  const choicesOverlay = useMemo(() => {
-    if (!sequenceWaitingForChoice || sequencePlayheadIdx === null) return null
-    const pell = animationPellicules[sequencePlayheadIdx]
-    if (!pell || !pell.exit || pell.exit.kind !== 'choices') return null
-    return pell.exit.options
-  }, [sequenceWaitingForChoice, sequencePlayheadIdx, animationPellicules])
 
   // Animation Phase A : si une pellicule est sélectionnée et qu'aucune vidéo
   // ne joue, le Canvas affiche l'"état initial" de la pellicule selon la table :
@@ -98,45 +93,12 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
     return null  // tombe sur l'imageUrl base via le rendu standard
   }, [animationSelectedPelliculeId, animationPellicules])
 
-  // E2.5 — Timer pour image_static en lecture séquence.
-  // Quand sequencePlayheadIdx pointe sur une pellicule de type image_static,
-  // le Canvas affiche déjà l'image (via displayedImageUrl + setCurrentVideo
-  // null dans le reducer). Reste à programmer l'avance auto après duration.
-  // Cleanup obligatoire si le playhead change ou le composant unmount → évite
-  // les advance fantômes d'anciennes timers.
-  useEffect(() => {
-    if (sequencePlayheadIdx === null) return
-    const currentPell = animationPellicules[sequencePlayheadIdx]
-    if (!currentPell || currentPell.type !== 'image_static') return
-    // image_static dans séquence → timer pour avancer après duration secondes
-    const ms = currentPell.duration * 1000
-    const timer = setTimeout(() => {
-      advanceSequencePlayhead()
-    }, ms)
-    return () => clearTimeout(timer)
-  }, [sequencePlayheadIdx, animationPellicules, advanceSequencePlayhead])
-
   // L'image affichée dans Canvas. Priorité :
   //   1. animationStaticImageUrl si pellicule sélectionnée (et pas de vidéo qui joue)
   //   2. imageUrl base sinon
   // Le rendu <video> (si currentVideoUrl) reste au-dessus de l'<img>.
   const displayedImageUrl = (!currentVideoUrl && animationStaticImageUrl) || imageUrl
 
-  // Phase E — Effet ambiance image_static : si la pellicule sélectionnée
-  // (ou en cours de lecture séquence) est de type image_static avec un preset
-  // effet, on render la couche particules par-dessus l'image. Pas de vidéo
-  // qui joue en parallèle (image_static n'a pas de videoUrl).
-  const activeImageEffectParams = useMemo(() => {
-    if (currentVideoUrl) return null  // priorité vidéo, pas d'effet
-    const activeIdx = sequencePlayheadIdx ?? animationPellicules.findIndex(p => p.id === animationSelectedPelliculeId)
-    if (activeIdx < 0) return null
-    const pell = animationPellicules[activeIdx]
-    if (!pell || pell.type !== 'image_static' || !pell.effectPreset) return null
-    const preset = WEATHER_PRESETS.find(p => p.key === pell.effectPreset)
-    return preset
-      ? { params: preset.defaults, opacity: preset.defaultOpacity }
-      : null
-  }, [currentVideoUrl, sequencePlayheadIdx, animationPellicules, animationSelectedPelliculeId])
   const imgRef = useRef<HTMLImageElement | null>(null)
   const wrapperRef = useRef<HTMLDivElement | null>(null)
   // Taille rendue du wrapper en CSS px (pas DPR-multiplied). Utilisée par
@@ -155,6 +117,258 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
   }, [])
   const baseVisible = layers[0]?.visible !== false
 
+  // ── Drag & drop perso depuis CatalogCharacters (refonte 2026-05-09) ──
+  // Pattern : l'auteur drag une card perso → drop sur le canvas → on crée
+  // un calque image avec un `placement` (x, y, scale) normalisé. Pas de
+  // Flux Kontext ici : compositing CSS instantané. Le perso peut être
+  // repositionné/régénéré ensuite.
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    // En mode découpe, le canvas capte les clics → on n'autorise pas le drop
+    // pour ne pas créer de conflit avec les outils SAM/lasso/brush.
+    if (cutMode) return
+    if (!e.dataTransfer.types.includes('application/json')) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }
+  async function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    if (cutMode) return
+    e.preventDefault()
+    const raw = e.dataTransfer.getData('application/json')
+    if (!raw) return
+    let parsed: { kind?: string; characterId?: string; characterName?: string; mediaUrl?: string }
+    try { parsed = JSON.parse(raw) } catch { return }
+    if (parsed.kind !== 'character-placement' || !parsed.mediaUrl) return
+
+    // Coordonnées relatives au wrapper de l'image (pas du canvas global)
+    const rect = e.currentTarget.getBoundingClientRect()
+    const dropX = (e.clientX - rect.left) / rect.width
+    const dropY = (e.clientY - rect.top) / rect.height
+    // Scale par défaut : 35% de la hauteur du canvas. Ajustable ensuite par
+    // l'auteur (V1 = pas de handles, V1.1 ajoutera resize).
+    const scale = 0.35
+    const halfW = scale * 0.5
+    const halfH = scale * 0.5
+
+    // Chroma-key client-side : la banque stocke les persos sur fond gris
+    // #808080 (convention IPAdapter). Pour overlay CSS direct il faut du
+    // transparent → on convertit avant d'addLayer. Upload Supabase pour
+    // persistence (cf feedback_always_persist_to_supabase). ~1-2s.
+    setBakeStatus({
+      startedAt: Date.now(),
+      kind: 'sam_cut',
+      phase: 'Préparation du calque…',
+      estimatedTotalSec: 2,
+    })
+    let mediaUrl = parsed.mediaUrl
+    let aspect = 1  // fallback carré si load échoue
+    try {
+      const transparentUrl = await chromaKeyGrayToTransparent(
+        parsed.mediaUrl,
+        `studio/dropped_chars/${parsed.characterId ?? 'char'}_${Date.now()}.png`,
+      )
+      if (transparentUrl) mediaUrl = transparentUrl
+      // Calcule l'aspect natural pour le wrapper CSS (V1.1) — permet de
+      // positionner les handles de resize sans attendre le load de l'img.
+      try {
+        const probe = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => resolve(img)
+          img.onerror = () => reject(new Error('aspect probe failed'))
+          img.src = mediaUrl
+        })
+        if (probe.naturalWidth > 0 && probe.naturalHeight > 0) {
+          aspect = probe.naturalWidth / probe.naturalHeight
+        }
+      } catch { /* fallback aspect=1 */ }
+    } finally {
+      setBakeStatus(null)
+    }
+
+    addLayer({
+      type: 'image',
+      media_url: mediaUrl,
+      name: parsed.characterName ?? 'Calque',
+      visible: true,
+      opacity: 1,
+      character_id: parsed.characterId ?? null,
+      placement: {
+        x: Math.max(0, Math.min(1 - halfW * 2, dropX - halfW)),
+        y: Math.max(0, Math.min(1 - halfH * 2, dropY - halfH)),
+        scale,
+        aspect,
+      },
+    })
+  }
+
+  // ── V1.1 : Drag-to-move + resize handle (refonte 2026-05-09) ──────
+  // Pattern : pointer down sur le calque actif → suit la souris (move) ou
+  // le handle bottom-right → resize uniforme. Bloqué en mode découpe.
+  const dragRef = useRef<{
+    type: 'move' | 'resize'
+    layerIdx: number
+    startMouseX: number  // normalisé 0-1 dans le wrapper
+    startMouseY: number
+    initialPlacement: { x: number; y: number; scale: number; aspect: number }
+  } | null>(null)
+
+  function handleStartMove(layerIdx: number) {
+    return (e: React.PointerEvent<HTMLDivElement>) => {
+      if (cutMode) return
+      const layer = layers[layerIdx]
+      if (!layer?.placement || !wrapperRef.current) return
+      e.stopPropagation()
+      e.preventDefault()
+      setActiveLayer(layerIdx)
+      const r = wrapperRef.current.getBoundingClientRect()
+      dragRef.current = {
+        type: 'move',
+        layerIdx,
+        startMouseX: (e.clientX - r.left) / r.width,
+        startMouseY: (e.clientY - r.top) / r.height,
+        initialPlacement: { ...layer.placement },
+      }
+      window.addEventListener('pointermove', handleDragMove)
+      window.addEventListener('pointerup', handleDragEnd)
+    }
+  }
+
+  function handleStartResize(layerIdx: number) {
+    return (e: React.PointerEvent<HTMLDivElement>) => {
+      if (cutMode) return
+      const layer = layers[layerIdx]
+      if (!layer?.placement || !wrapperRef.current) return
+      e.stopPropagation()
+      e.preventDefault()
+      setActiveLayer(layerIdx)
+      const r = wrapperRef.current.getBoundingClientRect()
+      dragRef.current = {
+        type: 'resize',
+        layerIdx,
+        startMouseX: (e.clientX - r.left) / r.width,
+        startMouseY: (e.clientY - r.top) / r.height,
+        initialPlacement: { ...layer.placement },
+      }
+      window.addEventListener('pointermove', handleDragMove)
+      window.addEventListener('pointerup', handleDragEnd)
+    }
+  }
+
+  function handleDragMove(ev: PointerEvent) {
+    const drag = dragRef.current
+    if (!drag || !wrapperRef.current) return
+    const r = wrapperRef.current.getBoundingClientRect()
+    const curX = (ev.clientX - r.left) / r.width
+    const curY = (ev.clientY - r.top) / r.height
+    const init = drag.initialPlacement
+
+    if (drag.type === 'move') {
+      const dx = curX - drag.startMouseX
+      const dy = curY - drag.startMouseY
+      // Pattern Figma/Photoshop : permet au calque de déborder du canvas
+      // (négativement à gauche/haut, ou au-delà à droite/bas) pour pouvoir
+      // exposer la poignée resize quand le calque est plus large que le canvas.
+      // Garde-fou : au moins 20% du calque doit toujours intersecter le canvas
+      // pour que l'auteur puisse le re-grabber. Refonte 2026-05-10 — fix
+      // bug "impossible d'atteindre le resize handle quand le calque touche
+      // le bord droit du canvas".
+      const layerW = init.scale * init.aspect  // largeur normalisée canvas
+      const layerH = init.scale                  // hauteur normalisée canvas
+      const minVisibleX = Math.min(0.2, layerW * 0.5)
+      const minVisibleY = Math.min(0.2, layerH * 0.5)
+      const newX = Math.max(minVisibleX - layerW, Math.min(1 - minVisibleX, init.x + dx))
+      const newY = Math.max(minVisibleY - layerH, Math.min(1 - minVisibleY, init.y + dy))
+      updateLayer(drag.layerIdx, {
+        placement: { ...init, x: newX, y: newY },
+      })
+    } else {
+      // Resize : nouveau scale = distance verticale du top du calque à la souris
+      // Min 5% pour éviter de réduire à zéro, max 100% du canvas.
+      const newScale = Math.max(0.05, Math.min(1, curY - init.y))
+      updateLayer(drag.layerIdx, {
+        placement: { ...init, scale: newScale },
+      })
+    }
+  }
+
+  function handleDragEnd() {
+    dragRef.current = null
+    window.removeEventListener('pointermove', handleDragMove)
+    window.removeEventListener('pointerup', handleDragEnd)
+  }
+
+  // Cleanup global : si le component unmount pendant un drag, retirer listeners
+  useEffect(() => () => {
+    window.removeEventListener('pointermove', handleDragMove)
+    window.removeEventListener('pointerup', handleDragEnd)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ── V1.2 : "Intégrer avec IA" — refine un calque placé via Kontext ──
+  // Pattern hybride : drag-and-drop CSS pour placement rapide, puis Kontext
+  // pour intégration finale (shadows + lighting + edge blending). L'auteur
+  // garde le contrôle exact sur position/scale, Kontext s'occupe juste du
+  // raccord visuel. ~1-2 min Kontext.
+  const refiningRef = useRef(false)
+  async function handleRefinePlacedLayer(layerIdx: number) {
+    if (refiningRef.current) return  // anti-double-click
+    if (!imageUrl) return
+    const layer = layers[layerIdx]
+    if (!layer?.placement) return
+    refiningRef.current = true
+    setBakeStatus({
+      startedAt: Date.now(),
+      kind: 'insert_character',
+      phase: 'Aplatissement de la scène…',
+      estimatedTotalSec: 90,
+    })
+    try {
+      // 1. Flatten = base + ce calque seul (= la scène que voit l'auteur)
+      const flatUrl = await flattenLayersToImage({
+        baseImageUrl: imageUrl,
+        layers: [layers[0], layer],  // base + le calque à refine uniquement
+        storagePathPrefix: `studio/refine_placed/${Date.now()}`,
+        skipFirstLayerAsBase: true,  // layers[0] = base, dessinée séparément
+      })
+      setBakeStatus({
+        startedAt: Date.now(),
+        kind: 'insert_character',
+        phase: 'Intégration IA (shadows + lighting)…',
+        estimatedTotalSec: 80,
+      })
+      // 2. Kontext refine — instruction d'intégration (pas d'insertion, le
+      //    perso est déjà là dans flatUrl).
+      const integrationPrompt = `Naturally integrate the existing character into the scene. Add a soft realistic shadow at the character's feet on the floor matching the scene's lighting direction. Match the character's lighting tone to the surrounding ambient lighting (warm or cool). Soften the character's edges to blend smoothly with the environment. Do NOT change the character's appearance, pose, clothing, identity, position, or scale.`
+      const integratedUrl = await runFluxKontext({
+        sourceUrl: flatUrl,
+        prompt: integrationPrompt,
+        guidance: 2.5,
+        storagePathPrefix: `studio/refine_placed/${Date.now()}_integrated`,
+      })
+      // 3. Replace base — cascade delete tous les calques (= le calque placé
+      //    est auto-retiré, le perso est maintenant baked dans la nouvelle base).
+      replaceBase(integratedUrl)
+    } catch (err) {
+      console.error('[refine-placed-layer]', err)
+      const msg = err instanceof Error ? err.message : String(err)
+      alert(`Intégration IA échouée : ${msg}`)
+    } finally {
+      refiningRef.current = false
+      setBakeStatus(null)
+    }
+  }
+
+  // ── Mode extraction (refonte 2026-05-09) ──────────────────────────
+  // Si le calque actif a mode='extraction' (= image chargée pour bosser sur
+  // détourage/extraction de personnages), on bypass complètement le rendu
+  // base + overlay : on affiche l'image SEULE à sa taille naturelle (contain),
+  // sans contrainte d'aspect-ratio du Format. Pas d'overlays NPC/items, pas
+  // de calques additionnels, pas de vidéo animation. Outils = Ciseaux only.
+  const activeLayerForExtraction = layers[activeLayerIdx]
+  const isExtractionMode =
+    activeLayerForExtraction?.mode === 'extraction'
+    && !!activeLayerForExtraction?.media_url
+
   return (
     <motion.div
       className="ie-canvas"
@@ -169,15 +383,68 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
         if (e.target === e.currentTarget) signalBackgroundClick()
       }}
     >
-      {displayedImageUrl ? (
+      {isExtractionMode ? (
+        /* Mode extraction : image natural-size, pas de crop, pas d'overlay
+         *  base/calques. Le wrapper laisse l'image décider de son ratio
+         *  (max-width/max-height: 100%). object-fit: contain garantit qu'on
+         *  voit l'image entière. CanvasOverlay est conservé pour permettre
+         *  les outils Découpe (lasso/brush/SAM point/magic wand) de capter
+         *  les clics sur l'image. NPCs/items/choices passés vides — pas de
+         *  sens en extraction. */
+        <div
+          ref={wrapperRef}
+          style={{
+            position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            maxWidth: '100%',
+            maxHeight: '100%',
+            width: 'auto',
+            height: '100%',
+            borderRadius: 'var(--ie-radius-md)',
+            overflow: 'hidden',
+            boxShadow: 'var(--ie-shadow-lg)',
+            background: 'var(--ie-surface-3)',
+          }}
+        >
+          <img
+            ref={imgRef}
+            src={activeLayerForExtraction!.media_url!}
+            alt={activeLayerForExtraction!.name}
+            crossOrigin="anonymous"
+            draggable={false}
+            style={{
+              display: 'block',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              width: 'auto',
+              height: 'auto',
+              objectFit: 'contain',
+              userSelect: 'none',
+            }}
+          />
+          <CanvasOverlay
+            imgRef={imgRef}
+            npcs={[]}
+            items={[]}
+            choices={[]}
+            onClickEmpty={() => signalBackgroundClick()}
+          />
+        </div>
+      ) : displayedImageUrl ? (
         <>
           {/* Wrapper qui impose le ratio du Format choisi.
               L'image dedans est en object-fit: cover → croppée pour remplir
               entièrement le ratio cible. Quand l'utilisateur change de
               format, l'image se recrope visuellement (preview du prochain
-              rendu) sans toucher à l'image source. */}
+              rendu) sans toucher à l'image source.
+              Drag & drop activé : drop d'une card perso depuis CatalogCharacters
+              → addLayer avec placement (refonte 2026-05-09). */}
           <div
             ref={wrapperRef}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
             style={{
               position: 'relative',
               aspectRatio: formatToAspectRatio(format),
@@ -223,23 +490,6 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
              *  Rendue par-dessus l'image (z-index 1) mais sous la vidéo si une
              *  vidéo joue (currentVideoUrl prioritaire). pointerEvents: none
              *  pour laisser passer les clics aux overlays NPC/items. */}
-            {activeImageEffectParams && (
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  zIndex: 1,
-                  pointerEvents: 'none',
-                  opacity: activeImageEffectParams.opacity,
-                }}
-              >
-                <ParticleLayer
-                  weather={activeImageEffectParams.params}
-                  style={{ width: '100%', height: '100%' }}
-                />
-              </div>
-            )}
-
             {currentVideoUrl && (
               <video
                 /* key sur playId → re-mount du <video> à CHAQUE setCurrentVideo
@@ -248,8 +498,12 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
                 key={`anim-video-${currentVideoPlayId}`}
                 src={currentVideoUrl}
                 poster={currentVideoFirstFrameUrl ?? undefined}
-                autoPlay
-                muted
+                autoPlay={currentVideoAutoplay}
+                controls
+                /* muted retiré 2026-05-06 — la vidéo contient le lipsync TTS,
+                 * l'auteur doit entendre. controls visible pour permettre à
+                 * l'auteur de relancer la lecture quand currentVideoAutoplay
+                 * est false (arrivée initiale sur la section animation). */
                 playsInline
                 onError={(e) => console.error('[Canvas] Plan animation video failed:', currentVideoUrl, e)}
                 /* onPlay : signale que la lecture commence → DesignerLayout
@@ -289,31 +543,6 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
                   zIndex: 1,
                 }}
               />
-            )}
-
-            {/* Phase E3.5 — Overlay choix joueur : la séquence est en attente,
-             *  l'utilisateur clique un choix → la séquence reprend sur la
-             *  pellicule cible. Z-index élevé pour passer par-dessus tout
-             *  (vidéo, effects, layers). */}
-            {choicesOverlay && choicesOverlay.length > 0 && (
-              <div className="dz-canvas-choices-overlay">
-                <div className="dz-canvas-choices-prompt">Que choisis-tu ?</div>
-                <div className="dz-canvas-choices-buttons">
-                  {choicesOverlay.map((choice, idx) => (
-                    <button
-                      key={choice.id}
-                      type="button"
-                      className="dz-canvas-choice-btn"
-                      onClick={() => pickSequenceChoice(choice.targetPelliculeId)}
-                    >
-                      <span className="dz-canvas-choice-num">R{idx + 1}</span>
-                      <span className="dz-canvas-choice-label">
-                        {choice.label || <em>(choix sans texte)</em>}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
             )}
 
             {/*
@@ -435,6 +664,126 @@ export default function Canvas({ imageUrl, npcs, items, choices, format }: Canva
               // MP4 ne supporte pas l'alpha, cette technique contourne cette limite
               // côté navigateur (Chrome/Firefox/Safari modernes).
               const videoMaskUrl = isVideo && layer.type === 'image' ? layer.media_url : null
+              // Layers avec `placement` (refonte 2026-05-09 — drag-and-drop) :
+              // rendus dans un WRAPPER avec aspectRatio CSS connu → permet de
+              // positionner précisément les handles de resize. Quand actif :
+              // pointer-events auto + handle bottom-right pour resize.
+              // Layers sans placement : comportement historique (full-canvas
+              // overlay + object-fit: cover, type des extractions Kontext).
+              const isPlaced = !!layer.placement
+              if (isPlaced) {
+                const p = layer.placement!
+                return (
+                  <div
+                    key={layer._uid}
+                    className="ie-placed-layer-wrapper"
+                    onPointerDown={handleStartMove(layerIdx)}
+                    style={{
+                      position: 'absolute',
+                      left: `${p.x * 100}%`,
+                      top: `${p.y * 100}%`,
+                      height: `${p.scale * 100}%`,
+                      aspectRatio: `${p.aspect}`,
+                      opacity: layer.opacity ?? 1,
+                      mixBlendMode: layer.blend && layer.blend !== 'normal' ? layer.blend : undefined,
+                      // En mode découpe, on désactive pour que canvas capte
+                      // les clics SAM/lasso. Sinon : auto = clic active +
+                      // drag déplace dans la même gesture (pattern Photoshop).
+                      pointerEvents: cutMode ? 'none' : 'auto',
+                      cursor: cutMode ? 'default' : 'move',
+                      userSelect: 'none',
+                      zIndex: layerIdx,
+                      // Liseré + outline rose autour du calque actif
+                      outline: isActive ? '2px solid #EC4899' : undefined,
+                      outlineOffset: isActive ? '-1px' : undefined,
+                      borderRadius: '2px',
+                    }}
+                  >
+                    <img
+                      src={url}
+                      alt=""
+                      crossOrigin="anonymous"
+                      draggable={false}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'fill',
+                        display: 'block',
+                        pointerEvents: 'none',
+                        filter: isActive
+                          ? 'drop-shadow(0 0 2px rgba(236, 72, 153, 0.6))'
+                          : undefined,
+                      }}
+                      onError={(e) => console.error('[Canvas] Placed layer img failed:', url, e)}
+                    />
+                    {/* Handle resize bottom-right (visible quand actif).
+                     *  Drag → scale uniforme, top-left ancré.
+                     *  Position INSIDE le wrapper (right:4px, bottom:4px) plutôt
+                     *  qu'outside (-6/-6) — sinon quand le perso atteint le bord
+                     *  du canvas, la poignée est clippée par `overflow:hidden`
+                     *  du canvas wrapper et devient invisible/ungrabable
+                     *  (bug 2026-05-10). Ring blanc + ombre pour rester lisible
+                     *  même sur fond chargé. */}
+                    {isActive && (
+                      <div
+                        className="ie-placed-resize-handle"
+                        onPointerDown={handleStartResize(layerIdx)}
+                        style={{
+                          position: 'absolute',
+                          right: '4px',
+                          bottom: '4px',
+                          width: '16px',
+                          height: '16px',
+                          background: '#EC4899',
+                          border: '2px solid white',
+                          borderRadius: '3px',
+                          cursor: 'nwse-resize',
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.55)',
+                          pointerEvents: 'auto',
+                          zIndex: 10,
+                        }}
+                        title="Glisser pour redimensionner"
+                      />
+                    )}
+                    {/* Bouton "Intégrer avec IA" (V1.2 refonte 2026-05-09) :
+                     *  envoie la scène aplatie à Kontext pour shadows +
+                     *  lighting + edge blending → remplace la base + supprime
+                     *  ce calque (perso baked propre). ~1-2 min. */}
+                    {isActive && !cutMode && (
+                      <button
+                        type="button"
+                        className="ie-placed-refine-btn"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void handleRefinePlacedLayer(layerIdx)
+                        }}
+                        title="Intégrer ce perso dans la scène avec IA (ombres + lumière)"
+                        style={{
+                          position: 'absolute',
+                          top: '-2.2rem',
+                          left: '0',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          padding: '0.3rem 0.7rem',
+                          background: '#EC4899',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '0.3rem',
+                          font: '600 0.7rem inherit',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 6px rgba(0,0,0,0.3)',
+                          pointerEvents: 'auto',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        ✨ Intégrer avec IA
+                      </button>
+                    )}
+                  </div>
+                )
+              }
               const layerStyle: React.CSSProperties = {
                 position: 'absolute',
                 inset: 0,

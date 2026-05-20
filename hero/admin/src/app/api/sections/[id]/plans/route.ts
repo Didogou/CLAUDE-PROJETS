@@ -105,7 +105,7 @@ export async function POST(
       }
       const existing = currentImages[idx]
       // Kind résolu : body > existing > 'image' par défaut
-      const resolvedKind: 'image' | 'animation' = body.kind ?? existing.kind ?? 'image'
+      const resolvedKind: 'image' | 'animation' | 'choice' = body.kind ?? existing.kind ?? 'image'
       const mergedTags: PlanTags = {
         kind: resolvedKind,
         sections: existing.tags?.sections ?? [sectionId],

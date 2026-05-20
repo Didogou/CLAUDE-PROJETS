@@ -1,0 +1,1294 @@
+/* ──────────────────────────────────────────────────────────────────────────
+ * Studio Creator — CSS module autonome (préfixe sc-*).
+ *
+ * Page d'édition d'un livre — rail à gauche (Sections + Banques), main au
+ * centre (grille de tuiles sections par défaut). Theme dark/light aligné
+ * Studio Section / Designer.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.sc-root {
+  /* Theme dark (default) */
+  --ie-bg: #0F0F12;
+  --ie-surface: #17171B;
+  --ie-surface-2: #1F1F25;
+  --ie-surface-3: #2A2A32;
+  --ie-text: #F4F4F5;
+  --ie-text-muted: #A1A1AA;
+  --ie-text-faint: #71717A;
+  --ie-border: rgba(255, 255, 255, 0.08);
+  --ie-border-strong: rgba(255, 255, 255, 0.14);
+  --ie-accent: #F472B6;
+  --ie-accent-faint: rgba(244, 114, 182, 0.12);
+  --ie-accent-dark: #DB2777;
+  --ie-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Status section */
+  --sc-status-draft: #71717A;
+  --sc-status-in-progress: #F59E0B;
+  --sc-status-validated: #10B981;
+
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 13px;
+  background: var(--ie-bg);
+  color: var(--ie-text);
+  overflow: hidden;
+}
+
+.sc-root.theme-light {
+  --ie-bg: #FAFAF9;
+  --ie-surface: #FFFFFF;
+  --ie-surface-2: #F4F4F2;
+  --ie-surface-3: #EDEDEB;
+  --ie-text: #18181B;
+  --ie-text-muted: #52525B;
+  --ie-text-faint: #A1A1AA;
+  --ie-border: rgba(0, 0, 0, 0.08);
+  --ie-border-strong: rgba(0, 0, 0, 0.14);
+  --ie-accent: #EC4899;
+  --ie-accent-faint: #FDF2F8;
+  --ie-accent-dark: #BE185D;
+}
+
+/* ── Top bar ────────────────────────────────────────────────────────────── */
+.sc-topbar {
+  flex-shrink: 0;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 16px;
+  background: var(--ie-surface);
+  border-bottom: 1px solid var(--ie-border);
+}
+.sc-breadcrumb {
+  font-size: 12px;
+  color: var(--ie-text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sc-breadcrumb a {
+  color: var(--ie-text-muted);
+  text-decoration: none;
+  cursor: pointer;
+}
+.sc-breadcrumb a:hover { color: var(--ie-text); }
+.sc-breadcrumb strong {
+  color: var(--ie-text);
+  font-weight: 600;
+  font-size: 13px;
+}
+.sc-topbar-spacer { flex: 1; }
+.sc-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  color: var(--ie-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 140ms;
+}
+.sc-topbar-btn:hover { background: var(--ie-surface-2); }
+.sc-topbar-btn-icon { padding: 7px 9px; }
+
+/* ── Body : rail + main ────────────────────────────────────────────────── */
+.sc-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+/* ── Rail vertical (icônes catégories) ─────────────────────────────────── */
+.sc-rail {
+  flex-shrink: 0;
+  width: 3rem;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  gap: 2px;
+}
+.sc-rail-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  margin: 0 auto;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  font-family: inherit;
+  transition: all 120ms;
+}
+.sc-rail-btn:hover {
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+}
+.sc-rail-btn.active {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+}
+.sc-rail-btn.active::before {
+  content: '';
+  position: absolute;
+  left: -4px;
+  top: 0.5rem;
+  bottom: 0.5rem;
+  width: 3px;
+  background: var(--ie-accent);
+  border-radius: 2px;
+}
+/* Séparateur entre groupes (Sections | Banques) */
+.sc-rail-sep {
+  margin: 6px auto;
+  width: 60%;
+  height: 1px;
+  background: var(--ie-border);
+}
+
+/* ── Main ───────────────────────────────────────────────────────────────── */
+.sc-main {
+  flex: 1;
+  overflow: auto;
+  background: var(--ie-bg);
+  padding: 32px;
+  min-width: 0;
+}
+
+.sc-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.sc-section-header h1 {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.sc-section-header p {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ie-text-muted);
+}
+
+/* ── Grille tuiles sections ────────────────────────────────────────────── */
+.sc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.sc-tile {
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  font-family: inherit;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+  position: relative;
+  /* Marge scroll = espace conservé au-dessus quand scrollIntoView est appelé.
+   * Évite que la tuile colle au header de la page (Library breadcrumb).
+   * Refonte UX 2026-05-12 (scroll auto à l'expand). */
+  scroll-margin-top: 1.5rem;
+}
+.sc-tile:hover {
+  transform: translateY(-2px);
+  border-color: var(--ie-accent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.20), 0 0 0 1px var(--ie-accent-faint);
+}
+.sc-tile-thumb {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: var(--ie-surface-3);
+  position: relative;
+  overflow: hidden;
+}
+.sc-tile-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 320ms;
+}
+.sc-tile:hover .sc-tile-thumb img {
+  transform: scale(1.04);
+}
+.sc-tile-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-faint);
+  font-size: 28px;
+  background: linear-gradient(135deg, var(--ie-surface-3), var(--ie-surface-2));
+}
+
+.sc-tile-num {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.60);
+  backdrop-filter: blur(6px);
+  border-radius: 6px;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.sc-tile-status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 3px 8px;
+  background: rgba(0, 0, 0, 0.60);
+  backdrop-filter: blur(6px);
+  border-radius: 6px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sc-tile-status::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.sc-tile-status.draft { color: #FCD34D; }
+.sc-tile-status.in_progress { color: #FDBA74; }
+.sc-tile-status.validated { color: #34D399; }
+
+.sc-tile-type-badge {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.60);
+  backdrop-filter: blur(6px);
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sc-tile-ending-marker {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  padding: 2px 8px;
+  background: var(--sc-status-validated);
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sc-tile-body {
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+.sc-tile-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ie-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sc-tile-summary {
+  font-size: 11px;
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sc-tile-meta {
+  margin-top: auto;
+  padding-top: 6px;
+  border-top: 1px dashed var(--ie-border);
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ── Tuile + Nouvelle section ──────────────────────────────────────────── */
+.sc-tile-new {
+  background: transparent;
+  border: 2px dashed var(--ie-border-strong);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--ie-text-muted);
+  transition: all 220ms;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0;
+  min-height: 240px;
+}
+.sc-tile-new:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: var(--ie-accent-faint);
+}
+.sc-tile-new-plus {
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 300;
+}
+
+/* ── Banques placeholder ───────────────────────────────────────────────── */
+.sc-bank-placeholder {
+  background: var(--ie-surface);
+  border: 1px dashed var(--ie-border-strong);
+  border-radius: 12px;
+  padding: 60px 40px;
+  text-align: center;
+  color: var(--ie-text-faint);
+}
+.sc-bank-placeholder-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ie-text);
+  margin-bottom: 10px;
+}
+.sc-bank-placeholder-list {
+  margin-top: 20px;
+  display: inline-block;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
+.sc-loading, .sc-empty {
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--ie-text-faint);
+  font-size: 13px;
+}
+
+/* ── Banque de personnages ─────────────────────────────────────────────── */
+.sc-npcs-bank {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sc-npcs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13.75rem, 1fr));
+  gap: 1rem;
+}
+
+.sc-npc-card {
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.625rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: all 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.sc-npc-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--ie-accent);
+  box-shadow: 0 0.5rem 1.4rem rgba(0, 0, 0, 0.20), 0 0 0 1px var(--ie-accent-faint);
+}
+
+.sc-npc-portrait {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: linear-gradient(135deg, var(--ie-surface-3), var(--ie-surface-2));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-faint);
+  overflow: hidden;
+  cursor: pointer;
+}
+.sc-npc-portrait img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 320ms;
+}
+.sc-npc-card:hover .sc-npc-portrait img { transform: scale(1.04); }
+
+.sc-npc-card-actions {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  gap: 0.25rem;
+  opacity: 0;
+  transition: opacity 140ms;
+}
+.sc-npc-card:hover .sc-npc-card-actions { opacity: 1; }
+.sc-npc-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.625rem;
+  height: 1.625rem;
+  border-radius: 0.3125rem;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: background 140ms;
+}
+.sc-npc-card-btn:hover { background: rgba(0, 0, 0, 0.85); }
+.sc-npc-card-btn-danger:hover { background: #DC2626; }
+
+.sc-npc-body {
+  padding: 0.75rem 0.875rem 0.875rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  flex: 1;
+}
+.sc-npc-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ie-text);
+  line-height: 1.3;
+}
+.sc-npc-desc {
+  font-size: 0.6875rem;
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Tuile "+ Créer un personnage" */
+.sc-npc-add {
+  background: transparent;
+  border: 2px dashed var(--ie-border-strong);
+  border-radius: 0.625rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  color: var(--ie-text-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  min-height: 13.75rem;
+  transition: all 220ms;
+}
+.sc-npc-add:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: var(--ie-accent-faint);
+}
+.sc-npc-add-hint {
+  font-size: 0.625rem;
+  font-weight: 400;
+  color: var(--ie-text-faint);
+  line-height: 1.5;
+  max-width: 11rem;
+}
+.sc-npc-add:hover .sc-npc-add-hint { color: var(--ie-accent); opacity: 0.8; }
+
+/* ── Boutons confirm/cancel partagés (utilisés par .sc-npc-confirm) ───── */
+.sc-npc-form-cancel {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.375rem;
+  color: var(--ie-text-muted);
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms;
+}
+.sc-npc-form-cancel:hover:not(:disabled) {
+  background: var(--ie-surface-3);
+  color: var(--ie-text);
+}
+.sc-npc-form-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Spinner local (évite la dépendance à designer.css) */
+@keyframes sc-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.sc-spin { animation: sc-spin 1s linear infinite; }
+
+/* ── Confirm delete dialog ────────────────────────────────────────────── */
+.sc-npc-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: color-mix(in srgb, #000 55%, transparent);
+  backdrop-filter: blur(0.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5vh 1.5vw;
+}
+.sc-npc-confirm {
+  width: min(28rem, 92vw);
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.45);
+}
+.sc-npc-confirm h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.sc-npc-confirm p {
+  margin: 0 0 1.25rem;
+  font-size: 0.8125rem;
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+}
+.sc-npc-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.sc-npc-confirm-delete {
+  padding: 0.5rem 1rem;
+  background: #DC2626;
+  border: 1px solid #DC2626;
+  border-radius: 0.375rem;
+  color: white;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms;
+}
+.sc-npc-confirm-delete:hover:not(:disabled) {
+  background: #B91C1C;
+  border-color: #B91C1C;
+}
+.sc-npc-confirm-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Refonte UX 2026-05-12 — SectionTile expand + bouton Éditer ────────── */
+
+/* Bouton Éditer (icône crayon) en overlay top-right de la thumb. Visible
+ * uniquement au hover de la tuile pour ne pas surcharger visuellement.
+ * stopPropagation côté React pour ne pas trigger le toggle expand. */
+.sc-tile-edit {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s ease, background 0.18s ease;
+  z-index: 5;
+}
+.sc-tile:hover .sc-tile-edit {
+  opacity: 1;
+}
+.sc-tile-edit:hover {
+  background: var(--ie-accent);
+}
+
+/* Chevron indicateur d'état expand dans le footer méta de la tuile. */
+.sc-tile-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.sc-tile-chevron {
+  color: var(--ie-text-muted);
+  transition: transform 0.22s ease;
+}
+.sc-tile-chevron.rotated {
+  transform: rotate(180deg);
+  color: var(--ie-accent);
+}
+
+/* Tuile en mode étendu : bordure accent + flat bottom (continuité avec le
+ * panel qui suit). */
+.sc-tile-expanded {
+  border-color: var(--ie-accent);
+  box-shadow: 0 4px 12px rgba(236, 72, 153, 0.15);
+}
+.sc-tile-expanded:hover {
+  /* Annule le translateY hover pour rester aligné avec son panel. */
+  transform: none;
+}
+
+/* ── Panel plans (refonte UX 2026-05-12) ───────────────────────────────── */
+/* grid-column: 1/-1 = pleine largeur de la grille parent (sc-grid). */
+.sc-plans-panel {
+  grid-column: 1 / -1;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-accent);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: -0.5rem;  /* léger overlap visuel avec la tuile au-dessus */
+}
+.sc-plans-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--ie-border);
+  padding-bottom: 0.5rem;
+}
+.sc-plans-panel-title {
+  font-size: 0.875rem;
+  color: var(--ie-text);
+}
+.sc-plans-panel-title strong {
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+.sc-plans-panel-count {
+  font-size: 0.6875rem;
+  color: var(--ie-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sc-plans-panel-loading,
+.sc-plans-panel-error,
+.sc-plans-panel-empty {
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--ie-text-muted);
+  font-style: italic;
+}
+.sc-plans-panel-error {
+  color: #ef4444;
+  font-style: normal;
+}
+.sc-plans-spin {
+  animation: lsm-spin-kf 900ms linear infinite;
+  display: inline-block;
+  margin-right: 0.4375rem;
+  vertical-align: middle;
+}
+
+/* Grille mini-tiles plans — contrainte hauteur (refonte 2026-05-12).
+ * Hauteur max = hauteur visuelle d'une SectionTile (~14rem pour la grid après
+ * header). Scroll interne si plus de plans qu'on ne peut afficher. Évite que
+ * l'expand pousse les sections suivantes hors écran. */
+.sc-plans-panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 0.625rem;
+  max-height: 14rem;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Padding-right pour que la scrollbar ne masque pas la dernière colonne */
+  padding-right: 0.25rem;
+}
+/* Scrollbar discrète (cohérent avec le reste du Studio Creator) */
+.sc-plans-panel-grid::-webkit-scrollbar { width: 0.4rem; }
+.sc-plans-panel-grid::-webkit-scrollbar-track { background: transparent; }
+.sc-plans-panel-grid::-webkit-scrollbar-thumb {
+  background: var(--ie-border);
+  border-radius: 0.2rem;
+}
+.sc-plans-panel-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--ie-text-muted);
+}
+
+.sc-plan-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0;
+  background: var(--ie-surface-2);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+  font-family: inherit;
+  text-align: left;
+  color: inherit;
+}
+.sc-plan-mini:hover {
+  border-color: var(--ie-accent);
+  transform: translateY(-1px);
+}
+.sc-plan-mini-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  background: var(--ie-surface-3);
+  overflow: hidden;
+}
+.sc-plan-mini-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.sc-plan-mini-thumb-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-faint);
+}
+.sc-plan-mini-num {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  padding: 0.0625rem 0.375rem;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 700;
+  border-radius: 0.25rem;
+}
+.sc-plan-mini-type {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  border-radius: 999px;
+}
+.sc-plan-mini-title {
+  padding: 0.25rem 0.4375rem 0.4375rem;
+  font-size: 0.6875rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sc-plan-mini-new {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--ie-border-strong);
+  color: var(--ie-text-muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 1rem;
+  font-size: 0.75rem;
+}
+.sc-plan-mini-new:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+
+/* ── Layout grid étendu (refonte 2026-05-12 — fix smooth close) ─────────
+ * Quand une section est étendue, sa tile est forcée en grid-column: 1
+ * (1ère colonne d'une nouvelle rangée). Le info panel prend les colonnes
+ * 2 à -1 (= toutes les autres = côte à côte). Le panel plans en dessous
+ * prend grid-column: 1/-1 (full row).
+ * Avantage : structure DOM constante (tile + info + plans toujours dans
+ * le même Fragment) → AnimatePresence persiste → exit animations OK. */
+.sc-tile.sc-tile-expanded {
+  grid-column: 1;
+  /* Aligne en haut de la rangée pour garder sa hauteur naturelle même si
+   * l'info-panel adjacent est plus haut (refonte 2026-05-12). Sinon, la tile
+   * s'étire pour matcher la rangée et "bouge" visuellement à l'expand. */
+  align-self: start;
+}
+.sc-section-info-floating {
+  grid-column: 2 / -1;
+  display: flex;
+  min-width: 0;
+  /* Aligne en haut sur la grid-row pour ne pas étirer la cell quand le
+   * contenu interne du panel est court. align-self: start (vs stretch) +
+   * max-height 17rem ci-dessous évitent que la rangée s'agrandisse à cause
+   * du contenu du panel. Refonte 2026-05-12 : cap réduit pour matcher la
+   * hauteur d'une tile repliée. */
+  align-self: start;
+  min-height: 0;
+}
+.sc-section-info-floating > .sc-info-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Cap dur ≈ hauteur tile repliée. Refonte 2026-05-12 : overflow: hidden
+   * (pas auto) pour ne JAMAIS afficher de scrollbar — l'auteur veut un
+   * cadre propre. Les textareas internes (résumé, notes) ont leurs propres
+   * caps pour que tout rentre. */
+  max-height: 17rem;
+  overflow: hidden;
+}
+@media (max-width: 48rem) {
+  .sc-tile.sc-tile-expanded {
+    grid-column: 1 / -1;
+  }
+  .sc-section-info-floating {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Highlight récemment visité — pulse rose soft pour ~2.5s au close. */
+.sc-tile.sc-tile-recently-visited {
+  border-color: rgba(236, 72, 153, 0.55);
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.18),
+              0 0.375rem 1.125rem rgba(236, 72, 153, 0.18);
+  animation: sc-tile-visit-pulse 2.5s ease-out;
+}
+@keyframes sc-tile-visit-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(236, 72, 153, 0.5),
+                0 0.375rem 1.125rem rgba(236, 72, 153, 0.25);
+  }
+  60% {
+    box-shadow: 0 0 0 0.625rem rgba(236, 72, 153, 0),
+                0 0.375rem 1.125rem rgba(236, 72, 153, 0.18);
+  }
+  100% {
+    box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.18),
+                0 0.375rem 1.125rem rgba(236, 72, 153, 0.18);
+  }
+}
+
+/* ── SectionInfoPanel — design harmonieux 2026-05-12 ────────────────────
+ * Layout 3-col en haut (Vient de | Résumé | Va vers) + 2-col en bas
+ * (Personnages + Objets) + Notes optionnel.
+ * Match la hauteur de la tile parente, pas de scroll global, scroll interne
+ * sur les zones susceptibles de déborder. */
+.sc-info-panel {
+  display: flex;
+  flex-direction: column;
+  /* Compactage 2026-05-12 : gap+padding réduits pour que tout rentre dans
+   * 17rem (= hauteur tile repliée) sans overflow ni couper le contenu. */
+  gap: 0.45rem;
+  padding: 0.6rem 0.75rem;
+  /* Tint rose très subtil pour s'harmoniser avec la tile parente (qui a
+   * aussi un anneau rose). Effet : les 2 blocs se sentent liés visuellement. */
+  background: linear-gradient(180deg, rgba(236, 72, 153, 0.025) 0%, rgba(236, 72, 153, 0.015) 100%);
+  border: 1px solid rgba(236, 72, 153, 0.18);
+  border-radius: 0.625rem;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.sc-info-panel-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4375rem;
+  padding: 1.5rem;
+  font-size: 0.8125rem;
+  color: var(--ie-text-muted);
+  font-style: italic;
+}
+
+/* Top row : 3 colonnes — choix sur les côtés (compacts, ~10rem), résumé au
+ * centre prend tout le reste. min-height retiré (2026-05-12) : laissait la
+ * row à 13rem alors qu'on a cappé le panel à 17rem total → bottom-row sortait
+ * de la zone. Maintenant hauteur naturelle du contenu. */
+.sc-info-top-row {
+  display: grid;
+  grid-template-columns: minmax(8rem, 10rem) minmax(0, 1fr) minmax(8rem, 10rem);
+  gap: 0.5rem;
+  /* Divider subtle entre top-row et bottom-row */
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid rgba(236, 72, 153, 0.12);
+}
+.sc-info-col-from,
+.sc-info-col-resume,
+.sc-info-col-to {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+  min-height: 0;
+}
+.sc-info-col-to .sc-info-title {
+  justify-content: flex-end;
+}
+
+/* Résumé éditable : textarea avec apparence card subtile. Caps stricts pour
+ * que tout rentre dans 17rem (le panel parent est cappé). overflow: auto
+ * reste actif (fonctionnalité préservée) mais en pratique la scrollbar
+ * n'apparaît qu'au-delà des caps, donc rarement. */
+.sc-info-resume-textarea {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--ie-text);
+  flex: 1 1 auto;
+  resize: none;
+  overflow-y: auto;
+  padding: 0.5rem 0.7rem;
+  background: var(--ie-surface);
+  border: 1px solid transparent;
+  border-radius: 0.4375rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(236, 72, 153, 0.3) transparent;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 3rem;
+  max-height: 5rem;
+}
+.sc-info-resume-textarea::-webkit-scrollbar {
+  width: 0.375rem;
+}
+.sc-info-resume-textarea::-webkit-scrollbar-thumb {
+  background: rgba(236, 72, 153, 0.3);
+  border-radius: 0.1875rem;
+}
+.sc-info-resume-textarea:hover {
+  border-color: rgba(236, 72, 153, 0.18);
+}
+.sc-info-resume-textarea:focus {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.15);
+}
+.sc-info-resume-textarea::placeholder {
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+
+/* Notes auteur éditable — même style que résumé mais plus compact + italic. */
+.sc-info-notes-textarea {
+  font-size: 0.75rem;
+  font-style: italic;
+  line-height: 1.45;
+  color: var(--ie-text-muted);
+  width: 100%;
+  resize: none;
+  padding: 0.4375rem 0.625rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid transparent;
+  border-left: 2px solid rgba(236, 72, 153, 0.4);
+  border-radius: 0 0.3125rem 0.3125rem 0;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s ease, background 0.18s ease;
+  box-sizing: border-box;
+  min-height: 2rem;
+  max-height: 2.5rem;
+  overflow-y: auto;
+}
+.sc-info-notes-textarea:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+.sc-info-notes-textarea:focus {
+  border-color: var(--ie-accent);
+  border-left-color: var(--ie-accent);
+  background: var(--ie-surface);
+}
+.sc-info-notes-textarea::placeholder {
+  color: var(--ie-text-faint);
+}
+
+/* Indicateur de save — flottant en haut à droite, discret. */
+.sc-info-save-indicator {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.625rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.625rem;
+  font-weight: 600;
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+.sc-info-save-indicator.saving {
+  background: rgba(236, 72, 153, 0.12);
+  color: var(--ie-accent);
+}
+.sc-info-save-indicator.saved {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.sc-info-panel {
+  position: relative;  /* nécessaire pour le save-indicator absolu */
+}
+
+/* Bottom row : Personnages + Objets côte à côte */
+.sc-info-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  flex-shrink: 0;
+}
+.sc-info-col-half {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4375rem;
+  min-width: 0;
+}
+
+/* Notes auteur — subtil, en italique, séparé par un trait fin. */
+.sc-info-notes-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  flex-shrink: 0;
+  max-height: 4.5rem;
+  overflow: hidden;
+  padding-top: 0.625rem;
+  border-top: 1px solid rgba(236, 72, 153, 0.12);
+}
+
+/* Titres de section : neutre + icône accent (pas tout en rose) */
+.sc-info-title {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ie-text-muted);
+  flex-shrink: 0;
+}
+.sc-info-title svg {
+  color: var(--ie-accent);
+}
+.sc-info-empty {
+  font-size: 0.6875rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  padding: 0.375rem 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 0.3125rem;
+  text-align: center;
+}
+
+/* Choices lists FROM/TO — design pill compact + scroll fin */
+.sc-info-choices-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(236, 72, 153, 0.25) transparent;
+}
+.sc-info-choices-list::-webkit-scrollbar {
+  width: 0.25rem;
+}
+.sc-info-choices-list::-webkit-scrollbar-thumb {
+  background: rgba(236, 72, 153, 0.25);
+  border-radius: 0.125rem;
+}
+.sc-info-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.25rem 0.4375rem;
+  background: transparent;
+  border: 0;
+  border-radius: 0.3125rem;
+  font-size: 0.7rem;
+  transition: background 0.12s ease;
+  cursor: pointer;
+  font-family: inherit;
+  color: inherit;
+  width: 100%;
+  text-align: left;
+  line-height: 1.3;
+}
+.sc-info-choice:hover:not(:disabled) {
+  background: rgba(236, 72, 153, 0.08);
+}
+.sc-info-choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.sc-info-choice-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ie-text);
+}
+.sc-info-choice-target {
+  flex-shrink: 0;
+  font-size: 0.6875rem;
+  color: var(--ie-accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  padding: 0.0625rem 0.375rem;
+  background: rgba(236, 72, 153, 0.1);
+  border-radius: 0.25rem;
+}
+
+/* Chips Personnages — design soft purple, plus arrondi */
+.sc-info-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3125rem;
+  align-content: flex-start;
+}
+.sc-info-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.18), rgba(168, 85, 247, 0.12));
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+}
+.sc-info-chip:hover {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.28), rgba(168, 85, 247, 0.20));
+  border-color: rgba(168, 85, 247, 0.45);
+}
+
+/* Items list — compact horizontal, mini-thumbs */
+.sc-info-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+}
+.sc-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0.5rem 0.25rem 0.25rem;
+  background: var(--ie-surface);
+  border: 1px solid rgba(236, 72, 153, 0.12);
+  border-radius: 0.4375rem;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+}
+.sc-info-item:hover {
+  border-color: rgba(236, 72, 153, 0.4);
+  background: rgba(236, 72, 153, 0.04);
+}
+.sc-info-item-thumb {
+  width: 1.625rem;
+  height: 1.625rem;
+  object-fit: cover;
+  border-radius: 0.3125rem;
+  background: var(--ie-surface-3);
+  flex-shrink: 0;
+}
+.sc-info-item-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-faint);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+.sc-info-item-name {
+  font-size: 0.75rem;
+  color: var(--ie-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Notes auteur — italique discret, accent border-left */
+.sc-info-notes {
+  font-size: 0.75rem;
+  color: var(--ie-text-muted);
+  font-style: italic;
+  line-height: 1.45;
+  padding: 0.4375rem 0.625rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-left: 2px solid rgba(236, 72, 153, 0.4);
+  border-radius: 0 0.3125rem 0.3125rem 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

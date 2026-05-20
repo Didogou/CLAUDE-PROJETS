@@ -12,7 +12,7 @@
  */
 
 import React from 'react'
-import { Image as ImageIcon, Sparkles, CloudRain, Film, MessageSquare, Volume2 } from 'lucide-react'
+import { Image as ImageIcon, Sparkles, CloudRain, Film, MessageSquare, Volume2, Package, Users } from 'lucide-react'
 import type { DesignerPhase } from './types'
 
 export type RailCategory =
@@ -23,6 +23,8 @@ export type RailCategory =
   | 'edit'
   | 'annotations'
   | 'audio'
+  | 'objects'
+  | 'characters'
 
 interface RailItem {
   key: RailCategory
@@ -34,6 +36,8 @@ interface RailItem {
 const RAIL_ITEMS: RailItem[] = [
   { key: 'banks',       icon: <ImageIcon size={18} />,    label: 'Banques',     tooltip: 'Banques (images, NPCs, objets…)' },
   { key: 'generate',    icon: <Sparkles size={18} />,     label: 'Génération',  tooltip: 'Génération AI (image, vidéo, son…)' },
+  { key: 'characters',  icon: <Users size={18} />,        label: 'Personnages', tooltip: 'Personnages du plan + persos de la section disponibles' },
+  { key: 'objects',     icon: <Package size={18} />,      label: 'Objets',      tooltip: 'Objets de la section (positionner sur l\'image)' },
   { key: 'effects',     icon: <CloudRain size={18} />,    label: 'Effets',      tooltip: 'Effets visuels (atmosphère, particles…)' },
   { key: 'animations',  icon: <Film size={18} />,         label: 'Animations',  tooltip: 'Animations (Lottie, GSAP, transitions)' },
   // ❌ 'edit' retiré du rail : Découpe + Crop + Filtres sont maintenant des
@@ -51,10 +55,19 @@ interface DesignerLeftRailProps {
   /** Phase courante du Designer. En 'creation', seule la banque (1ère icône)
    * est active : les autres catégories sont dimmées (apparaissent après Commencer). */
   phase?: DesignerPhase
+  /** Mode extraction actif (refonte 2026-05-09) : aucune catégorie du rail
+   *  ne s'applique à un calque extraction (pas d'effets, pas d'animations, pas
+   *  d'audio…). Toutes les icônes sont dimmées + tooltip explicite. L'auteur
+   *  doit revenir sur un autre calque pour accéder à ces outils. */
+  extractionMode?: boolean
+  /** Badges affichés sur les icônes du rail (refonte Objet 2026-05-12).
+   *  Exemple : { objects: { positioned: 1, total: 3 } } affiche "1/3" sur
+   *  l'icône Objets. */
+  badges?: Partial<Record<RailCategory, { positioned: number; total: number }>>
 }
 
 export default function DesignerLeftRail({
-  activeCategory, onToggleCategory, phase = 'editing',
+  activeCategory, onToggleCategory, phase = 'editing', extractionMode = false, badges,
 }: DesignerLeftRailProps) {
   const isCreationPhase = phase === 'creation'
 
@@ -64,8 +77,17 @@ export default function DesignerLeftRail({
         const isActive = activeCategory === item.key
         // En Phase A, seule la banque reste cliquable. Les autres sont dimmées
         // (apparaîtront pleinement après Commencer).
-        const isDimmed = isCreationPhase && item.key !== 'banks'
+        // En mode extraction, TOUTES les catégories sont dimmées : un calque
+        // extraction est dédié à l'extraction de sujets, pas à l'application
+        // d'effets / animations / etc.
+        const isDimmed = (isCreationPhase && item.key !== 'banks') || extractionMode
         const isHighlighted = isCreationPhase && item.key === 'banks'
+
+        const badge = badges?.[item.key]
+        // Affiche le badge UNIQUEMENT si total > 0 (= au moins 1 élément à
+        // tracker). Format "X/Y" si X < Y, "✓ Y" en accent si tout positionné.
+        const showBadge = !!badge && badge.total > 0
+        const badgeAllDone = showBadge && badge!.positioned >= badge!.total
 
         return (
           <button
@@ -74,13 +96,24 @@ export default function DesignerLeftRail({
             className={`dz-rail-btn${isActive || isHighlighted ? ' active' : ''}${isDimmed ? ' dimmed' : ''}`}
             onClick={() => { if (!isDimmed) onToggleCategory(item.key) }}
             disabled={isDimmed}
-            title={isDimmed
-              ? `${item.label} — disponible après "Commencer l'édition"`
-              : item.tooltip}
+            title={
+              extractionMode
+                ? `${item.label} — non disponible sur un calque d'extraction`
+                : isDimmed
+                  ? `${item.label} — disponible après "Commencer l'édition"`
+                  : showBadge
+                    ? `${item.label} — ${badge!.positioned}/${badge!.total} positionnés sur cette image`
+                    : item.tooltip
+            }
             aria-pressed={isActive}
             aria-label={item.label}
           >
             <span className="dz-rail-icon">{item.icon}</span>
+            {showBadge && (
+              <span className={`dz-rail-badge${badgeAllDone ? ' dz-rail-badge-done' : ''}`}>
+                {badge!.positioned}/{badge!.total}
+              </span>
+            )}
           </button>
         )
       })}

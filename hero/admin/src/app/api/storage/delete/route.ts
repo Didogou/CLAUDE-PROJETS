@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
 
 /**
- * DELETE un ou plusieurs fichiers du bucket Supabase "images" via leur URL publique.
+ * DELETE un ou plusieurs fichiers Supabase Storage via leur URL publique.
  *
  * Body : { urls: string[] }
- * → Extrait le path depuis chaque URL publique Supabase et supprime.
+ * → Extrait `{bucket, path}` depuis chaque URL publique Supabase et supprime
+ *   en groupes par bucket (images, videos, audio).
  *
- * Utilisé par le PlanWizard pour nettoyer les images non sélectionnées lors de
- * la fermeture d'un sous-wizard / du wizard principal.
+ * Refonte 2026-05-13 : étendu pour gérer plusieurs buckets (avant : images
+ * uniquement). Utilisé par la corbeille pellicule du Studio Section et
+ * historiquement par le PlanWizard pour nettoyer les images orphelines.
  */
 export const maxDuration = 30
 
@@ -20,28 +22,48 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ deleted: 0 })
     }
 
-    // Extraction du path relatif depuis les URLs publiques Supabase.
-    // Format attendu : "https://<project>.supabase.co/storage/v1/object/public/images/<path>"
-    const paths: string[] = []
+    // Regex générique : capture le bucket ET le path depuis l'URL publique
+    // Supabase format "https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>".
+    const byBucket = new Map<string, string[]>()
+    let skipped = 0
     for (const raw of urls) {
       try {
-        const u = new URL(raw.split('?')[0]) // strip query string
-        const m = u.pathname.match(/\/storage\/v1\/object\/public\/images\/(.+)$/)
-        if (m) paths.push(decodeURIComponent(m[1]))
-      } catch { /* URL malformée → ignore */ }
+        const u = new URL(raw.split('?')[0])
+        const m = u.pathname.match(/\/storage\/v1\/object\/public\/([^/]+)\/(.+)$/)
+        if (m) {
+          const bucket = m[1]
+          const path = decodeURIComponent(m[2])
+          const list = byBucket.get(bucket) ?? []
+          list.push(path)
+          byBucket.set(bucket, list)
+        } else {
+          skipped++
+        }
+      } catch {
+        skipped++
+      }
     }
 
-    if (paths.length === 0) {
-      return NextResponse.json({ deleted: 0, skipped: urls.length })
+    if (byBucket.size === 0) {
+      return NextResponse.json({ deleted: 0, skipped })
     }
 
-    const { data, error } = await supabaseAdmin.storage.from('images').remove(paths)
-    if (error) {
-      console.error('[storage/delete] Supabase error:', error)
-      return NextResponse.json({ error: error.message, attempted: paths.length }, { status: 500 })
+    let totalDeleted = 0
+    const errors: Array<{ bucket: string; error: string }> = []
+    for (const [bucket, paths] of byBucket) {
+      const { data, error } = await supabaseAdmin.storage.from(bucket).remove(paths)
+      if (error) {
+        console.error(`[storage/delete] ${bucket} error:`, error)
+        errors.push({ bucket, error: error.message })
+      } else {
+        totalDeleted += data?.length ?? 0
+      }
     }
-    console.log('[storage/delete] Deleted', data?.length ?? 0, 'files')
-    return NextResponse.json({ deleted: data?.length ?? 0, paths })
+    if (errors.length > 0) {
+      return NextResponse.json({ deleted: totalDeleted, skipped, errors }, { status: 207 })
+    }
+    console.log(`[storage/delete] Deleted ${totalDeleted} files across ${byBucket.size} bucket(s)`)
+    return NextResponse.json({ deleted: totalDeleted, skipped })
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[storage/delete] error:', msg)

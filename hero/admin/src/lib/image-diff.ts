@@ -38,9 +38,22 @@ export interface ExtractCharacterOptions {
    *  Ex: `test/scene-42_char_transparent` → fichier final
    *  `test/scene-42_char_transparent/{timestamp}.png` */
   storagePathPrefix: string
-  /** Distance RGB Euclidienne min pour pixel "différent". Défaut 25.
-   *  Plus haut = moins de noise BG mais perso plus rongé bords. */
+  /** Distance RGB Euclidienne min pour pixel "différent". Défaut 50.
+   *  Plus haut = moins de noise BG mais perso plus rongé bords.
+   *  Refonte 2026-05-12 : bumpé de 25 à 50 + ajout largest-component cleanup
+   *  pour éviter le bruit pink magenta du Kontext re-render. */
   threshold?: number
+  /** Si true, ne garde que le plus grand blob connecté (= l'objet inséré),
+   *  élimine les artefacts dispersés dus aux légères variations de pixel
+   *  produites par Kontext qui re-render toute l'image. Défaut true. */
+  keepLargestBlobOnly?: boolean
+  /** Region of interest (refonte 2026-05-12) : centre normalized 0..1 +
+   *  rayon normalized 0..1 (% de la plus petite dimension de l'image).
+   *  Si défini, tous les pixels HORS du cercle sont forcés transparents
+   *  AVANT le largest-blob. Évite que le blob inclue des pixels modifiés
+   *  loin du drop point (visage, ciel, etc.) que Qwen Edit peut altérer.
+   *  Typiquement : { x: dropX, y: dropY, radius: 0.3 }. */
+  roi?: { x: number; y: number; radius: number }
 }
 
 /**
@@ -57,7 +70,7 @@ export interface ExtractCharacterOptions {
 export async function extractCharacterByDiff(
   opts: ExtractCharacterOptions,
 ): Promise<string> {
-  const { compositeUrl, cleanBgUrl, storagePathPrefix, threshold = 25 } = opts
+  const { compositeUrl, cleanBgUrl, storagePathPrefix, threshold = 50, keepLargestBlobOnly = true, roi } = opts
   const [compositeImg, cleanImg] = await Promise.all([
     loadImage(compositeUrl),
     loadImage(cleanBgUrl),
@@ -86,12 +99,37 @@ export async function extractCharacterByDiff(
   offCtx.drawImage(cleanImg, 0, 0, w, h)
   const cleanData = offCtx.getImageData(0, 0, w, h)
 
+  // Pré-calcul de la ROI : centre + rayon² en pixels (au carré pour éviter sqrt
+  // dans la boucle hot).
+  let roiCenterX = 0, roiCenterY = 0, roiRadiusSq = -1
+  if (roi) {
+    roiCenterX = roi.x * w
+    roiCenterY = roi.y * h
+    const r = roi.radius * Math.min(w, h)
+    roiRadiusSq = r * r
+  }
+
   // Calcule le diff pixel par pixel
   const result = ctx.createImageData(w, h)
   const thresholdSq = threshold * threshold
   let charPixelCount = 0
+  let outsideRoiCount = 0
 
   for (let i = 0; i < compData.data.length; i += 4) {
+    // Si ROI définie : skip les pixels hors du cercle (forcés transparents).
+    if (roiRadiusSq > 0) {
+      const pxIdx = i >> 2  // /4
+      const px = pxIdx % w
+      const py = (pxIdx / w) | 0
+      const ddx = px - roiCenterX
+      const ddy = py - roiCenterY
+      if (ddx * ddx + ddy * ddy > roiRadiusSq) {
+        result.data[i + 3] = 0
+        outsideRoiCount++
+        continue
+      }
+    }
+
     const dr = compData.data[i]     - cleanData.data[i]
     const dg = compData.data[i + 1] - cleanData.data[i + 1]
     const db = compData.data[i + 2] - cleanData.data[i + 2]
@@ -110,8 +148,84 @@ export async function extractCharacterByDiff(
       result.data[i + 3] = 0
     }
   }
+  if (roi) {
+    console.log(`[image-diff] ROI active (center=${roi.x.toFixed(2)},${roi.y.toFixed(2)} r=${roi.radius.toFixed(2)}) — ${outsideRoiCount}px hors ROI`)
+  }
 
-  console.log(`[image-diff] threshold=${threshold} → ${charPixelCount} char pixels (${(charPixelCount / (w * h) * 100).toFixed(1)}% du frame)`)
+  console.log(`[image-diff] threshold=${threshold} → ${charPixelCount} char pixels avant cleanup (${(charPixelCount / (w * h) * 100).toFixed(1)}% du frame)`)
+
+  // ── Cleanup : ne garder que le plus grand blob connecté (refonte 2026-05-12)
+  // Le re-render Kontext produit du bruit pixel-level partout dans l'image
+  // (compression artifacts, denoising). Le diff naïf catch ces variations →
+  // PNG transparent semé d'artefacts pink. On filtre via "largest connected
+  // component" : l'objet inséré est UN gros blob continu, le bruit = N petits
+  // blobs dispersés. Garde uniquement le plus gros.
+  if (keepLargestBlobOnly && charPixelCount > 0) {
+    const t0 = performance.now()
+    // Bool grid : pixel changé = 1, sinon 0
+    const isChanged = new Uint8Array(w * h)
+    for (let i = 0; i < w * h; i++) {
+      isChanged[i] = result.data[i * 4 + 3] > 0 ? 1 : 0
+    }
+    // BFS pour étiqueter chaque blob
+    const componentId = new Int32Array(w * h)  // 0 = non-visité ou non-changé
+    const componentSizes: number[] = []
+    let nextId = 1
+    const queue = new Int32Array(w * h)  // ring buffer max possible
+
+    for (let startIdx = 0; startIdx < w * h; startIdx++) {
+      if (!isChanged[startIdx] || componentId[startIdx] > 0) continue
+      const id = nextId++
+      componentId[startIdx] = id
+      queue[0] = startIdx
+      let qHead = 0
+      let qTail = 1
+      let size = 0
+      while (qHead < qTail) {
+        const idx = queue[qHead++]
+        size++
+        const x = idx % w
+        const y = (idx / w) | 0
+        // 4-voisins
+        if (x > 0) {
+          const n = idx - 1
+          if (isChanged[n] && componentId[n] === 0) { componentId[n] = id; queue[qTail++] = n }
+        }
+        if (x < w - 1) {
+          const n = idx + 1
+          if (isChanged[n] && componentId[n] === 0) { componentId[n] = id; queue[qTail++] = n }
+        }
+        if (y > 0) {
+          const n = idx - w
+          if (isChanged[n] && componentId[n] === 0) { componentId[n] = id; queue[qTail++] = n }
+        }
+        if (y < h - 1) {
+          const n = idx + w
+          if (isChanged[n] && componentId[n] === 0) { componentId[n] = id; queue[qTail++] = n }
+        }
+      }
+      componentSizes.push(size)
+    }
+    // Trouve le plus gros
+    let maxSize = 0
+    let maxId = 0
+    for (let i = 0; i < componentSizes.length; i++) {
+      if (componentSizes[i] > maxSize) {
+        maxSize = componentSizes[i]
+        maxId = i + 1
+      }
+    }
+    // Vide tous les pixels qui ne sont PAS dans le plus gros blob
+    let removed = 0
+    for (let i = 0; i < w * h; i++) {
+      if (componentId[i] !== maxId && isChanged[i]) {
+        result.data[i * 4 + 3] = 0
+        removed++
+      }
+    }
+    const dt = (performance.now() - t0).toFixed(0)
+    console.log(`[image-diff] cleanup ${componentSizes.length} blobs détectés, gardé le plus gros (${maxSize}px), retiré ${removed}px de bruit (${dt}ms)`)
+  }
 
   ctx.putImageData(result, 0, 0)
 

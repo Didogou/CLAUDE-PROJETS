@@ -1,0 +1,93 @@
+/**
+ * AudioTagPalette — styles theme Hero (vars --ie-*).
+ * Refonte 2026-05-12.
+ */
+
+.atp-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.atp-select {
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.3rem;
+  border: 1px solid var(--ie-border);
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  cursor: pointer;
+  outline: none;
+  max-width: 8rem;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 0.35rem center;
+  padding-right: 1.2rem;
+  transition: filter 0.12s ease, transform 0.12s ease;
+}
+.atp-select:hover:not(:disabled) {
+  filter: brightness(1.15);
+  transform: translateY(-0.0625rem);
+}
+.atp-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.atp-select:focus {
+  filter: brightness(1.2);
+}
+.atp-select option {
+  /* Force des couleurs lisibles dans le dropdown natif (les inline styles
+   * du parent ne s'appliquent pas aux <option> sur tous les navigateurs). */
+  color: var(--ie-text);
+  background: var(--ie-surface);
+}
+
+/* Mode étendu (compact=false) — grille de boutons par catégorie */
+.atp-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--ie-bg);
+  border-radius: 0.4rem;
+  border: 1px solid var(--ie-border);
+}
+.atp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.atp-group-label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.atp-group-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+.atp-tag-btn {
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.65rem;
+  border: 1px solid;
+  cursor: pointer;
+  transition: filter 0.12s ease, transform 0.12s ease;
+  white-space: nowrap;
+}
+.atp-tag-btn:hover:not(:disabled) {
+  filter: brightness(1.2);
+  transform: translateY(-0.0625rem);
+}
+.atp-tag-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

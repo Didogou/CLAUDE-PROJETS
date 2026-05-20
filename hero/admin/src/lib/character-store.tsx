@@ -48,6 +48,23 @@ export interface Character {
   portraitUrl: string | null
   /** URL plein pied (cadrage corps entier) — null si pas encore généré. */
   fullbodyUrl: string | null
+  /** URL plein pied vue de DOS (Qwen multi-angle, refonte 2026-05-09).
+   *  Optionnel : null si pas encore généré.
+   *  ⚠ DÉPRÉCIÉ depuis migration 079 — utilisé uniquement pour back-compat
+   *  des persos déjà sauvegardés. Les nouvelles vues alternatives vont dans
+   *  `images` (galerie). */
+  fullbodyBackUrl?: string | null
+  /** Galerie d'images additionnelles (refonte 2026-05-09 — option B).
+   *  Vues alternatives, variantes scéniques, uploads custom, extractions.
+   *  Hydraté depuis npcs.images jsonb. Chaque item est draggable séparément
+   *  dans CatalogCharacters → utilise son URL pour le placement CSS. */
+  images?: import('@/types').NpcImage[]
+  /** ElevenLabs voice_id — copié depuis la table `npcs` au mount du Designer.
+   *  Utilisé par le pipeline lipsync (β.1 2026-05-06) : si une pellicule a
+   *  un dialogue rempli pour ce perso, on génère son audio TTS via cette
+   *  voix avant de l'envoyer à LTX 2.3. Optionnel : un perso peut ne pas
+   *  avoir de voix définie (alors fail loud à la génération avec dialogue). */
+  voice_id?: string
   createdAt: number
 }
 
@@ -60,6 +77,9 @@ interface CharacterStoreValue {
   removeCharacter: (id: string) => void
   /** Helper : renvoie le perso par id, ou undefined si supprimé. */
   getCharacter: (id: string) => Character | undefined
+  /** Remplace TOUS les characters (utile pour injecter les NPCs d'un livre
+   *  depuis l'API au mount du Designer). Persiste en localStorage. */
+  setCharacters: (chars: Character[]) => void
 }
 
 const CharacterStoreContext = createContext<CharacterStoreValue | null>(null)
@@ -126,9 +146,14 @@ export function CharacterStoreProvider({ children }: { children: ReactNode }) {
   const getCharacter = useCallback((id: string) =>
     characters.find(c => c.id === id), [characters])
 
+  const replaceCharacters = useCallback((chars: Character[]) => {
+    setCharacters(chars)
+  }, [])
+
   const value = useMemo<CharacterStoreValue>(() => ({
     characters, addCharacter, updateCharacter, removeCharacter, getCharacter,
-  }), [characters, addCharacter, updateCharacter, removeCharacter, getCharacter])
+    setCharacters: replaceCharacters,
+  }), [characters, addCharacter, updateCharacter, removeCharacter, getCharacter, replaceCharacters])
 
   return (
     <CharacterStoreContext.Provider value={value}>
@@ -141,4 +166,11 @@ export function useCharacterStore(): CharacterStoreValue {
   const ctx = useContext(CharacterStoreContext)
   if (!ctx) throw new Error('useCharacterStore doit être utilisé dans <CharacterStoreProvider>')
   return ctx
+}
+
+/** Variante non-throw pour CharacterCreatorModal réutilisé hors Designer
+ *  (ex : Studio Creator avec persistance Supabase via prop onPersist).
+ *  Retourne null si pas de provider. */
+export function useOptionalCharacterStore(): CharacterStoreValue | null {
+  return useContext(CharacterStoreContext)
 }

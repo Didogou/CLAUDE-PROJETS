@@ -43,7 +43,7 @@ interface CatalogEditProps {
 
 export default function CatalogEdit({ onClose, storagePathPrefix }: CatalogEditProps) {
   const {
-    imageUrl, setImageUrl,
+    effectiveImageUrl, setImageUrl,
     cutSelection, cutDragging, setCutSelection, setCutMode,
     cutTool,
     brushStrokes, clearBrushStrokes,
@@ -57,6 +57,12 @@ export default function CatalogEdit({ onClose, storagePathPrefix }: CatalogEditP
     addLayer,
     selectedDetectionId,
   } = useEditorState()
+
+  /** Alias court : tous les outils d'édition (SAM, Magic Wand, Lasso, GrabCut,
+   *  Brush) bossent sur l'image visible dans le Canvas. effectiveImageUrl
+   *  bascule automatiquement vers le media_url du calque actif si mode
+   *  'extraction', sinon = base imageUrl (refonte 2026-05-09). */
+  const imageUrl = effectiveImageUrl
 
   /** Tolérance Magic Wand (1-100). 15 = défaut prudent qui marche bien sur
    *  illustrations cartoon avec aplats colorés. 30 était trop permissif
@@ -658,16 +664,21 @@ export default function CatalogEdit({ onClose, storagePathPrefix }: CatalogEditP
                     ? 'Aperçu de la sélection'
                     : 'En attente d\'extraction')}
             </span>
-            {cutResultUrl && (
-              <button
-                type="button"
-                className="dz-cut-extracted-clear"
-                onClick={clearCutResult}
-                title="Vider la découpe (les sélections restent actives)"
-              >
-                <Trash2 size={11} />
-              </button>
-            )}
+            {/* Bouton "tout effacer" — refonte 2026-05-12. Toujours visible
+                tant que la zone est affichée. Reset cutResult + sélections
+                wand/brush → repart de zéro. */}
+            <button
+              type="button"
+              className="dz-cut-extracted-clear"
+              onClick={() => {
+                clearCutResult()
+                clearWand()
+                clearBrushStrokes()
+              }}
+              title="Tout effacer (découpe + sélections)"
+            >
+              <Trash2 size={11} />
+            </button>
           </div>
           {livePreviewUrl ? (
             <div className="dz-cut-composite-tile" title="Aperçu live de la découpe">

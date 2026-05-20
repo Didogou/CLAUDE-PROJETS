@@ -116,6 +116,74 @@ async function uploadDataUrl(dataUrl: string, path: string): Promise<string> {
 }
 
 /**
+ * Extrait les N DERNIÈRES frames d'une vidéo et les uploade comme images JPG
+ * séquentielles. Utilisé pour conditionner LTX 2.3 V2V (continuité de
+ * mouvement entre pellicules). Refonte 2026-05-11.
+ *
+ * Échantillonnage : on prend N timestamps uniformément espacés sur la dernière
+ * seconde de vidéo (= 1s à 24 fps = 24 frames source, on en sample N). Si
+ * la vidéo est plus courte qu'1s, on sample sur toute la durée.
+ *
+ * Format URL : `{storagePathPrefix}/{timestamp}_v2v_{i}.jpg` avec i 0-based.
+ *
+ * @returns Array d'URLs publiques, du PLUS ANCIEN au PLUS RÉCENT (ordre
+ *   important pour le workflow V2V — la dernière de l'array est la dernière
+ *   frame du clip d'entrée du V2V, donc le point de départ du nouveau plan).
+ */
+export async function extractLastNFramesFromVideo(opts: {
+  videoUrl: string
+  n: number
+  /** Préfixe Supabase. Défaut 'temp/v2v'. */
+  storagePathPrefix?: string
+  /** Qualité JPG. Défaut 0.92 (plus haut que vignette : ces frames sont input
+   *  conditioning, on veut préserver les détails). */
+  jpegQuality?: number
+  /** Fenêtre de fin en secondes pour échantillonner les N frames. Défaut 1.0
+   *  (= dernière seconde). À ajuster selon ce que le workflow V2V attend. */
+  windowSec?: number
+}): Promise<string[]> {
+  const {
+    videoUrl,
+    n,
+    storagePathPrefix = 'temp/v2v',
+    jpegQuality = 0.92,
+    windowSec = 1.0,
+  } = opts
+  if (n < 1) throw new Error(`extractLastNFramesFromVideo: n must be >= 1, got ${n}`)
+
+  const video = await loadVideo(videoUrl)
+  try {
+    const duration = video.duration
+    if (!isFinite(duration) || duration <= 0) {
+      throw new Error(`extractLastNFramesFromVideo: invalid duration ${duration}`)
+    }
+    // Fenêtre = min(windowSec, duration). Si vidéo trop courte → sample
+    // sur toute la durée.
+    const window = Math.min(windowSec, duration)
+    const startT = Math.max(0, duration - window)
+    // Pas uniforme : (n-1) intervalles entre [startT, duration-0.02]. Si n=1
+    // on prend juste la dernière frame. Le -0.02 = même marge que extractFramesFromVideo
+    // pour éviter les seek hors range.
+    const endT = duration - 0.02
+    const dataUrls: string[] = []
+    for (let i = 0; i < n; i++) {
+      const t = n === 1 ? endT : startT + (endT - startT) * (i / (n - 1))
+      await seekTo(video, t)
+      dataUrls.push(captureCurrentFrame(video, jpegQuality))
+    }
+
+    const ts = Date.now()
+    const urls = await Promise.all(
+      dataUrls.map((du, i) => uploadDataUrl(du, `${storagePathPrefix}/${ts}_v2v_${String(i).padStart(2, '0')}.jpg`)),
+    )
+    return urls
+  } finally {
+    video.removeAttribute('src')
+    video.load()
+  }
+}
+
+/**
  * Extrait la 1ère et dernière frame d'une vidéo, les uploade Supabase.
  * @returns URLs publiques des 2 thumbnails JPG.
  */

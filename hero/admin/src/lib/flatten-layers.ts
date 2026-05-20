@@ -109,12 +109,25 @@ export async function flattenLayersToImage(opts: FlattenOptions): Promise<string
       const img = await loadImage(url)
       const opacity = typeof layer.opacity === 'number' ? layer.opacity : 1
       ctx.globalAlpha = Math.max(0, Math.min(1, opacity))
-      // Position offset (utile pour ajustements visuels — défaut 0,0)
-      const ox = layer.position_offset?.x ?? 0
-      const oy = layer.position_offset?.y ?? 0
-      // Dessine à la taille du canvas (les calques transparents PNG ont les
-      // mêmes dimensions que la base par convention).
-      ctx.drawImage(img, ox, oy, W, H)
+      if (layer.placement) {
+        // Calque positionné (drag-and-drop, refonte 2026-05-09) : dessiné à
+        // (x*W, y*H) avec taille = (scale*aspect*H, scale*H). Aspect natural
+        // préservé. Permet au flatten de produire la même image que ce que
+        // l'auteur voit dans Canvas (= compositing CSS WYSIWYG).
+        const p = layer.placement
+        const dh = p.scale * H
+        const dw = dh * (p.aspect || 1)
+        const dx = p.x * W
+        const dy = p.y * H
+        ctx.drawImage(img, dx, dy, dw, dh)
+      } else {
+        // Position offset (utile pour ajustements visuels — défaut 0,0)
+        const ox = layer.position_offset?.x ?? 0
+        const oy = layer.position_offset?.y ?? 0
+        // Dessine à la taille du canvas (les calques transparents PNG ont les
+        // mêmes dimensions que la base par convention).
+        ctx.drawImage(img, ox, oy, W, H)
+      }
     } catch (err) {
       console.warn('[flatten] Layer load failed, skipping:', layer.name, err)
     }

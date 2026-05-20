@@ -326,6 +326,41 @@ export interface EditorLayer {
    *  Insert Anything (cf onAddCharacter dans new-layout/page.tsx).
    *  Cf décision 2026-05-03 : sélecteur perso = persos du plan en cours. */
   character_id?: string | null
+  /** ID de l'item (table `items`) si le calque représente un objet inséré
+   *  via le panel Objet (refonte Objet 2026-05-12). Pas exclusif avec
+   *  character_id (un calque est soit perso, soit objet, soit ni l'un ni
+   *  l'autre — ex: filtre, vignette). */
+  item_id?: string | null
+  /** Mode du calque (refonte 2026-05-09).
+   *  - 'compositing' (défaut si absent) : overlay sur la base, peut recevoir
+   *    effets/animations/blend etc. Comportement historique.
+   *  - 'extraction' : workspace dédié à l'extraction (perso/objet/zone) depuis
+   *    une image externe. PAS overlay sur la base. Le Canvas affiche l'image
+   *    SEULE à sa taille naturelle (contain, pas de crop). Outils limités à
+   *    Ciseaux. Cf project_image_extraction_workspace. */
+  mode?: 'compositing' | 'extraction'
+  /** Placement positionné du calque dans le canvas (refonte 2026-05-09).
+   *  Si présent, le calque est rendu en absolute à cette position+scale au
+   *  lieu d'occuper toute la surface (mode overlay full-canvas par défaut).
+   *  Cas d'usage : drag-and-drop d'un perso sur la scène — placement rapide
+   *  CSS sans passer par Flux Kontext. L'auteur peut ensuite drag pour
+   *  repositionner ou Régénérer ce calque (= conversion en compositing
+   *  intégré via Kontext).
+   *
+   *  Tous les champs (x, y, scale) sont normalisés 0-1 par rapport au canvas. */
+  placement?: {
+    /** Position du COIN HAUT-GAUCHE du calque, normalisée. (0,0) = top-left. */
+    x: number
+    y: number
+    /** Hauteur du calque relative au canvas. La largeur est dérivée de
+     *  `aspect` (pas de stretch). */
+    scale: number
+    /** Aspect ratio NATUREL du média (= naturalWidth / naturalHeight).
+     *  Calculé au drop. Utilisé pour donner au wrapper CSS un `aspectRatio`
+     *  connu → permet de positionner précisément les handles de resize sans
+     *  attendre le load de l'image. */
+    aspect: number
+  }
 }
 
 export type WeatherKind = 'rain' | 'snow' | 'fog' | 'cloud' | 'lightning'

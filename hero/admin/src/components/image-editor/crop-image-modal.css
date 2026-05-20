@@ -1,0 +1,260 @@
+/* ──────────────────────────────────────────────────────────────────────────
+ * CropImageModal — modale plein écran avec crop interactif.
+ * Préfixe `.cim-*`. Tailles relatives (rem). Hérite des --ie-* du parent
+ * (.as-root pour AnimationStudio, .ie-root pour le Designer).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.cim-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(0.4rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+  padding: 2rem;
+}
+
+.cim-panel {
+  background: var(--ie-bg, #0F0F12);
+  color: var(--ie-text, #F4F4F5);
+  border: 1px solid var(--ie-border-strong, rgba(255, 255, 255, 0.14));
+  border-radius: 0.75rem;
+  width: min(60rem, 100%);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.cim-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid var(--ie-border, rgba(255, 255, 255, 0.08));
+  background: var(--ie-surface, #17171B);
+}
+.cim-header h3 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.cim-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.35rem;
+  color: var(--ie-text-muted, #A1A1AA);
+  cursor: pointer;
+  transition: background 140ms cubic-bezier(0.2, 0, 0, 1),
+              color 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.cim-close:hover:not(:disabled) {
+  background: var(--ie-surface-2, #1F1F25);
+  color: var(--ie-text, #F4F4F5);
+}
+.cim-close:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cim-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+  position: relative;
+}
+/* react-easy-crop a besoin d'un parent positionné en relative avec une
+ * hauteur définie — son Cropper se positionne en absolute:0 dedans.
+ * 60vh garde le panneau dans la fenêtre même sur petits écrans. */
+.cim-cropper-wrap {
+  position: relative;
+  width: 100%;
+  height: 60vh;
+  min-height: 24rem;
+}
+.cim-empty {
+  color: var(--ie-text-faint, #71717A);
+  font-style: italic;
+  font-size: 0.85rem;
+  padding: 4rem;
+  text-align: center;
+  width: 100%;
+}
+
+.cim-footer {
+  padding: 0.85rem 1.1rem;
+  border-top: 1px solid var(--ie-border, rgba(255, 255, 255, 0.08));
+  background: var(--ie-surface, #17171B);
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Ligne de contrôles : aspect à gauche, zoom à droite. Wrap en colonne sur
+ * écrans étroits. */
+.cim-controls-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.85rem;
+}
+
+.cim-aspect-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.cim-aspect-label {
+  font-size: 0.72rem;
+  color: var(--ie-text-muted, #A1A1AA);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-right: 0.3rem;
+}
+.cim-aspect-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  background: transparent;
+  border: 1px solid var(--ie-border, rgba(255, 255, 255, 0.08));
+  border-radius: 0.35rem;
+  color: var(--ie-text-muted, #A1A1AA);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 140ms cubic-bezier(0.2, 0, 0, 1),
+              border-color 140ms cubic-bezier(0.2, 0, 0, 1),
+              color 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.cim-aspect-btn:hover:not(:disabled) {
+  border-color: var(--ie-border-strong, rgba(255, 255, 255, 0.14));
+  color: var(--ie-text, #F4F4F5);
+}
+.cim-aspect-btn.active {
+  background: color-mix(in srgb, var(--ie-accent, #F472B6) 12%, transparent);
+  border-color: var(--ie-accent, #F472B6);
+  color: var(--ie-accent, #F472B6);
+}
+.cim-aspect-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Zoom slider — réutilise les couleurs accent du thème */
+.cim-zoom-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--ie-text-muted, #A1A1AA);
+}
+.cim-zoom-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 9rem;
+  height: 0.25rem;
+  background: var(--ie-border-strong, rgba(255, 255, 255, 0.14));
+  border-radius: 0.25rem;
+  outline: none;
+  cursor: pointer;
+}
+.cim-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: var(--ie-accent, #F472B6);
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.35);
+  transition: transform 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.cim-zoom-slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+.cim-zoom-slider::-moz-range-thumb {
+  width: 0.95rem;
+  height: 0.95rem;
+  border-radius: 50%;
+  background: var(--ie-accent, #F472B6);
+  border: none;
+  cursor: pointer;
+}
+.cim-zoom-value {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ie-text, #F4F4F5);
+  font-variant-numeric: tabular-nums;
+  min-width: 2rem;
+}
+.cim-zoom-slider:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.cim-error {
+  font-size: 0.72rem;
+  color: #f87171;
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.35rem;
+}
+
+.cim-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+.cim-btn-ghost,
+.cim-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  border-radius: 0.4rem;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.cim-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--ie-border, rgba(255, 255, 255, 0.08));
+  color: var(--ie-text-muted, #A1A1AA);
+}
+.cim-btn-ghost:hover:not(:disabled) {
+  border-color: var(--ie-border-strong, rgba(255, 255, 255, 0.14));
+  color: var(--ie-text, #F4F4F5);
+}
+.cim-btn-primary {
+  background: var(--ie-accent, #F472B6);
+  border: 1px solid var(--ie-accent, #F472B6);
+  color: white;
+  box-shadow: 0 0.3rem 0.9rem color-mix(in srgb, var(--ie-accent, #F472B6) 35%, transparent);
+}
+.cim-btn-primary:hover:not(:disabled) {
+  background: var(--ie-accent-dark, #DB2777);
+  transform: translateY(-1px);
+}
+.cim-btn-ghost:disabled,
+.cim-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+@keyframes cim-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.cim-spin { animation: cim-spin 0.9s linear infinite; }

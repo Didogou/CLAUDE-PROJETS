@@ -22,7 +22,7 @@
 
 import React, { useState } from 'react'
 import { Reorder, motion, AnimatePresence } from 'framer-motion'
-import { Plus, Play, Pause, Trash2, Film, Settings2, Link2, AlertTriangle, Image as ImageIcon, MessageSquare, GitBranch, StopCircle } from 'lucide-react'
+import { Plus, Play, Pause, Trash2, Film, Settings2, Link2, AlertTriangle } from 'lucide-react'
 import { useEditorState, type AnimationPellicule } from '@/components/image-editor/EditorStateContext'
 import { SHOT_LABELS, CAMERA_LABELS } from './labels'
 import AnimationOptionsModal from './AnimationOptionsModal'
@@ -51,12 +51,13 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
     ? animationPellicules.find(p => p.id === optionsForPelliculeId) ?? null
     : null
 
-  const totalDuration = animationPellicules.reduce((acc, p) => acc + p.duration, 0)
-  // Count "playable" : animation avec video OU image_static avec image
-  const playableCount = animationPellicules.filter(p =>
-    (p.type === 'animation' && p.videoUrl) ||
-    (p.type === 'image_static' && p.firstFrameUrl)
-  ).length
+  // Multi-shots β.1+ 2026-05-06 : durée pellicule = somme des durées de ses shots
+  const totalDuration = animationPellicules.reduce(
+    (acc, p) => acc + p.shots.reduce((sa, s) => sa + s.duration, 0),
+    0,
+  )
+  // Count "playable" : pellicules animation avec videoUrl générée
+  const playableCount = animationPellicules.filter(p => !!p.videoUrl).length
   const isSequencePlaying = sequencePlayheadIdx !== null
   const canPlaySequence = playableCount > 0
 
@@ -196,38 +197,25 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
                         : <AlertTriangle size={9} />}
                     </div>
                   )}
-                  {/* Titre cellule — adapté selon le type :
-                   *  - animation    : "P1 — Plan moyen, Caméra fixe, 5s" + tag à générer
-                   *  - image_static : "P1 — Image fixe, 5s" + tag à choisir si pas d'image
-                   *  - conversation : "P1 — Conversation" (placeholder) */}
+                  {/* Titre cellule : "P1 — Plan moyen, Caméra fixe, 5s" + tag à générer */}
                   <div className="dz-anim-cell-num">
                     <span className="dz-anim-cell-num-id">P{idx + 1}</span>
                     <span className="dz-anim-cell-num-sep">—</span>
                     <span className="dz-anim-cell-num-params">
-                      {p.type === 'animation' && (
-                        <>
-                          <Film size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.2rem' }} />
-                          {SHOT_LABELS[p.shot]}, {CAMERA_LABELS[p.camera]}, {p.duration}s
-                        </>
-                      )}
-                      {p.type === 'image_static' && (
-                        <>
-                          <ImageIcon size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.2rem' }} />
-                          Image fixe, {p.duration}s
-                        </>
-                      )}
-                      {p.type === 'conversation' && (
-                        <>
-                          <MessageSquare size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.2rem' }} />
-                          Conversation
-                        </>
-                      )}
+                      <Film size={9} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '0.2rem' }} />
+                      {/* Multi-shots β.1+ : affiche le 1er shot + nb total de shots si > 1
+                       *  + somme des durées (durée totale de la pellicule). */}
+                      {(() => {
+                        const first = p.shots[0]
+                        const total = p.shots.reduce((acc, s) => acc + s.duration, 0)
+                        if (!first) return `${total}s`
+                        const meta = `${SHOT_LABELS[first.shot]}, ${CAMERA_LABELS[first.camera]}`
+                        const shotsLabel = p.shots.length > 1 ? ` (${p.shots.length} shots)` : ''
+                        return `${meta}${shotsLabel}, ${total}s`
+                      })()}
                     </span>
-                    {p.type === 'animation' && !generated && (
+                    {!generated && (
                       <span className="dz-anim-cell-pending-tag">à générer</span>
-                    )}
-                    {p.type === 'image_static' && !p.firstFrameUrl && (
-                      <span className="dz-anim-cell-pending-tag">à choisir</span>
                     )}
                   </div>
                   <div className="dz-anim-cell-thumb">
@@ -252,23 +240,6 @@ export default function AnimationTimeline({ onPlayPellicule }: AnimationTimeline
                       </button>
                     )}
                   </div>
-                  {/* Phase E3 — Badge exit en haut-droite si non-auto.
-                   *  GitBranch icon pour choices, StopCircle pour end_section. */}
-                  {p.exit && p.exit.kind !== 'auto' && (
-                    <div
-                      className={`dz-anim-cell-exit-badge dz-anim-cell-exit-${p.exit.kind}`}
-                      title={
-                        p.exit.kind === 'choices'
-                          ? `Sortie : ${p.exit.options.length} choix joueur (branching). La lecture séquence s'arrête ici jusqu'au choix.`
-                          : 'Sortie : fin de Section (déclenche les choix de Section au runtime).'
-                      }
-                    >
-                      {p.exit.kind === 'choices'
-                        ? <GitBranch size={9} />
-                        : <StopCircle size={9} />}
-                    </div>
-                  )}
-
                   {/* Bouton Options + Supprimer côte à côte sous le thumbnail.
                    *  stopPropagation pour ne pas re-sélectionner la pellicule au clic. */}
                   <div className="dz-anim-cell-actions-row">

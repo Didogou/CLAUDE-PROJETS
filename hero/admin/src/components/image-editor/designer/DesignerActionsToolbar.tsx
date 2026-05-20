@@ -72,6 +72,11 @@ interface DesignerActionsToolbarProps {
    *  catalog fermé, layer change). Permet au parent de reset l'état d'extraction
    *  (sélections + composite) — l'utilisateur abandonne la session. */
   onDrawerClose?: () => void
+  /** Callback déclenché au re-clic sur le sub-tool ACTIF (refonte 2026-05-12).
+   *  Plus léger qu'onDrawerClose : on désactive juste l'outil courant (loupe +
+   *  draft en cours) MAIS on garde l'extraction déjà réalisée (cutResult,
+   *  wandMasks, brushStrokes) visible dans le panneau gauche. */
+  onSubToolDeselect?: () => void
 
   /** Force le drawer ouvert depuis le parent (ex: sélection d'une détection
    *  via clic sur le canvas → on ouvre le drawer auto pour exposer les actions
@@ -121,6 +126,7 @@ interface DesignerActionsToolbarPropsWithLayer extends DesignerActionsToolbarPro
 export default function DesignerActionsToolbar({
   actions, activeCategory, onActionClick, activeSubToolId,
   onDrawerClose,
+  onSubToolDeselect,
   activeLayerIdx,
   forceOpen = false,
   subToolsDisabled = false,
@@ -224,6 +230,13 @@ export default function DesignerActionsToolbar({
       // nouveau directement (le précédent se ferme via openId qui change).
       const willOpen = openId !== action.id
       setOpenId(willOpen ? action.id : null)
+      // Refonte 2026-05-12 : si un catalog du RAIL gauche (Objets, Effets,
+      // Annotations, etc.) est ouvert, on le ferme pour libérer la place
+      // — sinon les sub-tools du toolbar débordent dans son territoire.
+      // Le sous-tool picked rouvrira le catalog approprié via handleSubToolPick.
+      if (willOpen && activeCategory !== null && activeCategory !== action.opensCategory) {
+        onActionClick(activeCategory)  // toggle off = close
+      }
     } else {
       // Action sans subTools (ex: Animer). Toggle on/off :
       //  - Re-clic sur action déjà active → désactive (close catalog)
@@ -245,6 +258,16 @@ export default function DesignerActionsToolbar({
   }
 
   function handleSubToolPick(action: DesignerAction, subTool: DesignerActionSubTool) {
+    // Refonte 2026-05-12 : re-clic sur le sub-tool ACTIF = désactivation
+    // LÉGÈRE du tool. Drawer reste ouvert, l'extraction déjà réalisée reste
+    // visible dans le panneau gauche. Seuls la loupe et le draft en cours
+    // (polygone non fermé, brush pas validé) sont nettoyés. Fallback à
+    // onDrawerClose si onSubToolDeselect non fourni (back-compat).
+    if (activeSubToolId === subTool.id) {
+      if (onSubToolDeselect) onSubToolDeselect()
+      else onDrawerClose?.()
+      return
+    }
     action.onSubToolPick?.(subTool.id)
     // Spec : clic icône principale = panneau fermé, clic sub-tool = panneau
     // s'ouvre (les tools event-driven ont besoin du catalog monté pour

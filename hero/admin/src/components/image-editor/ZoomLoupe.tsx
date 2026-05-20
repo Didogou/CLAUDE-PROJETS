@@ -151,6 +151,13 @@ export default function ZoomLoupe({
   // saute vers le coin OPPOSÉ. Stable ensuite tant qu'on n'entre pas dans la
   // nouvelle zone — pas de jitter (hysteresis naturelle car on ne bouge que
   // quand cursor entre la zone CURRENT, pas tant qu'il est ailleurs).
+  //
+  // ⚠ Refonte 2026-05-12 — fix boucle infinie :
+  //   - deps : containerSize.w/h (primitives) au lieu de containerSize (objet
+  //     recréé chaque render → re-trigger constant de l'effet → setState loop).
+  //   - Garde anti-ping-pong : avant de flipper, vérifie que le rect du NOUVEAU
+  //     coin ne contient PAS aussi le curseur (sinon on flip à l'infini entre 2
+  //     coins qui contiennent tous les 2 le curseur — possible sur petit canvas).
   useEffect(() => {
     if (!cursor || containerSize.w === 0) return
     const cx = cursor.x * containerSize.w
@@ -161,9 +168,16 @@ export default function ZoomLoupe({
     const inX = cx >= left - buffer && cx <= left + size + buffer
     const inY = cy >= top - buffer  && cy <= top + size + buffer
     if (inX && inY) {
-      setPosition(prev => OPPOSITE[prev])
+      // Vérifie que le nouveau coin n'a pas AUSSI le curseur dans sa zone.
+      const newPos = OPPOSITE[position]
+      const newLeft = newPos.endsWith('right') ? containerSize.w - size - margin : margin
+      const newTop  = newPos.startsWith('top')  ? margin : containerSize.h - size - margin
+      const newInX = cx >= newLeft - buffer && cx <= newLeft + size + buffer
+      const newInY = cy >= newTop - buffer  && cy <= newTop + size + buffer
+      if (newInX && newInY) return  // les 2 coins matchent → reste où on est
+      setPosition(newPos)
     }
-  }, [cursor, containerSize, size, margin, position])
+  }, [cursor, containerSize.w, containerSize.h, size, margin, position])
 
   // Re-render le canvas zoomé à chaque move du curseur. Re-render aussi quand
   // les overlays changent (wandMasks ajoutés, lasso draft progressif, brush

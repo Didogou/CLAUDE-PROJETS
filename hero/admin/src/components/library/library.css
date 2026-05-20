@@ -1,0 +1,353 @@
+/* ──────────────────────────────────────────────────────────────────────────
+ * Library — CSS module autonome (préfixe lib-*).
+ *
+ * Page d'accueil des Studios — liste des livres en grille de tuiles.
+ * Theme dark par défaut, aligné Studio Section / Designer (mêmes variables
+ * --ie-* + --lib-* spécifiques).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.lib-root {
+  /* Theme dark (default) */
+  --ie-bg: #0F0F12;
+  --ie-surface: #17171B;
+  --ie-surface-2: #1F1F25;
+  --ie-surface-3: #2A2A32;
+  --ie-text: #F4F4F5;
+  --ie-text-muted: #A1A1AA;
+  --ie-text-faint: #71717A;
+  --ie-border: rgba(255, 255, 255, 0.08);
+  --ie-border-strong: rgba(255, 255, 255, 0.14);
+  --ie-accent: #F472B6;
+  --ie-accent-faint: rgba(244, 114, 182, 0.12);
+  --ie-accent-dark: #DB2777;
+
+  /* Status colors */
+  --lib-draft: #71717A;
+  --lib-published: #10B981;
+  --lib-archived: #6B7280;
+
+  /* Phase colors */
+  --lib-phase-structure: #F59E0B;
+  --lib-phase-writing: #3B82F6;
+  --lib-phase-done: #10B981;
+
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 13px;
+  background: var(--ie-bg);
+  color: var(--ie-text);
+}
+
+.lib-root.theme-light {
+  --ie-bg: #FAFAF9;
+  --ie-surface: #FFFFFF;
+  --ie-surface-2: #F4F4F2;
+  --ie-surface-3: #EDEDEB;
+  --ie-text: #18181B;
+  --ie-text-muted: #52525B;
+  --ie-text-faint: #A1A1AA;
+  --ie-border: rgba(0, 0, 0, 0.08);
+  --ie-border-strong: rgba(0, 0, 0, 0.14);
+  --ie-accent: #EC4899;
+  --ie-accent-faint: #FDF2F8;
+  --ie-accent-dark: #BE185D;
+}
+
+/* ── Top bar ────────────────────────────────────────────────────────────── */
+.lib-topbar {
+  flex-shrink: 0;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  padding: 0 32px;
+  gap: 16px;
+  background: var(--ie-surface);
+  border-bottom: 1px solid var(--ie-border);
+}
+.lib-topbar-title {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.lib-topbar-title .lib-logo {
+  width: 28px;
+  height: 28px;
+  background: var(--ie-accent);
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  font-weight: 800;
+}
+.lib-topbar-spacer { flex: 1; }
+.lib-topbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 6px;
+  color: var(--ie-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 140ms;
+}
+.lib-topbar-btn:hover { background: var(--ie-surface-2); }
+.lib-topbar-btn-icon { padding: 8px 9px; }
+
+/* ── Main content area ─────────────────────────────────────────────────── */
+.lib-main {
+  flex: 1;
+  padding: 40px 32px;
+  max-width: 1400px;
+  width: 100%;
+  margin: 0 auto;
+}
+.lib-section-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.lib-section-header h1 {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+.lib-section-header p {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ie-text-muted);
+}
+
+/* ── Grille de tuiles ──────────────────────────────────────────────────── */
+.lib-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 20px;
+}
+
+/* ── Tuile livre ───────────────────────────────────────────────────────── */
+.lib-tile {
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  font-family: inherit;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+}
+.lib-tile:hover {
+  transform: translateY(-3px);
+  border-color: var(--ie-accent);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25), 0 0 0 1px var(--ie-accent-faint);
+}
+.lib-tile-cover {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  background: var(--ie-surface-3);
+  position: relative;
+  overflow: hidden;
+}
+.lib-tile-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 320ms;
+}
+.lib-tile:hover .lib-tile-cover img {
+  transform: scale(1.04);
+}
+.lib-tile-cover-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: linear-gradient(135deg, var(--ie-surface-3), var(--ie-surface-2));
+  color: var(--ie-text-faint);
+  font-size: 36px;
+}
+.lib-tile-cover-placeholder-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+
+/* Status badge top-right */
+.lib-tile-status {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 3px 9px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: white;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.lib-tile-status::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+.lib-tile-status.draft { color: #FCD34D; }
+.lib-tile-status.published { color: #34D399; }
+.lib-tile-status.archived { color: #9CA3AF; }
+
+/* Universe tag bottom-left of cover */
+.lib-tile-universe {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  padding: 2px 8px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(6px);
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Body of the tile (under cover) */
+.lib-tile-body {
+  padding: 14px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+.lib-tile-title {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--ie-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lib-tile-synopsis {
+  font-size: 11px;
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lib-tile-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px dashed var(--ie-border);
+  font-size: 11px;
+  color: var(--ie-text-faint);
+}
+.lib-tile-meta-section-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+}
+.lib-tile-meta-phase {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.lib-tile-meta-phase.structure { color: var(--lib-phase-structure); }
+.lib-tile-meta-phase.writing { color: var(--lib-phase-writing); }
+.lib-tile-meta-phase.done { color: var(--lib-phase-done); }
+.lib-tile-meta-phase.validated { color: var(--lib-phase-writing); }
+
+/* ── Tuile "+ Nouveau livre" ───────────────────────────────────────────── */
+.lib-tile-new {
+  background: transparent;
+  border: 2px dashed var(--ie-border-strong);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--ie-text-muted);
+  transition: all 220ms;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0;
+  /* Match height d'une tuile normale (cover + body) */
+  min-height: 380px;
+}
+.lib-tile-new:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: var(--ie-accent-faint);
+}
+.lib-tile-new-plus {
+  font-size: 48px;
+  line-height: 1;
+  font-weight: 300;
+}
+.lib-tile-new-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.lib-tile-new-hint {
+  font-size: 10px;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  text-align: center;
+  max-width: 12rem;
+}
+
+/* ── Loading / Empty states ───────────────────────────────────────────── */
+.lib-empty {
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--ie-text-faint);
+  font-size: 13px;
+  font-style: italic;
+}
+.lib-loading {
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--ie-text-faint);
+  font-size: 13px;
+}

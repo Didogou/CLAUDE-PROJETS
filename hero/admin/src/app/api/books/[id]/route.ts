@@ -19,9 +19,13 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const [{ data: book }, { data: sections }] = await Promise.all([
+  // Parallèle : book + sections + npcs + items (pour le Designer qui charge
+  // les persos/objets du livre dans son catalogue).
+  const [{ data: book }, { data: sections }, { data: npcs }, { data: items }] = await Promise.all([
     supabaseAdmin.from('books').select('*').eq('id', id).single(),
     supabaseAdmin.from('sections').select('*').eq('book_id', id).order('number'),
+    supabaseAdmin.from('npcs').select('*').eq('book_id', id),
+    supabaseAdmin.from('items').select('*').eq('book_id', id),
   ])
 
   if (!book) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -31,5 +35,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     ? await supabaseAdmin.from('choices').select('*').in('section_id', sectionIds)
     : { data: [] }
 
-  return NextResponse.json({ book, sections: sections ?? [], choices: choices ?? [] })
+  return NextResponse.json({
+    book,
+    sections: sections ?? [],
+    choices: choices ?? [],
+    npcs: npcs ?? [],
+    items: items ?? [],
+  })
 }

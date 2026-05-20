@@ -32,12 +32,21 @@ interface MenuViewTabsProps {
 export default function MenuViewTabs({ embedded = false }: MenuViewTabsProps = {}) {
   const { layers, activeLayerIdx, setActiveLayerView } = useEditorState()
   const isBase = activeLayerIdx === 0
-  // Sur la Base, on ne montre que l'onglet Image (la Base est statique —
-  // les animations vivent sur des calques additionnels).
-  const visibleViews = isBase ? VIEWS.filter(v => v.id === 'image') : VIEWS
+  // Calque extraction (refonte 2026-05-09) : pas d'animation sur ce type
+  // de calque, son seul outil = Découpe (Ciseaux). On masque l'onglet
+  // Animation et on force la vue sur 'image'.
+  const isExtractionLayer = layers[activeLayerIdx]?.mode === 'extraction'
+  // Sur la Base ou un calque extraction, on ne montre que l'onglet Image.
+  // Les animations vivent uniquement sur les calques compositing additionnels.
+  const visibleViews = (isBase || isExtractionLayer)
+    ? VIEWS.filter(v => v.id === 'image')
+    : VIEWS
   // Safety : si la base hérite d'un activeView='animation' (cas théorique
   // via historique ou données importées), on force le rendu sur 'image'.
-  const activeView: MenuView = isBase ? 'image' : (layers[activeLayerIdx]?.activeView ?? 'image')
+  // Idem pour extraction.
+  const activeView: MenuView = (isBase || isExtractionLayer)
+    ? 'image'
+    : (layers[activeLayerIdx]?.activeView ?? 'image')
 
   function selectView(view: MenuView) {
     if (view === activeView) return

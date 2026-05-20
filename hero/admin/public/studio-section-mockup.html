@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Mockup — Studio Section (new design 2026-05-05)</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ─── Thème (aligné Studio Designer) ─── */
+    :root {
+      --ie-bg: #FAFAF9;
+      --ie-surface: #FFFFFF;
+      --ie-surface-2: #F4F4F2;
+      --ie-surface-3: #EDEDEB;
+      --ie-text: #18181B;
+      --ie-text-muted: #52525B;
+      --ie-text-faint: #A1A1AA;
+      --ie-border: rgba(0, 0, 0, 0.08);
+      --ie-border-strong: rgba(0, 0, 0, 0.14);
+      --ie-accent: #EC4899;
+      --ie-accent-faint: #FDF2F8;
+      --ie-accent-dark: #BE185D;
+      --ie-static: #6366f1;
+      --ie-static-faint: rgba(99, 102, 241, 0.10);
+      --ie-anim: #EC4899;
+      --ie-anim-faint: rgba(236, 72, 153, 0.10);
+      --ie-conv: #8B5CF6;
+      --ie-conv-faint: rgba(139, 92, 246, 0.10);
+      --ie-music: #14B8A6;
+      --ie-radius: 6px;
+      --ie-radius-md: 10px;
+      --ie-radius-lg: 14px;
+      --ie-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+      --ie-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.10);
+      --ie-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.18);
+    }
+    body.theme-dark {
+      --ie-bg: #0F0F12;
+      --ie-surface: #17171B;
+      --ie-surface-2: #1F1F25;
+      --ie-surface-3: #2A2A32;
+      --ie-text: #F4F4F5;
+      --ie-text-muted: #A1A1AA;
+      --ie-text-faint: #71717A;
+      --ie-border: rgba(255, 255, 255, 0.08);
+      --ie-border-strong: rgba(255, 255, 255, 0.14);
+      --ie-accent: #F472B6;
+      --ie-accent-faint: rgba(244, 114, 182, 0.12);
+      --ie-accent-dark: #DB2777;
+      --ie-static: #818cf8;
+      --ie-static-faint: rgba(129, 140, 248, 0.14);
+      --ie-anim: #F472B6;
+      --ie-anim-faint: rgba(244, 114, 182, 0.14);
+      --ie-conv: #A78BFA;
+      --ie-conv-faint: rgba(167, 139, 250, 0.14);
+      --ie-music: #2DD4BF;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      font-size: 13px;
+      background: var(--ie-bg);
+      color: var(--ie-text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Demo controls top-right (theme switcher) ── */
+    .demo-controls {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 1000;
+      display: flex;
+      gap: 6px;
+      padding: 6px 8px;
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: 8px;
+      box-shadow: var(--ie-shadow-md);
+      font-size: 11px;
+    }
+    .demo-controls button {
+      padding: 4px 10px;
+      background: transparent;
+      border: 1px solid var(--ie-border);
+      border-radius: 5px;
+      color: var(--ie-text);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+    }
+    .demo-controls button.active {
+      background: var(--ie-accent);
+      border-color: var(--ie-accent);
+      color: white;
+    }
+
+    /* ── Studio Section root ── */
+    .studio-section-root {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Top bar ── */
+    .topbar {
+      flex-shrink: 0;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      padding: 0 18px;
+      gap: 16px;
+      background: var(--ie-surface);
+      border-bottom: 1px solid var(--ie-border);
+    }
+    .topbar-breadcrumb {
+      font-size: 12px;
+      color: var(--ie-text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .topbar-breadcrumb a {
+      color: var(--ie-text-muted);
+      text-decoration: none;
+    }
+    .topbar-breadcrumb a:hover { color: var(--ie-text); }
+    .topbar-breadcrumb strong {
+      color: var(--ie-text);
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .topbar-section-id {
+      font-size: 10px;
+      color: var(--ie-text-faint);
+      padding: 2px 6px;
+      background: var(--ie-surface-2);
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+    .topbar-spacer { flex: 1; }
+    .topbar-status {
+      font-size: 11px;
+      color: var(--ie-text-faint);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .topbar-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10B981;
+    }
+    .topbar-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      background: transparent;
+      border: 1px solid var(--ie-border);
+      border-radius: 6px;
+      color: var(--ie-text);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      transition: all 140ms;
+    }
+    .topbar-btn:hover { background: var(--ie-surface-2); }
+    .topbar-btn-primary {
+      background: var(--ie-accent);
+      border-color: var(--ie-accent);
+      color: white;
+    }
+    .topbar-btn-primary:hover {
+      background: var(--ie-accent-dark);
+      border-color: var(--ie-accent-dark);
+    }
+
+    /* ── Tabs ── */
+    .tabs {
+      flex-shrink: 0;
+      display: flex;
+      gap: 2px;
+      padding: 0 18px;
+      background: var(--ie-surface);
+      border-bottom: 1px solid var(--ie-border);
+    }
+    .tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 11px 16px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--ie-text-muted);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 140ms;
+    }
+    .tab:hover { color: var(--ie-text); }
+    .tab.active {
+      color: var(--ie-accent);
+      border-bottom-color: var(--ie-accent);
+    }
+    .tab-icon { font-size: 14px; }
+    .tab-badge {
+      margin-left: 4px;
+      padding: 1px 6px;
+      background: var(--ie-surface-2);
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--ie-text-faint);
+    }
+    .tab.active .tab-badge {
+      background: var(--ie-accent-faint);
+      color: var(--ie-accent);
+    }
+
+    /* ── Main content area ── */
+    .main {
+      flex: 1;
+      overflow: auto;
+      background: var(--ie-bg);
+      padding: 24px;
+    }
+
+    /* ── Storyboard view ── */
+    .sb-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .sb-title {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+    .sb-subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--ie-text-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .sb-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .sb-stat .pill {
+      padding: 2px 8px;
+      background: var(--ie-surface-2);
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    /* ── Timeline (table de mixage) ── */
+    .timeline {
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: var(--ie-radius-lg);
+      padding: 16px;
+      box-shadow: var(--ie-shadow-sm);
+    }
+    .timeline-track {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 0;
+      position: relative;
+    }
+    .timeline-track + .timeline-track {
+      border-top: 1px dashed var(--ie-border);
+    }
+    .track-label {
+      flex: 0 0 90px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--ie-text-faint);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .track-content {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      overflow-x: auto;
+    }
+
+    /* ── Plan cells (visual track) ── */
+    .plan-cell {
+      flex: 0 0 auto;
+      width: 12rem;
+      background: var(--ie-surface-2);
+      border: 2px solid var(--ie-border);
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 180ms;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .plan-cell:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--ie-shadow-md);
+      border-color: var(--ie-border-strong);
+    }
+    .plan-cell.selected {
+      border-color: var(--ie-accent);
+      box-shadow: 0 0 0 3px var(--ie-accent-faint);
+    }
+    .plan-cell.type-animation { border-color: var(--ie-anim); }
+    .plan-cell.type-static { border-color: var(--ie-static); }
+    .plan-cell.type-conversation { border-color: var(--ie-conv); }
+
+    .plan-thumb {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: var(--ie-surface-3);
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .plan-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .plan-thumb-placeholder {
+      font-size: 32px;
+      color: var(--ie-text-faint);
+    }
+    .plan-thumb-conv {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      color: var(--ie-conv);
+    }
+    .plan-thumb-conv .icon { font-size: 28px; }
+    .plan-thumb-conv .label { font-size: 10px; font-weight: 600; }
+
+    .plan-type-badge {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      padding: 2px 8px;
+      background: rgba(0, 0, 0, 0.65);
+      color: white;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .plan-cell.type-animation .plan-type-badge { background: var(--ie-anim); }
+    .plan-cell.type-static .plan-type-badge { background: var(--ie-static); }
+    .plan-cell.type-conversation .plan-type-badge { background: var(--ie-conv); }
+
+    .plan-duration {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      padding: 2px 6px;
+      background: rgba(0, 0, 0, 0.65);
+      color: white;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .plan-meta {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .plan-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .plan-num {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--ie-text-faint);
+      letter-spacing: 0.04em;
+    }
+    .plan-num-divider {
+      color: var(--ie-text-faint);
+      opacity: 0.5;
+    }
+    .plan-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ie-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .plan-stats {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--ie-text-faint);
+    }
+    .plan-stats .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 1px 5px;
+      background: var(--ie-surface);
+      border-radius: 4px;
+    }
+    .plan-stats .chip-music { color: var(--ie-music); }
+    .plan-stats .chip-choice { color: var(--ie-anim); }
+
+    /* ── + Plan dropdown ── */
+    .plan-add {
+      position: relative;
+      flex: 0 0 auto;
+    }
+    .plan-add-trigger {
+      width: 8rem;
+      height: 100%;
+      min-height: 14rem;
+      background: transparent;
+      border: 2px dashed var(--ie-border-strong);
+      border-radius: 10px;
+      color: var(--ie-text-muted);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 160ms;
+    }
+    .plan-add-trigger:hover {
+      border-color: var(--ie-accent);
+      color: var(--ie-accent);
+      background: var(--ie-accent-faint);
+    }
+    .plan-add-trigger .plus-icon {
+      font-size: 26px;
+      line-height: 1;
+    }
+    .plan-add-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 6px;
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: 10px;
+      padding: 5px;
+      min-width: 12rem;
+      box-shadow: var(--ie-shadow-lg);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .plan-add-menu.hidden { display: none; }
+    .plan-add-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: transparent;
+      border: none;
+      border-radius: 6px;
+      color: var(--ie-text);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      text-align: left;
+    }
+    .plan-add-menu-item:hover { background: var(--ie-surface-2); }
+    .plan-add-menu-item .icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .plan-add-menu-item.static .icon { background: var(--ie-static-faint); color: var(--ie-static); }
+    .plan-add-menu-item.animation .icon { background: var(--ie-anim-faint); color: var(--ie-anim); }
+    .plan-add-menu-item.conversation .icon { background: var(--ie-conv-faint); color: var(--ie-conv); }
+    .plan-add-menu-item .name { font-weight: 600; font-size: 12px; }
+    .plan-add-menu-item .desc { font-size: 10px; color: var(--ie-text-faint); }
+    .plan-add-menu-item .col { display: flex; flex-direction: column; gap: 1px; }
+
+    /* ── Music track ── */
+    .music-block {
+      flex: 0 0 auto;
+      height: 32px;
+      background: var(--ie-music);
+      opacity: 0.85;
+      border-radius: 6px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: white;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 140ms;
+    }
+    .music-block:hover { opacity: 1; }
+    .music-block .icon { font-size: 12px; }
+    .music-add {
+      flex: 0 0 auto;
+      height: 32px;
+      padding: 0 12px;
+      background: transparent;
+      border: 1px dashed var(--ie-border-strong);
+      border-radius: 6px;
+      color: var(--ie-text-faint);
+      font-family: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .music-add:hover { border-color: var(--ie-music); color: var(--ie-music); }
+
+    /* ── Choice marker (sur la track choix) ── */
+    .choice-marker {
+      flex: 0 0 auto;
+      padding: 4px 10px;
+      background: var(--ie-anim);
+      color: white;
+      border-radius: 6px;
+      font-size: 10px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+    .choice-marker .arrow { font-size: 9px; opacity: 0.7; }
+    .choice-marker-empty {
+      flex: 1;
+      height: 20px;
+      border-bottom: 1px dotted var(--ie-border-strong);
+      opacity: 0.4;
+    }
+
+    /* ── Plan inspector (right panel below the timeline) ── */
+    .plan-inspector {
+      margin-top: 24px;
+      background: var(--ie-surface);
+      border: 1px solid var(--ie-border);
+      border-radius: var(--ie-radius-lg);
+      box-shadow: var(--ie-shadow-sm);
+      overflow: hidden;
+    }
+    .insp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--ie-border);
+      background: var(--ie-surface-2);
+    }
+    .insp-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .insp-header h3 {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .insp-header .pill {
+      padding: 3px 10px;
+      background: var(--ie-anim-faint);
+      color: var(--ie-anim);
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .insp-open-designer {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--ie-accent);
+      border: none;
+      border-radius: 6px;
+      color: white;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .insp-open-designer:hover { background: var(--ie-accent-dark); }
+    .insp-body {
+      padding: 16px 18px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .insp-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .insp-field-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ie-text-faint);
+    }
+    .insp-field-value {
+      font-size: 13px;
+      color: var(--ie-text);
+    }
+    .insp-field-value .muted { color: var(--ie-text-muted); font-size: 11px; }
+
+    /* ── Tab placeholder content ── */
+    .placeholder-tab {
+      padding: 60px 40px;
+      text-align: center;
+      color: var(--ie-text-faint);
+      font-size: 14px;
+    }
+    .placeholder-tab .ph-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--ie-text);
+      margin-bottom: 8px;
+    }
+    .placeholder-tab .ph-list {
+      margin-top: 16px;
+      display: inline-block;
+      text-align: left;
+      font-size: 12px;
+      line-height: 1.8;
+    }
+
+    /* Hide non-active tab content */
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+  </style>
+</head>
+<body class="theme-dark">
+
+  <!-- Theme switcher (demo) -->
+  <div class="demo-controls">
+    <button onclick="document.body.classList.remove('theme-dark')">☀ Light</button>
+    <button class="active" onclick="document.body.classList.add('theme-dark')">🌙 Dark</button>
+  </div>
+
+  <div class="studio-section-root">
+
+    <!-- ── TOP BAR ─────────────────────────────────────────────────────── -->
+    <header class="topbar">
+      <nav class="topbar-breadcrumb">
+        <a href="#">Studio Creator</a>
+        <span>›</span>
+        <a href="#">Livre Freaks — Le Bronx</a>
+        <span>›</span>
+        <strong>Section 12 — Le bar du Bronx</strong>
+        <span class="topbar-section-id">#12</span>
+      </nav>
+      <div class="topbar-spacer"></div>
+      <span class="topbar-status">
+        <span class="dot"></span>
+        Sauvegardé · il y a 4s
+      </span>
+      <button class="topbar-btn">▶ Aperçu joueur</button>
+      <button class="topbar-btn topbar-btn-primary">Publier</button>
+    </header>
+
+    <!-- ── TABS ────────────────────────────────────────────────────────── -->
+    <nav class="tabs">
+      <button class="tab active" onclick="showTab('storyboard')">
+        <span class="tab-icon">🎞</span>
+        Storyboard
+        <span class="tab-badge">3</span>
+      </button>
+      <button class="tab" onclick="showTab('texte')">
+        <span class="tab-icon">📝</span>
+        Texte narratif
+      </button>
+      <button class="tab" onclick="showTab('choix')">
+        <span class="tab-icon">⚖</span>
+        Choix &amp; Trial
+        <span class="tab-badge">3</span>
+      </button>
+      <button class="tab" onclick="showTab('companions')">
+        <span class="tab-icon">👥</span>
+        Companions
+        <span class="tab-badge">2</span>
+      </button>
+      <button class="tab" onclick="showTab('settings')">
+        <span class="tab-icon">⚙</span>
+        Settings
+      </button>
+    </nav>
+
+    <!-- ── MAIN CONTENT ──────────────────────────────────────────────── -->
+    <main class="main">
+
+      <!-- STORYBOARD tab (default) -->
+      <div class="tab-pane active" id="tab-storyboard">
+
+        <div class="sb-header">
+          <div>
+            <h1 class="sb-title">Storyboard</h1>
+            <div class="sb-subtitle">
+              <span class="sb-stat"><span class="pill">3 Plans</span></span>
+              <span class="sb-stat"><span class="pill">~28s scène</span></span>
+              <span class="sb-stat"><span class="pill" style="color: var(--ie-music);">♪ 2 avec musique</span></span>
+              <span class="sb-stat"><span class="pill" style="color: var(--ie-anim);">⊕ 1 choix</span></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timeline = table de mixage : 3 pistes parallèles -->
+        <div class="timeline">
+
+          <!-- Track 1 : Visuel (les Plans) -->
+          <div class="timeline-track">
+            <div class="track-label">
+              <span>🎞</span> VISUEL
+            </div>
+            <div class="track-content">
+
+              <!-- Plan 1 — Animation -->
+              <div class="plan-cell type-animation selected" onclick="selectPlan(this, 'p1')">
+                <div class="plan-thumb">
+                  <div class="plan-thumb-placeholder">🎬</div>
+                  <span class="plan-type-badge">🎬 Animation</span>
+                  <span class="plan-duration">15s</span>
+                </div>
+                <div class="plan-meta">
+                  <div class="plan-meta-row">
+                    <span class="plan-num">P1</span>
+                    <span class="plan-num-divider">·</span>
+                    <span class="plan-title">Travis entre dans le bar</span>
+                  </div>
+                  <div class="plan-stats">
+                    <span class="chip">3 séquences</span>
+                    <span class="chip chip-music">♪</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Plan 2 — Static (avec choix attachés) -->
+              <div class="plan-cell type-static" onclick="selectPlan(this, 'p2')">
+                <div class="plan-thumb">
+                  <div class="plan-thumb-placeholder">🖼</div>
+                  <span class="plan-type-badge">🖼 Static</span>
+                  <span class="plan-duration">∞ → choix</span>
+                </div>
+                <div class="plan-meta">
+                  <div class="plan-meta-row">
+                    <span class="plan-num">P2</span>
+                    <span class="plan-num-divider">·</span>
+                    <span class="plan-title">Au comptoir — choix joueur</span>
+                  </div>
+                  <div class="plan-stats">
+                    <span class="chip chip-choice">⊕ 3 choix</span>
+                    <span class="chip">Pluie</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Plan 3 — Conversation -->
+              <div class="plan-cell type-conversation" onclick="selectPlan(this, 'p3')">
+                <div class="plan-thumb">
+                  <div class="plan-thumb-conv">
+                    <span class="icon">💬</span>
+                    <span class="label">Vince</span>
+                  </div>
+                  <span class="plan-type-badge">💬 Conversation</span>
+                  <span class="plan-duration">var.</span>
+                </div>
+                <div class="plan-meta">
+                  <div class="plan-meta-row">
+                    <span class="plan-num">P3</span>
+                    <span class="plan-num-divider">·</span>
+                    <span class="plan-title">Dialogue avec Vince</span>
+                  </div>
+                  <div class="plan-stats">
+                    <span class="chip">5 nœuds</span>
+                    <span class="chip">2 branches</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- + Plan dropdown -->
+              <div class="plan-add">
+                <button class="plan-add-trigger" onclick="toggleAddMenu(event)">
+                  <span class="plus-icon">+</span>
+                  <span>Plan</span>
+                </button>
+                <div class="plan-add-menu hidden" id="add-menu">
+                  <button class="plan-add-menu-item static">
+                    <span class="icon">🖼</span>
+                    <span class="col">
+                      <span class="name">Image fixe</span>
+                      <span class="desc">Pause, écran de choix, illustration</span>
+                    </span>
+                  </button>
+                  <button class="plan-add-menu-item animation">
+                    <span class="icon">🎬</span>
+                    <span class="col">
+                      <span class="name">Animation</span>
+                      <span class="desc">Une ou plusieurs séquences vidéo</span>
+                    </span>
+                  </button>
+                  <button class="plan-add-menu-item conversation">
+                    <span class="icon">💬</span>
+                    <span class="col">
+                      <span class="name">Conversation</span>
+                      <span class="desc">Arbre de dialogue avec NPC</span>
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- Track 2 : Musique de fond -->
+          <div class="timeline-track">
+            <div class="track-label">
+              <span style="color: var(--ie-music);">♪</span> MUSIQUE
+            </div>
+            <div class="track-content">
+              <div class="music-block" style="width: 12rem;" title="ambient_bar.mp3 · joue pendant P1">
+                <span class="icon">♪</span>
+                <span>ambient_bar.mp3</span>
+              </div>
+              <div class="music-block" style="width: 12rem;" title="tension.mp3 · joue pendant P2">
+                <span class="icon">♪</span>
+                <span>tension.mp3</span>
+              </div>
+              <button class="music-add" style="width: 12rem;">+ piste pour P3</button>
+              <div class="music-add" style="width: 8rem; visibility: hidden;"></div>
+            </div>
+          </div>
+
+          <!-- Track 3 : Choix joueur (où apparaissent les boutons de choix) -->
+          <div class="timeline-track">
+            <div class="track-label">
+              <span style="color: var(--ie-anim);">⊕</span> CHOIX
+            </div>
+            <div class="track-content">
+              <div class="choice-marker-empty" style="width: 12rem;"></div>
+              <div class="choice-marker" style="width: 12rem; justify-content: center;" title="3 choix de section affichés">
+                <span>⊕ 3 choix Section</span>
+              </div>
+              <div class="choice-marker-empty" style="width: 12rem;"></div>
+              <div class="choice-marker-empty" style="width: 8rem;"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Inspector du Plan sélectionné -->
+        <div class="plan-inspector">
+          <div class="insp-header">
+            <div class="insp-header-left">
+              <h3>P1 — Travis entre dans le bar</h3>
+              <span class="pill">🎬 Animation</span>
+            </div>
+            <button class="insp-open-designer">
+              Ouvrir dans Studio Designer →
+            </button>
+          </div>
+          <div class="insp-body">
+            <div class="insp-field">
+              <span class="insp-field-label">Durée totale</span>
+              <span class="insp-field-value">15 s <span class="muted">(3 séquences de 5s)</span></span>
+            </div>
+            <div class="insp-field">
+              <span class="insp-field-label">Personnages</span>
+              <span class="insp-field-value">Travis, Vince <span class="muted">(2)</span></span>
+            </div>
+            <div class="insp-field">
+              <span class="insp-field-label">Musique</span>
+              <span class="insp-field-value" style="color: var(--ie-music);">♪ ambient_bar.mp3</span>
+            </div>
+            <div class="insp-field">
+              <span class="insp-field-label">Effets visuels</span>
+              <span class="insp-field-value">Aucun</span>
+            </div>
+            <div class="insp-field">
+              <span class="insp-field-label">Status génération</span>
+              <span class="insp-field-value">✅ 3/3 séquences générées</span>
+            </div>
+            <div class="insp-field">
+              <span class="insp-field-label">Continuité visuelle</span>
+              <span class="insp-field-value">→ P2 <span class="muted">(lastFrame → firstFrame OK)</span></span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TEXTE tab (placeholder) -->
+      <div class="tab-pane" id="tab-texte">
+        <div class="placeholder-tab">
+          <div class="ph-title">📝 Texte narratif</div>
+          <div>Éditeur de prose (la voix off / texte affiché).</div>
+          <div class="ph-list">
+            • Éditeur de texte riche (avec correction Antidote)<br>
+            • Champs annexes : summary (1 ligne), hint_text<br>
+            • Auto-detect des companions dans le texte<br>
+            • Phrase distribution (synchro phrases ↔ Plans)
+          </div>
+        </div>
+      </div>
+
+      <!-- CHOIX & TRIAL tab (placeholder) -->
+      <div class="tab-pane" id="tab-choix">
+        <div class="placeholder-tab">
+          <div class="ph-title">⚖ Choix &amp; Trial</div>
+          <div>Définition des sorties de la section.</div>
+          <div class="ph-list">
+            • Liste des choix (label, target_section, conditions, archetype)<br>
+            • Trial config (combat / agilité / éloquence) avec routing success/failure<br>
+            • Transition_text + transition_image (depuis n'importe quel Plan de la timeline)<br>
+            • Choix par défaut (countdown automatique)
+          </div>
+        </div>
+      </div>
+
+      <!-- COMPANIONS tab (placeholder) -->
+      <div class="tab-pane" id="tab-companions">
+        <div class="placeholder-tab">
+          <div class="ph-title">👥 Companions</div>
+          <div>NPC présents dans cette section.</div>
+          <div class="ph-list">
+            • Liste des NPC mentionnés dans le texte (auto-detect)<br>
+            • Ajout/suppression manuelle<br>
+            • Items présents sur scène (items_on_scene)
+          </div>
+        </div>
+      </div>
+
+      <!-- SETTINGS tab (placeholder) -->
+      <div class="tab-pane" id="tab-settings">
+        <div class="placeholder-tab">
+          <div class="ph-title">⚙ Settings</div>
+          <div>Paramètres de section.</div>
+          <div class="ph-list">
+            • reading_time / decision_time<br>
+            • is_ending / ending_type<br>
+            • location_id<br>
+            • tension_level<br>
+            • narrative_arc (besoin / désir / enjeu)
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+  </div>
+
+  <script>
+    function showTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+      event.target.closest('.tab').classList.add('active');
+      document.getElementById('tab-' + name).classList.add('active');
+    }
+    function selectPlan(el, id) {
+      document.querySelectorAll('.plan-cell').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      // (mockup — l'inspecteur ne change pas dynamiquement ici)
+    }
+    function toggleAddMenu(e) {
+      e.stopPropagation();
+      document.getElementById('add-menu').classList.toggle('hidden');
+    }
+    document.body.addEventListener('click', () => {
+      document.getElementById('add-menu').classList.add('hidden');
+    });
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,173 @@
+/* ──────────────────────────────────────────────────────────────────────────
+ * SceneDescriptionAccordion — bloc accordéon en bas de l'AnimationEditor.
+ * Tailles relatives uniquement (rem/em/%/vh/vw) — pas de px hardcodés.
+ * Hérite des variables --ie-* du Designer (.ie-root) ou du Studio Section.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.sda-root {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--ie-border);
+  padding-top: 0.5rem;
+}
+
+/* ── Toggle principal ─────────────────────────────────────────────────── */
+
+.sda-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.4rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 0.25rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  transition: background 120ms, color 120ms;
+}
+.sda-toggle:hover {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+.sda-title {
+  font-weight: 600;
+}
+.sda-status {
+  font-size: 0.6875rem;
+  color: var(--ie-accent);
+  font-weight: 500;
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────── */
+
+/* margin-top vit dans la motion.div parente pour qu'il fasse partie de
+ * l'animation de hauteur (sinon le SHOT 1 voisin a un "saut" de 0.5rem
+ * non animé). On garde uniquement le visuel ici. */
+.sda-body {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.sda-error {
+  font-size: 0.6875rem;
+  color: #f59e0b;
+  background: color-mix(in srgb, #f59e0b 10%, transparent);
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.3rem;
+}
+
+/* ── Champ individuel ─────────────────────────────────────────────────── */
+
+.sda-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sda-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sda-field-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text-muted);
+}
+
+.sda-suggest-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.55rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  transition: all 120ms;
+}
+.sda-suggest-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent) 10%, var(--ie-bg));
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.sda-suggest-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.sda-textarea {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.375rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  resize: vertical;
+  outline: none;
+  transition: border-color 120ms;
+  box-sizing: border-box;
+}
+.sda-textarea::placeholder {
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+.sda-textarea:focus {
+  border-color: var(--ie-accent);
+}
+
+/* ── Spinner local ────────────────────────────────────────────────────── */
+
+@keyframes sda-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.sda-spin { animation: sda-spin 1s linear infinite; }
+
+/* ── Sous-section "Paramètres avancés" ────────────────────────────────── */
+
+.sda-advanced-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.4rem;
+  background: transparent;
+  border: none;
+  color: var(--ie-text-faint);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  border-radius: 0.25rem;
+  transition: color 120ms, background 120ms;
+  align-self: flex-start;
+}
+.sda-advanced-toggle:hover {
+  color: var(--ie-text-muted);
+  background: var(--ie-bg);
+}
+
+.sda-advanced-body {
+  padding: 0.5rem 0.5rem 0.25rem;
+  border-left: 2px solid var(--ie-border);
+  margin-left: 0.25rem;
+}

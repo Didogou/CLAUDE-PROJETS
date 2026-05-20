@@ -12,9 +12,10 @@
  *   Sinon, fallback mock pour l'instant.
  */
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useRef, useState } from 'react'
 import { Sparkles, Loader2 } from 'lucide-react'
 import { useAICutCommandOptional } from '../AICutCommandContext'
+import { runQwenImageEdit } from '@/lib/comfyui-qwen-edit'
 
 interface Suggestion {
   ico: string
@@ -36,32 +37,44 @@ const RECENT_HISTORY: Suggestion[] = [
 ]
 
 // Détecte les commandes de découpe (extrait/découpe/coupe/isole/repère…).
-// Si match, on route vers le pipeline AICutCommand. Sinon, fallback mock.
+// Si match, on route vers le pipeline AICutCommand. Sinon, route vers
+// Qwen Image Edit (refonte 2026-05-11).
 const CUT_INTENT_RE = /\b(extrait?s?|extract|d[ée]coup[ée]r?|coupe[rz]?|isole[rz]?|isolate|rep[èe]re[rz]?|trouve[rz]?)\b/i
 
-export default function AICommandBar() {
+interface AICommandBarProps {
+  /** URL de l'image source à éditer si l'auteur tape une commande non-cut.
+   *  Si null/undefined, les commandes d'édition sont disabled (alert). */
+  currentImageUrl?: string | null
+  /** Callback après édition Qwen réussie — passe la nouvelle URL Supabase
+   *  qui remplace la base. Typiquement câblé sur replaceBase() du parent. */
+  onEditApplied?: (newImageUrl: string) => void
+  /** Préfixe Storage pour ranger les résultats d'édition. */
+  storagePathPrefix?: string
+}
+
+export default function AICommandBar({
+  currentImageUrl, onEditApplied, storagePathPrefix = 'studio/qwen-edit',
+}: AICommandBarProps = {}) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
+  /** Édition Qwen en cours (≠ découpe). Local state — la barre montre son
+   *  spinner + label propres, indépendamment du AICutCommand global. */
+  const [editBusy, setEditBusy] = useState(false)
+  const [editLabel, setEditLabel] = useState('')
 
   // Le hook peut être null si la barre est mountée hors AICutCommandProvider
   // (cas legacy / pages de test). Le fallback mock prend le relais.
   const cutCommand = useAICutCommandOptional()
-  const isBusy = cutCommand?.status.phase === 'parsing' || cutCommand?.status.phase === 'searching'
+  const cutBusy = cutCommand?.status.phase === 'parsing' || cutCommand?.status.phase === 'searching'
+  const isBusy = cutBusy || editBusy
 
-  // Raccourci Ctrl+K (ou Cmd+K) → focus input
-  useEffect(() => {
-    function handler(e: KeyboardEvent) {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-        e.preventDefault()
-        inputRef.current?.focus()
-      }
-    }
-    document.addEventListener('keydown', handler)
-    return () => document.removeEventListener('keydown', handler)
-  }, [])
+  // Refonte 2026-05-12 : Ctrl+K capturé désormais par DesignerLayout (ouvre
+  // le nouveau AIAssistantPanel). L'input reste accessible au clic pour qui
+  // veut taper directement une commande de découpe ("découpe le canapé") ou
+  // une édition Qwen rapide sans passer par le panneau structuré.
 
-  function handleSubmit(text: string) {
+  async function handleSubmit(text: string) {
     // Routing : commande de découpe ?
     if (cutCommand && CUT_INTENT_RE.test(text)) {
       void cutCommand.run(text)
@@ -70,13 +83,37 @@ export default function AICommandBar() {
       inputRef.current?.blur()
       return
     }
-    // Sinon : mock (sera remplacé par d'autres routings — édit colors,
-    // ajout PNJ, génération… au fil des intents implémentés).
-    console.log('[AICommandBar] non-cut command (mock):', text)
-    alert(`IA (mock) reçoit : "${text}"\n\nSeules les commandes d'extraction sont actives pour l'instant.\nEx: "Extrait le canapé au centre"`)
-    setValue('')
+    // Sinon : édition de la base via Qwen Image Edit (refonte 2026-05-11).
+    // Tous les autres verbes (ajoute, change, déplace, supprime, rends, etc.)
+    // sont compris naturellement par Qwen — pas besoin de parser le verbe
+    // ni de router vers des backends différents (Kontext / Composite / Swap).
+    if (!currentImageUrl || !onEditApplied) {
+      console.warn('[AICommandBar] non-cut command sans currentImageUrl/onEditApplied — fallback alert')
+      alert(`L'édition IA n'est pas disponible sur cette page (image source manquante).`)
+      return
+    }
     setOpen(false)
     inputRef.current?.blur()
+    setEditBusy(true)
+    setEditLabel('Préparation…')
+    try {
+      const newUrl = await runQwenImageEdit({
+        sourceUrl: currentImageUrl,
+        prompt: text,
+        storagePathPrefix,
+        useLightning: true,
+        onProgress: p => setEditLabel(p.label ?? p.stage),
+      })
+      onEditApplied(newUrl)
+      setValue('')
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[AICommandBar] Qwen edit failed:', msg)
+      alert(`Édition IA échouée : ${msg}`)
+    } finally {
+      setEditBusy(false)
+      setEditLabel('')
+    }
   }
 
   return (
@@ -88,14 +125,17 @@ export default function AICommandBar() {
         <input
           ref={inputRef}
           type="text"
-          placeholder="Demande à l'IA d'éditer ce plan… (ex : pluie battante, ajoute un PNJ)"
+          placeholder={editBusy && editLabel
+            ? editLabel
+            : "Demande à l'IA d'éditer ce plan… (ex : pluie battante, ajoute un PNJ)"}
           value={value}
           onChange={e => setValue(e.target.value)}
           onFocus={() => setOpen(true)}
           // Délai sur blur pour laisser le clic d'une suggestion se produire avant la fermeture
           onBlur={() => setTimeout(() => setOpen(false), 150)}
+          disabled={editBusy}
           onKeyDown={e => {
-            if (e.key === 'Enter' && value.trim()) handleSubmit(value.trim())
+            if (e.key === 'Enter' && value.trim()) void handleSubmit(value.trim())
             if (e.key === 'Escape') {
               setValue('')
               setOpen(false)
@@ -115,7 +155,7 @@ export default function AICommandBar() {
                 key={i}
                 type="button"
                 className="dz-aibar-suggestion"
-                onClick={() => handleSubmit(s.text)}
+                onClick={() => void handleSubmit(s.text)}
               >
                 <span className="dz-aibar-suggestion-ico">{s.ico}</span>
                 <span>{s.text}</span>
@@ -129,7 +169,7 @@ export default function AICommandBar() {
                 key={i}
                 type="button"
                 className="dz-aibar-suggestion"
-                onClick={() => handleSubmit(s.text)}
+                onClick={() => void handleSubmit(s.text)}
               >
                 <span className="dz-aibar-suggestion-ico">{s.ico}</span>
                 <span>{s.text}</span>

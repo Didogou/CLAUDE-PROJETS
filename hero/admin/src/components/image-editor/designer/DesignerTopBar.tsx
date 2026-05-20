@@ -44,6 +44,15 @@ interface DesignerTopBarProps {
   /** Toggle du thème clair / sombre */
   theme?: 'light' | 'dark'
   onToggleTheme?: () => void
+
+  /** Image courante de la scène — passé à AICommandBar pour permettre
+   *  l'édition Qwen Image Edit via le prompt "Demande à l'IA…". Si null,
+   *  les commandes d'édition non-cut sont disabled (alert). */
+  aiEditCurrentImageUrl?: string | null
+  /** Callback après édition Qwen réussie — typiquement câblé sur replaceBase. */
+  onAiEditApplied?: (newImageUrl: string) => void
+  /** Préfixe Storage pour ranger les résultats d'édition. */
+  aiEditStoragePathPrefix?: string
 }
 
 export default function DesignerTopBar({
@@ -61,6 +70,9 @@ export default function DesignerTopBar({
   onOpenPreview,
   theme,
   onToggleTheme,
+  aiEditCurrentImageUrl,
+  onAiEditApplied,
+  aiEditStoragePathPrefix,
 }: DesignerTopBarProps) {
   const baseIcon = openBaseVariant === 'rebase'
     ? <RefreshCw size={13} />
@@ -71,21 +83,24 @@ export default function DesignerTopBar({
     : 'Modifier la base (prompt, style, génération)'
   return (
     <div className="dz-topbar">
-      {/* Breadcrumb gauche */}
-      <div className="dz-topbar-breadcrumb" title={`${planTitle} — ${planSummary ?? ''}`}>
-        <span className="dz-topbar-context">Studio Designer ›</span>
-        <span className="dz-topbar-title">{planTitle}</span>
-        {planSummary && (
-          <>
-            <span className="dz-topbar-sep">—</span>
-            <span className="dz-topbar-summary">{planSummary}</span>
-          </>
-        )}
-      </div>
+      {/* Bouton Retour gauche (remplace breadcrumb 2026-05-06) */}
+      <button
+        type="button"
+        className="dz-topbar-return"
+        onClick={onReturn}
+        title={returnLabel}
+      >
+        <ChevronLeft size={14} />
+        <span>{returnLabel}</span>
+      </button>
 
       {/* Centre : AI command bar */}
       <div className="dz-topbar-center">
-        <AICommandBar />
+        <AICommandBar
+          currentImageUrl={aiEditCurrentImageUrl}
+          onEditApplied={onAiEditApplied}
+          storagePathPrefix={aiEditStoragePathPrefix}
+        />
       </div>
 
       {/* Droite : actions, regroupées par fonction avec séparateurs verticaux */}
@@ -174,17 +189,7 @@ export default function DesignerTopBar({
           </>
         )}
 
-        {/* Séparateur final + bouton Retour */}
-        <div className="dz-topbar-sep" aria-hidden />
-        <button
-          type="button"
-          className="dz-topbar-return"
-          onClick={onReturn}
-          title={returnLabel}
-        >
-          <ChevronLeft size={14} />
-          <span>{returnLabel}</span>
-        </button>
+        {/* Bouton Retour droite supprimé 2026-05-06 — déplacé en haut à gauche */}
       </div>
     </div>
   )

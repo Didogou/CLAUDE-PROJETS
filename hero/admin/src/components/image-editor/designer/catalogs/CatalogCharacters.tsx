@@ -173,9 +173,31 @@ export default function CatalogCharacters({
           <div className="dzc-grid">
             {filtered.map(char => {
               const thumbUrl = char.portraitUrl ?? char.fullbodyUrl
+              // Vue de face = principal draggable (= fullbody si dispo, fallback
+              // portrait). Vue de dos = mini-thumb overlay si dispo dans la
+              // galerie OU dans la colonne legacy fullbody_back_url.
+              const faceUrl = char.fullbodyUrl ?? char.portraitUrl
+              const backUrl =
+                char.images?.find(i => i.kind === 'view_back')?.url
+                ?? char.fullbodyBackUrl
+                ?? null
               const isSelected = char.id === selectedId
+              function buildDragData(url: string, viewLabel: string) {
+                return JSON.stringify({
+                  kind: 'character-placement',
+                  characterId: char.id,
+                  characterName: viewLabel === 'Face' ? char.name : `${char.name} (${viewLabel})`,
+                  mediaUrl: url,
+                })
+              }
               return (
-                <div key={char.id} className={`dzc-card ${isSelected ? 'selected' : ''}`}>
+                <div
+                  key={char.id}
+                  className={`dzc-card ${isSelected ? 'selected' : ''}`}
+                  title={faceUrl
+                    ? `Glisser ${char.name} sur la scène pour l'insérer`
+                    : `Pas d'image — ${char.name} ne peut pas être déposé`}
+                >
                   <button
                     type="button"
                     className="dzc-card-select"
@@ -184,12 +206,40 @@ export default function CatalogCharacters({
                     aria-pressed={isSelected}
                   >
                     {thumbUrl ? (
-                      <img src={thumbUrl} alt={char.name} className="dzc-card-img" />
+                      <img
+                        src={thumbUrl}
+                        alt={char.name}
+                        className="dzc-card-img"
+                        draggable={!!faceUrl}
+                        onDragStart={faceUrl ? (e) => {
+                          e.dataTransfer.setData('application/json', buildDragData(faceUrl, 'Face'))
+                          e.dataTransfer.effectAllowed = 'copy'
+                        } : undefined}
+                      />
                     ) : (
                       <div className="dzc-card-empty">👤</div>
                     )}
                     <div className="dzc-card-name">{char.name}</div>
                   </button>
+                  {/* Mini-thumb vue de DOS en overlay coin bas-droit (refonte
+                   *  2026-05-09) — draggable séparément avec l'URL back view.
+                   *  Visible uniquement si une vue de dos existe (galerie OU
+                   *  legacy fullbody_back_url). */}
+                  {backUrl && (
+                    <div
+                      className="dzc-card-back-thumb"
+                      title={`Glisser ${char.name} (vue de dos) sur la scène`}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('application/json', buildDragData(backUrl, 'Dos'))
+                        e.dataTransfer.effectAllowed = 'copy'
+                        e.stopPropagation()
+                      }}
+                    >
+                      <img src={backUrl} alt={`${char.name} dos`} />
+                      <span className="dzc-card-back-label">Dos</span>
+                    </div>
+                  )}
                   {isSelected && (
                     <span className="dzc-card-check" aria-hidden>
                       <Check size={11} strokeWidth={3} />

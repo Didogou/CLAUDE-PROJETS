@@ -38,7 +38,7 @@ export interface ComfyUIHistoryEntry {
   outputs: Record<string, ComfyUINodeOutput>
 }
 
-export type WorkflowType = 'portrait' | 'scene_composition' | 'transition' | 'background' | 'animate' | 'wan_animate' | 'wan_camera' | 'latent_sync' | 'motion_brush' | 'cinemagraph' | 'tooncrafter' | 'liveportrait' | 'qwen_multiangle' | 'ltx_video' | 'qwen_image_edit' | 'flux_fill' | 'insert_anything' | 'ic_light_harmonize' | 'posed_ref_t2i' | 'controlnet_character_swap' | 'face_detailer_only' | 'flux_kontext' | 'instant_id' | 'z_image' | 'flux_dev' | 'ltx_2_3_dual'
+export type WorkflowType = 'portrait' | 'scene_composition' | 'transition' | 'background' | 'animate' | 'wan_animate' | 'wan_camera' | 'latent_sync' | 'motion_brush' | 'cinemagraph' | 'tooncrafter' | 'liveportrait' | 'qwen_multiangle' | 'ltx_video' | 'qwen_image_edit' | 'flux_fill' | 'insert_anything' | 'ic_light_harmonize' | 'posed_ref_t2i' | 'controlnet_character_swap' | 'face_detailer_only' | 'flux_kontext' | 'instant_id' | 'z_image' | 'flux_dev' | 'ltx_2_3_dual' | 'ltx_2_3_dual_v2v' | 'sonic' | 'framepack'
 
 /** Presets mappés sur les options EXACTES de WanCameraEmbedding (ComfyUI core).
  *  Liste officielle : Static, Pan Up/Down/Left/Right, Zoom In/Out,
@@ -113,6 +113,18 @@ export interface ComfyUIGenerateParams {
   source_video?: string
   /** For latent_sync: audio file already uploaded to ComfyUI input folder */
   audio_filename?: string
+  /** For ltx_2_3_dual : durée de la vidéo générée en secondes (clamp 1-20).
+   *  Patch dynamiquement le node INTConstant "Length (Max 20 Secs)" du
+   *  workflow Vantage. Si non fourni, default workflow = 15s. */
+  duration_sec?: number
+  /** For ltx_2_3_dual_v2v : filename d'une vidéo MP4 précédente (déjà uploadée
+   *  à ComfyUI input store) qui sert de référence de mouvement. Le workflow
+   *  RuneXX V2V Extend la charge via VHS_LoadVideo puis extrait les N
+   *  dernières frames via GetImageRangeFromBatch. Refonte 2026-05-11. */
+  prev_video_filename?: string
+  /** For ltx_2_3_dual_v2v : combien de secondes de la fin de la vidéo source
+   *  utiliser comme conditioning (= patch INTConstant "REF. LENGTH"). Défaut 1. */
+  ref_length_sec?: number
   /** For latent_sync: lips expressivity (1.0-3.0, default 1.5) */
   lips_expression?: number
   /** For latent_sync: denoise steps (default 20) */
@@ -211,6 +223,7 @@ export const STYLE_SUFFIXES: Record<string, string> = {
   bnw:          'black and white ink illustration, crosshatching, high contrast',
   watercolor:   'watercolor illustration, soft edges, transparent washes, painterly',
   comic:        'franco-belgian comic book style, clear line, bold colors, bande dessinée',
+  cartoon:      'cartoon animation style, bold outlines, flat vibrant colors, expressive characters, Pixar-Disney inspired',
   dark_fantasy: 'dark fantasy art, dramatic shadows, gritty, oil painting style',
   pixel:        'pixel art, 16-bit retro game style, limited color palette, crisp pixels',
   sketch:       'pencil sketch, rough hand-drawn lines, graphite strokes, storyboard style',
@@ -1786,6 +1799,12 @@ export function buildWorkflow(params: ComfyUIGenerateParams): Record<string, unk
       return buildFluxDevWorkflow(params)
     case 'ltx_2_3_dual':
       return buildLtx23DualWorkflow(params)
+    case 'ltx_2_3_dual_v2v':
+      return buildLtx23DualV2vWorkflow(params)
+    case 'sonic':
+      return buildSonicWorkflow(params)
+    case 'framepack':
+      return buildFramePackWorkflow(params)
   }
 }
 
@@ -1958,9 +1977,18 @@ export function buildQwenImageEditWorkflow(params: ComfyUIGenerateParams): Recor
         inputs: { samples: ['30', 0], mask: [finalMaskNodeId, 0] },
       },
     } : {
+      // Mode TEXTE (pas de mask) : EmptyLatent dimensionné sur params.
+      // Refonte 2026-05-11 : avant hardcoded 1024×1024 → résultat toujours
+      // carré même si source 9:16 → distorsion d'aspect. Maintenant utilise
+      // params.width/height pour préserver l'aspect source. Fallback 1024²
+      // pour back-compat des callers qui ne passent pas ces params.
       '30': {
         class_type: 'EmptyLatentImage',
-        inputs: { width: 1024, height: 1024, batch_size: 1 },
+        inputs: {
+          width: params.width ?? 1024,
+          height: params.height ?? 1024,
+          batch_size: 1,
+        },
       },
     }),
 
@@ -3497,10 +3525,22 @@ export function buildLtx23DualWorkflow(params: ComfyUIGenerateParams): Record<st
   // côté client (GenerationPanel.tsx) → import node:fs casse le build.
   // La solution propre = extraire ce builder dans un fichier server-only dédié
   // (TODO Phase 5).
+  // Branch entre 2 templates selon présence d'un audio custom :
+  //   - audio_filename présent → workflow AVEC chaîne LoadAudio→MelBand→Encode→
+  //     SetLatentNoiseMask→Switch.any_01 (active le mode "lipsync" Vantage)
+  //   - sinon → workflow original (Switch.any_01 vide → fallback any_02 =
+  //     LTXVEmptyLatentAudio → mode foley généré, comportement actuel)
+  // Cf. ltx_2_3_dual_audio.api.json (généré 2026-05-06 d'après workflow Vantage)
+  const useAudio = !!params.audio_filename
   let template: Record<string, unknown>
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    template = require('./workflows/ltx_2_3_dual.api.json') as Record<string, unknown>
+    if (useAudio) {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      template = require('./workflows/ltx_2_3_dual_audio.api.json') as Record<string, unknown>
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      template = require('./workflows/ltx_2_3_dual.api.json') as Record<string, unknown>
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     throw new Error(
@@ -3543,6 +3583,18 @@ export function buildLtx23DualWorkflow(params: ComfyUIGenerateParams): Record<st
       inputs.image = params.source_image
     }
 
+    // LoadAudio (workflow audio uniquement) → fichier audio uploadé dans
+    // ComfyUI input. Si on est dans le wf audio mais qu'aucun audio_filename
+    // n'est fourni, on échoue tôt — sinon ComfyUI essaie de charger le
+    // placeholder "__INJECT_AUDIO_FILENAME__" et plante au runtime avec une
+    // erreur peu lisible.
+    if (classType === 'LoadAudio' && 'audio' in inputs) {
+      if (!params.audio_filename) {
+        throw new Error('[ltx_2_3_dual_audio] LoadAudio node sans audio_filename — paramètre requis')
+      }
+      inputs.audio = params.audio_filename
+    }
+
     // CLIPTextEncode : distingue positif vs négatif via mots-clés du texte
     // courant. Plus robuste qu'une simple détection 'ugly' (le négatif Vantage
     // commence par 'blurry, out of focus...').
@@ -3569,7 +3621,375 @@ export function buildLtx23DualWorkflow(params: ComfyUIGenerateParams): Record<st
     }
   }
 
+  // Patch dynamique des dimensions cible + durée (refonte 2026-05-10).
+  // Le workflow Vantage référence Width / Height / Length via des nodes
+  // INTConstant (titres "Width" / "Height" / "Length (Max 20 Secs)"). On les
+  // surcharge depuis params pour que LTX produise la vidéo dans l'aspect ET
+  // la durée souhaités (sinon ImageResizeKJv2 "crop" déforme un 9:16 vers le
+  // 16:9 hardcodé, et la durée reste figée à 15s). Fallback aux defaults du
+  // JSON si non fournis pour préserver le comportement historique.
+  if (params.width || params.height || params.duration_sec) {
+    for (const [_nodeId, node] of Object.entries(wf)) {
+      const meta = (node as Record<string, unknown>)._meta as { title?: string } | undefined
+      const inputs = (node as Record<string, unknown>).inputs as Record<string, unknown> | undefined
+      const classType = (node as Record<string, unknown>).class_type as string | undefined
+      if (classType !== 'INTConstant' || !meta || !inputs) continue
+      if (meta.title === 'Width' && typeof params.width === 'number') {
+        inputs.value = params.width
+      } else if (meta.title === 'Height' && typeof params.height === 'number') {
+        inputs.value = params.height
+      } else if (typeof params.duration_sec === 'number'
+                 && typeof meta.title === 'string'
+                 && meta.title.toLowerCase().startsWith('length')) {
+        // Match "Length (Max 20 Secs)" et variantes futures sans hardcoder l'ID.
+        // Cap dur à 20s côté workflow (nom du node) — clamp ici par sécurité
+        // car au-delà certains nodes downstream peuvent OOM ou planter.
+        inputs.value = Math.max(1, Math.min(20, Math.round(params.duration_sec)))
+      }
+    }
+  }
+
   return wf
 }
 
+// ── LTX 2.3 V2V Extend (refonte 2026-05-11) ─────────────────────────────────
+//
+// Workflow basé sur RuneXX `LTX-2.3_-_V2V_Extend_Any_Video_towards_Last-Frame-image.json`
+// (HuggingFace https://huggingface.co/RuneXX/LTX-2.3-Workflows/tree/main/Video-2-Video)
+// + LoRA Vantage Dual Characters greffé via 2nd `LoraLoaderModelOnly`.
+//
+// Concept : "Extend any video towards last-frame image" = continue le mouvement
+// d'une vidéo en partant des N dernières frames (input_frames[]) au lieu d'1
+// seule image. La continuité de mouvement entre 2 pellicules Hero est ainsi
+// préservée (vs I2V qui doit redémarrer le mouvement de zéro depuis lastFrame
+// figée).
+//
+// ⚠ STUB : tant que l'auteur n'a pas exporté le workflow JSON depuis ComfyUI,
+// `src/lib/workflows/ltx_2_3_dual_v2v.api.json` n'existe pas et cette fonction
+// throw un message clair. Voir mémoire `project_qwen_vision_characters_pipeline`
+// + recette agent dans la conversation pour la procédure d'adaptation Vantage.
+//
+// Params attendus :
+//   - input_frames: string[] — N filenames déjà uploadés à ComfyUI input store
+//                              (typiquement 8 frames via extractLastNFramesFromVideo)
+//   - prompt_positive / prompt_negative — idem ltx_2_3_dual
+//   - audio_filename (optional) — pour lipsync si dialogue
+//   - width / height / duration_sec — patché dynamiquement comme ltx_2_3_dual
+function buildLtx23DualV2vWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
+  if (!params.prev_video_filename) {
+    throw new Error('ltx_2_3_dual_v2v requires prev_video_filename (uploaded MP4 from previous pellicule)')
+  }
+  if (!params.prompt_positive) throw new Error('ltx_2_3_dual_v2v requires prompt_positive')
+
+  let template: Record<string, unknown>
+  try {
+    template = require('./workflows/ltx_2_3_dual_v2v.api.json') as Record<string, unknown>
+  } catch {
+    throw new Error('[ltx_2_3_dual_v2v] Workflow JSON template absent — placer ltx_2_3_dual_v2v.api.json dans src/lib/workflows/')
+  }
+
+  // Deep clone pour ne pas muter le template original (require() le cache)
+  const wf = JSON.parse(JSON.stringify(template)) as Record<string, Record<string, unknown>>
+
+  // Helper : trouver un node par class_type + titre _meta.title (matching robuste
+  // qui survit aux ré-numérotations d'IDs au fil des versions du workflow).
+  function findNode(classType: string, titleSubstring?: string): Record<string, unknown> | null {
+    for (const node of Object.values(wf)) {
+      if ((node as { class_type?: string }).class_type !== classType) continue
+      if (titleSubstring) {
+        const title = (node as { _meta?: { title?: string } })._meta?.title ?? ''
+        if (!title.toLowerCase().includes(titleSubstring.toLowerCase())) continue
+      }
+      return node
+    }
+    return null
+  }
+
+  // Helper : patcher un input scalaire d'un node
+  function setInput(node: Record<string, unknown> | null, key: string, value: unknown) {
+    if (!node) return
+    const inputs = node.inputs as Record<string, unknown> | undefined
+    if (inputs) inputs[key] = value
+  }
+
+  // ── 1. Vidéo source précédente → VHS_LoadVideo ──────────────────────────
+  const loadVideo = findNode('VHS_LoadVideo')
+  if (!loadVideo) throw new Error('ltx_2_3_dual_v2v: node VHS_LoadVideo introuvable dans le template')
+  setInput(loadVideo, 'video', params.prev_video_filename)
+
+  // ── 2. Prompt positif → PrimitiveStringMultiline (titre "PROMPT") ─────
+  // Le subgraph "Enhanced Prompt" a été supprimé manuellement, le PROMPT
+  // brut (#487) alimente directement le CLIPTextEncode positif.
+  const promptNode = findNode('PrimitiveStringMultiline', 'PROMPT')
+  if (!promptNode) throw new Error('ltx_2_3_dual_v2v: node PrimitiveStringMultiline "PROMPT" introuvable')
+  setInput(promptNode, 'value', params.prompt_positive)
+
+  // ── 3. Prompt négatif → CLIPTextEncode (premier négatif texte/visuel) ─
+  // Le workflow a un negative pour visuel + un negative pour audio. On patche
+  // le visuel (= le plus long, le plus impactant). On laisse l'audio negative
+  // tel quel (safe defaults).
+  if (params.prompt_negative) {
+    const negNode = findNode('CLIPTextEncode')
+    // Premier CLIPTextEncode trouvé qui n'a PAS "Positive" dans le titre = négatif
+    for (const node of Object.values(wf)) {
+      if ((node as { class_type?: string }).class_type !== 'CLIPTextEncode') continue
+      const title = (node as { _meta?: { title?: string } })._meta?.title ?? ''
+      if (title.toLowerCase().includes('positive')) continue
+      if (title.toLowerCase().includes('audio')) continue  // skip audio negative
+      const inputs = (node as { inputs?: Record<string, unknown> }).inputs
+      if (inputs && typeof inputs.text === 'string') {
+        inputs.text = params.prompt_negative
+        break  // premier négatif visuel suffit
+      }
+    }
+    void negNode  // silence unused
+  }
+
+  // ── 4. Durée de la nouvelle vidéo générée → INTConstant "EXTEND" ──────
+  if (typeof params.duration_sec === 'number') {
+    const extendNode = findNode('INTConstant', 'EXTEND')
+    setInput(extendNode, 'value', Math.max(1, Math.min(20, Math.round(params.duration_sec))))
+  }
+
+  // ── 5. Réf. length → INTConstant "REF. LENGTH" ────────────────────────
+  if (typeof params.ref_length_sec === 'number') {
+    const refNode = findNode('INTConstant', 'REF. LENGTH')
+    setInput(refNode, 'value', Math.max(1, Math.min(5, Math.round(params.ref_length_sec))))
+  }
+
+  // ── 6. Dimensions cible → INTConstant "MAX PIXEL SIZE" ────────────────
+  // Le workflow utilise un seul "longest edge" param (pas width/height
+  // séparés). On prend le max des 2 dims fournies.
+  if (typeof params.width === 'number' || typeof params.height === 'number') {
+    const longest = Math.max(params.width ?? 0, params.height ?? 0)
+    if (longest > 0) {
+      const maxPixNode = findNode('INTConstant', 'MAX PIXEL SIZE')
+      // Cap à 1280 pour 8 GB VRAM (au-delà OOM probable)
+      setInput(maxPixNode, 'value', Math.min(1280, longest))
+    }
+  }
+
+  // ── 7. Force save_output: True sur les VHS_VideoCombine ───────────────
+  // Sinon les vidéos vont dans temp/ au lieu d'output/, et notre code Hero
+  // (/api/comfyui?action=video_info) ne les trouve pas.
+  // Refonte 2026-05-11 : on désactive AUSSI l'audio en aval (= audio: null
+  // sur les VHS_VideoCombine) PAR DÉFAUT, parce que LTX 2.3 génère un foley/
+  // musique parasite quand il n'y a pas d'audio custom (insight Didier).
+  // L'audio reste actif UNIQUEMENT si params.audio_filename est fourni
+  // (= mode lipsync futur).
+  const muteAudio = !params.audio_filename
+  for (const node of Object.values(wf)) {
+    if ((node as { class_type?: string }).class_type === 'VHS_VideoCombine') {
+      const inputs = (node as { inputs?: Record<string, unknown> }).inputs
+      if (inputs) {
+        inputs.save_output = true
+        // Personnalise le filename_prefix pour identifier nos gens Hero
+        if (typeof inputs.filename_prefix === 'string') {
+          inputs.filename_prefix = 'hero_ltx_v2v'
+        }
+        // Mute : déconnecte l'input audio (= ne sera plus inclus dans le MP4)
+        if (muteAudio && 'audio' in inputs) {
+          inputs.audio = null
+        }
+      }
+    }
+  }
+
+  return wf
+}
+
+// ── Sonic (Tencent) — talking-head audio-driven portrait animation ─────────
+//
+// Pipeline : SVD xt 1.1 + Sonic UNet patch + Whisper-tiny (audio embed) +
+// YOLO face detector + RIFE frame interpolation. Évalué 2026-05-14 vs notre
+// pipeline LTX 2.3 + Vantage Dual mono-perso plan rapproché.
+//
+// Modèles requis (cf README repo) :
+//   - models/checkpoints/svd_xt_1_1.safetensors (~5-9 GB)
+//   - models/sonic/unet.pth, audio2bucket.pth, audio2token.pth, yoloface_v5m.pt
+//   - models/sonic/whisper-tiny/{config.json, model.safetensors, preprocessor_config.json}
+//   - models/sonic/RIFE/flownet.pkl
+//
+// Params attendus :
+//   - source_image : portrait filename (déjà uploadé à ComfyUI input)
+//   - audio_filename : audio WAV/MP3 filename (déjà uploadé)
+//   - duration_sec (optional) : durée d'inférence (default 5s, capé à durée audio)
+//   - inference_steps (optional) : steps denoise (default 25)
+//   - fps (optional) : fps de sortie (default 25)
+//   - seed (optional) : default 0 (random géré côté ComfyUI via control_after_generate)
+function buildSonicWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
+  if (!params.source_image) throw new Error('sonic requires source_image (portrait filename)')
+  if (!params.audio_filename) throw new Error('sonic requires audio_filename (WAV/MP3 filename)')
+
+  let template: Record<string, unknown>
+  try {
+    template = require('./workflows/sonic.api.json') as Record<string, unknown>
+  } catch {
+    throw new Error('[sonic] Workflow JSON template absent — placer sonic.api.json dans src/lib/workflows/')
+  }
+  const wf = JSON.parse(JSON.stringify(template)) as Record<string, Record<string, unknown>>
+
+  function findNode(classType: string): Record<string, unknown> | null {
+    for (const node of Object.values(wf)) {
+      if ((node as { class_type?: string }).class_type === classType) return node
+    }
+    return null
+  }
+  function setInput(node: Record<string, unknown> | null, key: string, value: unknown) {
+    if (!node) return
+    const inputs = node.inputs as Record<string, unknown> | undefined
+    if (inputs) inputs[key] = value
+  }
+
+  setInput(findNode('LoadImage'), 'image', params.source_image)
+  setInput(findNode('LoadAudio'), 'audio', params.audio_filename)
+
+  const preData = findNode('SONIC_PreData')
+  if (typeof params.duration_sec === 'number') {
+    setInput(preData, 'duration', Math.max(1, Math.min(20, params.duration_sec)))
+  }
+
+  const sampler = findNode('SONICSampler')
+  if (typeof params.inference_steps === 'number') {
+    setInput(sampler, 'inference_steps', Math.max(1, Math.min(50, params.inference_steps)))
+  }
+  if (typeof params.fps === 'number') {
+    setInput(sampler, 'fps', Math.max(5, Math.min(60, params.fps)))
+  }
+  if (typeof params.seed === 'number' && params.seed >= 0) {
+    setInput(sampler, 'seed', params.seed)
+  } else {
+    // Seed -1 = random : ComfyUI traite seed=0 + frontend control_after_generate.
+    // Pour un POST API, on génère un random côté Hero.
+    setInput(sampler, 'seed', Math.floor(Math.random() * 2 ** 31))
+  }
+
+  const createVid = findNode('CreateVideo')
+  if (createVid && typeof params.fps === 'number') {
+    // CreateVideo a un widget fps fallback (default 30 dans le template) — on
+    // override pour matcher le sampler. Mais l'input "fps" est déjà branché au
+    // sampler en sortie, donc le widget devient ignoré. On le set quand même
+    // pour cohérence visuelle si on debug le workflow exporté.
+    setInput(createVid, 'fps', ['15', 1])  // re-bind link au cas où
+  }
+
+  return wf
+}
+
+// ── FramePack (lllyasviel + Stanford/MIT) — long-video I2V ─────────────────
+//
+// Wrapper Kijai/ComfyUI-FramePackWrapper. HunyuanVideo 13B base + next-frame
+// prediction avec compression de contexte O(1). 60s+ sur 6-8 GB VRAM.
+//
+// Modèles requis (cf mémoire `project_framepack_install_2026_05_14`) :
+//   - models/diffusion_models/FramePackI2V_HY_fp8_e4m3fn.safetensors (16 GB)
+//   - models/text_encoders/llava_llama3_fp16.safetensors (16 GB)
+//   - models/text_encoders/clip_l.safetensors
+//   - models/vae/hunyuan_video_vae_bf16.safetensors
+//   - models/clip_vision/sigclip_vision_patch14_384.safetensors
+//
+// Le workflow exemple charge 2 images (Start node 19 + End node 58) pour
+// l'interpolation first-to-last frame. Pour V1 Hero on charge la même image
+// aux 2 (= I2V classique). À l'avenir on pourra exposer end_image_url pour
+// les transitions clean entre 2 scènes définies.
+//
+// Params attendus :
+//   - source_image (req) : filename portrait/scene déjà uploadé à ComfyUI
+//   - prompt_positive (req) : description scène + mouvement (anglais préféré)
+//   - duration_sec (opt) : durée vidéo (default 5, max 60+)
+//   - fps (opt) : default 30
+//   - steps (opt) : sampler steps (default 30)
+//   - cfg (opt) : cfg sampler (default 1, FramePack distilled)
+//   - seed (opt) : default random
+function buildFramePackWorkflow(params: ComfyUIGenerateParams): Record<string, unknown> {
+  if (!params.source_image) throw new Error('framepack requires source_image (filename uploadé à ComfyUI)')
+  if (!params.prompt_positive) throw new Error('framepack requires prompt_positive')
+
+  let template: Record<string, unknown>
+  try {
+    template = require('./workflows/framepack.api.json') as Record<string, unknown>
+  } catch {
+    throw new Error('[framepack] Workflow JSON template absent — placer framepack.api.json dans src/lib/workflows/')
+  }
+  const wf = JSON.parse(JSON.stringify(template)) as Record<string, Record<string, unknown>>
+
+  function setInput(nodeId: string, key: string, value: unknown) {
+    const node = wf[nodeId]
+    if (!node) return
+    const inputs = node.inputs as Record<string, unknown> | undefined
+    if (inputs) inputs[key] = value
+  }
+
+  // ── Load Image: Start (node 19) ──────────────────────────────────────────
+  setInput('19', 'image', params.source_image)
+  // End image (node 58) gardée comme placeholder mais on déconnecte les end
+  // inputs du sampler ci-dessous → FramePack tourne en mode I2V pure.
+  setInput('58', 'image', params.source_image)
+  // Refonte 2026-05-14aw : si on passe la MÊME image en start ET end avec
+  // end_latent + end_image_embeds branchés, FramePack interpole "entre A et A"
+  // = vidéo figée sans mouvement (bug observé 2026-05-14). Pour le mode I2V
+  // pure, on retire ces inputs du sampler — le mouvement est alors libre,
+  // dirigé par le prompt seul.
+  const sampler = wf['39']
+  if (sampler) {
+    const samplerInputs = sampler.inputs as Record<string, unknown> | undefined
+    if (samplerInputs) {
+      delete samplerInputs.end_latent
+      delete samplerInputs.end_image_embeds
+    }
+  }
+
+  // ── Prompt → CLIPTextEncode (node 47) ────────────────────────────────────
+  setInput('47', 'text', params.prompt_positive)
+
+  // ── FramePackSampler (node 39) — durée, steps, cfg, seed ────────────────
+  if (typeof params.duration_sec === 'number') {
+    // FramePack supporte 60+s mais on cap à 60 V1 pour éviter 1h+ de gen.
+    setInput('39', 'total_second_length', Math.max(1, Math.min(60, params.duration_sec)))
+  }
+  if (typeof params.steps === 'number') {
+    setInput('39', 'steps', Math.max(5, Math.min(50, params.steps)))
+  }
+  if (typeof params.cfg === 'number') {
+    setInput('39', 'cfg', params.cfg)
+  }
+  // Seed : workflow défaut hardcoded à 47 → on randomize si non fourni
+  setInput(
+    '39',
+    'seed',
+    typeof params.seed === 'number' && params.seed >= 0
+      ? params.seed
+      : Math.floor(Math.random() * 2 ** 31),
+  )
+
+  // ── VHS_VideoCombine (node 23) ────────────────────────────────────────────
+  // CRITIQUE : save_output: false dans le template → Hero ne peut pas
+  // récupérer la vidéo (cherche dans output/, pas temp/). On force true.
+  setInput('23', 'save_output', true)
+  setInput('23', 'filename_prefix', 'hero_framepack')
+  if (typeof params.fps === 'number') {
+    setInput('23', 'frame_rate', Math.max(5, Math.min(60, params.fps)))
+  }
+
+  // ── Optimisations 8 GB VRAM (refonte 2026-05-14bp) ───────────────────────
+  // Le 1er run avec compile_*_blocks: true ajoute 20-40 min de torch.compile
+  // (compilation des blocks UNet HunyuanVideo). On désactive par défaut pour
+  // éviter cette pénalité au démarrage à froid (1h observée pour 5s sur Hero).
+  // Les runs suivants sont à peine plus lents sans compile sur 8 GB (offload
+  // domine le temps total de toute façon).
+  const torchCompile = wf['27']
+  if (torchCompile) {
+    const inputs = torchCompile.inputs as Record<string, unknown> | undefined
+    if (inputs) {
+      inputs.compile_single_blocks = false
+      inputs.compile_double_blocks = false
+    }
+  }
+  // gpu_memory_preservation: 6 GB sur 8 GB total = seulement 2 GB pour les
+  // blocks → offload massif. Réduire à 4 GB libère 2 GB de plus pour les
+  // blocks → moins d'offload → ~30-50% plus rapide en pratique sur 8 GB.
+  setInput('39', 'gpu_memory_preservation', 4)
+
+  return wf
+}
 

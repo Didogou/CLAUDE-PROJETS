@@ -1,0 +1,850 @@
+/* AnimationStudioBankPanel — banque V2 unifiée Studio Animation.
+ * Pattern aligné DesignerBankPanel (slide-in <aside>).
+ * Refonte 2026-05-14bd. */
+
+/* Refonte 2026-05-14bh — Mode "push" : grid item normal qui prend sa
+ * propre colonne dans .as-body (cf .as-body.has-bank ci-dessous), pousse
+ * la timeline + preview vers la droite. Pas de float, pas d'overlay. */
+.asb-panel {
+  width: 28rem;
+  /* Refonte 2026-05-16 — chaîne flex parent fragile dans Studio Section ;
+   * on borne explicitement la hauteur avec calc viewport pour garantir le
+   * scroll interne, peu importe la chaîne parente. 8rem ≈ chrome header +
+   * retour + section title + paddings. Sur Studio Animation, height:100%
+   * fonctionnait via la chaîne flex propre — on garde un fallback. */
+  height: 100%;
+  max-height: calc(100vh - 8rem);
+  display: flex;
+  flex-direction: column;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  color: var(--ie-text);
+  font-size: 0.85rem;
+  overflow: hidden;
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/* ── Header (compact — refonte 2026-05-16) ───────────────────────────── */
+.asb-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--ie-border);
+  flex: 0 0 auto;
+}
+.asb-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.asb-close:hover {
+  background: var(--ie-bg);
+  color: var(--ie-accent);
+}
+
+/* ── Tabs Animations / Images (compact — refonte 2026-05-16) ──────────── */
+.asb-tabs {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem 0;
+  border-bottom: 1px solid var(--ie-border);
+  flex: 0 0 auto;
+}
+.asb-tab {
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.45rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-bottom: none;
+  border-radius: 0.25rem 0.25rem 0 0;
+  color: var(--ie-text-muted);
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+  margin-bottom: -1px;
+}
+.asb-tab:hover {
+  color: var(--ie-text);
+}
+/* Refonte 2026-05-19 — couleur par type d'asset, alignée sur la palette
+ * timeline (block colors). `--asb-tab-color` fallback sur var(--ie-accent)
+ * pour garder le legacy si pas de data-kind. */
+.asb-tab {
+  --asb-tab-color: var(--ie-accent);
+}
+.asb-tab[data-kind="animations"]  { --asb-tab-color: #6366f1; }  /* indigo (block video) */
+.asb-tab[data-kind="images"]      { --asb-tab-color: #818cf8; }  /* indigo clair (block image_static) */
+.asb-tab[data-kind="characters"]  { --asb-tab-color: #10b981; }  /* vert (NPCs) */
+.asb-tab[data-kind="items"]       { --asb-tab-color: #f59e0b; }  /* ambre (objets) */
+
+/* Refonte 2026-05-19 — fond du body teinté selon le tab actif (subtle, 6%) */
+.asb-body[data-active-tab="animations"]  { background: color-mix(in srgb, #6366f1 6%, transparent); }
+.asb-body[data-active-tab="images"]      { background: color-mix(in srgb, #818cf8 6%, transparent); }
+.asb-body[data-active-tab="characters"]  { background: color-mix(in srgb, #10b981 6%, transparent); }
+.asb-body[data-active-tab="items"]       { background: color-mix(in srgb, #f59e0b 6%, transparent); }
+
+/* Mini-tiles Persos + Objets (refonte 2026-05-19) — grid compacte,
+ * bouton cliquable, vignette en haut + label tronqué en bas. */
+.asb-mini-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, transform 0.1s ease;
+}
+.asb-mini-tile:hover {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
+  transform: translateY(-0.05rem);
+}
+.asb-mini-tile img,
+.asb-mini-tile-placeholder {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 0.25rem;
+  background: var(--ie-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-muted);
+}
+.asb-mini-tile-label {
+  font-size: 0.65rem;
+  line-height: 1.1;
+  color: var(--ie-text);
+  text-align: center;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Refonte 2026-05-19 — Persos en avatar rond (style user). Override sur le
+ * body[data-active-tab=characters] pour cibler uniquement le tab Persos.
+ * + grid en 3 colonnes (vs 2 par défaut) → vignettes plus compactes. */
+.asb-body[data-active-tab="characters"] .asb-grid {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+}
+.asb-body[data-active-tab="characters"] .asb-mini-tile img,
+.asb-body[data-active-tab="characters"] .asb-mini-tile-placeholder {
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, #10b981 50%, transparent);
+}
+.asb-body[data-active-tab="characters"] .asb-mini-tile-label {
+  font-size: 0.6rem;
+}
+/* Tile "Créer" — pattern visuel : icône + libellé, dashed border + accent
+ * green sur hover. Réutilisé sur tab characters + items. */
+.asb-create-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.3rem;
+  background: transparent;
+  border: 1px dashed var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+  aspect-ratio: 1 / 1;
+}
+.asb-create-tile:hover {
+  border-color: var(--asb-tab-color, var(--ie-accent));
+  color: var(--asb-tab-color, var(--ie-accent));
+  background: color-mix(in srgb, var(--asb-tab-color, var(--ie-accent)) 8%, transparent);
+}
+.asb-create-tile-label {
+  font-size: 0.6rem;
+  font-weight: 600;
+}
+/* Couleur tile create héritée du tab actif */
+.asb-body[data-active-tab="characters"] .asb-create-tile { --asb-tab-color: #10b981; }
+.asb-body[data-active-tab="items"] .asb-create-tile      { --asb-tab-color: #f59e0b; }
+
+/* Refonte 2026-05-19 — wrap autour de mini-tile pour héberger les actions
+ * hover (édit + supprimer) sans casser le click "ajouter" du bouton tile. */
+.asb-mini-tile-wrap {
+  position: relative;
+  display: flex;
+}
+.asb-mini-tile-wrap .asb-mini-tile {
+  flex: 1 1 auto;
+  width: 100%;
+}
+.asb-mini-tile-actions {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  display: flex;
+  gap: 0.15rem;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  z-index: 3;
+}
+.asb-mini-tile-wrap:hover .asb-mini-tile-actions {
+  opacity: 1;
+}
+.asb-mini-tile-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 0.2rem;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.asb-mini-tile-action:hover {
+  background: rgba(0, 0, 0, 0.85);
+  border-color: var(--ie-accent);
+}
+.asb-mini-tile-action-danger:hover {
+  background: var(--ie-danger, #f87171);
+  border-color: var(--ie-danger, #f87171);
+}
+
+/* Refonte 2026-05-19 — Style "pellicule cinéma" sur les tiles du tab Animations
+ * (bandes perforées top+bottom). Repris à l'identique de multi-track-timeline.css
+ * (.mtt-block-video::before/::after) pour cohérence visuelle bank ↔ timeline. */
+.asb-body[data-active-tab="animations"] .asb-tile {
+  position: relative;
+}
+.asb-body[data-active-tab="animations"] .asb-tile::before,
+.asb-body[data-active-tab="animations"] .asb-tile::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0.3rem;
+  background-color: rgba(20, 20, 20, 0.7);
+  background-image: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 255, 255, 0.7) 0,
+    rgba(255, 255, 255, 0.7) 0.08rem,
+    transparent 0.1rem
+  );
+  background-size: 0.4rem 0.3rem;
+  background-repeat: repeat-x;
+  background-position: 0 50%;
+  pointer-events: none;
+  z-index: 2;
+}
+.asb-body[data-active-tab="animations"] .asb-tile::before { top: 0; border-top-left-radius: inherit; border-top-right-radius: inherit; }
+.asb-body[data-active-tab="animations"] .asb-tile::after  { bottom: 0; border-bottom-left-radius: inherit; border-bottom-right-radius: inherit; }
+/* Favori = ring vert plein + ombre subtile pour pop visuel */
+.asb-mini-tile.is-favori img,
+.asb-mini-tile.is-favori .asb-mini-tile-placeholder {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0.4rem color-mix(in srgb, #10b981 40%, transparent);
+}
+.asb-mini-tile.is-favori .asb-mini-tile-label {
+  color: #10b981;
+  font-weight: 600;
+}
+
+/* Sous-section "Favoris" / "Autres" dans tab Persos (refonte 2026-05-19) */
+.asb-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.4rem 0.6rem 0.2rem;
+}
+.asb-subsection-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text-muted);
+  padding-left: 0.1rem;
+}
+
+.asb-tab.is-active {
+  background: var(--ie-bg);
+  color: var(--asb-tab-color);
+  border-color: var(--asb-tab-color);
+  border-bottom: 1px solid var(--ie-bg);
+}
+.asb-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  padding: 0 0.25rem;
+  background: var(--ie-bg);
+  border-radius: 999px;
+  font-size: 0.6rem;
+  color: var(--ie-text-muted);
+}
+.asb-tab.is-active .asb-tab-count {
+  background: color-mix(in srgb, var(--asb-tab-color) 20%, transparent);
+  color: var(--asb-tab-color);
+}
+
+/* ── Upload + Créer (compact — refonte 2026-05-16) ─────────────────────── */
+.asb-upload {
+  padding: 0.35rem 0.6rem;
+  flex: 0 0 auto;
+}
+.asb-upload-row {
+  display: flex;
+  gap: 0.35rem;
+}
+.asb-upload-btn,
+.asb-create-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.45rem;
+  background: transparent;
+  border: 1px dashed var(--ie-border-strong);
+  border-radius: 0.25rem;
+  color: var(--ie-text-muted);
+  font-size: 0.7rem;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: inherit;
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.asb-upload-btn:hover:not(:disabled),
+.asb-create-btn:hover:not(:disabled) {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 6%, transparent);
+}
+.asb-upload-btn:disabled,
+.asb-create-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.asb-upload-err {
+  margin-top: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: color-mix(in srgb, #ef4444 12%, transparent);
+  color: #ef4444;
+  font-size: 0.75rem;
+  border-radius: 0.25rem;
+}
+
+/* ── Search (compact — refonte 2026-05-16) ────────────────────────────── */
+.asb-search {
+  position: relative;
+  padding: 0 0.6rem 0.35rem;
+  flex: 0 0 auto;
+}
+.asb-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 1rem;
+  transform: translateY(-65%);
+  color: var(--ie-text-muted);
+  pointer-events: none;
+}
+.asb-search input {
+  width: 100%;
+  padding: 0.3rem 0.5rem 0.3rem 1.5rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  color: var(--ie-text);
+  font-size: 0.72rem;
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+.asb-search input:focus {
+  border-color: var(--ie-accent);
+}
+
+/* ── Body / sections accordion ──────────────────────────────────────────── */
+.asb-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0.4rem 0 1rem;
+  scrollbar-width: thin;
+}
+.asb-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 1.5rem 1rem;
+  color: var(--ie-text-muted);
+  font-size: 0.8rem;
+}
+.asb-status-err {
+  color: #ef4444;
+}
+.asb-spin {
+  animation: asb-spin-anim 0.9s linear infinite;
+}
+@keyframes asb-spin-anim {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.asb-section {
+  border-bottom: 1px solid var(--ie-border);
+}
+/* Section "Récents" (chantier 5 2026-05-16) — toujours ouverte, accent doux
+ * pour distinguer des sections d'usage normal. */
+.asb-section-recents {
+  background: color-mix(in srgb, var(--ie-accent) 4%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--ie-accent) 25%, var(--ie-border));
+}
+.asb-section-recents .asb-section-title {
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+.asb-section-recents .asb-section-count {
+  background: color-mix(in srgb, var(--ie-accent) 18%, transparent);
+  color: var(--ie-accent);
+}
+/* Section header refondu (refonte 2026-05-16) — passe d'un button unique à
+ * un div flex avec sub-button toggle + actions (Trier, Sélectionner, Bulk del). */
+.asb-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.45rem 0.2rem 0.7rem;
+}
+.asb-section-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+  background: transparent;
+  border: none;
+  color: var(--ie-text);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: color 0.12s ease;
+}
+.asb-section-toggle:hover {
+  color: var(--ie-accent);
+}
+.asb-section-title {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.asb-section-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+}
+.asb-section-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.asb-section-btn:hover {
+  background: var(--ie-bg);
+  color: var(--ie-accent);
+  border-color: var(--ie-accent);
+}
+.asb-section-btn.is-active,
+.asb-section-btn.is-open {
+  background: color-mix(in srgb, var(--ie-accent) 18%, transparent);
+  color: var(--ie-accent);
+  border-color: var(--ie-accent);
+}
+.asb-section-btn-danger {
+  color: #fff;
+  background: #ef4444;
+  border-color: #ef4444;
+}
+.asb-section-btn-danger:hover {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+.asb-section-btn-count {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  min-width: 0.9rem;
+  height: 0.9rem;
+  padding: 0 0.18rem;
+  background: var(--ie-accent);
+  color: #fff;
+  font-size: 0.55rem;
+  font-weight: 700;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* Menu dropdown Trier */
+.asb-sort-wrap {
+  position: relative;
+}
+.asb-sort-menu {
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  right: 0;
+  z-index: 50;
+  min-width: 11rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.45);
+  padding: 0.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.asb-sort-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: none;
+  color: var(--ie-text);
+  font-size: 0.7rem;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 0.2rem;
+  font-family: inherit;
+}
+.asb-sort-menu-item:hover {
+  background: var(--ie-bg);
+  color: var(--ie-accent);
+}
+.asb-sort-menu-item.is-active {
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+.asb-section-count {
+  padding: 0.05rem 0.35rem;
+  background: var(--ie-bg);
+  border-radius: 999px;
+  font-size: 0.6rem;
+  color: var(--ie-text-muted);
+}
+.asb-section.is-open .asb-section-count {
+  background: color-mix(in srgb, var(--ie-accent) 20%, transparent);
+  color: var(--ie-accent);
+}
+.asb-empty {
+  padding: 0.6rem 1rem;
+  font-size: 0.75rem;
+  color: var(--ie-text-muted);
+  font-style: italic;
+}
+
+/* ── Grid de tiles ──────────────────────────────────────────────────────── */
+.asb-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.6rem;
+  padding: 0.5rem 1rem 0.8rem;
+}
+.asb-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  overflow: hidden;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.asb-tile:hover {
+  border-color: var(--ie-accent);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.25rem 0.6rem color-mix(in srgb, var(--ie-accent) 18%, transparent);
+}
+.asb-tile-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #111;
+  overflow: hidden;
+}
+.asb-tile-img,
+.asb-tile-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.asb-tile-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--ie-text-muted);
+  font-size: 0.75rem;
+}
+.asb-tile-play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, #000 35%, transparent);
+  color: white;
+  opacity: 0.85;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.asb-tile:hover .asb-tile-play-overlay {
+  opacity: 0;  /* fade out quand vidéo commence à jouer */
+}
+/* ✨ Effets — bouton flottant top-right au hover, sur les tiles animation. */
+.asb-tile-effects-btn {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 0.3rem;
+  background: rgba(0, 0, 0, 0.65);
+  border: 0.0625rem solid rgba(236, 72, 153, 0.55);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 4;
+  transition: all 0.14s ease;
+  box-shadow: 0 0.15rem 0.4rem rgba(0, 0, 0, 0.4);
+}
+.asb-tile-effects-btn:hover {
+  background: #ec4899;
+  border-color: #ec4899;
+  transform: translateY(-0.05rem);
+  box-shadow: 0 0.3rem 0.7rem rgba(236, 72, 153, 0.5);
+}
+/* Tile en mode sélection (refonte 2026-05-16) — cursor pointer global,
+ * highlight si sélectionné. */
+.asb-tile.is-selectable {
+  cursor: pointer;
+}
+.asb-tile.is-selectable:hover {
+  border-color: var(--ie-accent);
+}
+.asb-tile.is-selected {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 0.15rem color-mix(in srgb, var(--ie-accent) 35%, transparent);
+}
+/* Checkbox visible en mode select — top-left du wrapper tile (au-dessus
+ * du thumb pour ne pas chevaucher le clap timeline). */
+.asb-tile-checkbox {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  border: 0.0625rem solid color-mix(in srgb, var(--ie-accent) 70%, transparent);
+  color: var(--ie-accent);
+  border-radius: 0.25rem;
+  z-index: 7;
+  pointer-events: none;
+  box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.4);
+}
+.asb-tile.is-selected .asb-tile-checkbox {
+  background: var(--ie-accent);
+  color: #fff;
+  border-color: var(--ie-accent);
+}
+
+/* 📅 Date de création — petit label au-dessus de la miniature. Refonte 2026-05-16. */
+.asb-tile-date {
+  padding: 0 0.1rem 0.2rem;
+  font-size: 0.62rem;
+  color: var(--ie-text-muted);
+  font-family: ui-monospace, monospace;
+  letter-spacing: 0.02em;
+}
+/* 🎬 Badge "déjà dans la timeline" — clap discret top-left du thumb. */
+.asb-tile-timeline-badge {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  border: 0.0625rem solid color-mix(in srgb, var(--ie-accent) 70%, transparent);
+  color: var(--ie-accent);
+  border-radius: 0.25rem;
+  z-index: 5;
+  pointer-events: none;
+  box-shadow: 0 0.1rem 0.3rem rgba(0, 0, 0, 0.4);
+}
+
+/* 🗑️ Bouton supprimer asset — top-right au hover. Refonte 2026-05-16. */
+.asb-tile-delete-btn {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.3rem;
+  background: rgba(0, 0, 0, 0.65);
+  border: 0.0625rem solid rgba(239, 68, 68, 0.55);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 6;
+  transition: all 0.14s ease;
+  box-shadow: 0 0.15rem 0.4rem rgba(0, 0, 0, 0.4);
+  padding: 0;
+}
+.asb-tile-delete-btn:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+  transform: translateY(-0.05rem);
+  box-shadow: 0 0.3rem 0.7rem rgba(239, 68, 68, 0.5);
+}
+
+/* Bandeau bas avec 2 boutons Effets/Capture (refonte 2026-05-15dq) */
+.asb-tile-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.3rem 0.35rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.55) 60%, rgba(0, 0, 0, 0));
+  z-index: 5;
+}
+.asb-tile-bb-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.25rem;
+  flex: 1;
+  padding: 0.25rem 0.3rem;
+  font-size: 0.62rem; font-weight: 600;
+  border-radius: 0.25rem;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff; cursor: pointer;
+  font-family: inherit;
+  transition: all 120ms ease;
+}
+.asb-tile-bb-effects:hover {
+  background: #ec4899; border-color: #ec4899;
+  box-shadow: 0 0.15rem 0.4rem rgba(236, 72, 153, 0.4);
+}
+.asb-tile-bb-capture:hover {
+  background: #06b6d4; border-color: #06b6d4;
+  box-shadow: 0 0.15rem 0.4rem rgba(34, 211, 238, 0.4);
+}
+/* Bouton Modifier (chantier 3 2026-05-16) — violet doux pour distinguer */
+.asb-tile-bb-edit:hover {
+  background: #a78bfa; border-color: #a78bfa;
+  box-shadow: 0 0.15rem 0.4rem rgba(167, 139, 250, 0.4);
+}
+.asb-tile-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.5rem;
+  border-top: 1px solid var(--ie-border);
+}
+.asb-tile-label {
+  flex: 1 1 auto;
+  font-size: 0.72rem;
+  color: var(--ie-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+.asb-tile-label-input {
+  flex: 1 1 auto;
+  font-size: 0.72rem;
+  font-family: inherit;
+  color: var(--ie-text);
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-accent);
+  border-radius: 0.2rem;
+  padding: 0.1rem 0.3rem;
+  outline: none;
+  min-width: 0;
+}
+.asb-tile-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem 0.5rem;
+  background: var(--ie-accent);
+  color: white;
+  border: none;
+  border-radius: 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.12s ease, transform 0.1s ease;
+}
+.asb-tile-add:hover {
+  opacity: 0.9;
+}
+.asb-tile-add:active {
+  transform: scale(0.96);
+}

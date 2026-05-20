@@ -171,7 +171,18 @@ export async function ollamaVisionJSON<T = unknown>(opts: OllamaVisionJSONOption
         images,
         stream: false,
         format: 'json',
-        options: { temperature },
+        options: {
+          temperature,
+          // Refonte 2026-05-14bb — Qwen 2.5 VL 3B avec contexte 4096 (défaut
+          // Ollama) pèse ~10.8 GB en mémoire → ne tient pas en VRAM 8 GB →
+          // Ollama force CPU → 60-180s par image (= timeout 90s). En réduisant
+          // num_ctx à 2048, le modèle tient en GPU (~5-6 GB). Suffisant pour
+          // 1 image + prompt court (notre usage : describe-scene/characters).
+          num_ctx: 2048,
+        },
+        // Refonte 2026-05-14ba — keep_alive='1h' évite le décharge auto Ollama
+        // (par défaut 5min). Modèle reste résident en VRAM, pas de re-load.
+        keep_alive: '1h',
       }),
     })
   } catch (err) {

@@ -49,7 +49,7 @@ export default function CanvasOverlay({ imgRef, npcs, items, choices, onClickEmp
     lassoDraft, lassoAddPoint, lassoClose, setLassoDraft,
     layers, activeLayerIdx, updateLayer, editingWeatherZone, activeImpactZoneId,
     weatherBrushEngaged, setWeatherBrushEngaged,
-    imageUrl, // ZOOM_LOUPE — needed by <ZoomLoupe />, can be removed if loupe is removed
+    effectiveImageUrl, // ZOOM_LOUPE — bascule auto vers media_url du calque actif si mode='extraction' (refonte 2026-05-09)
     zoomLoupeManualOpen, setZoomLoupeManualOpen,
   } = useEditorState()
 
@@ -1490,7 +1490,7 @@ export default function CanvasOverlay({ imgRef, npcs, items, choices, onClickEmp
        *   2. Weather mode (rect ou pinceau pour zone pluie/neige/brouillard)
        *      — overlays weather + accent color teal/orange selon la zone éditée */}
       <ZoomLoupe
-        imageUrl={imageUrl}
+        imageUrl={effectiveImageUrl}
         containerRef={containerRef}
         enabled={
           (cutMode && (cutTool === 'lasso_poly' || cutTool === 'lasso_free' || cutTool === 'brush'))

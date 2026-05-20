@@ -16,7 +16,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
-import { Sparkles, Languages, ChevronUp, Check } from 'lucide-react'
+import { Sparkles, Languages, ChevronUp, Check, Wand2 } from 'lucide-react'
 import { CHECKPOINTS, STYLE_SUFFIXES } from '@/lib/comfyui'
 import { FRAMING_OPTIONS, POV_OPTIONS } from '@/components/wizard/common/cameraOptions'
 import type { EditorContext, EditorImageType } from './types'
@@ -35,6 +35,14 @@ interface GenerationPanelProps {
   /** Format lifté au parent pour que le Canvas puisse ajuster le placeholder. */
   format: string
   onFormatChange: (f: string) => void
+  /** Si fourni, active le bouton "✨ Pré-remplir depuis la section" qui call
+   *  `/api/sections/{sectionId}/extract-image-prompt` (Mistral, free) et
+   *  injecte le résultat dans le champ Prompt. */
+  sectionId?: string
+  /** Style de l'illustration par défaut (= style choisi pour le livre).
+   *  Refonte 2026-05-12 : avant 'realistic' était hardcodé, maintenant on
+   *  hérite du livre. Si non fourni, fallback 'realistic' (back-compat). */
+  defaultStyle?: string
 }
 
 const TYPE_LABELS: Record<EditorImageType, string> = {
@@ -52,20 +60,21 @@ const STYLE_LABELS: Record<string, string> = {
   bnw: 'Noir & blanc',
   watercolor: 'Aquarelle',
   comic: 'Comic BD',
+  cartoon: 'Dessin animé',
   dark_fantasy: 'Dark fantasy',
   pixel: 'Pixel art',
   sketch: 'Crayonné',
 }
 
-/** Formats standards avec leur usage réel. Les ratios non-SDXL-natifs sont
- *  auto-mappés en interne vers les dimensions compliantes via generatePayload. */
+/** Formats standards. Refonte 2026-05-10 : labels métier + emoji icône
+ *  (auteurs non-tech). Les valeurs ratios restent telles quelles pour ne
+ *  pas casser le mapping interne (formatToAspectRatio + generatePayload).
+ *  3:2 et 4:3 retirés (jargon vide pour les auteurs, doublonnent 16:9). */
 export const FORMATS: { value: string; label: string }[] = [
-  { value: '16:9',      label: '16:9  Cinéma' },
-  { value: '3:2',       label: '3:2   Photo' },
-  { value: '4:3',       label: '4:3   Tablette' },
-  { value: '1:1',       label: '1:1   Carré' },
-  { value: '9:16',      label: '9:16  Téléphone' },
-  { value: '2:1 pano',  label: '2:1   Panorama' },
+  { value: '9:16',      label: '📱  Tel portrait' },
+  { value: '16:9',      label: '🖼  Paysage' },
+  { value: '1:1',       label: '⬛  Carré' },
+  { value: '2:1 pano',  label: '🎞  Panoramique' },
 ]
 
 /** Convertit un format utilisateur en aspect-ratio CSS (pour placeholders). */
@@ -83,13 +92,16 @@ export function formatToAspectRatio(format: string): string {
 
 export default function GenerationPanel({
   context, storagePathPrefix, onGenerate, isRunning, initialPrompt, initialNegative, collapsed, onToggleCollapsed,
-  format, onFormatChange,
+  format, onFormatChange, sectionId, defaultStyle,
 }: GenerationPanelProps) {
   const types = TYPES_BY_CONTEXT[context]
 
   const [promptFr, setPromptFr] = useState(initialPrompt ?? '')
   const [negativeFr, setNegativeFr] = useState(initialNegative ?? '')
-  const [style, setStyle] = useState<string>('realistic')
+  const [prefillingFromSection, setPrefillingFromSection] = useState(false)
+  // Default = style du livre (book.illustration_style) → on hérite cohérent.
+  // Fallback 'realistic' si pas de defaultStyle (back-compat). Refonte 2026-05-12.
+  const [style, setStyle] = useState<string>(defaultStyle ?? 'realistic')
   const [framing, setFraming] = useState<string>('')
   const [pov, setPov] = useState<string>('')
   // Force cadrage/angle retirée de l'UI (jugée peu discoverable). Les tags
@@ -115,6 +127,30 @@ export default function GenerationPanel({
       }
     } catch { /* silencieux */ } finally {
       setTranslating(false)
+    }
+  }
+
+  /** Pré-remplit le champ Prompt depuis le résumé de la section parente
+   *  via Mistral (free). Écrase le contenu actuel s'il y en a — l'auteur
+   *  peut Undo via Ctrl+Z dans l'input ou retaper. */
+  async function handlePrefillFromSection() {
+    if (!sectionId || prefillingFromSection) return
+    setPrefillingFromSection(true)
+    try {
+      const res = await fetch(`/api/sections/${sectionId}/extract-image-prompt`, {
+        method: 'POST',
+      })
+      const data = await res.json() as { prompt?: string; error?: string }
+      if (!res.ok || !data.prompt) {
+        alert(`Pré-remplissage impossible : ${data.error ?? 'erreur Mistral'}`)
+        return
+      }
+      setPromptFr(data.prompt)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      alert(`Pré-remplissage échoué : ${msg}`)
+    } finally {
+      setPrefillingFromSection(false)
     }
   }
 
@@ -242,6 +278,36 @@ export default function GenerationPanel({
             onBlur={e => { e.currentTarget.style.borderColor = 'var(--ie-border-strong)'; e.currentTarget.style.boxShadow = 'none' }}
           />
         </div>
+        {/* Bouton ✨ Pré-remplir : visible uniquement si sectionId fourni
+            (= on est dans le Studio Designer attaché à une section réelle). */}
+        {sectionId && (
+          <motion.button
+            type="button"
+            onClick={() => void handlePrefillFromSection()}
+            disabled={prefillingFromSection}
+            whileHover={!prefillingFromSection ? { scale: 1.02 } : undefined}
+            whileTap={!prefillingFromSection ? { scale: 0.96 } : undefined}
+            style={{
+              alignSelf: 'flex-end',
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '6px 10px',
+              background: 'transparent',
+              color: 'var(--ie-accent, #ec4899)',
+              border: '1px solid var(--ie-accent, #ec4899)',
+              borderRadius: 'var(--ie-radius)',
+              fontSize: 'var(--ie-text-sm)',
+              fontWeight: 500,
+              opacity: prefillingFromSection ? 0.5 : 1,
+              cursor: prefillingFromSection ? 'wait' : 'pointer',
+              height: 30,
+              flex: '0 0 auto',
+            }}
+            title="Pré-remplir depuis la section (Mistral, gratuit). Écrase le prompt actuel."
+          >
+            <Wand2 size={13} />
+            {prefillingFromSection ? '…' : 'Section'}
+          </motion.button>
+        )}
         <motion.button
           onClick={() => void handleTranslate()}
           disabled={translating || !promptFr.trim()}

@@ -169,6 +169,16 @@ export function SidebarContent({ context, showViewTabs, npcs, items, choices, im
     activeFolds.add('atmosphere')
   }
 
+  // Calque extraction actif (refonte 2026-05-09) → focalise sur Découpe seul.
+  // L'objectif du calque extraction est uniquement de détourer/extraire des
+  // sujets (perso/objet/zone) — donc tout autre fold (NPC, choix, animation,
+  // atmosphère…) est masqué pour réduire la charge cognitive.
+  const activeLayerIsExtraction = layers[activeLayerIdx]?.mode === 'extraction'
+  if (activeLayerIsExtraction) {
+    activeFolds.clear()
+    activeFolds.add('cut')
+  }
+
   // Folds "Sur la scène" ouverts par défaut quand des éléments sont placés
   // (l'utilisateur veut voir l'état courant en arrivant)
   const [openFolds, setOpenFolds] = useState<Set<FoldId>>(() => {
@@ -228,6 +238,18 @@ export function SidebarContent({ context, showViewTabs, npcs, items, choices, im
       setOpenFolds(new Set(['atmosphere']))
     }
   }, [activeLayerIdx, activeLayerIsWeather, layers])
+
+  // Idem pour les calques extraction : auto-open Découpe à l'arrivée pour
+  // que l'auteur puisse commencer à détourer immédiatement (sans clic en plus).
+  const prevLayerUidForExtractionRef = useRef(layers[activeLayerIdx]?._uid)
+  useEffect(() => {
+    const uid = layers[activeLayerIdx]?._uid
+    const layerChanged = uid !== prevLayerUidForExtractionRef.current
+    prevLayerUidForExtractionRef.current = uid
+    if (activeLayerIsExtraction && layerChanged) {
+      setOpenFolds(new Set(['cut']))
+    }
+  }, [activeLayerIdx, activeLayerIsExtraction, layers])
 
   // ── Flow progressif vue Animation ─────────────────────────────────────
   //

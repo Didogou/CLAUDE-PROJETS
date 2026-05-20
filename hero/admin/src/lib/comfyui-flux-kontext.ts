@@ -63,8 +63,18 @@ async function uploadToComfy(url: string, name: string): Promise<string> {
   return data.filename
 }
 
-/** Lance Flux Kontext (single ou multi-image) et attend le résultat. */
+/** Lance Flux Kontext (single ou multi-image) et attend le résultat.
+ *  Wrap avec retry-on-OOM automatique (refonte 2026-05-12). */
 export async function runFluxKontext(opts: FluxKontextOptions): Promise<string> {
+  const { withOomRetry } = await import('./oom-retry')
+  return await withOomRetry(() => runFluxKontextCore(opts), {
+    onOomDetected: () => {
+      opts.onProgress?.({ stage: 'queuing', label: 'Récupération mémoire CUDA, retry…' })
+    },
+  })
+}
+
+async function runFluxKontextCore(opts: FluxKontextOptions): Promise<string> {
   const { sourceUrl, refUrl, prompt, storagePathPrefix, guidance, steps, seed, onProgress } = opts
 
   onProgress?.({ stage: 'upload', label: 'Préparation…' })

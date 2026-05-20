@@ -131,7 +131,10 @@ export async function POST(req: NextRequest) {
       prompt_id: result.prompt_id,
       meta: {
         prompt_used: params.prompt_positive,
-        style_used: params.style ?? 'realistic',
+        // Refonte 2026-05-12 : retiré le default 'realistic' qui mentait dans
+        // la meta de réponse (le pipeline LTX n'impose pas de style — il hérite
+        // de l'image source). Si le caller veut un style explicite, il le passe.
+        style_used: params.style ?? null,
         workflow_type: params.workflow_type,
         width: params.width,
         height: params.height,

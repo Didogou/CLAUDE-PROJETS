@@ -1,0 +1,357 @@
+/* PreviewModal — floating window non-modale Hero. V1 2026-05-16. */
+
+.preview-modal-window {
+  position: fixed;
+  z-index: 9000;
+  background: var(--ie-surface, #1a1a1f);
+  border: 1px solid var(--ie-border, #2a2a35);
+  border-radius: 0.6rem;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.55);
+  color: var(--ie-text, #e4e4e7);
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  user-select: none;
+  /* Pas de backdrop : édition derrière reste utilisable */
+  /* Animation d'entrée douce (refonte 2026-05-17) : fade + scale + slide up
+   * léger. Origin = centre pour la scale. */
+  animation: preview-modal-fade-in 280ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center;
+}
+@keyframes preview-modal-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(0.6rem);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+/* Refonte 2026-05-19 — fade-out symétrique au fade-in. Appliqué via classe
+ * .is-closing pendant que le caller maintient l'élément monté ~220ms avant
+ * de l'unmount (pattern AnimatePresence simplifié, sans framer-motion). */
+.preview-modal-window.is-closing {
+  animation: preview-modal-fade-out 220ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  pointer-events: none;
+}
+@keyframes preview-modal-fade-out {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96) translateY(0.6rem);
+  }
+}
+.preview-modal-minibar {
+  animation: preview-modal-fade-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ── Mode embedded (refonte 2026-05-17) ─────────────────────────────────
+ * Rendu inline (= dans le flux normal) au lieu de floating window.
+ * Cas d'usage : Studio Mono, qui veut le même chrome que la floating
+ * PreviewModal mais ancré dans la colonne aside (pas de drag, pas de
+ * z-index, pas d'ombre lourde). */
+.preview-modal-window.is-embedded {
+  position: static;
+  z-index: auto;
+  box-shadow: 0 0.3rem 0.8rem rgba(0, 0, 0, 0.25);
+  user-select: text;  /* on autorise la sélection — pas de drag à protéger */
+  /* Pas de width forcé : le contenu (device frame + thumbs column) impose
+   * sa propre largeur naturelle, comme en mode floating. */
+}
+.preview-modal-window.is-embedded .preview-modal-header {
+  cursor: default;
+}
+
+/* ── Header (drag handle) ─────────────────────────────────────────────── */
+.preview-modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.55rem;
+  /* Refonte 2026-05-17 — customisable via Settings panel. */
+  background: var(--hero-preview-header-bg, var(--ie-bg, #0e0e12));
+  border-bottom: 1px solid var(--ie-border, #2a2a35);
+  border-radius: 0.6rem 0.6rem 0 0;
+  cursor: move;
+}
+.preview-modal-title {
+  flex: 1 1 auto;
+  font-weight: 600;
+  font-size: 0.78rem;
+  /* Refonte 2026-05-17 — customisable via Settings (label header color). */
+  color: var(--hero-preview-header-text, var(--ie-text, #e4e4e7));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-modal-device-select {
+  flex: 0 0 auto;
+  padding: 0.25rem 0.4rem;
+  background: var(--ie-surface, #1a1a1f);
+  border: 1px solid var(--ie-border, #2a2a35);
+  border-radius: 0.25rem;
+  color: var(--hero-preview-header-text, var(--ie-text, #e4e4e7));
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.preview-modal-header-actions {
+  display: flex;
+  gap: 0.2rem;
+}
+.preview-modal-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+  /* Refonte 2026-05-17 — couleur customisable via Settings. */
+  color: var(--hero-preview-header-btn, var(--ie-text-muted, #a1a1aa));
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.preview-modal-iconbtn:hover {
+  /* Refonte 2026-05-17 (agent design) — touche rose subtile au hover,
+   * signature Hero sans saturer le chrome. */
+  background: rgba(236, 72, 153, 0.1);
+  color: var(--hero-preview-header-text, var(--ie-text, #e4e4e7));
+  border-color: transparent;
+}
+.preview-modal-iconbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.preview-modal-playbtn {
+  background: color-mix(in srgb, var(--ie-accent, #ec4899) 18%, transparent);
+  color: var(--ie-accent, #ec4899);
+  border-color: color-mix(in srgb, var(--ie-accent, #ec4899) 40%, transparent);
+}
+
+/* ── Body ─────────────────────────────────────────────────────────────── */
+/* Layout horizontal 2 colonnes (refonte 2026-05-16) : device à gauche,
+ * controls + vignettes verticales à droite. Mieux pour les ratios portrait. */
+.preview-modal-body {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  padding: 1rem;
+  gap: 0.7rem;
+  /* Refonte 2026-05-17 — fond gris clair pour contraste max avec le device.
+   * Customisable via Settings panel (var --hero-preview-bg-lightness, %). */
+  background: color-mix(in srgb, var(--ie-text, #e4e4e7) var(--hero-preview-bg-lightness, 30%), var(--ie-surface, #1a1a1f));
+  border-radius: 0 0 0.6rem 0.6rem;
+  position: relative;
+}
+
+/* Phase A bis bonus 2026-05-18 — badge contextuel calque+pellicule.
+ * Positionné en haut-gauche du body, au-dessus du device. */
+.preview-modal-context-badge {
+  position: absolute;
+  top: 0.4rem;
+  left: 0.6rem;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.55rem;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(6px);
+  border-radius: 0.3rem;
+  font-size: 0.7rem;
+  box-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+  user-select: none;
+}
+.preview-modal-context-layer {
+  /* Violet pour matcher la couleur des layer blocks dans la timeline. */
+  color: #a78bfa;
+  font-weight: 600;
+}
+.preview-modal-context-arrow {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.65rem;
+}
+.preview-modal-context-parent {
+  /* Rose accent Hero pour la pellicule parente. */
+  color: var(--ie-accent, #ec4899);
+  font-weight: 600;
+}
+.preview-modal-side {
+  flex: 0 0 6.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+}
+
+/* Device frame (bezel + radius) */
+.preview-modal-device-frame {
+  background: #050507;
+  /* Refonte 2026-05-17 — ombre portée plus prononcée pour que le device
+   * "flotte" visuellement sur le fond gris moyen + halo subtle pour soigner. */
+  box-shadow:
+    0 1rem 2.5rem rgba(0, 0, 0, 0.75),
+    0 0.4rem 1rem rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 0 0.15rem rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  flex: 0 0 auto;
+}
+.preview-modal-device-screen {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.preview-modal-empty {
+  color: var(--ie-text-muted, #a1a1aa);
+  font-size: 0.75rem;
+  font-style: italic;
+  padding: 1rem;
+  text-align: center;
+}
+
+/* ── Controls (en haut de la side column) ─────────────────────────────── */
+.preview-modal-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--ie-border, #2a2a35);
+}
+.preview-modal-counter {
+  font-size: 0.7rem;
+  color: var(--ie-text-muted, #a1a1aa);
+  font-variant-numeric: tabular-nums;
+  width: 100%;
+  text-align: center;
+  margin-top: 0.2rem;
+}
+
+/* ── Vignettes pellicules (colonne verticale scrollable) ──────────────── */
+.preview-modal-thumbs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  /* Refonte 2026-05-19 — scroll FORCÉ + scrollbar visible mais discrète
+   * (gris muted, fine, full au hover). Indicateur permanent qu'il y a + de
+   * pellicules en-dessous. */
+  overflow-y: scroll;
+  padding: 0.1rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ie-text-muted, #a1a1aa) 55%, transparent) transparent;
+}
+.preview-modal-thumbs::-webkit-scrollbar {
+  width: 0.5rem;
+}
+.preview-modal-thumbs::-webkit-scrollbar-track {
+  background: transparent;
+}
+.preview-modal-thumbs::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ie-text-muted, #a1a1aa) 45%, transparent);
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.15s ease;
+}
+.preview-modal-thumbs:hover::-webkit-scrollbar-thumb,
+.preview-modal-thumbs::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ie-text-muted, #a1a1aa) 80%, transparent);
+  background-clip: padding-box;
+}
+.preview-modal-thumb {
+  flex: 0 0 auto;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: var(--ie-bg, #0e0e12);
+  border: 1px solid var(--ie-border, #2a2a35);
+  border-radius: 0.25rem;
+  overflow: hidden;
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.12s ease, transform 0.1s ease;
+}
+.preview-modal-thumb img,
+.preview-modal-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.preview-modal-thumb-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--ie-text-muted, #a1a1aa);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.preview-modal-thumb:hover {
+  border-color: var(--ie-accent, #ec4899);
+}
+.preview-modal-thumb.is-active {
+  border-color: var(--ie-accent, #ec4899);
+  box-shadow: 0 0 0 0.15rem color-mix(in srgb, var(--ie-accent, #ec4899) 35%, transparent);
+  transform: translateY(-0.05rem);
+}
+
+/* ── Mini-bar (minimized) ─────────────────────────────────────────────── */
+.preview-modal-minibar {
+  position: fixed;
+  z-index: 9000;
+  bottom: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.55rem;
+  background: var(--ie-surface, #1a1a1f);
+  border: 1px solid var(--ie-border, #2a2a35);
+  border-radius: 0.35rem;
+  box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.45);
+  color: var(--ie-text, #e4e4e7);
+  font-size: 0.75rem;
+}
+.preview-modal-minibar-title {
+  font-weight: 600;
+  max-width: 14rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.preview-modal-minibar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.2rem;
+  color: var(--ie-text-muted, #a1a1aa);
+  cursor: pointer;
+  padding: 0;
+}
+.preview-modal-minibar-btn:hover {
+  background: var(--ie-bg, #0e0e12);
+  color: var(--ie-accent, #ec4899);
+  border-color: var(--ie-border, #2a2a35);
+}

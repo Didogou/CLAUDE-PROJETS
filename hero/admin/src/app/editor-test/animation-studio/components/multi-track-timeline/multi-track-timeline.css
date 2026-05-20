@@ -1,0 +1,1442 @@
+/**
+ * MultiTrackTimeline — styles theme Hero (--ie-* vars).
+ * Refonte 2026-05-12.
+ */
+
+.mtt-root {
+  display: flex;
+  flex-direction: column;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+  font-family: inherit;
+  color: var(--ie-text);
+}
+
+/* ── Toolbar lecture ─────────────────────────────────────────────────── */
+.mtt-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--ie-surface);
+  border-bottom: 1px solid var(--ie-border);
+  flex: 0 0 auto;
+}
+.mtt-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--ie-text-muted);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.mtt-btn:hover:not(:disabled) {
+  background: var(--ie-bg);
+  color: var(--ie-accent);
+}
+.mtt-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* Refonte 2026-05-20 — séparateur vertical dans la toolbar (avant les actions
+ * destructives au cursor : Supprimer la frame / Couper). */
+.mtt-toolbar-sep {
+  display: inline-block;
+  width: 1px;
+  height: 1.2rem;
+  background: var(--ie-border);
+  margin: 0 0.25rem;
+}
+/* Bouton destructif (Supprimer la frame) : hover rouge subtil. */
+.mtt-btn-danger:hover:not(:disabled) {
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #f87171;
+}
+/* Actions de création — centrées dans la toolbar (refonte 2026-05-14).
+ * Chaque bouton = icône au-dessus + label texte en-dessous. */
+.mtt-toolbar-actions {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+.mtt-toolbar-action {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.15rem 0.4rem;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.3rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.mtt-toolbar-action:hover:not(:disabled) {
+  background: var(--ie-bg);
+  color: var(--ie-accent);
+  border-color: var(--ie-accent);
+}
+.mtt-toolbar-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+/* Refonte 2026-05-17 — folder pur (Animation/Image dans Studio Section)
+ * non cliquable par lui-même, plus discret + cursor default (pas "not-allowed"
+ * qui suggérerait un blocage : c'est juste un indicateur de catégorie). */
+.mtt-toolbar-action.is-folder-only {
+  opacity: 0.7;
+  cursor: default;
+}
+.mtt-toolbar-action.is-folder-only:hover {
+  background: transparent;
+}
+/* Folder sibling désactivé quand l'autre est expanded (ex: Animation expand
+ * → Image fade out + cursor not-allowed). Visuellement plus marqué que
+ * folder-only seul, car c'est l'expand de l'autre qui le rend inactif. */
+.mtt-toolbar-action.is-sibling-disabled {
+  opacity: 0.25 !important;
+  cursor: not-allowed !important;
+  filter: grayscale(0.6);
+}
+.mtt-toolbar-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.mtt-toolbar-action-label {
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+/* Action active = drawer ouvert (refonte 2026-05-14s). Pattern Designer. */
+.mtt-toolbar-action.is-active {
+  background: var(--ie-accent);
+  color: white;
+  border-color: var(--ie-accent);
+}
+.mtt-toolbar-action.is-active .mtt-toolbar-action-icon {
+  border-color: white;
+}
+.mtt-toolbar-actions-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.mtt-toolbar-drawer {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-left: 0.6rem;
+  margin-left: 0.4rem;
+  border-left: 1px solid var(--ie-border);
+}
+.mtt-toolbar-subtool {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.15rem 0.4rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.mtt-toolbar-subtool:hover:not(:disabled) {
+  background: var(--ie-bg);
+  color: var(--ie-accent);
+  border-color: var(--ie-accent);
+}
+.mtt-toolbar-subtool:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.mtt-toolbar-subtool-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+}
+.mtt-toolbar-subtool-label {
+  font-size: 0.62rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+.mtt-time {
+  font-size: 0.7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--ie-text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* ── Scrollbar du HAUT (refonte 2026-05-19) ──────────────────────────
+ * Toujours visible, synced bidir avec .mtt-scroll via JS. Posée AU-DESSUS
+ * de la ruler pour éviter tout clipping en bas de la timeline (Studio
+ * Section a une hauteur fixe). */
+.mtt-scroll-top {
+  overflow-x: scroll;
+  overflow-y: hidden;
+  flex: 0 0 auto;
+  background: var(--ie-bg);
+  /* Refonte 2026-05-19 — Firefox : `thin` (vs `auto`), couleur muted (vs accent). */
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ie-text-muted) 55%, transparent) transparent;
+}
+.mtt-scroll-top-spacer {
+  height: 1px;  /* assez pour donner une largeur scrollable au container */
+}
+/* Refonte 2026-05-19 — scrollbar du haut affinée + plus discrète :
+ * 0.9rem → 0.5rem, accent rose → gris muted, opacity au repos puis full au hover. */
+.mtt-scroll-top::-webkit-scrollbar {
+  height: 0.5rem;
+}
+.mtt-scroll-top::-webkit-scrollbar-track {
+  background: transparent;
+}
+.mtt-scroll-top::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ie-text-muted) 45%, transparent);
+  border-radius: 0.25rem;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+  transition: background 0.15s ease;
+}
+.mtt-scroll-top:hover::-webkit-scrollbar-thumb,
+.mtt-scroll-top::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ie-text-muted) 75%, transparent);
+  background-clip: padding-box;
+}
+
+/* ── Conteneur scrollable horizontal ─────────────────────────────────── */
+.mtt-scroll {
+  flex: 1 1 auto;
+  /* Refonte 2026-05-19 — scrollbar du bas masquée (visuellement) car la
+   * scrollbar du HAUT (.mtt-scroll-top) joue le rôle visible. Le scroll reste
+   * fonctionnel via wheel/touch inside mtt-scroll. JS sync bidir scrollLeft. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--ie-bg);
+  scrollbar-width: none;  /* Firefox : pas de scrollbar visible */
+}
+.mtt-scroll::-webkit-scrollbar {
+  height: 0;  /* WebKit : scrollbar invisible mais scroll fonctionnel */
+  display: none;
+}
+.mtt-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* width inline style depuis le composant (totalWidthPx) */
+}
+
+/* ── Ruler temporel ──────────────────────────────────────────────────── */
+.mtt-ruler {
+  position: relative;
+  height: 1.5rem;
+  border-bottom: 1px solid var(--ie-border);
+  background: var(--ie-surface);
+  cursor: ew-resize;
+  flex: 0 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+/* Refonte 2026-05-19 — coin opaque sticky qui masque le curseur (z=3) au
+ * niveau de la ruler quand sa pointe traverse visuellement la zone des
+ * icônes sticky des tracks (2.25rem à gauche). */
+.mtt-ruler-corner {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  display: block;
+  width: 2.25rem;
+  height: 100%;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  pointer-events: none;
+}
+/* Fix 2026-05-13 + refonte 2026-05-14ad : ticks alignés sur la nouvelle
+ * largeur du label sticky (2.25rem). Le cursor utilise le même offset. */
+.mtt-ruler-tick {
+  transform: translateX(2.25rem);
+}
+.mtt-ruler-tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ie-border-strong);
+}
+/* Refonte 2026-05-17 — ticks mineurs (secondes sans label) plus discrets :
+ * + court (moitié hauteur), + transparent. Pattern CapCut/Premiere. */
+.mtt-ruler-tick.is-minor {
+  top: 60%;
+  opacity: 0.4;
+  background: var(--ie-border);
+}
+.mtt-ruler-label {
+  position: absolute;
+  top: 0.15rem;
+  left: 0.2rem;
+  font-size: 0.625rem;
+  color: var(--ie-text-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Pistes ──────────────────────────────────────────────────────────── */
+.mtt-tracks {
+  display: flex;
+  flex-direction: column;
+}
+.mtt-track {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--ie-border);
+  background: var(--ie-bg);
+  /* height inline style depuis le composant (trackHeightRem) */
+}
+.mtt-track:last-child {
+  border-bottom: 0;
+}
+/* Track label : icône seule (les actions de création sont dans la toolbar
+ * du header timeline, refonte 2026-05-14d). */
+.mtt-track-label {
+  position: sticky;
+  left: 0;
+  /* Refonte 2026-05-19 — z=4 (vs 2) pour passer au-dessus des labels overlay
+   * des blocs (z=2) quand on scrolle horizontalement. Sinon le label "v_..mp4"
+   * passe par-dessus l'icône sticky en defilement. Reste sous le cursor (z=5)
+   * et l'insert-indicator (z=4 mais rendu plus tard donc OK). */
+  z-index: 4;
+  flex: 0 0 2.25rem;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-muted);
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  user-select: none;
+}
+.mtt-track-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--ie-text-muted);
+}
+.mtt-track-action {
+  width: 1.25rem;
+  height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--ie-accent);
+  border-radius: 999px;
+  color: var(--ie-accent);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 0.12s ease, transform 0.1s ease;
+}
+.mtt-track-action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent) 12%, transparent);
+}
+.mtt-track-action:active:not(:disabled) {
+  transform: scale(0.92);
+}
+.mtt-track-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: var(--ie-border);
+  color: var(--ie-text-faint);
+}
+.mtt-spin {
+  animation: mtt-spin-anim 0.9s linear infinite;
+}
+@keyframes mtt-spin-anim {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.mtt-track-area {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Couleurs de fond subtiles par type de piste pour distinguer visuellement */
+.mtt-track-video_image .mtt-track-area { background: color-mix(in srgb, #6366f1 4%, transparent); }
+.mtt-track-sfx .mtt-track-area         { background: color-mix(in srgb, #f59e0b 4%, transparent); }
+.mtt-track-music .mtt-track-area       { background: color-mix(in srgb, #10b981 4%, transparent); }
+.mtt-track-text .mtt-track-area        { background: color-mix(in srgb, #ec4899 4%, transparent); }
+
+/* Highlight au drag-over */
+.mtt-track-area:has([data-drag-over='true']),
+.mtt-track[data-drag-active='true'] .mtt-track-area {
+  background: color-mix(in srgb, var(--ie-accent) 10%, transparent);
+}
+
+/* ── Blocs ───────────────────────────────────────────────────────────── */
+/* Wrap autour du bloc + handles resize (V2bis 2026-05-12). Le wrap occupe
+ * la position absolue, le bouton bloc remplit 100%, les handles sont sur
+ * les bords gauche/droit (zones de 6px invisibles cliquables). */
+.mtt-block-wrap {
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+}
+.mtt-block-wrap.resizing {
+  /* Pendant resize : empêche le clic d'ouvrir l'éditeur, change le cursor */
+  pointer-events: none;
+}
+.mtt-block-wrap.resizing .mtt-block-resize-handle {
+  pointer-events: auto;
+}
+.mtt-block-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0.4rem;
+  cursor: ew-resize;
+  z-index: 2;
+  background: transparent;
+  /* Petite barre visible au hover pour signaler la zone */
+  transition: background 0.12s ease;
+}
+.mtt-block-resize-handle:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.mtt-block-wrap.resizing .mtt-block-resize-handle {
+  background: var(--ie-accent);
+}
+.mtt-block-resize-left { left: 0; border-radius: 0.25rem 0 0 0.25rem; }
+.mtt-block-resize-right { right: 0; border-radius: 0 0.25rem 0.25rem 0; }
+
+/* Bouton ✕ top-right d'un bloc — visible au hover du wrap. Refonte 2026-05-13. */
+.mtt-block-delete {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.15rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  line-height: 1;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border: none;
+  border-radius: 0.2rem;
+  cursor: pointer;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+.mtt-block-wrap:hover .mtt-block-delete {
+  opacity: 1;
+}
+.mtt-block-delete:hover {
+  background: var(--ie-danger, #f87171);
+}
+
+/* Bandeau bas Effets/Capture sur les blocs video timeline.
+ * Refonte 2026-05-15dq — remplace l'icône ✨ flottante. */
+.mtt-block-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.2rem 0.25rem;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.55) 60%, rgba(0, 0, 0, 0));
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  pointer-events: none;
+}
+.mtt-block-wrap:hover .mtt-block-bottom-bar {
+  opacity: 1;
+  pointer-events: auto;
+}
+.mtt-block-bb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  line-height: 1;
+  border-radius: 0.2rem;
+  border: 0.0625rem solid rgba(255, 255, 255, 0.18);
+  background: rgba(0, 0, 0, 0.7);
+  color: #fff;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: all 120ms ease;
+}
+.mtt-block-bb-effects:hover {
+  background: #ec4899;
+  border-color: #ec4899;
+  box-shadow: 0 0.15rem 0.4rem rgba(236, 72, 153, 0.4);
+}
+.mtt-block-bb-capture:hover {
+  background: #06b6d4;
+  border-color: #06b6d4;
+  box-shadow: 0 0.15rem 0.4rem rgba(34, 211, 238, 0.4);
+}
+/* Bouton Modifier (refonte 2026-05-16) — violet doux, cohérent banque */
+.mtt-block-bb-edit:hover {
+  background: #a78bfa;
+  border-color: #a78bfa;
+  box-shadow: 0 0.15rem 0.4rem rgba(167, 139, 250, 0.4);
+}
+
+/* Highlight bloc sélectionné — refonte 2026-05-14t. */
+.mtt-block-wrap.is-selected .mtt-block {
+  outline: 2px solid var(--ie-accent);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+
+/* Cadre "pellicule cinéma" sur les blocs animation GÉNÉRÉS uniquement
+ * (refonte 2026-05-14v+w+ah). Désactivé tant que le bloc est vide
+ * (= pas de videoUrl, pellicule fraîche). */
+.mtt-block-video.is-empty::before,
+.mtt-block-video.is-empty::after {
+  display: none;
+}
+.mtt-block-video::before,
+.mtt-block-video::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0.3rem;
+  background-color: rgba(20, 20, 20, 0.55);
+  background-image: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 255, 255, 0.7) 0,
+    rgba(255, 255, 255, 0.7) 0.08rem,
+    transparent 0.1rem
+  );
+  background-size: 0.4rem 0.3rem;
+  background-repeat: repeat-x;
+  background-position: 0 50%;
+  pointer-events: none;
+  z-index: 1;
+}
+.mtt-block-video::before { top: 0; }
+.mtt-block-video::after  { bottom: 0; }
+
+/* Cadre "polaroid" sur les blocs image (refonte 2026-05-14v) : bordure
+ * blanche fine type photo papier, plus discret que la pellicule. */
+.mtt-block-image_static {
+  border: 0.15rem solid #fefefe;
+  box-shadow: inset 0 0 0 0.05rem rgba(0, 0, 0, 0.08);
+}
+
+/* Bouton ▶ "Animer cette image" — uniquement sur image_static. À gauche du
+ * ✕. Refonte 2026-05-14 (transform image en animation). */
+.mtt-block-animate {
+  position: absolute;
+  top: 0.15rem;
+  right: 1.45rem;  /* à gauche du delete (1.1rem + 0.35rem gap) */
+  width: 1.1rem;
+  height: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  line-height: 1;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  border: none;
+  border-radius: 0.2rem;
+  cursor: pointer;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease;
+}
+.mtt-block-wrap:hover .mtt-block-animate {
+  opacity: 1;
+}
+.mtt-block-animate:hover {
+  background: var(--ie-accent, #ec4899);
+}
+
+.mtt-block {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.4rem;
+  border: 1px solid;
+  border-radius: 0.25rem;
+  background: var(--ie-surface);
+  font-family: inherit;
+  font-size: 0.7rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  overflow: hidden;
+  transition: filter 0.12s ease, transform 0.12s ease;
+  text-align: left;
+}
+.mtt-block:hover {
+  filter: brightness(1.08);
+  transform: translateY(-0.0625rem);
+}
+/* Refonte 2026-05-15bh — Vignette + label en overlay top, à gauche du bloc.
+ * La zone restante à droite (prompt) prend le reste de la largeur. */
+.mtt-block-thumb-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 100%;
+  min-width: 0;
+}
+.mtt-block-thumb-col .mtt-block-thumb-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+/* Refonte 2026-05-15bi — label en overlay top de la vignette (pas dessous).
+ * Fond translucide pour rester lisible quel que soit le contenu de l'image. */
+.mtt-block-label-overlay {
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  right: 0.25rem;
+  padding: 0.1rem 0.4rem;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 500;
+  border-radius: 0.2rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  text-shadow: 0 0 0.2rem rgba(0, 0, 0, 0.7);
+  z-index: 2;
+}
+.mtt-block-thumb-wrap {
+  position: relative;
+  height: 100%;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: stretch;
+}
+.mtt-block-thumb {
+  height: 100%;
+  /* Refonte 2026-05-15bg — aspect 16/10 (vs 16/9) → ~10% plus large = vignette
+   * plus visible. object-fit:cover garde le crop centré. */
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 0.15rem;
+  display: block;
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+.mtt-block-label {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+/* Refonte 2026-05-15bh — Zone prompt à droite du bloc vidéo. */
+.mtt-block-prompt-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  color: rgba(255, 255, 255, 0.85);
+  padding: 0.25rem 0.4rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.mtt-block-prompt-btn {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin: 0.25rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(0, 0, 0, 0.4);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mtt-block-prompt-btn:hover {
+  background: rgba(0, 0, 0, 0.65);
+  border-color: var(--ie-accent);
+}
+.mtt-block-prompt-pop {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.3rem;
+  z-index: 10;
+  width: 18rem;
+  max-width: 80vw;
+  padding: 0.6rem 0.75rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.35rem;
+  box-shadow: 0 0.5rem 1.2rem rgba(0, 0, 0, 0.4);
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--ie-text);
+  cursor: pointer;
+  white-space: pre-wrap;
+}
+
+/* Sous-divisions shots dans un bloc vidéo (refonte 2026-05-14as).
+ * Lignes verticales pointillées qui matérialisent les coupes entre shots
+ * sans casser visuellement l'unité "1 bloc = 1 vidéo MP4 LTX". */
+.mtt-block-shot-divider {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 0.0625rem dashed rgba(255, 255, 255, 0.55);
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Insertion indicator pendant le drag (refonte 2026-05-14az).
+ * Ligne verticale rose snappée au point de drop. Apparaît avec un fade
+ * smooth + glow accent pour matérialiser visuellement où le bloc va
+ * atterrir. Layer au-dessus des blocs mais sous le curseur de lecture. */
+.mtt-insert-indicator {
+  position: absolute;
+  top: 1.5rem;          /* skip ruler height */
+  bottom: 0;
+  width: 0.25rem;
+  margin-left: -0.125rem;
+  background: var(--ie-accent);
+  border-radius: 0.125rem;
+  box-shadow: 0 0 0.5rem var(--ie-accent), 0 0 1rem color-mix(in srgb, var(--ie-accent) 50%, transparent);
+  pointer-events: none;
+  z-index: 4;
+  animation: mtt-insert-pulse 0.9s ease-in-out infinite alternate;
+}
+@keyframes mtt-insert-pulse {
+  from { opacity: 0.7; transform: scaleY(1); }
+  to   { opacity: 1;   transform: scaleY(1.02); }
+}
+
+/* Transition smooth sur les blocs pendant le drag — quand un autre bloc
+ * est repositionné/ajouté, les autres glissent au lieu de "snap" brutal.
+ * Refonte 2026-05-14bb : transform aussi animé pour le shiftPx (réorganisation
+ * dynamique des voisins pendant qu'on drag un bloc). */
+.mtt-block-wrap {
+  transition:
+    left 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.18s ease;
+}
+.mtt-block-wrap.resizing {
+  transition: none;  /* pas d'animation pendant un drag-resize manuel */
+}
+/* Le bloc en cours de drag (= self) → fade + outline pour bien voir
+ * où il va atterrir. Les autres blocs restent solides et se décalent
+ * autour de lui via shiftPx (animation transform). */
+.mtt-block-wrap.is-dragging-self {
+  opacity: 0.4;
+  filter: grayscale(0.5);
+  outline: 0.15rem dashed var(--ie-accent, #ec4899);
+  outline-offset: 0.2rem;
+  border-radius: 0.4rem;
+}
+/* Cursor explicit : grab au hover, grabbing pendant drag (refonte 2026-05-17). */
+.mtt-block {
+  cursor: grab;
+}
+.mtt-block-wrap.is-dragging-self .mtt-block {
+  cursor: grabbing;
+}
+
+/* Couleurs par kind */
+.mtt-block-video        { border-color: #6366f1; background: color-mix(in srgb, #6366f1 18%, var(--ie-surface)); }
+.mtt-block-image_static { border-color: #818cf8; background: color-mix(in srgb, #818cf8 18%, var(--ie-surface)); }
+/* Phase A bis 2026-05-18 — block kind 'layer' (track Calques) */
+.mtt-block-layer        { border-color: #a78bfa; background: color-mix(in srgb, #a78bfa 22%, var(--ie-surface)); }
+.mtt-block-sfx          { border-color: #f59e0b; background: color-mix(in srgb, #f59e0b 18%, var(--ie-surface)); }
+.mtt-block-music        { border-color: #10b981; background: color-mix(in srgb, #10b981 18%, var(--ie-surface)); }
+.mtt-block-text         { border-color: #ec4899; background: color-mix(in srgb, #ec4899 18%, var(--ie-surface)); }
+
+/* ── Bibliothèque latérale ───────────────────────────────────────────── */
+
+.mtt-lib {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  font-size: 0.75rem;
+  color: var(--ie-text);
+  overflow-y: auto;
+  /* Fix 2026-05-13 : empêche le scroll horizontal qui apparaissait à cause
+   * des tiles avec actions edit+delete + thumb + label + dur (qui débordaient
+   * légèrement la largeur 14rem). */
+  overflow-x: hidden;
+  width: 14rem;
+  flex: 0 0 14rem;
+}
+.mtt-lib-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.mtt-lib-section-header {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0;
+  background: transparent;
+  border: 0;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+.mtt-lib-section-header:hover {
+  color: var(--ie-text);
+}
+.mtt-lib-section-count {
+  margin-left: auto;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ie-text-faint);
+}
+/* Slide doux : grid-template-rows 0fr → 1fr s'adapte au contenu sans
+ * connaître sa hauteur à l'avance. Refonte 2026-05-14. */
+.mtt-lib-section-slide {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.mtt-lib-section-slide.is-open {
+  grid-template-rows: 1fr;
+}
+.mtt-lib-section-slide-inner {
+  overflow: hidden;
+  min-height: 0;
+}
+.mtt-lib-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-left: 0.4rem;
+}
+.mtt-lib-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.4rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  cursor: grab;
+  transition: border-color 0.12s ease, transform 0.12s ease;
+  user-select: none;
+}
+.mtt-lib-item:hover {
+  border-color: var(--ie-accent);
+  transform: translateY(-0.0625rem);
+}
+.mtt-lib-item:active {
+  cursor: grabbing;
+}
+.mtt-lib-item.is-selected {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 12%, var(--ie-bg));
+  box-shadow: 0 0 0 1px var(--ie-accent), 0 0 0.6rem color-mix(in srgb, var(--ie-accent) 40%, transparent);
+}
+.mtt-lib-item-thumb {
+  width: 1.8rem;
+  height: 1.2rem;
+  object-fit: cover;
+  border-radius: 0.15rem;
+  flex: 0 0 auto;
+}
+.mtt-lib-item-audio-ico,
+.mtt-lib-item-no-thumb {
+  width: 1.8rem;
+  height: 1.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ie-surface);
+  border-radius: 0.15rem;
+  font-size: 0.85rem;
+  flex: 0 0 auto;
+}
+.mtt-lib-item-label {
+  flex: 1 1 auto;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mtt-lib-item-dur {
+  font-size: 0.6rem;
+  color: var(--ie-text-faint);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Bouton crayon sur tile library — pattern aligné avec BookNpcsBank
+ * (Pencil + Trash2 toujours visibles). Refonte 2026-05-13. */
+.mtt-lib-item-edit {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.mtt-lib-item-edit:hover {
+  background: color-mix(in srgb, var(--ie-accent, #d4a84c) 18%, transparent);
+  color: var(--ie-accent, #d4a84c);
+}
+
+/* Bouton corbeille sur tile library — toujours visible, pattern aligné
+ * avec BookNpcsBank.sc-npc-card-btn-danger (2026-05-13). */
+.mtt-lib-item-delete {
+  flex: 0 0 auto;
+  background: transparent;
+  border: none;
+  color: var(--ie-danger, #f87171);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 0.2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.12s ease;
+}
+.mtt-lib-item-delete:hover {
+  background: color-mix(in srgb, var(--ie-danger, #f87171) 18%, transparent);
+}
+.mtt-lib-actions {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+.mtt-lib-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.25rem 0.4rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text-muted);
+  font-family: inherit;
+  font-size: 0.65rem;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.mtt-lib-action-btn:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.mtt-lib-empty {
+  font-size: 0.65rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  padding: 0.3rem 0.4rem;
+}
+
+/* ── Modal génération SFX ────────────────────────────────────────────── */
+
+.sfxg-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+  padding: 1rem;
+}
+.sfxg-modal {
+  width: 100%;
+  max-width: 32rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.625rem;
+  box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+  font-family: inherit;
+}
+.sfxg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--ie-border);
+}
+.sfxg-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.sfxg-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--ie-text-muted);
+  border: 0;
+  cursor: pointer;
+}
+.sfxg-close:hover:not(:disabled) {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+.sfxg-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.875rem 1rem;
+  overflow-y: auto;
+}
+.sfxg-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.sfxg-field-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text-muted);
+}
+.sfxg-textarea,
+.sfxg-input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.35rem;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.12s ease;
+}
+.sfxg-textarea:focus,
+.sfxg-input:focus {
+  border-color: var(--ie-accent);
+}
+.sfxg-duration-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.sfxg-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+}
+.sfxg-preview-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.sfxg-preview-ico {
+  color: var(--ie-text-muted);
+  flex: 0 0 auto;
+}
+.sfxg-audio {
+  flex: 1 1 auto;
+  height: 2rem;
+}
+.sfxg-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  padding: 0.4rem 0.5rem;
+  background: rgba(248, 113, 113, 0.14);
+  color: var(--ie-danger);
+  border-radius: 0.3rem;
+  font-size: 0.7rem;
+}
+.sfxg-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--ie-border);
+}
+.sfxg-btn-primary,
+.sfxg-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 0.35rem;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+.sfxg-btn-primary {
+  background: var(--ie-accent);
+  color: #fff;
+}
+.sfxg-btn-primary:hover:not(:disabled) {
+  background: var(--ie-accent-hover);
+}
+.sfxg-btn-primary:disabled,
+.sfxg-btn-ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.sfxg-btn-ghost {
+  background: transparent;
+  color: var(--ie-text-muted);
+  border: 1px solid var(--ie-border);
+}
+.sfxg-btn-ghost:hover:not(:disabled) {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+.sfxg-spin {
+  animation: sfxg-spin-anim 1s linear infinite;
+}
+@keyframes sfxg-spin-anim {
+  to { transform: rotate(360deg); }
+}
+
+/* ── TextBlockEditor (modal édition texte overlay, Phase 3) ──────────── */
+
+.tbe-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 250;
+  padding: 1rem;
+}
+.tbe-modal {
+  width: 100%;
+  max-width: 30rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.625rem;
+  box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  max-height: 90vh;
+  overflow: hidden;
+  font-family: inherit;
+}
+.tbe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--ie-border);
+}
+.tbe-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.tbe-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.3rem;
+  background: transparent;
+  color: var(--ie-text-muted);
+  border: 0;
+  cursor: pointer;
+}
+.tbe-close:hover {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+.tbe-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 0.875rem 1rem;
+  overflow-y: auto;
+}
+.tbe-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+.tbe-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.tbe-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ie-text-muted);
+}
+.tbe-textarea,
+.tbe-select {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.35rem;
+  outline: none;
+  resize: vertical;
+  box-sizing: border-box;
+  transition: border-color 0.12s ease;
+}
+.tbe-textarea:focus,
+.tbe-select:focus {
+  border-color: var(--ie-accent);
+}
+.tbe-radios {
+  display: flex;
+  gap: 0.25rem;
+}
+.tbe-radio-btn {
+  flex: 1;
+  padding: 0.35rem 0;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  background: var(--ie-surface);
+  color: var(--ie-text-muted);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.tbe-radio-btn:hover {
+  border-color: var(--ie-text-muted);
+}
+.tbe-radio-btn.active {
+  background: var(--ie-accent);
+  color: #fff;
+  border-color: var(--ie-accent);
+}
+.tbe-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.7rem 1rem;
+  border-top: 1px solid var(--ie-border);
+}
+.tbe-btn-primary,
+.tbe-btn-ghost,
+.tbe-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 0.35rem;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.12s ease, opacity 0.12s ease;
+}
+.tbe-btn-primary {
+  background: var(--ie-accent);
+  color: #fff;
+}
+.tbe-btn-primary:hover:not(:disabled) {
+  background: var(--ie-accent-hover);
+}
+.tbe-btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.tbe-btn-ghost {
+  background: transparent;
+  color: var(--ie-text-muted);
+  border: 1px solid var(--ie-border);
+}
+.tbe-btn-ghost:hover {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+}
+.tbe-btn-danger {
+  background: transparent;
+  color: var(--ie-danger);
+  border: 1px solid transparent;
+  margin-right: auto;  /* aligne à gauche, séparé des autres actions */
+}
+.tbe-btn-danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+
+/* ── Layout combiné editor (library + timeline) ──────────────────────── */
+.mtt-editor {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  /* Refonte 2026-05-13 : la row parente (.as-main grid row "auto") accepte la
+   *  hauteur naturelle, mais on plafonne ici pour ne pas dévorer la PromptZone
+   *  quand la library a beaucoup d'items. Au-dessus de 16rem on accepte le
+   *  scroll interne library/timeline. */
+  flex: 0 0 auto;
+  min-height: 13rem;
+  max-height: 16rem;
+}
+.mtt-editor-timeline {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+/* Refonte 2026-05-14bf — Phase 3 : sans library sidebar, l'editor prend
+ * toute la largeur. Augmente la hauteur max pour profiter de l'espace gagné
+ * (track video_image à 6rem + ruler + toolbar = ~10rem, on autorise jusqu'à 14rem). */
+.mtt-editor.mtt-editor-no-library {
+  max-height: 14rem;
+}
+
+/* ── Curseur de lecture ──────────────────────────────────────────────── */
+.mtt-cursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2.25rem;
+  width: 1rem;
+  margin-left: -0.5rem;
+  background: transparent;
+  pointer-events: auto;
+  cursor: ew-resize;
+  /* Refonte 2026-05-19 — z=3 (vs 5) : passe SOUS les icônes sticky (z=4) qui
+   * ont un background opaque (--ie-surface). Quand le curseur se trouve
+   * derrière la colonne d'icônes (cursorMs au début ou scroll qui ramène
+   * la position visuelle dans la zone sticky), il disparaît proprement
+   * au lieu d'afficher sa ligne par-dessus l'icône Film. Reste au-dessus
+   * des blocs (auto) pour rester visible dans la zone de contenu. */
+  z-index: 3;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  -webkit-user-drag: none;
+}
+.mtt-block-thumb {
+  -webkit-user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  pointer-events: none;
+}
+.mtt-cursor::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  background: var(--ie-accent);
+  box-shadow: 0 0 0.4rem var(--ie-accent);
+  pointer-events: none;
+}
+.mtt-cursor::before {
+  content: '';
+  position: absolute;
+  top: -0.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0.9rem;
+  height: 0.9rem;
+  background: var(--ie-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0.4rem var(--ie-accent);
+  pointer-events: none;
+}

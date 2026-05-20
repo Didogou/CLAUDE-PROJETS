@@ -23,7 +23,11 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as { image_url: string; engine?: 'qwen' | 'claude' }
     const { image_url } = body
-    const engine = body.engine ?? 'qwen'  // gratuit par défaut
+    // Refonte 2026-05-14bc — default Claude. Setup Ollama 0.13.3 + Qwen VL
+    // crash le model runner sur 8 GB VRAM (cf [[ollama-pin-0-13-3]]). On
+    // bascule sur Claude Haiku Vision (~$0.001/image) en attendant un GPU
+    // plus capable. La branche Qwen reste accessible via engine='qwen'.
+    const engine = body.engine ?? 'claude'
     if (!image_url) return NextResponse.json({ error: 'image_url requis' }, { status: 400 })
 
     // Téléchargement de l'image (Claude vision attend du base64 ou une URL)
@@ -59,7 +63,9 @@ export async function POST(req: NextRequest) {
           prompt: VISION_INSTRUCTION,
           images: [base64],
           temperature: 0.2,
-          timeoutMs: 45_000,
+          // Refonte 2026-05-14br — aligné describe-scene : 90s pour cohabiter
+          // avec ComfyUI sur 8 GB VRAM sans déclencher fallback Claude inutile.
+          timeoutMs: 90_000,
         })
         description = (result.description ?? '').trim()
       } catch (err) {

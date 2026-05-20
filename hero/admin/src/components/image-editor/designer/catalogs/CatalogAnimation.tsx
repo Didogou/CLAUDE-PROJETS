@@ -86,17 +86,12 @@ export default function CatalogAnimation({
       : null,
     [animationSelectedPelliculeId, animationPellicules],
   )
-  const isImageStaticMode = selectedPellicule?.type === 'image_static'
-
-  /** Click sur une image de la banque → set comme image de la pellicule
-   *  image_static courante. firstFrame == lastFrame (statique). */
-  function pickBankImage(img: BankImage) {
-    if (!selectedPellicule || selectedPellicule.type !== 'image_static') return
-    updateAnimationPellicule(selectedPellicule.id, {
-      firstFrameUrl: img.url,
-      lastFrameUrl: img.url,
-    })
-  }
+  // Cleanup 2026-05-05 : retrait du mode image_static (Phase 1/2). Reste
+  // uniquement le drawer Animer pré-Phase-1 (upload vidéo + persos selector).
+  const isImageStaticMode = false
+  // Stub pickBankImage (plus utilisé après cleanup, gardé inert pour back-compat
+  // d'imports éventuels — sera retiré quand on refera la banque par Plan).
+  function pickBankImage(_img: BankImage) { /* no-op après cleanup */ }
 
   // Upload manuel : ref input + busy flag (bloque les double-clics)
   const fileInputRef = useRef<HTMLInputElement | null>(null)

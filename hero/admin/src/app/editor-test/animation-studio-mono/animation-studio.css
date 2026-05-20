@@ -1,0 +1,3736 @@
+/* ──────────────────────────────────────────────────────────────────────────
+ * AnimationStudio — refonte écran d'animation 2026-05-07.
+ * Préfixe `.as-*` (animation studio). Tailles relatives partout.
+ * Variables --ie-* définies sur .as-root (cohérent avec le reste de Hero).
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.as-root {
+  /* Theme dark par défaut */
+  --ie-bg: #0F0F12;
+  --ie-surface: #17171B;
+  --ie-surface-2: #1F1F25;
+  --ie-surface-3: #2A2A32;
+  --ie-text: #F4F4F5;
+  --ie-text-muted: #A1A1AA;
+  --ie-text-faint: #71717A;
+  --ie-border: rgba(255, 255, 255, 0.08);
+  --ie-border-strong: rgba(255, 255, 255, 0.14);
+  --ie-accent: #F472B6;
+  --ie-accent-faint: rgba(244, 114, 182, 0.12);
+  --ie-accent-dark: #DB2777;
+  --ie-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Couleur du chassis device (le bord visuel autour du screen). En dark
+   * c'est gris pour ne PAS se confondre avec le fond. En light = noir. */
+  --as-device-chassis: #2a2a30;
+
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ie-bg);
+  color: var(--ie-text);
+  font-family: var(--ie-font);
+  font-size: 0.8125rem;
+  overflow: hidden;
+}
+.as-root.theme-light {
+  --ie-bg: #FAFAF9;
+  --ie-surface: #FFFFFF;
+  --ie-surface-2: #F4F4F2;
+  --ie-surface-3: #EDEDEB;
+  --ie-text: #18181B;
+  --ie-text-muted: #52525B;
+  --ie-text-faint: #A1A1AA;
+  --ie-border: rgba(0, 0, 0, 0.08);
+  --ie-border-strong: rgba(0, 0, 0, 0.14);
+  --ie-accent: #EC4899;
+  --ie-accent-faint: #FDF2F8;
+  --ie-accent-dark: #BE185D;
+  --as-device-chassis: #1a1a1a;
+}
+
+.as-loading, .as-error {
+  padding: 2rem;
+  color: var(--ie-text-muted);
+  text-align: center;
+}
+.as-error h2 { color: #f59e0b; margin-bottom: 0.5rem; }
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.as-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.4rem 0.85rem;
+  border-bottom: 1px solid var(--ie-border);
+  background: var(--ie-surface);
+}
+.as-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  transition: all 120ms;
+}
+.as-back-btn:hover { background: var(--ie-surface-2); border-color: var(--ie-border-strong); }
+.as-header-spacer { flex: 1; }
+.as-header-iabtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: var(--ie-accent-faint);
+  border: 1px solid color-mix(in srgb, var(--ie-accent) 30%, transparent);
+  border-radius: 0.4rem;
+  padding: 0.4rem 0.7rem;
+  color: var(--ie-accent);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  transition: all 120ms;
+}
+.as-header-iabtn:hover { background: color-mix(in srgb, var(--ie-accent) 18%, transparent); }
+.as-header-iabtn kbd {
+  font-family: inherit;
+  font-size: 0.65rem;
+  padding: 0.1rem 0.35rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  color: var(--ie-text-faint);
+}
+.as-header-theme-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: all 120ms;
+}
+.as-header-theme-btn:hover {
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+  border-color: var(--ie-border-strong);
+}
+
+/* ── Body : rail | main | preview ─────────────────────────────────────── */
+/* Refonte 2026-05-13 : passage en CSS Grid 3 colonnes (rail auto / main 1fr /
+ *  preview auto). Le preview garde son width inline (set par le component) et
+ *  la column "auto" s'aligne dessus. Permet d'éviter l'overflow vertical en
+ *  contraignant proprement la hauteur du `.as-main` à la grille (= 100% du
+ *  body), sans dépendre des min-height en cascade. */
+
+.as-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: 1fr;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  /* Refonte 2026-05-09 : pendant la transition de width du preview adaptive,
+   *  le contenu interne peut momentanément déborder horizontalement → on cache
+   *  cet overflow pour éviter la scrollbar disgracieuse. */
+  overflow: hidden;
+}
+/* Refonte 2026-05-14bh — Quand la banque V2 est ouverte, on insère une 4ème
+ * colonne (auto = sa width 28rem) entre le rail et le main. Le panel banque
+ * est un grid item normal (pas absolute) → pousse la timeline + preview
+ * vers la droite au lieu de flotter par-dessus. */
+.as-body.has-bank {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+}
+
+/* Responsive < 1100px : stack preview en-dessous (= 2 rangées). Pas
+ *  d'obligation, mais préserve l'usabilité sur laptop 13" / écran partagé. */
+@media (max-width: 68.75rem) {
+  .as-body {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 1fr auto;
+  }
+}
+
+/* Rail vertical icônes */
+.as-rail {
+  flex: 0 0 auto;
+  width: 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 0.3rem;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border);
+  z-index: 2;
+}
+.as-rail-btn {
+  width: 2.4rem;
+  height: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: all 140ms;
+}
+.as-rail-btn:hover {
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+}
+.as-rail-btn.active {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+
+/* Main = timeline + prompt zone.
+ *  Refonte 2026-05-13 : passage en CSS Grid pour donner à la PromptZone la
+ *  hauteur résiduelle EXACTE (= 100vh - header - timeline - paddings) au lieu
+ *  de dépendre d'un flex:1 qui se faisait écraser par le min-height de
+ *  `.mtt-editor`. PromptZone est désormais le seul élément autorisé à scroller
+ *  internement quand le contenu dépasse. */
+.as-main {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  padding: 0.75rem 0.85rem;
+  gap: 0.7rem;
+}
+
+/* ── Timeline horizontale ─────────────────────────────────────────────── */
+
+.as-timeline {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.as-timeline-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0 0.2rem;
+}
+.as-timeline-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--ie-text);
+}
+.as-timeline-meta {
+  font-size: 0.65rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+
+.as-timeline-cells {
+  display: flex;
+  gap: 0.6rem;
+  overflow-x: auto;
+  padding: 0.4rem 0.2rem;
+}
+.as-timeline-cell {
+  flex: 0 0 auto;
+  width: 9rem;
+  display: flex;
+  flex-direction: column;
+  background: var(--ie-surface);
+  border: 1.5px solid var(--ie-border);
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  padding: 0;
+  color: inherit;
+  transition: border-color 140ms, transform 140ms;
+}
+.as-timeline-cell:hover { transform: translateY(-0.1rem); }
+.as-timeline-cell:focus-visible {
+  outline: 2px solid var(--ie-accent);
+  outline-offset: 2px;
+}
+.as-timeline-cell.selected {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 2px var(--ie-accent-faint);
+}
+.as-timeline-cell-zoom {
+  position: absolute;
+  top: 0.25rem; right: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem; height: 1.3rem;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms, background 140ms;
+  z-index: 2;
+}
+.as-timeline-cell:hover .as-timeline-cell-zoom,
+.as-timeline-cell-zoom:focus-visible {
+  opacity: 1;
+}
+.as-timeline-cell-zoom:hover {
+  background: rgba(0, 0, 0, 0.78);
+}
+.as-timeline-cell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.35rem 0.5rem;
+  border-bottom: 1px solid var(--ie-border);
+}
+.as-timeline-cell-num {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ie-accent);
+}
+.as-timeline-cell-meta {
+  font-size: 0.6rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+.as-timeline-cell-thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--ie-bg);
+  overflow: hidden;
+  border-bottom-left-radius: 0.4rem;
+  border-bottom-right-radius: 0.4rem;
+}
+.as-timeline-cell-thumb img,
+.as-timeline-cell-thumb video {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.as-timeline-cell-placeholder {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ie-text-faint);
+  font-size: 1.5rem;
+}
+.as-timeline-cell-status {
+  position: absolute;
+  top: 0.3rem;
+  left: 0.3rem;
+  padding: 0.1rem 0.4rem;
+  background: color-mix(in srgb, #f59e0b 80%, transparent);
+  color: white;
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 0.2rem;
+}
+
+.as-timeline-add {
+  flex: 0 0 auto;
+  width: 6rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: 1.5px dashed var(--ie-border-strong);
+  border-radius: 0.5rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  transition: all 140ms;
+}
+.as-timeline-add:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: var(--ie-accent-faint);
+}
+
+/* Cellule "Ajouter" splittée en 2 actions empilées (refonte 2026-05-08). */
+.as-timeline-add-cell {
+  flex: 0 0 auto;
+  width: 8rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  align-items: stretch;
+  justify-content: center;
+}
+.as-timeline-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.55rem 0.4rem;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: all 140ms;
+}
+.as-timeline-add-btn.primary {
+  background: transparent;
+  border: 1.5px dashed var(--ie-border-strong);
+  color: var(--ie-text-muted);
+}
+.as-timeline-add-btn.primary:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: var(--ie-accent-faint);
+}
+.as-timeline-add-btn.secondary {
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  color: var(--ie-text);
+}
+.as-timeline-add-btn.secondary:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+/* Variante V2V (continuer la vidéo) — refonte 2026-05-11. Légèrement teintée
+ *  pour différencier visuellement de "Pellicule vide" (I2V) et "Depuis le PC"
+ *  (upload). C'est une feature qualitative spécifique. */
+.as-timeline-add-btn.secondary.v2v {
+  border-color: color-mix(in srgb, var(--ie-accent) 35%, var(--ie-border));
+  color: color-mix(in srgb, var(--ie-accent) 75%, var(--ie-text));
+}
+.as-timeline-add-btn.secondary.v2v:hover {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 10%, var(--ie-surface));
+  color: var(--ie-accent);
+}
+
+/* Bouton corbeille sur une cellule pellicule (refonte 2026-05-08). */
+.as-timeline-cell-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem; height: 1.1rem;
+  background: transparent;
+  color: var(--ie-text-faint);
+  border: none;
+  border-radius: 0.2rem;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.2rem;
+  opacity: 0;
+  transition: opacity 140ms, color 100ms, background 100ms;
+}
+.as-timeline-cell:hover .as-timeline-cell-del {
+  opacity: 1;
+}
+.as-timeline-cell-del:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+/* ── Prompt zone (centre) ─────────────────────────────────────────────── */
+
+.as-prompt-zone {
+  /* Refonte 2026-05-13 : `.as-main` est désormais un grid avec ligne 1fr pour
+   *  cette zone → on prend toute la hauteur résiduelle. min-height:0 indispensable
+   *  pour autoriser le scroll-y interne quand le contenu dépasse (sinon la
+   *  grille étend la row pour caser tout le contenu = scroll de page). */
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  /* Compaction 2026-05-13 : marges/paddings réduits pour tenir dans 100vh
+   *  sans scroll (cf demande user). */
+  padding: 0.5rem 0.6rem;
+  /* Scrollbar invisible (Windows affiche par défaut une gouttière sombre
+   * gênante visuellement). Le scroll reste fonctionnel via molette/clavier
+   * pour les rares cas où le contenu déborde (shots avec beaucoup de
+   * texte / persos). Acceptable car ce n'est pas une zone de lecture longue. */
+  scrollbar-width: none;          /* Firefox */
+}
+.as-prompt-zone::-webkit-scrollbar { /* Chrome / Edge / Safari */
+  display: none;
+  width: 0;
+}
+.as-prompt-zone-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  text-align: center;
+}
+
+/* État "vidéo importée" : aucun prompt à afficher, juste un placeholder
+ *  expliquant à l'auteur qu'il peut trim/lire dans le preview. */
+.as-prompt-zone-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+.as-prompt-upload-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 28rem;
+  text-align: center;
+  padding: 1.5rem 1.75rem;
+  background: var(--ie-surface-2);
+  border: 1px dashed var(--ie-border-strong);
+  border-radius: 0.75rem;
+}
+.as-prompt-upload-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+}
+.as-prompt-upload-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ie-text);
+}
+.as-prompt-upload-card p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ie-text-muted);
+  line-height: 1.5;
+}
+
+.as-prompt-add-shot {
+  align-self: flex-start;
+  padding: 0.45rem 0.8rem;
+  background: transparent;
+  border: 1px dashed var(--ie-border);
+  border-radius: 0.4rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  transition: all 120ms;
+}
+.as-prompt-add-shot:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: var(--ie-accent-faint);
+}
+
+.as-prompt-generate-row {
+  margin-top: auto;
+  /* Sticky en bas du PromptZone — toujours visible même si la zone scroll
+   *  pour le shot content. Refonte 2026-05-13. */
+  position: sticky;
+  bottom: 0;
+  padding: 0.5rem 0;
+  background: var(--ie-bg);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  align-items: center;
+  z-index: 5;
+}
+/* Bouton "Exit de fin" sur dernière pellicule (Step 2 refonte 2026-05-11).
+ *  Discret par défaut (auto), s'illumine quand un exit non-auto est défini. */
+.as-prompt-exit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.95rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.45rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: all 140ms;
+}
+.as-prompt-exit-btn:hover:not(:disabled) {
+  border-color: var(--ie-border-strong);
+  color: var(--ie-text);
+}
+.as-prompt-exit-btn.has-exit {
+  background: color-mix(in srgb, var(--ie-accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ie-accent) 40%, transparent);
+  color: var(--ie-accent);
+}
+.as-prompt-exit-btn.has-exit:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ie-accent) 20%, transparent);
+}
+.as-prompt-exit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.as-prompt-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 1.4rem;
+  background: var(--ie-accent);
+  border: 1px solid var(--ie-accent);
+  border-radius: 0.45rem;
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  transition: all 140ms;
+  box-shadow: 0 0.4rem 1.2rem color-mix(in srgb, var(--ie-accent) 30%, transparent);
+}
+.as-prompt-generate-btn:hover:not(:disabled) {
+  background: var(--ie-accent-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 0.6rem 1.5rem color-mix(in srgb, var(--ie-accent) 40%, transparent);
+}
+.as-prompt-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ── Onglets shots (refonte 2026-05-10 : tabs au lieu d'accordéon) ──────
+ *  Une ligne d'onglets horizontale en haut + body du shot actif en dessous.
+ *  Bouton "+ Add" en bout de ligne. Underline animée sous l'onglet actif
+ *  (motion layoutId géré côté React).
+ *  Pourquoi tabs : compact, scan rapide, libère du vertical pour la timeline
+ *  (futur node graph d'épreuves).
+ */
+
+.as-tabs-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.15rem;
+  border-bottom: 1px solid var(--ie-border);
+  padding: 0 0.1rem;
+  /* Pas d'overflow : avec la limite produit à 2 shots + tab Scène + bouton +,
+   * la rangée tient toujours dans la largeur. Évite la gouttière de
+   * scrollbar horizontale réservée par Windows même quand pas de scroll. */
+}
+/* Wrap d'un onglet : contient le bouton principal (sélection) + bouton X
+ * (suppression) + underline. Position relative pour l'underline absolue.
+ * Group hover via la classe wrap pour révéler la croix sur le bon scope. */
+.as-tab-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: 0.4rem 0.4rem 0 0;
+  margin-bottom: -1px;
+  transition: background 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-tab-wrap:hover:not(.active) {
+  background: var(--ie-surface);
+}
+.as-tab-wrap.active {
+  background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
+}
+
+.as-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.55rem 0.5rem 0.7rem;
+  background: transparent;
+  border: none;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  transition: color 140ms cubic-bezier(0.2, 0, 0, 1);
+  white-space: nowrap;
+}
+.as-tab-wrap:hover .as-tab { color: var(--ie-text); }
+.as-tab-wrap.active .as-tab { color: var(--ie-accent); }
+.as-tab-label {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.as-tab-speaker {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: inherit;
+  opacity: 0.85;
+  font-style: italic;
+}
+
+.as-tab-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: var(--ie-text-faint);
+  cursor: pointer;
+  margin: auto 0.45rem auto 0;
+  padding: 0;
+  opacity: 0;
+  transition: opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+              background 140ms cubic-bezier(0.2, 0, 0, 1),
+              color 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-tab-wrap:hover .as-tab-remove,
+.as-tab-wrap.active .as-tab-remove { opacity: 0.55; }
+.as-tab-remove:hover {
+  opacity: 1 !important;
+  background: color-mix(in srgb, #ef4444 18%, transparent);
+  color: #ef4444;
+}
+
+/* Underline accent sous l'onglet actif — animée via framer-motion layoutId */
+.as-tab-underline {
+  position: absolute;
+  left: 0.3rem;
+  right: 0.3rem;
+  bottom: 0;
+  height: 0.15rem;
+  background: var(--ie-accent);
+  border-radius: 0.1rem 0.1rem 0 0;
+  pointer-events: none;
+}
+
+.as-tab-add {
+  padding: 0.4rem 0.55rem 0.45rem;
+  margin-bottom: -1px;
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 0.4rem 0.4rem 0 0;
+  color: var(--ie-text-faint);
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 140ms cubic-bezier(0.2, 0, 0, 1),
+              background 140ms cubic-bezier(0.2, 0, 0, 1),
+              border-color 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-tab-add:hover {
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 6%, transparent);
+  border-color: color-mix(in srgb, var(--ie-accent) 30%, transparent);
+}
+
+/* Spacer flexible : pousse l'onglet "Scène" à droite de la rangée. */
+.as-tabs-spacer {
+  flex: 1 1 auto;
+  min-width: 0.5rem;
+}
+
+/* Onglet "Scène" — visuellement distinct des tabs shots pour qu'on ne le
+ * confonde pas avec un shot supplémentaire. Icône clipboard + chip ✓ quand
+ * la description est validée. Position droite via le spacer. */
+.as-tab-wrap-scene {
+  /* Pas de transform, le wrap est déjà un inline-flex */
+}
+.as-tab-scene {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+.as-tab-wrap-scene:not(.active) .as-tab-scene {
+  color: var(--ie-text-faint);
+}
+.as-tab-wrap-scene:hover:not(.active) {
+  background: var(--ie-surface);
+}
+.as-tab-wrap-scene:hover:not(.active) .as-tab-scene {
+  color: var(--ie-text);
+}
+.as-tab-scene-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.15rem;
+  padding: 0 0.3rem;
+  height: 0.95rem;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--ie-accent) 18%, transparent);
+  color: var(--ie-accent);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+/* Meta du shot actif (cadrage · caméra · durée éditable + auto), placée
+ * juste sous les tabs. Discrète mais lisible pour confirmer le cadrage du
+ * shot affiché. Refonte 2026-05-10 : durée éditable inline via input number
+ * + bouton Auto pour estimer depuis le texte des actions. */
+.as-active-shot-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.68rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  padding: 0.4rem 0.1rem 0.1rem;
+  letter-spacing: 0.01em;
+}
+.as-active-shot-duration-input {
+  width: 2.5rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  padding: 0.1rem 0.3rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  font-style: normal;
+  text-align: right;
+  outline: none;
+  transition: border-color 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-active-shot-duration-input:focus { border-color: var(--ie-accent); }
+.as-active-shot-duration-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: 0.4rem;
+  padding: 0.15rem 0.45rem;
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.65rem;
+  font-style: normal;
+  font-weight: 600;
+  transition: all 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-active-shot-duration-auto:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 8%, transparent);
+}
+
+/* (Note : pas de styles dédiés sur .as-active-shot-wrap — le contenu décide
+ *  de sa hauteur naturelle. Pas de min-height pour éviter l'overflow inutile
+ *  sur des shots vides.) */
+
+/* Body du shot — layout du contenu (vignettes + champs). Plus de header
+ * ni de border-top : tout est piloté par les tabs au-dessus. */
+.as-shot-body {
+  padding: 0.5rem 0.1rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+/* Vignettes persos du shot */
+.as-shot-chars-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+.as-shot-char-vignette-wrap {
+  position: relative;
+  display: inline-block;
+}
+.as-shot-char-vignette {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.3rem 0.4rem 0.4rem;
+  background: var(--ie-bg);
+  border: 2px solid var(--ie-border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  width: 4.5rem;
+  transition: all 140ms;
+  font-family: inherit;
+  color: var(--ie-text);
+}
+.as-shot-char-vignette:hover {
+  border-color: var(--ie-accent-faint);
+  background: var(--ie-surface-2);
+}
+.as-shot-char-vignette.speaker {
+  border-color: var(--ie-accent);
+  background: var(--ie-accent-faint);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ie-accent) 20%, transparent);
+}
+.as-shot-char-vignette img {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.as-shot-char-name {
+  font-size: 0.6rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.as-shot-char-badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  font-size: 0.7rem;
+  background: var(--ie-accent);
+  color: white;
+  border-radius: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.as-shot-char-remove {
+  position: absolute;
+  top: -0.3rem;
+  left: -0.3rem;
+  width: 1rem;
+  height: 1rem;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  border-radius: 50%;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms;
+  opacity: 0;
+}
+.as-shot-char-vignette-wrap:hover .as-shot-char-remove {
+  opacity: 1;
+}
+.as-shot-char-remove:hover { background: #ef4444; }
+
+.as-shot-add-char {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.4rem;
+  width: 4.5rem;
+  height: 4.6rem;
+  background: transparent;
+  border: 1.5px dashed var(--ie-border-strong);
+  border-radius: 0.4rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.6rem;
+  transition: all 140ms;
+}
+.as-shot-add-char:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+  background: var(--ie-accent-faint);
+}
+
+.as-shot-empty {
+  font-size: 0.75rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  margin: 0;
+  padding: 0.4rem 0;
+}
+
+/* Champs action / dialogue par perso (refonte 2026-05-09 — grid + design
+ *  polish). Plusieurs persos côte à côte → tout visible sans scroll. Min
+ *  16rem par fiche pour rester lisible. Cards avec hover + speaker glow. */
+.as-shot-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.6rem;
+}
+.as-shot-char-fields {
+  padding: 0.65rem 0.75rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-width: 0;  /* permet aux inputs de shrink (sinon overflow horizontal) */
+  position: relative;
+  transition: border-color 180ms cubic-bezier(0.2, 0, 0, 1), box-shadow 180ms cubic-bezier(0.2, 0, 0, 1), transform 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-shot-char-fields:hover {
+  border-color: var(--ie-border-strong);
+  box-shadow: 0 0.2rem 0.5rem rgba(0, 0, 0, 0.1);
+}
+.as-shot-char-fields.speaker {
+  border-color: var(--ie-accent);
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--ie-accent) 5%, var(--ie-surface)) 0%,
+    var(--ie-surface) 100%);
+  box-shadow: 0 0.2rem 0.7rem color-mix(in srgb, var(--ie-accent) 14%, transparent),
+              inset 0 0 0 1px color-mix(in srgb, var(--ie-accent) 25%, transparent);
+}
+.as-shot-char-fields.speaker:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.3rem 0.9rem color-mix(in srgb, var(--ie-accent) 20%, transparent),
+              inset 0 0 0 1px color-mix(in srgb, var(--ie-accent) 35%, transparent);
+}
+.as-shot-char-fields.speaker {
+  border-color: color-mix(in srgb, var(--ie-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ie-accent) 4%, var(--ie-bg));
+}
+.as-shot-char-fields-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ie-text);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px dashed var(--ie-border);
+  letter-spacing: 0.01em;
+}
+.as-shot-char-fields.speaker .as-shot-char-fields-name {
+  color: var(--ie-accent);
+  border-bottom-color: color-mix(in srgb, var(--ie-accent) 30%, transparent);
+}
+.as-shot-input {
+  width: 100%;
+  padding: 0.5rem 0.65rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  outline: none;
+  /* textarea (refonte 2026-05-10) — multi-ligne pour voir tout le prompt
+   * sans troncature. Resize vertical pour que l'auteur puisse étendre s'il
+   * tape un long descriptif. */
+  resize: vertical;
+  min-height: 4.6rem;
+  transition: border-color 160ms cubic-bezier(0.2, 0, 0, 1),
+              box-shadow 160ms cubic-bezier(0.2, 0, 0, 1),
+              background 160ms;
+  box-sizing: border-box;
+}
+.as-shot-input::placeholder {
+  color: var(--ie-text-faint);
+  font-style: italic;
+  opacity: 0.85;
+}
+.as-shot-input:focus {
+  border-color: var(--ie-accent);
+  box-shadow: 0 0 0 0.2rem color-mix(in srgb, var(--ie-accent) 18%, transparent);
+  background: var(--ie-surface);
+}
+.as-shot-input-dialogue {
+  background: color-mix(in srgb, var(--ie-accent) 5%, var(--ie-bg));
+  border-color: color-mix(in srgb, var(--ie-accent) 20%, var(--ie-border));
+}
+.as-shot-input-dialogue:focus {
+  background: color-mix(in srgb, var(--ie-accent) 8%, var(--ie-surface));
+}
+
+/* ── Drawer Effets vidéo (refonte 2026-05-15bq) ──────────────────────── */
+.as-effects-drawer {
+  position: absolute;
+  top: 0;
+  left: 3rem;
+  bottom: 0;
+  width: 22rem;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border-strong);
+  box-shadow: 0.5rem 0 1.5rem rgba(0, 0, 0, 0.3);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.as-effects-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--ie-border);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.as-effects-drawer-header button {
+  background: transparent;
+  border: none;
+  color: var(--ie-text-muted);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0 0.3rem;
+  line-height: 1;
+}
+.as-effects-drawer-header button:hover { color: var(--ie-text); }
+.as-effects-drawer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 0.8rem 1rem;
+}
+
+/* ── Drawer (banque persos) ───────────────────────────────────────────── */
+
+.as-drawer {
+  position: absolute;
+  top: 0;
+  left: 3rem;  /* après le rail */
+  bottom: 0;
+  width: 22rem;
+  background: var(--ie-surface);
+  border-right: 1px solid var(--ie-border-strong);
+  box-shadow: 0.5rem 0 1.5rem rgba(0, 0, 0, 0.3);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.as-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid var(--ie-border);
+}
+.as-drawer-header h3 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.as-drawer-close {
+  background: transparent;
+  border: none;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  padding: 0.3rem;
+  border-radius: 0.25rem;
+  transition: all 120ms;
+}
+.as-drawer-close:hover { background: var(--ie-surface-2); color: var(--ie-text); }
+.as-drawer-hint {
+  padding: 0.5rem 1rem;
+  font-size: 0.7rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  margin: 0;
+  border-bottom: 1px solid var(--ie-border);
+}
+.as-drawer-grid {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr));
+  gap: 0.6rem;
+  align-content: start;
+}
+.as-drawer-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  color: var(--ie-text-faint);
+  font-size: 0.75rem;
+  font-style: italic;
+  padding: 2rem 0.5rem;
+}
+/* Wrap : contient la carte (button principal) + le bouton crayon (refonte
+ * 2026-05-10). Position relative pour positionner le crayon en absolu. */
+.as-drawer-card-wrap {
+  position: relative;
+  display: flex;
+}
+.as-drawer-card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--ie-text);
+  overflow: hidden;
+  transition: all 140ms;
+  text-align: center;
+  padding: 0;
+}
+.as-drawer-card:hover:not(:disabled) {
+  border-color: var(--ie-accent);
+  transform: translateY(-0.1rem);
+}
+.as-drawer-card:disabled {
+  /* En mode "vue plan" la carte n'est pas cliquable (pas d'ajout possible)
+   * mais on garde l'opacité pleine — l'auteur consulte / édite via crayon. */
+  opacity: 1;
+  cursor: default;
+}
+.as-drawer-card-thumb {
+  aspect-ratio: 1 / 1;
+  background: var(--ie-surface-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ie-text-faint);
+  overflow: hidden;
+}
+.as-drawer-card-thumb img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.as-drawer-card-name {
+  padding: 0.4rem 0.3rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+/* Bouton crayon : édite la fiche du perso (voix, apparence, vues alt).
+ * En coin haut-droite, révélé sur hover du wrap (ou toujours visible si
+ * carte désactivée — mode vue plan, où c'est l'action principale). */
+.as-drawer-card-edit {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.3rem;
+  width: 1.4rem;
+  height: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+              background 140ms cubic-bezier(0.2, 0, 0, 1);
+  z-index: 2;
+}
+.as-drawer-card-wrap:hover .as-drawer-card-edit { opacity: 1; }
+/* Carte non-cliquable (mode vue plan) → crayon toujours visible (action
+ * principale). Sinon hover-révélé. */
+.as-drawer-card:disabled + .as-drawer-card-edit { opacity: 0.85; }
+.as-drawer-card-edit:hover {
+  background: var(--ie-accent);
+  opacity: 1 !important;
+}
+
+/* Bouton trash : suppression définitive (refonte 2026-05-11). À côté du
+ * crayon, hover-révélé, rouge au hover pour souligner l'action destructive. */
+.as-drawer-card-delete {
+  position: absolute;
+  top: 0.3rem;
+  right: 1.95rem;          /* à gauche du crayon (qui est à right:0.3 + width:1.4) */
+  width: 1.4rem;
+  height: 1.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+              background 140ms cubic-bezier(0.2, 0, 0, 1);
+  z-index: 2;
+}
+.as-drawer-card-wrap:hover .as-drawer-card-delete { opacity: 1; }
+.as-drawer-card:disabled + .as-drawer-card-edit + .as-drawer-card-delete { opacity: 0.85; }
+.as-drawer-card-delete:hover {
+  background: #ef4444;
+  opacity: 1 !important;
+}
+.as-drawer-card-delete:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed;
+}
+
+/* ── Preview à droite ─────────────────────────────────────────────────── */
+
+.as-preview {
+  /* Largeur set inline par le component selon device + orientation
+   *  (= s'adapte au frame, min 22rem pour garder le picker lisible).
+   *  Refonte 2026-05-13 : hauteur = 100% de la grid row (= toute la hauteur
+   *  du body). Le picker + frame restent centrés verticalement via le flex
+   *  interne ; overflow-y géré si device trop grand pour la hauteur. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
+  padding: 0.75rem 0.85rem;
+  background: var(--ie-surface);
+  border-left: 1px solid var(--ie-border);
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  /* Transition refined (slow & smooth) — cubic-bezier "standard" Material 3,
+   *  350ms pour un feel haut de gamme cohérent avec le theme du studio. */
+  transition: width 350ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* En layout responsive < 1100px, le preview passe en row 2 du grid → border
+ *  top au lieu de border-left, hauteur réduite (= ~30vh max). */
+@media (max-width: 68.75rem) {
+  .as-preview {
+    border-left: none;
+    border-top: 1px solid var(--ie-border);
+    height: auto;
+    max-height: 30vh;
+  }
+}
+
+.as-preview-devices {
+  display: flex;
+  gap: 0.3rem;
+}
+.as-preview-device-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 1.7rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  transition: all 120ms;
+}
+.as-preview-device-btn:hover { color: var(--ie-text); border-color: var(--ie-border-strong); }
+.as-preview-device-btn.active {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+
+/* Approche StickyPreviewPanel — width fixe par device + aspect-ratio inline.
+ *  La hauteur se calcule automatiquement par le browser. Screen interne 100%
+ *  rempli avec les vidéos en absolute. */
+.as-preview-frame {
+  /* Refonte 2026-05-09 (4) : dimensions inline en rem (width + height set par
+   *  le component selon device + orientation). CSS = juste cosmétique. */
+  position: relative;
+  background: var(--as-device-chassis);
+  border-radius: 2rem;
+  padding: 0.35rem;
+  flex-shrink: 0;
+  box-shadow:
+    0 1rem 2.5rem rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}
+/* Container interne (= screen noir qui remplit le padding-box du chassis et
+ *  empile les médias en absolute pour permettre le crossfade entre pellicules). */
+.as-preview-frame.as-preview-device-frame > .as-preview-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border-radius: 1.65rem;
+  overflow: hidden;
+  cursor: default;
+}
+/* Tous les médias (vidéos + image fallback) sont stack en absolute pour que
+ *  le changement d'active = crossfade d'opacity. 350ms cubic-bezier Material 3
+ *  pour rester en harmonie avec les autres transitions de l'app. */
+.as-preview-frame .as-preview-media {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  transition: opacity 350ms cubic-bezier(0.2, 0, 0, 1);
+}
+/* Légères variations cosmétiques par catégorie (= chassis plus rectangulaire
+ *  pour tablette/desktop, plus arrondi pour mobile). */
+.as-preview-cat-tablet  { border-radius: 1rem; }
+.as-preview-cat-tablet > .as-preview-screen { border-radius: 0.65rem; }
+.as-preview-cat-desktop { border-radius: 0.5rem; padding: 0.25rem; }
+.as-preview-cat-desktop > .as-preview-screen { border-radius: 0.25rem; }
+
+/* ── Picker device + orientation ────────────────────────────────────── */
+.as-preview-picker-row {
+  position: relative;
+  display: flex;
+  gap: 0.4rem;
+  width: 100%;
+}
+.as-preview-picker-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.as-preview-picker-btn:hover {
+  border-color: var(--ie-accent);
+}
+.as-preview-picker-arrow {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--ie-text-faint);
+}
+.as-preview-orient-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; height: 2rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: all 140ms;
+}
+.as-preview-orient-btn:hover {
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+/* L'icône Smartphone tourne selon l'orientation pour montrer visuellement
+ *  l'état courant : tel debout en portrait, couché en paysage. Animée pour
+ *  feedback de bascule. */
+.as-preview-orient-btn svg {
+  transition: transform 240ms ease;
+}
+.as-preview-orient-btn.portrait svg {
+  transform: rotate(0deg);
+}
+.as-preview-orient-btn.landscape svg {
+  transform: rotate(90deg);
+}
+.as-preview-picker-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 0.3rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border-strong);
+  border-radius: 0.4rem;
+  box-shadow: 0 0.6rem 1.5rem rgba(0, 0, 0, 0.25);
+  z-index: 10;
+  overflow: hidden;
+}
+.as-preview-picker-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  background: transparent;
+  color: var(--ie-text);
+  border: none;
+  border-bottom: 1px solid var(--ie-border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  text-align: left;
+}
+.as-preview-picker-item:last-child { border-bottom: none; }
+.as-preview-picker-item:hover {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+}
+.as-preview-picker-item.active {
+  background: var(--ie-accent-faint);
+  color: var(--ie-accent);
+  font-weight: 700;
+}
+.as-preview-picker-dim {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--ie-text-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* (anciens sélecteurs data-device retirés 2026-05-09 — la sizing utilise
+ *  maintenant aspect-ratio inline + max-height sur .as-preview-frame.) */
+
+.as-preview-empty {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ie-text-faint);
+  font-size: 0.8rem;
+  font-style: italic;
+}
+
+.as-preview-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+}
+.as-preview-play-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  background: var(--ie-accent);
+  border: 1px solid var(--ie-accent);
+  border-radius: 0.4rem;
+  color: white;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: all 120ms;
+}
+.as-preview-play-btn:hover:not(:disabled) {
+  background: var(--ie-accent-dark);
+}
+.as-preview-play-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* Bouton mute icon-only à côté du Jouer. */
+.as-preview-mute-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  background: var(--ie-surface-2);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  color: var(--ie-text);
+  cursor: pointer;
+  transition: all 120ms;
+}
+.as-preview-mute-btn:hover:not(:disabled) {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.as-preview-mute-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.as-preview-meta {
+  font-size: 0.65rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+
+/* Indicateur sur la device tab quand des keyframes existent pour ce device. */
+.as-preview-device-dot {
+  display: inline-block;
+  width: 0.4rem; height: 0.4rem;
+  background: #4ade80;
+  border-radius: 50%;
+  margin-left: 0.2rem;
+}
+
+/* Halo vert quand on est sur une keyframe (drag/wheel update directement). */
+.as-preview-frame.kf-active {
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.65),
+              0 1rem 2.5rem rgba(0, 0, 0, 0.45);
+}
+
+/* Scrub bar globale sous le tel (couvre toute l'animation). */
+.as-preview-scrub-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.25rem 0.4rem 0;
+}
+.as-preview-time {
+  font-size: 0.6rem;
+  color: var(--ie-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  min-width: 1.8rem;
+  text-align: center;
+}
+.as-preview-scrub {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 0.25rem;
+  background: var(--ie-surface-3);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.as-preview-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.8rem; height: 0.8rem;
+  background: var(--ie-accent);
+  border: 1px solid white;
+  border-radius: 50%;
+  cursor: grab;
+}
+.as-preview-scrub::-moz-range-thumb {
+  width: 0.8rem; height: 0.8rem;
+  background: var(--ie-accent);
+  border: 1px solid white;
+  border-radius: 50%;
+  cursor: grab;
+}
+
+/* Hint discret quand l'auteur lance la lecture — rappel V1 que le drag
+ *  pour cadrer nécessite la pause (palier 2 = enregistrement live à venir). */
+.as-preview-hint {
+  font-size: 0.6rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  margin-top: 0.1rem;
+  text-align: center;
+}
+
+/* ── Zoom row : boutons +/− avec valeur scale au centre ─────────────── */
+.as-preview-zoom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+}
+.as-preview-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem; height: 1.5rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  transition: all 100ms;
+}
+.as-preview-zoom-btn:hover:not(:disabled) {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.as-preview-zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.as-preview-zoom-value {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ie-text);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.4rem;
+  text-align: center;
+}
+
+/* ── Pan rows : sliders horizontal et vertical ──────────────────────── */
+.as-preview-pan-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+}
+.as-preview-pan-label {
+  font-size: 0.85rem;
+  color: var(--ie-text-muted);
+  flex: 0 0 auto;
+  width: 1rem;
+  text-align: center;
+}
+.as-preview-pan-slider {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 0.3rem;
+  background: var(--ie-surface-3);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.as-preview-pan-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.9rem; height: 0.9rem;
+  background: var(--ie-accent);
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: grab;
+}
+.as-preview-pan-slider::-moz-range-thumb {
+  width: 0.9rem; height: 0.9rem;
+  background: var(--ie-accent);
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: grab;
+}
+
+/* Boutons +/− de chaque côté des sliders pan pour ajustement fin. */
+.as-preview-pan-step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem; height: 1.3rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+  padding: 0;
+  line-height: 1;
+  transition: all 100ms;
+}
+.as-preview-pan-step:hover:not(:disabled) {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.as-preview-pan-step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Actions sur les keyframes : Lisser / Reset. Apparaît seulement quand il y
+ *  a au moins une keyframe. */
+.as-preview-kf-actions {
+  display: flex;
+  gap: 0.4rem;
+  width: 100%;
+  justify-content: center;
+}
+.as-preview-kf-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.3rem 0.6rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  transition: all 120ms;
+}
+.as-preview-kf-btn:hover:not(:disabled) {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.as-preview-kf-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.as-preview-kf-btn.danger:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.12);
+  border-color: #ef4444;
+  color: #ef4444;
+}
+
+/* Frame-by-frame buttons (← →) à côté de la scrub bar globale. */
+.as-preview-frame-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem; height: 1.4rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: all 100ms;
+}
+.as-preview-frame-btn:hover:not(:disabled) {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.as-preview-frame-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Row Trim début + fin (refonte 2026-05-10 — boutons symétriques pour
+ *  couper warmup début ET title-card fin). Wrap pour rester responsive
+ *  sur preview mobile en mode portrait étroit. */
+.as-preview-trim-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  width: 100%;
+  flex-wrap: wrap;
+}
+/* Séparateur visuel entre les groupes Début et Fin */
+.as-preview-trim-sep {
+  color: var(--ie-text-faint);
+  font-size: 0.9rem;
+  user-select: none;
+  padding: 0 0.2rem;
+}
+.as-preview-trim-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  transition: all 120ms;
+}
+.as-preview-trim-btn:hover {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.as-preview-trim-info {
+  font-size: 0.65rem;
+  color: #fbbf24;
+  font-style: italic;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Mode Record (joystick UX 2026-05-09) ───────────────────────────── */
+.as-preview-record-row {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+.as-preview-record-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
+  background: #ef4444;
+  color: white;
+  border: 1px solid #ef4444;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  transition: all 120ms;
+}
+.as-preview-record-btn:hover:not(:disabled) {
+  background: #dc2626;
+  transform: scale(1.02);
+}
+.as-preview-record-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: var(--ie-surface-3);
+  color: var(--ie-text-muted);
+  border-color: var(--ie-border);
+}
+.as-preview-record-btn.recording {
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border-color: var(--ie-border);
+}
+.as-preview-record-btn.recording:hover {
+  background: var(--ie-surface-2);
+}
+
+/* Curseur change pendant le recording — crosshair pour indiquer le joystick. */
+.as-preview-screen.recording-recording { cursor: crosshair; }
+.as-preview-screen.recording-paused    { cursor: pointer; }
+
+/* Countdown 3-2-1 plein écran sur le tel. */
+.as-preview-countdown {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 5;
+  pointer-events: none;
+}
+.as-preview-countdown-num {
+  font-size: 4rem;
+  font-weight: 800;
+  color: white;
+  text-shadow: 0 0.2rem 1rem rgba(0, 0, 0, 0.6);
+  font-variant-numeric: tabular-nums;
+  animation: as-pulse 0.8s ease-out;
+}
+@keyframes as-pulse {
+  0% { transform: scale(0.5); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: scale(1.4); opacity: 0.7; }
+}
+
+/* Badge REC en haut à gauche du tel pendant l'enregistrement. */
+.as-preview-rec-badge {
+  position: absolute;
+  top: 0.5rem; left: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 0.25rem;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  z-index: 4;
+  pointer-events: none;
+}
+.as-preview-rec-dot {
+  display: inline-block;
+  width: 0.45rem; height: 0.45rem;
+  background: #ef4444;
+  border-radius: 50%;
+  animation: as-rec-blink 1s ease-in-out infinite;
+}
+@keyframes as-rec-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.as-preview-rec-hint {
+  position: absolute;
+  bottom: 0.5rem; left: 0.5rem; right: 0.5rem;
+  text-align: center;
+  font-size: 0.6rem;
+  color: white;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 0.3rem;
+  border-radius: 0.3rem;
+  z-index: 4;
+  pointer-events: none;
+}
+
+/* Bouton plein écran sur la preview (ouvre le lightbox). */
+.as-preview-fullscreen-btn {
+  position: absolute;
+  top: 0.4rem; right: 0.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem; height: 1.6rem;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms;
+  z-index: 2;
+}
+.as-preview-frame:hover .as-preview-fullscreen-btn {
+  opacity: 1;
+}
+.as-preview-fullscreen-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+/* ── Lightbox plein écran (Palier C) ─────────────────────────────────── */
+.as-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 2rem;
+}
+.as-lightbox {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  max-width: 92vw;
+  max-height: 92vh;
+}
+/* En mode cadrage : on prend tout l'espace dispo pour avoir de la place pour
+ *  la photo source + le preview tel + la timeline keyframes. */
+.as-lightbox.crop-mode {
+  width: 96vw;
+  height: 96vh;
+  max-width: 96vw;
+  max-height: 96vh;
+}
+.as-lightbox.crop-mode .as-lightbox-stage {
+  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  max-height: none;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  /* En mode cadrage la "stage" laisse l'éditeur prendre toute la place. */
+}
+.as-lightbox.crop-mode .as-lightbox-crop-overlay {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  height: 100%;
+}
+.as-lightbox.crop-mode .as-lightbox-stage > video,
+.as-lightbox.crop-mode .as-lightbox-stage > .as-lightbox-poster-wrap {
+  /* On masque la vidéo/poster sous-jacent : en mode cadrage, c'est l'éditeur
+   *  qui rend l'image source via son own <img>. Le <video> reste dans le DOM
+   *  pour conserver currentTime/play/scrub. */
+  display: none;
+}
+.as-lightbox-close {
+  position: absolute;
+  top: -0.6rem; right: -0.6rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; height: 2rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border-strong);
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 2;
+  transition: all 120ms;
+}
+.as-lightbox-close:hover {
+  background: var(--ie-surface-2);
+  transform: scale(1.05);
+}
+.as-lightbox-stage {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: black;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  max-width: 92vw;
+  max-height: 80vh;
+}
+.as-lightbox-stage video,
+.as-lightbox-stage img {
+  display: block;
+  max-width: 92vw;
+  max-height: 80vh;
+  width: auto;
+  height: auto;
+  cursor: pointer;
+}
+.as-lightbox-poster-wrap {
+  position: relative;
+  display: inline-block;
+}
+.as-lightbox-empty-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  font-size: 0.95rem;
+  font-style: italic;
+  pointer-events: none;
+}
+.as-lightbox-empty {
+  padding: 4rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-style: italic;
+}
+.as-lightbox-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  width: 100%;
+  padding: 0.4rem 0.7rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+}
+.as-lightbox-play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem; height: 2.2rem;
+  background: var(--ie-accent);
+  color: white;
+  border: 1px solid var(--ie-accent);
+  border-radius: 50%;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: all 120ms;
+}
+.as-lightbox-play-btn:hover {
+  background: var(--ie-accent-dark);
+}
+.as-lightbox-time {
+  font-size: 0.75rem;
+  color: var(--ie-text-muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6rem;
+  text-align: center;
+  flex: 0 0 auto;
+}
+.as-lightbox-scrub {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 0.35rem;
+  background: var(--ie-surface-3);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.as-lightbox-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.95rem; height: 0.95rem;
+  background: var(--ie-accent);
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.as-lightbox-scrub::-webkit-slider-thumb:active { cursor: grabbing; }
+.as-lightbox-scrub::-moz-range-thumb {
+  width: 0.95rem; height: 0.95rem;
+  background: var(--ie-accent);
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: grab;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Mode Cadrage (Palier D) ────────────────────────────────────────── */
+.as-lightbox-crop-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem;
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border-strong);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+  flex: 0 0 auto;
+  transition: all 120ms;
+}
+.as-lightbox-crop-btn:hover {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.as-lightbox-crop-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.35rem 0.6rem;
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border-strong);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  flex: 0 0 auto;
+}
+.as-lightbox-crop-back:hover {
+  background: var(--ie-surface-3);
+}
+.as-lightbox-crop-label {
+  flex: 1;
+  text-align: center;
+  font-size: 0.72rem;
+  color: var(--ie-text-muted);
+  font-style: italic;
+}
+.as-lightbox-crop-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+}
+
+/* L'éditeur lui-même couvre la stage, en mode flex column. */
+.as-crop-editor {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.42);
+  pointer-events: auto;
+}
+.as-crop-tabs {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  background: rgba(0, 0, 0, 0.55);
+  justify-content: center;
+}
+.as-crop-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  transition: all 120ms;
+}
+.as-crop-tab:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+.as-crop-tab.active {
+  background: var(--ie-accent);
+  border-color: var(--ie-accent);
+  color: white;
+}
+.as-crop-tab-label {
+  /* Reste neutre — c'est le ratio à droite qui porte l'info technique. */
+}
+.as-crop-tab-ratio {
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.05rem 0.3rem;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+.as-crop-tab.active .as-crop-tab-ratio {
+  background: rgba(255, 255, 255, 0.28);
+}
+.as-crop-dot {
+  display: inline-block;
+  width: 0.4rem; height: 0.4rem;
+  background: #4ade80;
+  border-radius: 50%;
+  margin-left: 0.15rem;
+}
+.as-crop-dims {
+  font-size: 0.66rem;
+  color: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+/* Layout côte-à-côte (option C) :
+ *   - Gauche : photo source en grand + cadre overlay
+ *   - Droite : preview tel séparé (chassis), sa propre image scaled+positioned
+ *  Le cadre est borné visuellement à la photo (clamp côté JSX), le letterbox
+ *  est rendu uniquement dans le preview tel. */
+.as-crop-body {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 0.8rem;
+  padding: 0.5rem;
+  min-height: 0;
+  min-width: 0;
+}
+.as-crop-stage {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+}
+/* L'image source remplit le frame (background visuel). Le frame est sized
+ *  par aspectRatio (= videoAspect) avec width/max-height dans le flex parent.
+ *  ⚠ object-fit: fill (pas cover) — le frame a EXACTEMENT le même aspect que
+ *  la source (videoAspect), donc fill = aucune distortion. cover pourrait
+ *  cropper quelques pixels si l'aspect calculé du frame diffère légèrement
+ *  de l'aspect natif vidéo (rounding sub-pixel) → désaligne le rect avec le
+ *  vrai contenu source. */
+.as-crop-source-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+/* Preview tel à droite : chassis fixe avec image positionnée à l'intérieur. */
+.as-crop-preview-pane {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  /* Largeur réduite — un téléphone IRL fait ~7cm de large, on garde une
+   *  proportion crédible. La hauteur dérive de l'aspect-ratio (9:19.5 → tall). */
+  width: clamp(8rem, 11vw, 10.5rem);
+  color: white;
+}
+.as-crop-preview-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.85);
+}
+/* Le frame est juste un wrapper qui ajoute le chassis (padding) autour de
+ *  l'écran. L'aspect-ratio est sur l'écran (intérieur) pour rester EXACT
+ *  9:19.5, sans que le chassis vienne fausser le calcul. */
+.as-crop-preview-frame {
+  position: relative;
+  background: #1a1a1a;
+  padding: 0.5rem;
+  border-radius: 1.4rem;
+  display: inline-block;
+  max-height: 70vh;
+  box-shadow:
+    0 0.6rem 1.5rem rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.as-crop-preview-screen {
+  position: relative;
+  /* aspect-ratio inline (= targetSpec.ratio) — sizing dérivé. Width auto,
+   *  height auto + max-height contraint depuis le parent. */
+  height: auto;
+  max-height: calc(70vh - 1rem);
+  /* Tente largeur fluide ; aspect-ratio + max-height fait le sizing correct
+   *  via CSS Sizing 4 (browser pick the smaller dim). */
+  width: clamp(7rem, 9.5vw, 9.5rem);
+  background: #000;
+  overflow: hidden;
+  border-radius: 0.55rem;
+}
+.as-crop-preview-screen img {
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+.as-crop-preview-empty {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 1rem;
+}
+.as-crop-preview-meta {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.78);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.35;
+}
+
+/* Zoom toolbar : boutons +/− visibles pour pinch/touch/trackpad sans molette. */
+.as-crop-zoom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.6rem;
+  background: rgba(0, 0, 0, 0.45);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.as-crop-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem; height: 1.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  transition: all 100ms;
+}
+.as-crop-zoom-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+.as-crop-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.as-crop-zoom-value {
+  display: inline-block;
+  min-width: 2.6rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: white;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.4rem;
+}
+
+/* Timeline keyframes : bande horizontale avec markers cliquables. */
+.as-crop-timeline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(0, 0, 0, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.as-crop-add-kf {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.55rem;
+  background: var(--ie-accent);
+  color: white;
+  border: 1px solid var(--ie-accent);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  flex: 0 0 auto;
+  transition: all 120ms;
+}
+.as-crop-add-kf:hover:not(:disabled) {
+  background: var(--ie-accent-dark);
+}
+.as-crop-add-kf:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.6);
+}
+.as-crop-timeline-track {
+  position: relative;
+  flex: 1;
+  height: 1.4rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.as-crop-timeline-cursor {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: white;
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+.as-crop-kf-marker {
+  position: absolute;
+  top: 50%;
+  width: 0.85rem; height: 0.85rem;
+  background: var(--ie-accent);
+  border: 2px solid white;
+  border-radius: 0.2rem;
+  cursor: pointer;
+  transform: translate(-50%, -50%) rotate(45deg);
+  padding: 0;
+  transition: transform 100ms, box-shadow 100ms;
+}
+.as-crop-kf-marker:hover {
+  transform: translate(-50%, -50%) rotate(45deg) scale(1.18);
+}
+.as-crop-kf-marker.active {
+  background: #4ade80;
+  border-color: white;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.4);
+}
+.as-crop-delete-kf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem; height: 1.6rem;
+  background: rgba(220, 38, 38, 0.22);
+  color: #fca5a5;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: all 120ms;
+}
+.as-crop-delete-kf:hover {
+  background: rgba(220, 38, 38, 0.4);
+  color: white;
+}
+
+/* Frame qui matche l'aspect de la vidéo source — l'image source en bg + le
+ *  rect en % se positionnent dedans avec les coords [0..1] du source. */
+.as-crop-stage-frame {
+  position: relative;
+  width: 100%;
+  max-height: 100%;
+  max-width: 100%;
+  /* aspect-ratio set inline via prop videoAspect */
+  display: block;
+  background: #000;
+  overflow: hidden;
+  border-radius: 0.4rem;
+}
+.as-crop-rect {
+  position: absolute;
+  border: 2px solid var(--ie-accent);
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset;
+  cursor: grab;
+  touch-action: none;
+  z-index: 2;
+}
+.as-crop-rect.interp {
+  border-color: rgba(244, 114, 182, 0.78);
+  cursor: default;
+}
+.as-crop-rect.active {
+  border-color: #4ade80;
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(255, 255, 255, 0.6) inset,
+    0 0 0 3px rgba(74, 222, 128, 0.28);
+}
+.as-crop-rect:active { cursor: grabbing; }
+.as-crop-rect-inner {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Petits coins pour bien voir le cadre */
+  background:
+    linear-gradient(to right, white 0, white 12px, transparent 12px) top left / 12px 2px no-repeat,
+    linear-gradient(to bottom, white 0, white 12px, transparent 12px) top left / 2px 12px no-repeat,
+    linear-gradient(to left, white 0, white 12px, transparent 12px) top right / 12px 2px no-repeat,
+    linear-gradient(to bottom, white 0, white 12px, transparent 12px) top right / 2px 12px no-repeat,
+    linear-gradient(to right, white 0, white 12px, transparent 12px) bottom left / 12px 2px no-repeat,
+    linear-gradient(to top, white 0, white 12px, transparent 12px) bottom left / 2px 12px no-repeat,
+    linear-gradient(to left, white 0, white 12px, transparent 12px) bottom right / 12px 2px no-repeat,
+    linear-gradient(to top, white 0, white 12px, transparent 12px) bottom right / 2px 12px no-repeat;
+}
+.as-crop-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0, 0, 0, 0.55);
+  justify-content: space-between;
+}
+.as-crop-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.as-crop-reset:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+.as-crop-reset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.as-crop-hint {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.65);
+  font-style: italic;
+}
+
+/* ── Bouton Cadrage dans le top bar de l'AnimationStudio (Palier D V3) ──── */
+.as-header-cropbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  background: var(--ie-surface);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border-strong);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: all 120ms;
+  margin-right: 0.5rem;
+}
+.as-header-cropbtn:hover:not(:disabled) {
+  background: var(--ie-accent-faint);
+  border-color: var(--ie-accent);
+  color: var(--ie-accent);
+}
+.as-header-cropbtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── AnimationCropModal (.ac-*) ─────────────────────────────────────────
+ *  Modal verrouillé pour le cadrage animation-level (toutes les pellicules
+ *  concaténées). Préfixe `.ac-` distinct de `.as-` pour bien isoler. */
+
+.ac-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;  /* au-dessus du lightbox (1000) */
+  padding: 1rem;
+}
+.ac-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 96vw;
+  height: 96vh;
+  max-width: 96vw;
+  max-height: 96vh;
+  background: #0c0c0e;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  color: #f4f4f5;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 0.8125rem;
+}
+
+/* Header */
+.ac-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.85rem;
+  background: rgba(0, 0, 0, 0.55);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ac-header-title {
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.92);
+  flex: 0 0 auto;
+}
+.ac-tabs {
+  display: flex;
+  gap: 0.4rem;
+  flex: 1;
+  justify-content: center;
+}
+.ac-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 600;
+  transition: all 120ms;
+}
+.ac-tab:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+.ac-tab.active {
+  background: #f472b6;
+  border-color: #f472b6;
+  color: white;
+}
+.ac-dot {
+  display: inline-block;
+  width: 0.4rem; height: 0.4rem;
+  background: #4ade80;
+  border-radius: 50%;
+  margin-left: 0.15rem;
+}
+.ac-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; height: 2rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 50%;
+  cursor: pointer;
+  flex: 0 0 auto;
+  transition: all 120ms;
+}
+.ac-close:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Body : phone au centre */
+.ac-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  min-height: 0;
+  min-width: 0;
+}
+.ac-phone-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  /* Pas de height:100% — laisse le contenu déterminer la taille via la
+   *  hauteur explicite vh sur le screen. Évite les conflits flex+aspect-ratio. */
+}
+.ac-warn {
+  font-size: 0.7rem;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border: 1px solid rgba(251, 191, 36, 0.3);
+  border-radius: 0.35rem;
+  padding: 0.35rem 0.6rem;
+}
+.ac-phone-frame {
+  position: relative;
+  background: #1a1a1a;
+  padding: 0.5rem;
+  border-radius: 1.6rem;
+  display: inline-block;
+  /* Laisse le screen interne dicter les dimensions via aspect-ratio. */
+  box-shadow:
+    0 0.6rem 1.5rem rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+.ac-phone-screen {
+  /* Dimensions (width/height en rem) sont passées en INLINE STYLE depuis le
+   *  component pour garantir l'aspect-ratio exact — la classe ne fait que les
+   *  styles cosmétiques. */
+  position: relative;
+  background: #000;
+  overflow: hidden;
+  border-radius: 0.6rem;
+  cursor: grab;
+}
+.ac-phone-screen:active { cursor: grabbing; }
+.ac-phone-screen.active {
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.65);
+}
+.ac-empty {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 0.85rem;
+  font-style: italic;
+  text-align: center;
+  padding: 1rem;
+}
+
+/* Overlay quand on est sur une pellicule non générée — apparaît par-dessus
+ *  l'image fallback (lastFrame du segment précédent ou baseImage). */
+.ac-ungen-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ac-ungen-sub {
+  font-size: 0.65rem;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.75);
+  text-align: center;
+  padding: 0 0.75rem;
+}
+.ac-phone-meta {
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* Zoom toolbar */
+.ac-zoom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.6rem;
+  background: rgba(0, 0, 0, 0.45);
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.ac-zoom-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem; height: 1.7rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  transition: all 100ms;
+}
+.ac-zoom-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.18);
+}
+.ac-zoom-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.ac-zoom-value {
+  display: inline-block;
+  min-width: 2.6rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: white;
+  font-variant-numeric: tabular-nums;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.3rem;
+  padding: 0.25rem 0.4rem;
+}
+
+/* Timeline keyframes */
+.ac-timeline {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: rgba(0, 0, 0, 0.55);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.ac-add-kf {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.55rem;
+  background: #f472b6;
+  color: white;
+  border: 1px solid #f472b6;
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 600;
+  flex: 0 0 auto;
+  transition: all 120ms;
+}
+.ac-add-kf:hover:not(:disabled) {
+  background: #db2777;
+}
+.ac-add-kf:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.6);
+}
+.ac-timeline-track {
+  position: relative;
+  flex: 1;
+  height: 1.4rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 0.35rem;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ac-pell-boundary {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+.ac-timeline-cursor {
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 2px;
+  background: white;
+  pointer-events: none;
+  transform: translateX(-1px);
+}
+.ac-kf-marker {
+  position: absolute;
+  top: 50%;
+  width: 0.85rem; height: 0.85rem;
+  background: #f472b6;
+  border: 2px solid white;
+  border-radius: 0.2rem;
+  cursor: pointer;
+  transform: translate(-50%, -50%) rotate(45deg);
+  padding: 0;
+  transition: transform 100ms, box-shadow 100ms;
+}
+.ac-kf-marker:hover {
+  transform: translate(-50%, -50%) rotate(45deg) scale(1.18);
+}
+.ac-kf-marker.active {
+  background: #4ade80;
+  border-color: white;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.4);
+}
+.ac-delete-kf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem; height: 1.6rem;
+  background: rgba(220, 38, 38, 0.22);
+  color: #fca5a5;
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.ac-delete-kf:hover {
+  background: rgba(220, 38, 38, 0.4);
+  color: white;
+}
+
+/* Play controls + scrub global */
+.ac-play-row {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.4rem 0.7rem;
+  background: rgba(0, 0, 0, 0.55);
+}
+.ac-play-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem; height: 2rem;
+  background: #f472b6;
+  color: white;
+  border: 1px solid #f472b6;
+  border-radius: 50%;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+.ac-play-btn:hover { background: #db2777; }
+.ac-time {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+  min-width: 2.6rem;
+  text-align: center;
+  flex: 0 0 auto;
+}
+.ac-scrub {
+  flex: 1;
+  appearance: none;
+  -webkit-appearance: none;
+  height: 0.35rem;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  outline: none;
+  cursor: pointer;
+}
+.ac-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0.95rem; height: 0.95rem;
+  background: #f472b6;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: grab;
+}
+.ac-scrub::-moz-range-thumb {
+  width: 0.95rem; height: 0.95rem;
+  background: #f472b6;
+  border: 2px solid white;
+  border-radius: 50%;
+  cursor: grab;
+}
+
+/* Footer */
+.ac-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  background: rgba(0, 0, 0, 0.55);
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.ac-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.3rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.ac-reset:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+}
+.ac-reset:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.ac-hint {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+}
+.ac-dims {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ── Modal IA (Ctrl+K) — refonte modal centré 2026-05-10 ─────────────
+ *  Vrai modal classique : centré verticalement et horizontalement, panel
+ *  large (48rem) pour confort avec preview multi-persos, backdrop-blur.
+ *  z-index > toast (2000 vs 1000) pour passer au-dessus des notifs. */
+.as-aip-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(0.4rem);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+  z-index: 2000;
+}
+.as-aip-panel {
+  width: min(48rem, 100%);
+  max-height: calc(100vh - 4rem);
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border-strong);
+  border-radius: 0.75rem;
+  box-shadow: 0 1.5rem 3rem rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.as-aip-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--ie-surface);
+  border-bottom: 1px solid var(--ie-border);
+}
+.as-aip-header-icon { color: var(--ie-accent); }
+.as-aip-header-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ie-text);
+}
+.as-aip-header-hint {
+  flex: 1;
+  font-size: 0.65rem;
+  color: var(--ie-text-faint);
+  text-align: right;
+}
+.as-aip-header-hint kbd {
+  font-family: inherit;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.2rem;
+  padding: 0.05rem 0.25rem;
+  font-size: 0.6rem;
+  color: var(--ie-text-muted);
+}
+.as-aip-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  background: transparent;
+  border: none;
+  color: var(--ie-text-muted);
+  cursor: pointer;
+  border-radius: 0.25rem;
+  transition: background 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-aip-close:hover:not(:disabled) {
+  background: var(--ie-surface-2);
+  color: var(--ie-text);
+}
+.as-aip-close:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.as-aip-input-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.85rem;
+}
+.as-aip-input {
+  width: 100%;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  outline: none;
+  resize: vertical;
+  min-height: 4.5rem;
+  transition: border-color 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-aip-input:focus { border-color: var(--ie-accent); }
+.as-aip-input:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.as-aip-submit {
+  align-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1.1rem;
+  background: var(--ie-accent);
+  color: white;
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: background 140ms cubic-bezier(0.2, 0, 0, 1),
+              transform 140ms cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 0 0.3rem 0.8rem color-mix(in srgb, var(--ie-accent) 35%, transparent);
+}
+.as-aip-submit:hover:not(:disabled) {
+  background: var(--ie-accent-dark);
+  transform: translateY(-1px);
+}
+.as-aip-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+@keyframes as-aip-spin { to { transform: rotate(360deg); } }
+.as-aip-spin { animation: as-aip-spin 0.9s linear infinite; }
+
+.as-aip-error {
+  margin: 0 0.85rem 0.85rem;
+  padding: 0.5rem 0.7rem;
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  color: #f87171;
+  border-radius: 0.4rem;
+  font-size: 0.72rem;
+}
+
+/* Statut Qwen Vision (loading / ready / failed) — refonte 2026-05-11 */
+.as-aip-qwen-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0.85rem 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+.as-aip-qwen-status-loading {
+  background: color-mix(in srgb, #f59e0b 12%, transparent);
+  color: #fbbf24;
+  border: 1px solid color-mix(in srgb, #f59e0b 28%, transparent);
+}
+.as-aip-qwen-status-ready {
+  background: color-mix(in srgb, #22c55e 10%, transparent);
+  color: #4ade80;
+  border: 1px solid color-mix(in srgb, #22c55e 24%, transparent);
+}
+.as-aip-qwen-status-failed {
+  background: color-mix(in srgb, #ef4444 10%, transparent);
+  color: #f87171;
+  border: 1px solid color-mix(in srgb, #ef4444 24%, transparent);
+}
+.as-aip-qwen-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* Preview Phase 3 — wrapper avec scroll interne pour ne pas déborder du
+ *  panel modal. flex: 1 + min-height: 0 = le wrapper prend l'espace restant
+ *  sans pousser le panel hors écran. */
+.as-aip-preview {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-top: 1px solid var(--ie-border);
+  padding: 0.85rem;
+  background: var(--ie-surface);
+  display: flex;
+  flex-direction: column;
+}
+.as-aip-preview-header {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ie-text-muted);
+  margin-bottom: 0.5rem;
+}
+.as-aip-preview-hint {
+  font-weight: 400;
+  font-style: italic;
+  color: var(--ie-text-faint);
+}
+.as-aip-preview-json {
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  padding: 0.6rem;
+  font-family: 'JetBrains Mono', 'Menlo', monospace;
+  font-size: 0.7rem;
+  color: var(--ie-text);
+  overflow: auto;
+  max-height: 24rem;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.as-aip-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.6rem;
+}
+.as-aip-warning {
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.35rem;
+  font-size: 0.7rem;
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  color: #fbbf24;
+}
+.as-aip-warning-character_added {
+  background: color-mix(in srgb, var(--ie-accent) 14%, transparent);
+  color: var(--ie-accent);
+}
+.as-aip-warning-unknown_character {
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  color: #f87171;
+}
+.as-aip-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.7rem;
+}
+.as-aip-cancel,
+.as-aip-apply {
+  padding: 0.45rem 0.95rem;
+  border-radius: 0.4rem;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-aip-cancel {
+  background: transparent;
+  border: 1px solid var(--ie-border);
+  color: var(--ie-text-muted);
+}
+.as-aip-cancel:hover:not(:disabled) {
+  border-color: var(--ie-border-strong);
+  color: var(--ie-text);
+}
+.as-aip-apply {
+  background: var(--ie-accent);
+  color: white;
+  border: 1px solid var(--ie-accent);
+  box-shadow: 0 0.3rem 0.8rem color-mix(in srgb, var(--ie-accent) 30%, transparent);
+}
+.as-aip-apply:hover:not(:disabled) {
+  background: var(--ie-accent-dark);
+  transform: translateY(-1px);
+}
+.as-aip-cancel:disabled,
+.as-aip-apply:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* ── Preview éditable Phase 3 ─────────────────────────────────────────── */
+/* flex:1 + min-height:0 = prend l'espace dispo dans le wrapper preview
+ *  sans déborder ; overflow-y auto = scroll interne si beaucoup de persos. */
+.as-aip2-root {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  overflow-y: auto;
+  /* Padding-right pour laisser de la place à la scrollbar et éviter qu'elle
+   *  colle aux textareas. */
+  padding-right: 0.3rem;
+}
+.as-aip2-empty {
+  font-size: 0.78rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+}
+
+/* Warnings */
+.as-aip2-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.as-aip2-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 0.35rem;
+  font-size: 0.7rem;
+  background: color-mix(in srgb, #f59e0b 14%, transparent);
+  color: #fbbf24;
+}
+.as-aip2-warning-character_added {
+  background: color-mix(in srgb, var(--ie-accent) 14%, transparent);
+  color: var(--ie-accent);
+}
+.as-aip2-warning-unknown_character,
+.as-aip2-warning-missing_voice {
+  background: color-mix(in srgb, #ef4444 14%, transparent);
+  color: #f87171;
+}
+
+/* Confidence badges */
+.as-aip2-conf {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  font-size: 0.6rem;
+  margin-left: auto;
+}
+.as-aip2-conf-high   { background: color-mix(in srgb, #22c55e 18%, transparent); color: #22c55e; }
+.as-aip2-conf-medium { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #fbbf24; }
+.as-aip2-conf-low    { background: color-mix(in srgb, #f87171 22%, transparent); color: #f87171; }
+
+/* Meta row : durée + speaker */
+.as-aip2-meta-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.55rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+}
+.as-aip2-meta-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--ie-text-muted);
+}
+.as-aip2-duration-input {
+  width: 3rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.4rem;
+  color: var(--ie-text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: right;
+}
+.as-aip2-meta-unit { color: var(--ie-text-faint); }
+.as-aip2-speaker-select {
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.3rem;
+  padding: 0.2rem 0.4rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.72rem;
+}
+
+/* Persos */
+.as-aip2-chars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.as-aip2-char {
+  padding: 0.55rem 0.65rem;
+  background: var(--ie-bg);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.as-aip2-char.speaker {
+  border-color: var(--ie-accent);
+  background: color-mix(in srgb, var(--ie-accent) 6%, var(--ie-bg));
+  box-shadow: 0 0.15rem 0.5rem color-mix(in srgb, var(--ie-accent) 14%, transparent);
+}
+.as-aip2-char-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--ie-text);
+}
+.as-aip2-speaker-badge {
+  font-size: 0.65rem;
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+
+/* Champs (action / dialogue / scène) */
+.as-aip2-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.as-aip2-field-label {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--ie-text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.as-aip2-textarea {
+  width: 100%;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.35rem;
+  padding: 0.4rem 0.5rem;
+  color: var(--ie-text);
+  font-family: inherit;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  resize: vertical;
+  outline: none;
+  transition: border-color 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+.as-aip2-textarea:focus { border-color: var(--ie-accent); }
+.as-aip2-textarea:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Scène */
+.as-aip2-scene {
+  padding: 0.55rem 0.65rem;
+  background: var(--ie-bg);
+  border: 1px dashed var(--ie-border);
+  border-radius: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.as-aip2-scene-header {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--ie-text);
+}
+
+/* Multi-shot — bandeau d'info quand Mistral détecte 2 séquences */
+.as-aip2-multishot-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.6rem;
+  background: color-mix(in srgb, var(--ie-accent) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--ie-accent) 30%, transparent);
+  border-radius: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--ie-accent);
+  font-weight: 600;
+}
+
+/* Card par shot (rendue uniquement quand multi-shot — sinon le contenu est
+ *  posé directement dans .as-aip2-root sans card pour rester compact) */
+.as-aip2-shot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.as-aip2-shot-card.multi {
+  padding: 0.6rem 0.7rem;
+  background: var(--ie-surface);
+  border: 1px solid var(--ie-border);
+  border-radius: 0.5rem;
+}
+.as-aip2-shot-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px dashed var(--ie-border);
+}
+.as-aip2-shot-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  background: var(--ie-accent);
+  color: var(--ie-bg);
+  border-radius: 0.3rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.as-aip2-shot-hint {
+  font-size: 0.66rem;
+  color: var(--ie-text-faint);
+  font-style: italic;
+}
+.as-aip2-scene-hint {
+  font-size: 0.66rem;
+  font-weight: 400;
+  color: var(--ie-text-faint);
+  font-style: italic;
+  margin-left: 0.3rem;
+}
+.as-aip2-warning-multi_shot_truncated {
+  background: color-mix(in srgb, var(--ie-accent) 14%, transparent);
+  color: var(--ie-accent);
+}
+
+/* Actions Apply/Cancel : on réutilise .as-aip-cancel et .as-aip-apply */
+.as-aip2-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--ie-border);
+}
+
+/* ── Toast Ctrl+S ────────────────────────────────────────────────────────
+ * Confirmation discrète après save manuel. Position fixed bottom-right pour
+ * ne masquer aucun contrôle. Auto-fade géré côté React (1.4s). */
+@keyframes as-save-toast-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.as-save-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  padding: 0.55rem 0.95rem;
+  background: var(--ie-surface-3);
+  color: var(--ie-text);
+  border: 1px solid var(--ie-border-strong);
+  border-radius: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  box-shadow: 0 0.4rem 1.2rem rgba(0, 0, 0, 0.35);
+  animation: as-save-toast-in 180ms cubic-bezier(0.2, 0, 0, 1);
+  z-index: 1000;
+  pointer-events: none;
+}
+.as-save-toast-saving { color: var(--ie-text-muted); }
+.as-save-toast-saved {
+  border-color: color-mix(in srgb, var(--ie-accent) 55%, transparent);
+  color: var(--ie-accent);
+}
+.as-save-toast-error {
+  border-color: color-mix(in srgb, #ef4444 55%, transparent);
+  color: #ef4444;
+}
+
+/* Mockup overlay choix sur la dernière pellicule (Step 2 refonte 2026-05-11).
+ * Affiché dans le preview pour que l'auteur visualise les options. */
+.as-preview-exit-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  z-index: 10;
+}
+.as-preview-exit-backdrop {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0%,
+    rgba(0, 0, 0, 0) 40%,
+    rgba(0, 0, 0, 0.5) 75%,
+    rgba(0, 0, 0, 0.85) 100%
+  );
+  pointer-events: none;
+}
+.as-preview-exit-list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 1rem 0.7rem 0.85rem;
+  pointer-events: auto;
+}
+.as-preview-exit-btn-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.7rem;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 0.4rem;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  text-align: left;
+  transition: all 140ms cubic-bezier(0.2, 0, 0, 1);
+  box-shadow: 0 0.3rem 0.7rem rgba(0, 0, 0, 0.25);
+}
+.as-preview-exit-btn-choice:hover {
+  background: var(--ie-accent);
+  color: white;
+  transform: translateY(-1px);
+}
+.as-preview-exit-num {
+  font-weight: 700;
+  color: var(--ie-accent);
+  flex-shrink: 0;
+}
+.as-preview-exit-btn-choice:hover .as-preview-exit-num { color: white; }
+.as-preview-exit-label { flex: 1; min-width: 0; }
+.as-preview-exit-target {
+  margin-left: auto;
+  font-size: 0.62rem;
+  color: rgba(0, 0, 0, 0.55);
+  font-style: italic;
+  white-space: nowrap;
+}
+.as-preview-exit-btn-choice:hover .as-preview-exit-target { color: rgba(255, 255, 255, 0.85); }
+
+/* ─── Studio Mono : layout PromptZone + Preview absolu (refonte 2026-05-17) ─
+ * L'aside (= embedded PreviewModal) est positionnée EN ABSOLU au niveau du
+ * header (top:0 right:0 de .as-root) pour gagner ~3rem de hauteur en haut.
+ * .as-mono-split-main prend toute la largeur (avec un padding-right pour
+ * laisser de la place à l'aside). C'est pour ça que .as-mono-split n'utilise
+ * plus flex row mais block.
+ */
+.as-root { position: relative; }
+/* Refonte 2026-05-17 — la tuile preview est scalée pour que le bas du téléphone
+ * soit visible sur des viewports laptop (l'iPhone 16 portrait fait ~44rem ≈ 704px
+ * de haut à scale 1.0, trop pour beaucoup d'écrans). On factorise via une CSS
+ * variable pour que la padding-right de la zone principale + la margin-right
+ * du bouton thème suivent le même facteur. */
+:root, .as-root {
+  --as-mono-preview-scale: 0.78;
+  --as-mono-preview-natural-w: 28rem;
+}
+/* Largeur visible effective = naturelle * scale. */
+.as-header-theme-btn-mono {
+  margin-right: calc(var(--as-mono-preview-natural-w) * var(--as-mono-preview-scale));
+}
+@media (max-width: 90rem) {
+  .as-header-theme-btn-mono { margin-right: 0; }
+}
+.as-mono-split {
+  display: block;
+  /* Padding droit = largeur naturelle de l'embedded PreviewModal * scale.
+   * Suit la variable --as-mono-preview-scale pour éviter d'avoir 2 sources
+   * de vérité quand on change l'échelle. */
+  padding-right: calc(var(--as-mono-preview-natural-w) * var(--as-mono-preview-scale));
+}
+.as-mono-split-main {
+  min-width: 0;
+}
+.as-mono-split-aside {
+  position: absolute;
+  top: 0.4rem;       /* aligné avec le padding-top de .as-header */
+  right: 0.85rem;    /* aligné avec le padding-right de .as-header */
+  z-index: 50;
+  /* Scale proportionnel pour que le bas du device tienne dans le viewport.
+   * transform-origin top right pour garder l'ancrage haut-droit visuel. */
+  transform: scale(var(--as-mono-preview-scale));
+  transform-origin: top right;
+}
+@media (max-width: 90rem) {
+  /* Sous 90rem, on repasse en flux normal : la tuile reprend sa position
+   * dans le flow et on retire le scale (l'auteur a la place de scroller). */
+  .as-mono-split { padding-right: 0; }
+  .as-mono-split-aside {
+    position: static;
+    margin: 0 auto 1rem;
+    transform: none;
+  }
+}
+
+/* (Anciennes règles .as-mono-source-* retirées 2026-05-17 — le SourceTile
+ *  custom a été remplacé par <PreviewModal embedded> qui amène son propre
+ *  CSS depuis preview-modal.css.) */

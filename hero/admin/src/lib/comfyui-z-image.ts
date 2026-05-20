@@ -46,8 +46,18 @@ export interface ZImageOptions {
 const POLL_INTERVAL_MS = 2000
 const MAX_WAIT_MS = 3 * 60 * 1000   // 3 min — Z-Image est rapide (20-30s)
 
-/** Lance le workflow z_image et attend le résultat (URL Supabase). */
+/** Lance le workflow z_image et attend le résultat (URL Supabase).
+ *  Wrap avec retry-on-OOM automatique (refonte 2026-05-12). */
 export async function runZImage(opts: ZImageOptions): Promise<string> {
+  const { withOomRetry } = await import('./oom-retry')
+  return await withOomRetry(() => runZImageCore(opts), {
+    onOomDetected: () => {
+      opts.onProgress?.({ stage: 'queuing', label: 'Récupération mémoire CUDA, retry…' })
+    },
+  })
+}
+
+async function runZImageCore(opts: ZImageOptions): Promise<string> {
   const {
     prompt, negativePrompt, storagePathPrefix,
     width, height, steps, seed, diffusionFile,

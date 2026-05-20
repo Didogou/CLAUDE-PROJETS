@@ -14,7 +14,10 @@ import CatalogEffects from './catalogs/CatalogEffects'
 import CatalogEdit from './catalogs/CatalogEdit'
 import CatalogCharacters from './catalogs/CatalogCharacters'
 import CatalogAnimation from './catalogs/CatalogAnimation'
+import CatalogObjects, { type SectionItem } from './catalogs/CatalogObjects'
 import CatalogPlaceholder from './catalogs/CatalogPlaceholder'
+import CatalogChoix from './choice/CatalogChoix'
+import { useChoicePlan } from './choice/ChoicePlanContext'
 import type { Character } from '@/lib/character-store'
 
 /** Mode actif sur l'action Personnage (drive le contenu rendu quand
@@ -43,6 +46,13 @@ interface DesignerCatalogProps {
   /** Phase E (2026-05-05) — Banque d'images affichée dans CatalogAnimation
    *  quand pellicule sélectionnée = image_static. */
   bankImages?: import('./types').BankImage[]
+  /** Refonte Objet 2026-05-12 — items de la section parente, drive
+   *  CatalogObjects v2 quand category='objects'. */
+  sectionItems?: SectionItem[]
+  /** Callback ouverture ItemCreatorModal en mode création. */
+  onCreateItem?: () => void
+  /** Callback ouverture ItemCreatorModal en mode édition (item donné). */
+  onEditItem?: (item: SectionItem) => void
 }
 
 export default function DesignerCatalog({
@@ -50,8 +60,22 @@ export default function DesignerCatalog({
   personnageMode = null, onAddCharacter, onNavigateToBanks,
   presentCharacterIds,
   bankImages,
+  sectionItems,
+  onCreateItem,
+  onEditItem,
 }: DesignerCatalogProps) {
+  const { isPlanChoice } = useChoicePlan()
   switch (category) {
+    case 'objects':
+      return (
+        <CatalogObjects
+          onClose={onClose}
+          sectionItems={sectionItems ?? []}
+          onCreateNew={onCreateItem}
+          onEditItem={onEditItem}
+        />
+      )
+
     case 'effects':
       return <CatalogEffects onClose={onClose} />
 
@@ -139,6 +163,12 @@ export default function DesignerCatalog({
       )
 
     case 'annotations':
+      // Sur un Plan choix → outil Choix réel (drag-drop markers, sources
+      // Section/Plan, toggle pin/preview). Sinon placeholder placeholder
+      // (annotations narratives génériques pas encore branchées).
+      if (isPlanChoice) {
+        return <CatalogChoix onClose={onClose} />
+      }
       return (
         <CatalogPlaceholder
           title="📝 Annotations narratives"

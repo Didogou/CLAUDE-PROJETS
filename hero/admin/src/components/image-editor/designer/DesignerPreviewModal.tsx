@@ -76,6 +76,10 @@ interface DesignerPreviewModalProps {
   open: boolean
   onClose: () => void
   imageUrl: string | null
+  /** URL d'une vidéo MP4 — si fournie, prend le pas sur imageUrl et joue
+   *  en autoplay/loop avec son (cf β.1+ lipsync 2026-05-06).
+   *  Le poster utilisé pour le 1er frame avant le decode est `imageUrl`. */
+  videoUrl?: string | null
   sectionText?: string
   choices?: Array<{ id: string; label: string }>
 }
@@ -87,6 +91,7 @@ export default function DesignerPreviewModal({
   open,
   onClose,
   imageUrl,
+  videoUrl,
   sectionText,
   choices = [],
 }: DesignerPreviewModalProps) {
@@ -158,9 +163,6 @@ export default function DesignerPreviewModal({
   return (
     <div
       className={`dz-preview-backdrop ${closing ? 'closing' : ''}`}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
     >
       <div className="dz-preview-group">
         {/* Colonne gauche : device frame, avec dropdown picker positionné absolu au-dessus */}
@@ -231,9 +233,37 @@ export default function DesignerPreviewModal({
             <div
               className="dz-preview-screen"
               style={{
-                backgroundImage: imageUrl ? `url(${imageUrl})` : undefined,
+                // Si vidéo fournie, on utilise un <video> ci-dessous → pas de
+                // background-image (sinon l'image apparaîtrait au-dessus de
+                // la vidéo qui est en absolute fill).
+                backgroundImage: !videoUrl && imageUrl ? `url(${imageUrl})` : undefined,
               }}
             >
+              {videoUrl && phase === 'open' && (
+                <video
+                  /* β.1+ 2026-05-06 : pour les plans animation, on joue la
+                   * vidéo MP4 (qui contient le lipsync TTS si dialogues).
+                   * - Pas de `loop` : 1 lecture puis fige sur dernière frame
+                   *   (sinon l'auteur entend sa scène en boucle indéfiniment)
+                   * - Conditionné à `phase === 'open'` : dès que la modal entre
+                   *   en phase 'closing' ou 'closed', le <video> est unmounted
+                   *   → audio coupé immédiatement (au lieu d'attendre 220ms
+                   *   d'animation de fermeture pendant lesquelles le son
+                   *   continuait à jouer)
+                   * - controls : permet à l'auteur de relancer manuellement */
+                  src={videoUrl}
+                  poster={imageUrl ?? undefined}
+                  autoPlay
+                  controls
+                  playsInline
+                  style={{
+                    position: 'absolute',
+                    top: 0, left: 0,
+                    width: '100%', height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              )}
               {(sectionText || choices.length > 0) && (
                 <div className="dz-preview-narrative">
                   {sectionText && <div className="dz-preview-text">{sectionText}</div>}
