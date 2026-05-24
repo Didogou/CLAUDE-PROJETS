@@ -9,7 +9,10 @@
       "Bash(scoop list *)",
       "Bash(npx --yes supabase@1.226.4 init)",
       "Bash(npx --yes supabase@1.226.4 start)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(git commit -m ' *)",
+      "Bash(npx --yes supabase@1.226.4 db reset)",
+      "Bash(npx --yes supabase@1.226.4 gen types typescript --local)"
     ]
   }
 }
