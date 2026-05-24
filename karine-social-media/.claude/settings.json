@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:www.instagram.com)",
+      "WebFetch(domain:www.facebook.com)",
+      "Bash(npm --version)",
+      "Bash(where.exe supabase *)",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --app --eslint --src-dir --import-alias \"@/*\" --use-npm --turbopack --yes)",
+      "Bash(scoop list *)",
+      "Bash(npx --yes supabase@1.226.4 init)",
+      "Bash(npx --yes supabase@1.226.4 start)",
+      "Bash(npm install *)"
+    ]
+  }
+}
