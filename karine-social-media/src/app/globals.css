@@ -1,26 +1,43 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* --- Palette Karine Diététique (extraite du mockup Garde) --- */
+  --color-blush: #fdf2f3;        /* fond principal rose poudré */
+  --color-blush-deep: #fbe7ec;   /* bas du dégradé de fond */
+  --color-cream: #fdf6ef;        /* tuiles crème/pêche claires */
+
+  --color-coral: #e2788d;        /* primaire : boutons, actif */
+  --color-coral-dark: #c75a73;   /* hover / texte accent fort */
+  --color-coral-soft: #f6c9d3;   /* fonds doux corail */
+
+  --color-peach: #fbe7da;        /* tuile pêche */
+  --color-petal: #f9d9e2;        /* tuile rose tendre */
+  --color-lavender: #ebe2f3;     /* tuile lavande */
+  --color-mint: #e1edd8;         /* tuile vert tendre */
+
+  --color-sage: #7fa15c;         /* icône verte */
+  --color-tangerine: #e8854c;    /* icône orange */
+  --color-cherry: #e05d5d;       /* icône rouge (santé) */
+  --color-violet-icon: #9d7cb8;  /* icône violette (astuces) */
+
+  --color-ink: #4b4248;          /* texte titres */
+  --color-ink-soft: #9e949a;     /* texte secondaire */
+
+  /* --- Fonts --- */
+  --font-script: var(--font-sacramento);
+  --font-sans: var(--font-nunito);
+
+  /* --- Rayons --- */
+  --radius-tile: 1.25rem;
+  --radius-card: 1.5rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: linear-gradient(180deg, var(--color-blush) 0%, var(--color-blush-deep) 100%);
+  background-attachment: fixed;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--color-ink);
+  font-family: var(--font-sans), system-ui, sans-serif;
 }

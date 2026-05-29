@@ -1,59 +1,76 @@
-import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { CalendarHeart, Salad, HeartHandshake, HeartPulse, Lightbulb } from 'lucide-react';
+import { AppHeader } from '@/components/garde/AppHeader';
+import { WelcomeBanner } from '@/components/garde/WelcomeBanner';
+import { FeatureTile } from '@/components/garde/FeatureTile';
+import { MaJourneeCard } from '@/components/garde/MaJourneeCard';
+import { BottomNav } from '@/components/garde/BottomNav';
 
-export default async function Home() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-6 py-12 text-center">
-      <div className="max-w-2xl space-y-6">
-        <h1 className="text-4xl md:text-5xl font-bold text-[#2E7D5E]">
-          Karine Diététique
-        </h1>
-        <p className="text-lg text-gray-700">
-          Vos menus, recettes, conseils et astuces — accessibles partout, à tout moment.
-        </p>
-        <p className="text-base text-gray-500">
-          Plaisir, variété, équilibre et santé.
-        </p>
+    <div className="mx-auto flex min-h-screen max-w-md flex-col">
+      <AppHeader />
 
-        <div className="pt-6 flex flex-col sm:flex-row gap-3 justify-center">
-          {user ? (
-            <>
-              <Link
-                href="/admin"
-                className="px-6 py-3 bg-[#2E7D5E] text-white rounded-md hover:bg-[#1f5a44] transition"
-              >
-                Espace admin
-              </Link>
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  className="px-6 py-3 border border-gray-300 rounded-md hover:bg-gray-50 transition"
-                >
-                  Se déconnecter
-                </button>
-              </form>
-            </>
-          ) : (
-            <Link
-              href="/login"
-              className="px-6 py-3 bg-[#2E7D5E] text-white rounded-md hover:bg-[#1f5a44] transition"
-            >
-              Se connecter
-            </Link>
-          )}
+      <main className="flex-1 pb-4">
+        <WelcomeBanner />
+
+        {/* Rangée 1 : 3 tuiles compactes */}
+        <div className="grid grid-cols-3 gap-3 px-5 pt-2">
+          <FeatureTile
+            href="/menus"
+            icon={CalendarHeart}
+            iconClass="text-sage"
+            bgClass="bg-peach"
+            title="Menu de la semaine"
+            subtitle="Des repas équilibrés chaque jour"
+            compact
+          />
+          <FeatureTile
+            href="/recettes"
+            icon={Salad}
+            iconClass="text-tangerine"
+            bgClass="bg-cream"
+            title="Idées recettes"
+            subtitle="Inspiration saine et gourmande"
+            compact
+          />
+          <FeatureTile
+            href="/mon-menu"
+            icon={HeartHandshake}
+            iconClass="text-coral"
+            bgClass="bg-petal"
+            title="Mon menu personnalisé"
+            subtitle="Adapté à vos besoins et objectifs"
+            badge="Nouveau"
+            compact
+          />
         </div>
 
-        {user && (
-          <p className="text-sm text-gray-400 pt-4">
-            Connecté : <span className="font-mono">{user.email}</span>
-          </p>
-        )}
-      </div>
-    </main>
+        {/* Rangée 2 : 2 tuiles larges */}
+        <div className="grid grid-cols-2 gap-3 px-5 pt-3">
+          <FeatureTile
+            href="/conseils"
+            icon={HeartPulse}
+            iconClass="text-cherry"
+            bgClass="bg-cream"
+            title="Conseils santé"
+            subtitle="Mieux comprendre votre santé"
+          />
+          <FeatureTile
+            href="/astuces"
+            icon={Lightbulb}
+            iconClass="text-violet-icon"
+            bgClass="bg-lavender"
+            title="Astuces diététiques"
+            subtitle="Des astuces simples au quotidien"
+          />
+        </div>
+
+        <div className="pt-4">
+          <MaJourneeCard />
+        </div>
+      </main>
+
+      <BottomNav />
+    </div>
   );
 }

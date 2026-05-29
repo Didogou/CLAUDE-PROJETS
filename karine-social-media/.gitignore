@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# bibliothèque source d'images (local uniquement)
+# ⚠️ contient des données sensibles (photos patients = données de santé RGPD)
+# ne JAMAIS commiter/pousser. Les visuels web vivent dans public/images/.
+/assets-source/
