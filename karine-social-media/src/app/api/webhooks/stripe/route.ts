@@ -61,12 +61,22 @@ export async function POST(request: NextRequest) {
         const sub = await stripe.subscriptions.retrieve(subscriptionId);
         await upsertSubscription(supabase, userId, customerId, sub);
 
-        // Promote au rôle subscriber
+        // Promote au rôle subscriber UNIQUEMENT si l'user est actuellement
+        // visitor. On ne dégrade JAMAIS un admin ou un patient (ils gardent
+        // leur rôle + leur abonnement payant en parallèle).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any)
+        const { data: currentProfile } = await (supabase as any)
           .from('profiles')
-          .update({ role: 'subscriber' })
-          .eq('id', userId);
+          .select('role')
+          .eq('id', userId)
+          .maybeSingle();
+        if (currentProfile?.role === 'visitor') {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (supabase as any)
+            .from('profiles')
+            .update({ role: 'subscriber' })
+            .eq('id', userId);
+        }
         break;
       }
 
