@@ -23,6 +23,16 @@
   --color-ink: #4b4248;          /* texte titres */
   --color-ink-soft: #9e949a;     /* texte secondaire */
 
+  /* --- Palette admin (rose foncé, look outil pro) --- */
+  --color-admin-bg: #f4dde4;         /* fond admin */
+  --color-admin-surface: #ffffff;    /* cartes / contenu */
+  --color-admin-primary: #a23d5c;    /* CTA / accents principaux */
+  --color-admin-primary-dark: #7a1f3e;
+  --color-admin-soft: #e7b9c8;       /* fonds doux */
+  --color-admin-ink: #3a1f2b;        /* texte foncé */
+  --color-admin-ink-soft: #8a6671;   /* texte secondaire */
+  --color-admin-border: #d8a9b6;     /* bordures / dividers */
+
   /* --- Fonts --- */
   --font-script: var(--font-sacramento);
   --font-sans: var(--font-nunito);
@@ -37,7 +47,48 @@ html {
   background-attachment: fixed;
 }
 
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+}
+
+.animate-heartbeat {
+  animation: heartbeat 1.4s ease-in-out infinite;
+}
+
+@keyframes vscroll {
+  from { transform: translateY(0); }
+  to { transform: translateY(-50%); }
+}
+
+.animate-vscroll {
+  animation: vscroll 38s linear infinite;
+}
+.animate-vscroll:hover {
+  animation-play-state: paused;
+}
+
 body {
   color: var(--color-ink);
   font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Scrollbars custom Karine : fines et coral pâle */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-coral-soft) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--color-coral-soft);
+  border-radius: 3px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--color-coral);
 }

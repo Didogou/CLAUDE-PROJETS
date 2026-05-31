@@ -207,46 +207,55 @@ export type Database = {
       }
       recipes: {
         Row: {
+          aliments: string[]
+          calories: number | null
+          category: string
           cover_image_url: string | null
           created_at: string
           created_by: string | null
           id: number
           published_at: string | null
           scheduled_for: string | null
+          slides: string[]
+          slug: string
           status: string
           tags: string[]
-          theme_subtitle: string | null
-          theme_title: string
+          title: string
           updated_at: string
-          variants: Json
         }
         Insert: {
+          aliments?: string[]
+          calories?: number | null
+          category: string
           cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
           id?: number
           published_at?: string | null
           scheduled_for?: string | null
+          slides?: string[]
+          slug: string
           status?: string
           tags?: string[]
-          theme_subtitle?: string | null
-          theme_title: string
+          title: string
           updated_at?: string
-          variants?: Json
         }
         Update: {
+          aliments?: string[]
+          calories?: number | null
+          category?: string
           cover_image_url?: string | null
           created_at?: string
           created_by?: string | null
           id?: number
           published_at?: string | null
           scheduled_for?: string | null
+          slides?: string[]
+          slug?: string
           status?: string
           tags?: string[]
-          theme_subtitle?: string | null
-          theme_title?: string
+          title?: string
           updated_at?: string
-          variants?: Json
         }
         Relationships: [
           {

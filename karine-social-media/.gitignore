@@ -44,3 +44,6 @@ next-env.d.ts
 # ⚠️ contient des données sensibles (photos patients = données de santé RGPD)
 # ne JAMAIS commiter/pousser. Les visuels web vivent dans public/images/.
 /assets-source/
+
+.vercel
+.env*

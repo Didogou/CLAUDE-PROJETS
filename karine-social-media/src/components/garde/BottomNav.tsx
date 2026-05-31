@@ -10,7 +10,7 @@ const ITEMS: NavItem[] = [
   { href: '/', label: 'Accueil', icon: Home },
   { href: '/recettes', label: 'Recettes', icon: UtensilsCrossed },
   { href: '/conseils', label: 'Conseils', icon: Leaf },
-  { href: '/mes-menus', label: 'Mes menus', icon: NotebookText },
+  { href: '/menus', label: 'Mes menus', icon: NotebookText },
   { href: '/profil', label: 'Profil', icon: User },
 ];
 

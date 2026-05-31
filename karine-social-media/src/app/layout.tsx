@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { Nunito, Sacramento } from 'next/font/google';
+import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
+import { DebugConsole } from '@/components/debug/DebugConsole';
 import './globals.css';
 
 const nunito = Nunito({
@@ -26,7 +28,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fr" className={`${nunito.variable} ${sacramento.variable} h-full antialiased`}>
-      <body className="min-h-full">{children}</body>
+      <body className="min-h-full">
+        <ServiceWorkerRegister />
+        <DebugConsole />
+        {children}
+      </body>
     </html>
   );
 }
