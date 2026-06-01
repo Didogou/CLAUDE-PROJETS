@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { PLANS, type PlanKind, type UserSubscription } from '@/data/plans';
+import { SubscribeAuthGate } from './SubscribeAuthGate';
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—';
@@ -28,16 +29,23 @@ export function MonPlanView({
   patientExpiresAt,
   subscription,
   checkoutStatus,
+  requestedPlan,
 }: {
   email: string;
   role: string;
   patientExpiresAt: string | null;
   subscription: UserSubscription | null;
   checkoutStatus: string | null;
+  /** Plan demandé via ?plan= dans l'URL — sert à l'auto-trigger après auth. */
+  requestedPlan: PlanKind | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Plan choisi par un visiteur (non connecté) → ouvre la modal auth gate. */
+  const [pendingPlan, setPendingPlan] = useState<PlanKind | null>(null);
+  /** Indique si l'utilisateur est connecté. Si email vide → visiteur. */
+  const isAuthenticated = email !== '';
 
   // Patientes de Karine : accès gratuit, on n'affiche pas les plans
   const patientActive =
@@ -68,6 +76,35 @@ export function MonPlanView({
       setBusy(null);
     }
   }
+
+  /**
+   * Visiteur clique sur un plan → ouvre la modal auth gate.
+   * Connecté → lance le checkout direct.
+   */
+  function onChoosePlan(plan: PlanKind) {
+    if (!isAuthenticated) {
+      setPendingPlan(plan);
+      return;
+    }
+    startCheckout(plan);
+  }
+
+  // === AUTO-TRIGGER STRIPE après auth ===
+  // Si l'URL contient ?plan=monthly|yearly ET que l'user est connecté
+  // ET qu'il n'a ni patient actif ni abo actif → on lance le checkout
+  // automatiquement. Évite le double clic après signup/login.
+  // On déclenche au plus une fois grâce au ref.
+  const autoTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (autoTriggeredRef.current) return;
+    if (!requestedPlan) return;
+    if (!isAuthenticated) return;
+    if (patientActive) return;
+    if (hasActiveSub) return;
+    autoTriggeredRef.current = true;
+    startCheckout(requestedPlan);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedPlan, isAuthenticated, patientActive, hasActiveSub]);
 
   async function openPortal() {
     setBusy('portal');
@@ -244,26 +281,34 @@ export function MonPlanView({
           <div className="grid gap-3 lg:grid-cols-2">
             <PlanCard
               plan="monthly"
-              onChoose={() => startCheckout('monthly')}
+              onChoose={() => onChoosePlan('monthly')}
               busy={busy === 'checkout-monthly'}
             />
             <PlanCard
               plan="yearly"
-              onChoose={() => startCheckout('yearly')}
+              onChoose={() => onChoosePlan('yearly')}
               busy={busy === 'checkout-yearly'}
               highlighted
             />
           </div>
 
-          <p className="text-center text-xs text-ink-soft">
-            Tu es patiente de Karine ? Demande un accès gratuit depuis la{' '}
-            <a href="/login" className="font-semibold text-coral underline">
-              page de connexion
-            </a>
-            .
-          </p>
+          {!isAuthenticated && (
+            <p className="text-center text-xs text-ink-soft">
+              Patiente de Karine ?{' '}
+              <a href="/signup" className="font-semibold text-coral underline">
+                Crée un compte avec l&apos;option « patiente »
+              </a>{' '}
+              pour demander un accès gratuit.
+            </p>
+          )}
         </section>
       )}
+
+      {/* Modal auth gate (visiteur qui clique sur un plan) */}
+      <SubscribeAuthGate
+        plan={pendingPlan}
+        onClose={() => setPendingPlan(null)}
+      />
     </div>
   );
 }

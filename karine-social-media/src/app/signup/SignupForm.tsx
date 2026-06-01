@@ -74,12 +74,15 @@ export default function SignupForm() {
           console.warn('[patient-request] échec', j?.error);
         }
         setSuccess(
-          'Compte créé ! Ta demande d\'accès patiente a été envoyée à Karine. Tu peux explorer en attendant.',
+          'Compte créé ! Ta demande d\'accès patiente a été envoyée à Karine. Tu auras un accès gratuit dès validation. Tu peux aussi t\'abonner en attendant depuis ton plan.',
         );
+        // ⚠️ Si l'utilisatrice arrive depuis un click plan (?next=/mon-plan?plan=monthly),
+        // on SUPPRIME le paramètre ?plan= pour éviter de déclencher Stripe — la
+        // demande patiente prime, comme validé en cadrage.
         setTimeout(() => {
-          router.push(redirect);
+          router.push(stripPlanParam(redirect));
           router.refresh();
-        }, 1800);
+        }, 2200);
         return;
       }
 
@@ -257,6 +260,22 @@ export default function SignupForm() {
       `}</style>
     </main>
   );
+}
+
+/**
+ * Retire le query param ?plan= d'une URL relative (ex. "/mon-plan?plan=monthly"
+ * → "/mon-plan"). Utilisé pour le cas patiente : on évite de déclencher Stripe
+ * après signup même si l'utilisatrice était venue depuis un click plan.
+ */
+function stripPlanParam(url: string): string {
+  try {
+    const u = new URL(url, 'http://x');
+    u.searchParams.delete('plan');
+    const search = u.searchParams.toString();
+    return u.pathname + (search ? `?${search}` : '') + u.hash;
+  } catch {
+    return url;
+  }
 }
 
 function Field({
