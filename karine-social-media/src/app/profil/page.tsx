@@ -29,12 +29,14 @@ export default async function ProfilPage() {
                 Espace admin
               </Link>
             )}
-            <Link
-              href="/auth/signout"
-              className="block rounded-full border border-coral-soft bg-white px-4 py-2 text-center text-sm font-semibold text-coral-dark transition hover:bg-coral-soft/40"
-            >
-              Se déconnecter
-            </Link>
+            <form action="/auth/signout" method="post">
+              <button
+                type="submit"
+                className="block w-full rounded-full border border-coral-soft bg-white px-4 py-2 text-center text-sm font-semibold text-coral-dark transition hover:bg-coral-soft/40"
+              >
+                Se déconnecter
+              </button>
+            </form>
           </div>
         ) : (
           <div className="space-y-4 rounded-2xl bg-white/85 p-6 shadow-sm">
