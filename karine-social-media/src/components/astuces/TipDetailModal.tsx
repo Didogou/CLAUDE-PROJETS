@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Printer, X } from 'lucide-react';
 import type { Tip } from '@/data/tips';
+import { ZoomableImage } from '@/components/ui/ZoomableImage';
 
 /**
  * Modal plein écran qui présente les slides de l'astuce en grand.
@@ -135,12 +136,12 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
             <ChevronLeft className="h-6 w-6" />
           </button>
         )}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
+        <ZoomableImage
           key={index}
           src={slides[index]}
           alt={`${tip.label} — slide ${index + 1}`}
-          className="block max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+          className="h-full w-full"
+          imgClassName="rounded-lg shadow-2xl"
         />
         {multi && (
           <button
