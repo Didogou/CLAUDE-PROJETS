@@ -4,6 +4,8 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
+  ArrowRight,
+  CheckCircle2,
   Eye,
   EyeOff,
   Heart,
@@ -30,6 +32,13 @@ export default function SignupForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  /**
+   * Quand non-null, on remplace le formulaire par un panneau de confirmation
+   * persistant. La page NE se redirige PAS automatiquement : c'est l'utilisatrice
+   * qui clique le bouton « Continuer » pour aller à l'URL contenue ici. Évite
+   * la confusion (« la page a disparu, je n'ai pas eu le temps de lire »).
+   */
+  const [completedRedirect, setCompletedRedirect] = useState<string | null>(null);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -85,10 +94,8 @@ export default function SignupForm() {
         // ⚠️ Si l'utilisatrice arrive depuis un click plan (?next=/mon-plan?plan=monthly),
         // on SUPPRIME le paramètre ?plan= pour éviter de déclencher Stripe — la
         // demande patiente prime, comme validé en cadrage.
-        setTimeout(() => {
-          router.push(stripPlanParam(redirect));
-          router.refresh();
-        }, 2200);
+        // La page reste affichée jusqu'à ce que l'utilisatrice clique « Continuer ».
+        setCompletedRedirect(stripPlanParam(redirect));
         return;
       }
 
@@ -106,6 +113,33 @@ export default function SignupForm() {
 
       <div className="flex flex-1 items-center justify-center px-3 py-5 sm:px-5 sm:py-6">
         <div className="w-full max-w-md">
+          {/* Si completedRedirect est posé → on remplace TOUT le formulaire
+              par un panneau de confirmation persistant. L'utilisatrice
+              CLIQUE elle-même pour continuer (pas d'auto-redirect). */}
+          {completedRedirect !== null ? (
+            <section className="rounded-3xl border border-sage/40 bg-white/95 px-5 py-7 text-center shadow-[0_18px_40px_-22px_rgba(140,180,140,0.45)] backdrop-blur-sm sm:px-8 sm:py-8">
+              <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-full bg-sage/15 text-sage">
+                <CheckCircle2 className="h-8 w-8" strokeWidth={2} />
+              </div>
+              <h1 className="font-script text-3xl text-coral-dark sm:text-4xl">
+                Demande envoyée à Karine
+              </h1>
+              <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-ink">
+                {success}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  router.push(completedRedirect);
+                  router.refresh();
+                }}
+                className="mt-6 inline-flex items-center gap-2 rounded-full bg-coral px-6 py-3 text-sm font-bold text-white shadow-[0_6px_18px_-8px_rgba(226,120,141,0.8)] transition hover:bg-coral-dark"
+              >
+                Continuer
+                <ArrowRight className="h-4 w-4" strokeWidth={2.5} />
+              </button>
+            </section>
+          ) : (
           <section className="rounded-3xl border border-coral-soft/40 bg-white/85 px-4 py-6 shadow-[0_18px_40px_-22px_rgba(226,120,141,0.55)] backdrop-blur-sm sm:px-7 sm:py-7">
             <header className="mb-5 text-center">
               <h1 className="font-script text-4xl text-coral-dark sm:text-5xl">
@@ -231,16 +265,19 @@ export default function SignupForm() {
               </button>
             </form>
           </section>
+          )}
 
-          <p className="mt-6 text-center text-sm text-ink-soft">
-            Déjà un compte ?{' '}
-            <Link
-              href={`/login${redirect !== '/' ? `?next=${encodeURIComponent(redirect)}` : ''}`}
-              className="font-semibold text-coral hover:text-coral-dark hover:underline"
-            >
-              Se connecter
-            </Link>
-          </p>
+          {completedRedirect === null && (
+            <p className="mt-6 text-center text-sm text-ink-soft">
+              Déjà un compte ?{' '}
+              <Link
+                href={`/login${redirect !== '/' ? `?next=${encodeURIComponent(redirect)}` : ''}`}
+                className="font-semibold text-coral hover:text-coral-dark hover:underline"
+              >
+                Se connecter
+              </Link>
+            </p>
+          )}
         </div>
       </div>
 
