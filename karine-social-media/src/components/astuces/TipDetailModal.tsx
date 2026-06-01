@@ -15,7 +15,6 @@ import { ZoomableImage } from '@/components/ui/ZoomableImage';
 export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(0);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -74,30 +73,37 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
 
       {/* ============== VUE ÉCRAN ============== */}
       <div
-        className="fixed inset-0 z-[100] flex flex-col bg-black/85 backdrop-blur-sm print:hidden"
-        onClick={onClose}
+        className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm print:hidden"
         role="dialog"
         aria-modal="true"
         aria-label={tip.label}
       >
-        {/* Header : label + index + print + close */}
-        <header className="flex shrink-0 items-center gap-3 px-4 py-3 sm:px-6 sm:py-4">
+        {/* ZoomableImage plein écran : pinch / pan / double-tap utilisent
+            TOUTE la surface visible (pas un cadre). Header/footer flottent
+            par-dessus en pointer-events-auto. */}
+        <ZoomableImage
+          key={index}
+          src={slides[index]}
+          alt={`${tip.label} — slide ${index + 1}`}
+          className="absolute inset-0"
+          imgClassName="max-h-full max-w-full"
+        />
+
+        {/* Header overlay : label + index + print + close */}
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 bg-gradient-to-b from-black/55 to-transparent px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="min-w-0 flex-1 truncate font-script text-2xl text-white sm:text-3xl">
             {tip.label}
           </h2>
           {multi && (
-            <span className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-xs font-bold text-white">
+            <span className="pointer-events-auto shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
               {index + 1}/{slides.length}
             </span>
           )}
           <button
             type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.print();
-            }}
+            onClick={() => window.print()}
             aria-label="Imprimer"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
+            className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/20 text-white shadow-sm backdrop-blur-sm transition hover:bg-white/35"
           >
             <Printer className="h-5 w-5" />
           </button>
@@ -105,63 +111,41 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
             type="button"
             onClick={onClose}
             aria-label="Fermer"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30"
+            className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/20 text-white shadow-sm backdrop-blur-sm transition hover:bg-white/35"
           >
             <X className="h-5 w-5" />
           </button>
         </header>
 
-      {/* Zone image : tout le reste, image en contain */}
-      <div
-        className="relative flex min-h-0 flex-1 items-center justify-center px-4 pb-2 sm:px-12"
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-        onTouchEnd={(e) => {
-          if (touchStartX === null || !multi) return;
-          const dx = e.changedTouches[0].clientX - touchStartX;
-          if (Math.abs(dx) > 50) {
-            if (dx < 0) next();
-            else prev();
-          }
-          setTouchStartX(null);
-        }}
-      >
+        {/* Flèches latérales desktop — overlay */}
         {multi && (
           <button
             type="button"
             onClick={prev}
             aria-label="Slide précédente"
-            className="absolute left-2 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30 sm:grid"
+            className="absolute left-3 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-sm transition hover:bg-white/35 sm:grid"
           >
             <ChevronLeft className="h-6 w-6" />
           </button>
         )}
-        <ZoomableImage
-          key={index}
-          src={slides[index]}
-          alt={`${tip.label} — slide ${index + 1}`}
-          className="h-full w-full"
-          imgClassName="rounded-lg shadow-2xl"
-        />
         {multi && (
           <button
             type="button"
             onClick={next}
             aria-label="Slide suivante"
-            className="absolute right-2 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/30 sm:grid"
+            className="absolute right-3 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-sm transition hover:bg-white/35 sm:grid"
           >
             <ChevronRight className="h-6 w-6" />
           </button>
         )}
-      </div>
 
-        {/* Footer : dots + tags */}
-        <footer
-          className="shrink-0 space-y-3 px-4 pb-5 pt-3 sm:px-6"
-          onClick={(e) => e.stopPropagation()}
-        >
+        {/* Footer overlay : dots + tags. pointer-events-none sur le wrapper
+            mais auto sur les boutons/items interactifs. */}
+        <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-10 space-y-3 bg-gradient-to-t from-black/55 to-transparent px-4 pb-5 pt-3 sm:px-6">
+          {/* Nota : swipe inter-slide retiré — conflit avec le pan en zoom.
+              La nav passe par les flèches et les dots cliquables. */}
           {multi && (
-            <div className="flex justify-center gap-1.5">
+            <div className="pointer-events-auto flex justify-center gap-1.5">
               {slides.map((_, i) => (
                 <button
                   key={i}
@@ -176,11 +160,11 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
             </div>
           )}
           {tip.tags.length > 0 && (
-            <ul className="flex flex-wrap justify-center gap-2">
+            <ul className="pointer-events-auto flex flex-wrap justify-center gap-2">
               {tip.tags.map((tag) => (
                 <li
                   key={tag}
-                  className="rounded-full bg-white/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white"
+                  className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white backdrop-blur-sm"
                 >
                   {tag}
                 </li>
