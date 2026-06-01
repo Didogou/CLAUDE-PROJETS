@@ -187,6 +187,109 @@ Karine`;
   return { subject, html, text };
 }
 
+/**
+ * Email envoyé à Karine quand une utilisatrice soumet une idée
+ * (recette / astuce / question) depuis l'icône flottante.
+ */
+export function ideaSubmissionEmailForAdmin(args: {
+  authorEmail: string;
+  authorName: string | null;
+  type: 'recette' | 'astuce' | 'question';
+  title: string;
+  body: string;
+  appUrl: string;
+}): { subject: string; html: string; text: string } {
+  const typeLabel =
+    args.type === 'recette'
+      ? 'Idée de recette'
+      : args.type === 'astuce'
+        ? 'Idée d’astuce'
+        : 'Question';
+  const who = args.authorName?.trim() || args.authorEmail;
+
+  const subject = `Karine Diététique — ${typeLabel} : ${args.title}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: 'Helvetica Neue', Arial, sans-serif; color: #4b4248; background: #fdf2f4; padding: 24px;">
+  <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 16px rgba(226,120,141,0.15);">
+    <p style="text-transform: uppercase; letter-spacing: 0.08em; font-size: 11px; color: #c75a73; font-weight: bold; margin: 0 0 8px;">${typeLabel}</p>
+    <h1 style="font-family: Georgia, serif; color: #c75a73; font-size: 24px; margin: 0 0 16px;">${escapeHtml(args.title)}</h1>
+    <p style="font-size: 14px; color: #b59ea4; margin: 0 0 16px;">De ${escapeHtml(who)}</p>
+    <div style="border-left: 3px solid #e2788d; padding: 12px 16px; background: #fdf2f4; border-radius: 4px; font-size: 15px; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(args.body)}</div>
+    <div style="text-align: center; margin: 28px 0 0;">
+      <a href="${args.appUrl}/admin/idees" style="display: inline-block; background: #e2788d; color: white; padding: 12px 28px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 14px;">Répondre depuis l’admin</a>
+    </div>
+  </div>
+</body>
+</html>
+`.trim();
+
+  const text = `${typeLabel} — ${args.title}
+De ${who}
+
+${args.body}
+
+Répondre depuis l'admin : ${args.appUrl}/admin/idees`;
+
+  return { subject, html, text };
+}
+
+/**
+ * Email envoyé à l'utilisatrice quand Karine répond à son idée depuis
+ * /admin/idees. Une notification cloche est créée en parallèle.
+ */
+export function ideaReplyEmailForUser(args: {
+  fullName: string | null;
+  type: 'recette' | 'astuce' | 'question';
+  title: string;
+  reply: string;
+  appUrl: string;
+}): { subject: string; html: string; text: string } {
+  const first = args.fullName?.split(' ')[0]?.trim() || 'à toi';
+  const typeLabel =
+    args.type === 'recette'
+      ? 'ton idée de recette'
+      : args.type === 'astuce'
+        ? 'ton astuce'
+        : 'ta question';
+
+  const subject = `Karine Diététique — Réponse à ${typeLabel}`;
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="font-family: 'Helvetica Neue', Arial, sans-serif; color: #4b4248; background: #fdf2f4; padding: 24px;">
+  <div style="max-width: 560px; margin: 0 auto; background: white; border-radius: 16px; padding: 32px; box-shadow: 0 4px 16px rgba(226,120,141,0.15);">
+    <h1 style="font-family: Georgia, serif; color: #c75a73; font-size: 26px; margin: 0 0 8px;">Coucou ${first} 💗</h1>
+    <p style="font-size: 16px; line-height: 1.5;">Karine a répondu à ${typeLabel} : <strong>${escapeHtml(args.title)}</strong></p>
+    <div style="border-left: 3px solid #e2788d; padding: 12px 16px; background: #fdf2f4; border-radius: 4px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; margin: 16px 0;">${escapeHtml(args.reply)}</div>
+    <div style="text-align: center; margin: 28px 0;">
+      <a href="${args.appUrl}/notifications" style="display: inline-block; background: #e2788d; color: white; padding: 14px 32px; border-radius: 999px; text-decoration: none; font-weight: bold; font-size: 15px;">Voir dans l’app</a>
+    </div>
+    <p style="font-size: 13px; color: #b59ea4; margin-top: 32px;">Belle journée,<br />Karine 🌿</p>
+  </div>
+</body>
+</html>
+`.trim();
+
+  const text = `Coucou ${first},
+
+Karine a répondu à ${typeLabel} : « ${args.title} »
+
+${args.reply}
+
+Voir dans l'app : ${args.appUrl}/notifications
+
+Belle journée,
+Karine`;
+
+  return { subject, html, text };
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
