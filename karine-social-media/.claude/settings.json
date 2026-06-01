@@ -104,7 +104,11 @@
       "Bash(powershell -NoProfile -Command \"Stop-Process -Id 17632 -Force; Start-Sleep -Milliseconds 800; if \\(Get-NetTCPConnection -LocalPort 3100 -State Listen -ErrorAction SilentlyContinue\\) { Write-Output 'Port encore occupe' } else { Write-Output 'Port libre' }\")",
       "Bash(xargs grep -l \"current_period_start\")",
       "Bash(awk '/^\\\\s*export interface Invoice\\\\b/,/^\\\\s*}$/' node_modules/stripe/cjs/resources/Invoices.d.ts)",
-      "Bash(git status *)"
+      "Bash(git status *)",
+      "Bash(curl -s https://karine-social-media.vercel.app/login -o /tmp/login.html -w \"HTTP %{http_code}\\\\n\")",
+      "Bash(vercel --version)",
+      "Bash(curl -s -o /tmp/login.html -w \"HTTP %{http_code}\\\\n\" https://karine-social-media.vercel.app/login)",
+      "Bash(git commit *)"
     ],
     "additionalDirectories": [
       "\\tmp"
