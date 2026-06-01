@@ -59,15 +59,24 @@ export function ZoomableImage({
     setTy(0);
   }, [src]);
 
-  /** Empêche le scroll natif du document pendant un pinch sur mobile. */
+  /** Empêche le scroll natif du document pendant un pinch sur mobile +
+   *  intercepte le wheel pour Ctrl+wheel zoom (React rend onWheel passive,
+   *  donc preventDefault() depuis onWheel échoue : on attache à la main). */
   useEffect(() => {
     const el = wrapperRef.current;
     if (!el) return;
-    const prevent = (e: TouchEvent) => {
+    const preventTouch = (e: TouchEvent) => {
       if (e.touches.length > 1) e.preventDefault();
     };
-    el.addEventListener('touchmove', prevent, { passive: false });
-    return () => el.removeEventListener('touchmove', prevent);
+    const preventWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) e.preventDefault();
+    };
+    el.addEventListener('touchmove', preventTouch, { passive: false });
+    el.addEventListener('wheel', preventWheel, { passive: false });
+    return () => {
+      el.removeEventListener('touchmove', preventTouch);
+      el.removeEventListener('wheel', preventWheel);
+    };
   }, []);
 
   const clampPan = useCallback(
@@ -193,8 +202,10 @@ export function ZoomableImage({
   const onWheel = useCallback(
     (e: React.WheelEvent) => {
       // Ctrl+wheel = zoom (convention navigateur). Sans Ctrl on laisse défiler.
+      // Le preventDefault natif est géré par addEventListener({passive:false})
+      // dans le useEffect plus haut (React onWheel est passive sur la plupart
+      // des navigateurs et logguerait "Unable to preventDefault" sinon).
       if (!e.ctrlKey && !e.metaKey) return;
-      e.preventDefault();
       const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
       const newScale = Math.max(1, Math.min(maxScale, scale * factor));
       setScale(newScale);
@@ -234,7 +245,7 @@ export function ZoomableImage({
       onPointerCancel={onPointerUp}
       onWheel={onWheel}
       onDoubleClick={onDoubleClick}
-      className={`relative flex items-center justify-center overflow-hidden ${className}`}
+      className={`flex items-center justify-center overflow-hidden ${className}`}
       style={{ touchAction: 'none' }}
     >
       <img
@@ -248,6 +259,8 @@ export function ZoomableImage({
           transformOrigin: 'center center',
           maxWidth: '100%',
           maxHeight: '100%',
+          width: 'auto',
+          height: 'auto',
           objectFit: 'contain',
         }}
       />
