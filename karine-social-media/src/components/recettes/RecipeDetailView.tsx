@@ -608,12 +608,13 @@ export function RecipeDetailView({
           role="dialog"
           aria-modal="true"
         >
-          {/* ZoomableImage occupe TOUT l'overlay : pinch / pan / double-tap
-              utilisent toute la surface de l'écran, pas un carré. */}
+          {/* ZoomableImage occupe TOUT l'overlay (le pinch utilise toute la
+              surface) mais l'image au scale=1 laisse des marges haut/bas
+              pour les contrôles (X, flèches) — padding interne. */}
           <ZoomableImage
             src={images[index]}
             alt={`${title} — fiche ${index + 1}/${images.length}`}
-            className="absolute inset-0"
+            className="absolute inset-0 px-4 pb-20 pt-16 sm:px-8"
             imgClassName="max-h-full max-w-full"
           />
 
@@ -624,14 +625,14 @@ export function RecipeDetailView({
             </div>
           </div>
 
-          {/* Flèches nav — overlay bottom-center par-dessus l'image */}
-          <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-4">
+          {/* Flèches nav — bottom-center, dans la marge basse */}
+          <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-4">
             {!isFirst ? (
               <button
                 type="button"
                 onClick={() => setIndex((i) => i - 1)}
                 aria-label="Fiche précédente"
-                className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white/95 text-coral shadow-lg transition hover:bg-white"
+                className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105"
               >
                 <ChevronLeft className="h-6 w-6" strokeWidth={2.5} />
               </button>
@@ -643,7 +644,7 @@ export function RecipeDetailView({
                 type="button"
                 onClick={() => setIndex((i) => i + 1)}
                 aria-label="Fiche suivante"
-                className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white/95 text-coral shadow-lg transition hover:bg-white"
+                className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105"
               >
                 <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
               </button>
@@ -652,12 +653,12 @@ export function RecipeDetailView({
             )}
           </div>
 
-          {/* Bouton fermer — overlay top-right par-dessus l'image */}
+          {/* Bouton fermer — top-right, dans la marge haute, bien contrasté */}
           <button
             type="button"
             aria-label="Fermer"
             onClick={() => setZoom(false)}
-            className="absolute right-5 top-5 z-10 grid h-11 w-11 place-items-center rounded-full bg-white/90 text-ink shadow-lg transition hover:bg-white"
+            className="absolute right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full bg-white text-ink shadow-lg ring-2 ring-white/30 transition hover:scale-105"
           >
             <X className="h-6 w-6" />
           </button>
@@ -672,28 +673,27 @@ export function RecipeDetailView({
           aria-modal="true"
           aria-label="Photo de préparation agrandie"
         >
-          {/* ZoomableImage plein écran : pinch / pan / double-tap utilisent
-              TOUTE la surface visible. */}
+          {/* Image avec marges pour les contrôles (top X, bottom flèches). */}
           <ZoomableImage
             src={prepPhotos[prepZoomIndex]}
             alt={`Photo de préparation ${prepZoomIndex + 1}`}
-            className="absolute inset-0"
+            className="absolute inset-0 px-4 pb-20 pt-16 sm:px-8"
             imgClassName="max-h-full max-w-full"
           />
 
-          {/* Compteur — overlay top-left */}
-          <span className="absolute left-5 top-6 z-10 rounded-full bg-black/40 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm">
+          {/* Compteur — top-left dans la marge haute */}
+          <span className="absolute left-4 top-5 z-20 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-ink shadow-sm ring-2 ring-white/30">
             {prepZoomIndex + 1} / {prepPhotos.length}
           </span>
 
-          {/* Flèches navigation — overlay bottom-center */}
-          <div className="pointer-events-none absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-4">
+          {/* Flèches navigation — bottom-center dans la marge basse */}
+          <div className="pointer-events-none absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 gap-4">
             {prepZoomIndex > 0 ? (
               <button
                 type="button"
                 onClick={() => setPrepZoomIndex(prepZoomIndex - 1)}
                 aria-label="Photo précédente"
-                className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white/95 text-coral shadow-lg transition hover:bg-white"
+                className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105"
               >
                 <ChevronLeft className="h-6 w-6" strokeWidth={2.5} />
               </button>
@@ -705,7 +705,7 @@ export function RecipeDetailView({
                 type="button"
                 onClick={() => setPrepZoomIndex(prepZoomIndex + 1)}
                 aria-label="Photo suivante"
-                className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white/95 text-coral shadow-lg transition hover:bg-white"
+                className="pointer-events-auto grid h-12 w-12 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105"
               >
                 <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
               </button>
@@ -714,12 +714,12 @@ export function RecipeDetailView({
             )}
           </div>
 
-          {/* Bouton fermer — overlay top-right */}
+          {/* Bouton fermer — top-right, bien contrasté et accessible */}
           <button
             type="button"
             aria-label="Fermer"
             onClick={() => setPrepZoomIndex(null)}
-            className="absolute right-5 top-5 z-10 grid h-11 w-11 place-items-center rounded-full bg-white/90 text-ink shadow-lg transition hover:bg-white"
+            className="absolute right-4 top-4 z-20 grid h-11 w-11 place-items-center rounded-full bg-white text-ink shadow-lg ring-2 ring-white/30 transition hover:scale-105"
           >
             <X className="h-6 w-6" />
           </button>

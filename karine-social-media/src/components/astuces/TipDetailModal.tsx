@@ -78,19 +78,19 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
         aria-modal="true"
         aria-label={tip.label}
       >
-        {/* ZoomableImage plein écran : pinch / pan / double-tap utilisent
-            TOUTE la surface visible (pas un cadre). Header/footer flottent
-            par-dessus en pointer-events-auto. */}
+        {/* ZoomableImage plein écran avec marges pour les contrôles
+            (header haut, footer bas, flèches latérales). Pinch utilise
+            toute la surface visible. */}
         <ZoomableImage
           key={index}
           src={slides[index]}
           alt={`${tip.label} — slide ${index + 1}`}
-          className="absolute inset-0"
+          className="absolute inset-0 px-4 pb-24 pt-16 sm:px-16"
           imgClassName="max-h-full max-w-full"
         />
 
         {/* Header overlay : label + index + print + close */}
-        <header className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center gap-3 bg-gradient-to-b from-black/55 to-transparent px-4 py-3 sm:px-6 sm:py-4">
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-3 bg-gradient-to-b from-black/55 to-transparent px-4 py-3 sm:px-6 sm:py-4">
           <h2 className="min-w-0 flex-1 truncate font-script text-2xl text-white sm:text-3xl">
             {tip.label}
           </h2>
@@ -123,9 +123,9 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
             type="button"
             onClick={prev}
             aria-label="Slide précédente"
-            className="absolute left-3 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-sm transition hover:bg-white/35 sm:grid"
+            className="absolute left-3 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:grid"
           >
-            <ChevronLeft className="h-6 w-6" />
+            <ChevronLeft className="h-6 w-6" strokeWidth={2.5} />
           </button>
         )}
         {multi && (
@@ -133,15 +133,15 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
             type="button"
             onClick={next}
             aria-label="Slide suivante"
-            className="absolute right-3 top-1/2 z-10 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/20 text-white shadow-lg backdrop-blur-sm transition hover:bg-white/35 sm:grid"
+            className="absolute right-3 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:grid"
           >
-            <ChevronRight className="h-6 w-6" />
+            <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
           </button>
         )}
 
         {/* Footer overlay : dots + tags. pointer-events-none sur le wrapper
             mais auto sur les boutons/items interactifs. */}
-        <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-10 space-y-3 bg-gradient-to-t from-black/55 to-transparent px-4 pb-5 pt-3 sm:px-6">
+        <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-20 space-y-3 bg-gradient-to-t from-black/55 to-transparent px-4 pb-5 pt-3 sm:px-6">
           {/* Nota : swipe inter-slide retiré — conflit avec le pan en zoom.
               La nav passe par les flèches et les dots cliquables. */}
           {multi && (
