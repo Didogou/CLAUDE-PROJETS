@@ -608,14 +608,15 @@ export function RecipeDetailView({
           role="dialog"
           aria-modal="true"
         >
-          {/* ZoomableImage occupe TOUT l'overlay (le pinch utilise toute la
-              surface) mais l'image au scale=1 laisse des marges haut/bas
-              pour les contrôles (X, flèches) — padding interne. */}
+          {/* ZoomableImage occupe TOUT l'overlay. Swipe horizontal au
+              scale=1 = nav inter-fiche. Au scale>1 = pan en zoom. */}
           <ZoomableImage
             src={images[index]}
             alt={`${title} — fiche ${index + 1}/${images.length}`}
             className="absolute inset-0 px-4 pb-20 pt-16 sm:px-8"
             imgClassName="max-h-full max-w-full"
+            onSwipeLeft={!isLast ? () => setIndex((i) => i + 1) : undefined}
+            onSwipeRight={!isFirst ? () => setIndex((i) => i - 1) : undefined}
           />
 
           {/* Vignettes desktop — overlay top-left au-dessus de l'image */}
@@ -673,12 +674,22 @@ export function RecipeDetailView({
           aria-modal="true"
           aria-label="Photo de préparation agrandie"
         >
-          {/* Image avec marges pour les contrôles (top X, bottom flèches). */}
+          {/* Image avec marges + swipe au scale=1 pour navigation photos. */}
           <ZoomableImage
             src={prepPhotos[prepZoomIndex]}
             alt={`Photo de préparation ${prepZoomIndex + 1}`}
             className="absolute inset-0 px-4 pb-20 pt-16 sm:px-8"
             imgClassName="max-h-full max-w-full"
+            onSwipeLeft={
+              prepZoomIndex < prepPhotos.length - 1
+                ? () => setPrepZoomIndex(prepZoomIndex + 1)
+                : undefined
+            }
+            onSwipeRight={
+              prepZoomIndex > 0
+                ? () => setPrepZoomIndex(prepZoomIndex - 1)
+                : undefined
+            }
           />
 
           {/* Compteur — top-left dans la marge haute */}

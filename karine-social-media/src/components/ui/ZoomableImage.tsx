@@ -27,12 +27,18 @@ export function ZoomableImage({
   className = '',
   imgClassName = '',
   maxScale = 5,
+  onSwipeLeft,
+  onSwipeRight,
 }: {
   src: string;
   alt: string;
   className?: string;
   imgClassName?: string;
   maxScale?: number;
+  /** Appelés sur swipe horizontal UNIQUEMENT quand scale === 1 (sinon
+   *  le 1 doigt = pan). Permet de naviguer entre slides au doigt. */
+  onSwipeLeft?: () => void;
+  onSwipeRight?: () => void;
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [scale, setScale] = useState(1);
@@ -173,11 +179,30 @@ export function ZoomableImage({
 
   const onPointerUp = useCallback(
     (e: React.PointerEvent) => {
+      const gAtUp = gestureRef.current;
       pointersRef.current.delete(e.pointerId);
       if (pointersRef.current.size === 0) {
+        // Détection swipe horizontal au scale=1 (= navigation inter-slide).
+        // Pas au-dessus de 1 car alors 1 doigt = pan.
+        let swiped = false;
+        if (
+          gAtUp &&
+          scale === 1 &&
+          e.pointerType === 'touch' &&
+          (onSwipeLeft || onSwipeRight)
+        ) {
+          const dx = e.clientX - gAtUp.initialMidX;
+          const dy = e.clientY - gAtUp.initialMidY;
+          // Geste majoritairement horizontal + amplitude minimum
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            if (dx < 0) onSwipeLeft?.();
+            else onSwipeRight?.();
+            swiped = true;
+          }
+        }
         gestureRef.current = null;
-        // Détection double-tap (touch only)
-        if (e.pointerType === 'touch') {
+        // Double-tap uniquement si pas de swipe détecté (sinon conflit)
+        if (!swiped && e.pointerType === 'touch') {
           const now = performance.now();
           const last = lastTapRef.current;
           if (last && now - last.t < 300 && Math.hypot(e.clientX - last.x, e.clientY - last.y) < 30) {
@@ -196,7 +221,7 @@ export function ZoomableImage({
         }
       }
     },
-    [scale],
+    [scale, onSwipeLeft, onSwipeRight],
   );
 
   const onWheel = useCallback(

@@ -78,15 +78,17 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
         aria-modal="true"
         aria-label={tip.label}
       >
-        {/* ZoomableImage plein écran avec marges pour les contrôles
-            (header haut, footer bas, flèches latérales). Pinch utilise
-            toute la surface visible. */}
+        {/* ZoomableImage plein écran avec marges pour les contrôles.
+            Swipe horizontal au scale=1 = nav inter-slide (mobile only).
+            Au scale>1, 1 doigt = pan (priorité au zoom). */}
         <ZoomableImage
           key={index}
           src={slides[index]}
           alt={`${tip.label} — slide ${index + 1}`}
           className="absolute inset-0 px-4 pb-24 pt-16 sm:px-16"
           imgClassName="max-h-full max-w-full"
+          onSwipeLeft={multi ? next : undefined}
+          onSwipeRight={multi ? prev : undefined}
         />
 
         {/* Header overlay : label + index + print + close */}
@@ -117,15 +119,17 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
           </button>
         </header>
 
-        {/* Flèches latérales desktop — overlay */}
+        {/* Flèches latérales — visibles mobile ET desktop. Sur mobile elles
+            sont legerement plus petites et plus proches du bord pour rester
+            confortables au pouce. */}
         {multi && (
           <button
             type="button"
             onClick={prev}
             aria-label="Slide précédente"
-            className="absolute left-3 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:grid"
+            className="absolute left-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:left-3 sm:h-12 sm:w-12"
           >
-            <ChevronLeft className="h-6 w-6" strokeWidth={2.5} />
+            <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.5} />
           </button>
         )}
         {multi && (
@@ -133,9 +137,9 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
             type="button"
             onClick={next}
             aria-label="Slide suivante"
-            className="absolute right-3 top-1/2 z-20 hidden h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:grid"
+            className="absolute right-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:right-3 sm:h-12 sm:w-12"
           >
-            <ChevronRight className="h-6 w-6" strokeWidth={2.5} />
+            <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.5} />
           </button>
         )}
 
