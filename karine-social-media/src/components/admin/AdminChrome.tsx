@@ -18,6 +18,7 @@ import {
   MessageSquare,
   HeartHandshake,
   Shield,
+  SlidersHorizontal,
 } from 'lucide-react';
 
 type Section = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -32,6 +33,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/patientes', label: 'Patientes', icon: HeartHandshake },
   { href: '/admin/abonnes', label: 'Abonnés', icon: Users },
   { href: '/admin/permissions', label: 'Permissions', icon: Shield },
+  { href: '/admin/parametres', label: 'Paramètres', icon: SlidersHorizontal },
   { href: '/admin/compte', label: 'Compte', icon: Settings },
 ];
 

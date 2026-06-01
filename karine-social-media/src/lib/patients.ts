@@ -42,12 +42,12 @@ export async function getMyLatestPatientRequest(
 }
 
 /** Cooldown en jours entre 2 actions (création + relance, ou 2 relances).
- *  Configurable via env var pour mettre 0 en test, 3 en prod. */
-export function getRelanceCooldownDays(): number {
-  const raw = process.env.PATIENT_RELANCE_COOLDOWN_DAYS;
-  const n = raw ? parseInt(raw, 10) : 3;
-  if (Number.isNaN(n) || n < 0) return 3;
-  return n;
+ *  Lu depuis app_settings (table éditable par Karine dans /admin/parametres).
+ *  Fail-safe : 3 jours en cas d'erreur DB. */
+export async function getRelanceCooldownDays(): Promise<number> {
+  const { getAppSettings } = await import('@/lib/app-settings');
+  const s = await getAppSettings();
+  return s.patientRelanceCooldownDays;
 }
 
 async function getRequestsByStatus(

@@ -6,6 +6,7 @@ import { MaJourneeCard } from '@/components/garde/MaJourneeCard';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { findPermissionForPath } from '@/lib/page-permissions';
+import { discoverPages } from '@/lib/discover-pages';
 import { getCurrentUser } from '@/lib/current-user';
 
 export const dynamic = 'force-dynamic';
@@ -73,20 +74,24 @@ export default async function Home({
     redirect('/admin');
   }
 
-  // Pour chaque tuile, on calcule si l'utilisatrice peut y accéder selon son rôle
-  // effectif et la règle page_permissions correspondante. Si pas le bon rôle →
-  // la tuile est "locked" et ouvre une modal paywall au clic au lieu de naviguer.
+  // Pour chaque tuile, on calcule si l'utilisatrice peut y accéder.
+  //   Cas 1 : la page n'existe pas en code → tuile locked d'office
+  //   Cas 2 : la page existe + règle restrictive en DB → check rôle effectif
   //
   // ⚠️ Cette détection est UNIQUEMENT pour l'UX. La SÉCURITÉ RÉELLE est dans
   // le proxy (`src/lib/supabase/middleware.ts`) qui bloque l'accès direct à l'URL.
-  // Un user qui tape /conseils dans la barre d'adresse sans être abonné est
-  // toujours redirigé vers /login. La tuile "locked" évite juste la confusion.
+  const discoveredPaths = new Set(discoverPages().map((p) => p.path));
   const tilesWithAccess = await Promise.all(
     TILES.map(async (tile) => {
+      // 1. Si la page n'EXISTE PAS dans src/app/ → tuile locked automatiquement.
+      //    Évite le 404 brut quand on rajoute une tuile vers une page pas encore
+      //    codée (ex. /mon-menu en cours de dev). Modal paywall affichée au clic.
+      if (!discoveredPaths.has(tile.href)) {
+        return { ...tile, locked: true };
+      }
+      // 2. Page existante → check page_permissions vs rôle effectif
       const rule = await findPermissionForPath(tile.href);
-      // Pas de règle → page ouverte à tous → tuile cliquable normalement
       if (!rule) return { ...tile, locked: false };
-      // Règle → on vérifie si le rôle effectif de l'user est dans allowed_roles
       const locked = !rule.allowedRoles.includes(user.effectiveRole);
       return { ...tile, locked };
     }),

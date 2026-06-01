@@ -20,7 +20,7 @@ export default async function ProfilPage() {
     user.isAuthenticated && user.id
       ? await getMyLatestPatientRequest(user.id)
       : null;
-  const cooldownDays = getRelanceCooldownDays();
+  const cooldownDays = await getRelanceCooldownDays();
 
   return (
     <div className="relative flex min-h-screen flex-col">

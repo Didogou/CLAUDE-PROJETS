@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     if (existing) {
       // Check cooldown : on prend max(created_at, last_reminder_at) comme
       // dernière action et on vérifie qu'il s'est écoulé au moins N jours.
-      const cooldownDays = getRelanceCooldownDays();
+      const cooldownDays = await getRelanceCooldownDays();
       if (cooldownDays > 0) {
         const created = new Date(existing.created_at as string);
         const lastRem = existing.last_reminder_at
