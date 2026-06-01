@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { sendEmail } from '@/lib/email';
-import { getAdminEmail } from '@/lib/patients';
+import { getAdminEmail, getRelanceCooldownDays } from '@/lib/patients';
 
 /**
  * Création d'une demande d'accès patient par l'utilisateur connecté.
@@ -45,11 +45,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cas 2 : demande pending existe → incrément reminder + notif Karine
+    // Cas 2 : demande pending existe → check cooldown + incrément reminder + notif Karine
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existing } = await (service as any)
       .from('patient_requests')
-      .select('id, reminder_count, created_at')
+      .select('id, reminder_count, created_at, last_reminder_at')
       .eq('user_id', user.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
@@ -57,11 +57,37 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     if (existing) {
+      // Check cooldown : on prend max(created_at, last_reminder_at) comme
+      // dernière action et on vérifie qu'il s'est écoulé au moins N jours.
+      const cooldownDays = getRelanceCooldownDays();
+      if (cooldownDays > 0) {
+        const created = new Date(existing.created_at as string);
+        const lastRem = existing.last_reminder_at
+          ? new Date(existing.last_reminder_at as string)
+          : null;
+        const lastAction = lastRem && lastRem > created ? lastRem : created;
+        const elapsedMs = Date.now() - lastAction.getTime();
+        const remainingMs = cooldownDays * 24 * 3600 * 1000 - elapsedMs;
+        if (remainingMs > 0) {
+          const remainingDays = Math.ceil(remainingMs / (24 * 3600 * 1000));
+          return NextResponse.json(
+            {
+              error: `Tu pourras relancer Karine dans ${remainingDays} jour${remainingDays > 1 ? 's' : ''}.`,
+              cooldownRemainingDays: remainingDays,
+            },
+            { status: 429 },
+          );
+        }
+      }
+
       const nextCount = (existing.reminder_count ?? 0) + 1;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (service as any)
         .from('patient_requests')
-        .update({ reminder_count: nextCount })
+        .update({
+          reminder_count: nextCount,
+          last_reminder_at: new Date().toISOString(),
+        })
         .eq('id', existing.id);
 
       // Notif Karine (best effort, on ne bloque pas la réponse)

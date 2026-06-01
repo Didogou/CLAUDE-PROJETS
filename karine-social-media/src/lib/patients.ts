@@ -14,8 +14,40 @@ function mapRequest(row: any): PatientRequest {
     reviewedAt: row.reviewed_at,
     createdAt: row.created_at,
     reminderCount: row.reminder_count ?? 0,
+    lastReminderAt: row.last_reminder_at ?? null,
     reviewerComment: row.reviewer_comment ?? null,
   };
+}
+
+/**
+ * Récupère la demande patiente la plus récente d'un utilisateur connecté.
+ * Utilisé sur /profil pour afficher l'état (pending / rejected) + relancer.
+ */
+export async function getMyLatestPatientRequest(
+  userId: string,
+): Promise<PatientRequest | null> {
+  const supabase = createServiceClient();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('patient_requests')
+    .select(
+      '*, profile:profiles!patient_requests_user_id_fkey(email, full_name)',
+    )
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data ? mapRequest(data) : null;
+}
+
+/** Cooldown en jours entre 2 actions (création + relance, ou 2 relances).
+ *  Configurable via env var pour mettre 0 en test, 3 en prod. */
+export function getRelanceCooldownDays(): number {
+  const raw = process.env.PATIENT_RELANCE_COOLDOWN_DAYS;
+  const n = raw ? parseInt(raw, 10) : 3;
+  if (Number.isNaN(n) || n < 0) return 3;
+  return n;
 }
 
 async function getRequestsByStatus(
