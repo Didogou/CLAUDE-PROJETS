@@ -7,7 +7,7 @@ import { Logo } from './Logo';
  */
 export function BrandHeader({ slogan }: { slogan?: string }) {
   return (
-    <div className="flex flex-col items-center px-6 pt-8 text-center">
+    <div className="flex flex-col items-center px-3 pt-6 text-center sm:px-6 sm:pt-8">
       <Logo />
       {slogan !== '' && (
         <p className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-coral sm:text-sm">
