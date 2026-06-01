@@ -2,25 +2,47 @@ import Link from 'next/link';
 import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
+import { createClient } from '@/lib/supabase/server';
 import { getCurrentUser } from '@/lib/current-user';
 import {
   getMyLatestPatientRequest,
   getRelanceCooldownDays,
 } from '@/lib/patients';
+import { getUserSubscription } from '@/lib/subscriptions';
 import { PatientRequestStatusBlock } from '@/components/profil/PatientRequestStatusBlock';
+import { MyPlanCard } from '@/components/profil/MyPlanCard';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProfilPage() {
   const user = await getCurrentUser();
 
-  // Si connecté, on récupère la demande patiente la plus récente pour afficher
-  // son statut (pending / rejected) + bouton relancer.
-  const latestRequest =
-    user.isAuthenticated && user.id
-      ? await getMyLatestPatientRequest(user.id)
-      : null;
-  const cooldownDays = await getRelanceCooldownDays();
+  // Side fetches en parallèle pour limiter la latence cumulée
+  const [latestRequest, cooldownDays, subscription, profileExtra] =
+    await Promise.all([
+      user.isAuthenticated && user.id
+        ? getMyLatestPatientRequest(user.id)
+        : Promise.resolve(null),
+      getRelanceCooldownDays(),
+      user.isAuthenticated && user.id
+        ? getUserSubscription(user.id)
+        : Promise.resolve(null),
+      user.isAuthenticated && user.id
+        ? (async () => {
+            const supabase = await createClient();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { data } = await (supabase as any)
+              .from('profiles')
+              .select('role, patient_access_expires_at')
+              .eq('id', user.id)
+              .maybeSingle();
+            return data as {
+              role?: string;
+              patient_access_expires_at?: string | null;
+            } | null;
+          })()
+        : Promise.resolve(null),
+    ]);
 
   return (
     <div className="relative flex min-h-screen flex-col">
@@ -52,6 +74,12 @@ export default async function ProfilPage() {
                 </button>
               </form>
             </div>
+
+            <MyPlanCard
+              role={profileExtra?.role ?? 'visitor'}
+              patientExpiresAt={profileExtra?.patient_access_expires_at ?? null}
+              subscription={subscription}
+            />
 
             {/* Bloc demande patiente : visible seulement si la dernière demande
                 est pending ou rejected (= statut intéressant pour l'utilisatrice). */}
