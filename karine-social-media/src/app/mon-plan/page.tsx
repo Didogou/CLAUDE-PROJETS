@@ -19,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export default async function MonPlanPage({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string; plan?: string }>;
+  searchParams: Promise<{ checkout?: string; plan?: string; next?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -30,11 +30,19 @@ export default async function MonPlanPage({
 
   // Plan à auto-déclencher après auth (cf. flow Stripe : visiteur clique plan
   // → s'inscrit/se connecte → revient ici avec ?plan=monthly → auto-checkout).
-  // On filtre pour ne garder qu'un PlanKind valide, jamais quoi que ce soit
-  // d'autre venant de la query string.
   const requestedPlan: PlanKind | null =
     params.plan === 'monthly' || params.plan === 'yearly'
       ? (params.plan as PlanKind)
+      : null;
+
+  // `next` = page restreinte d'origine (le middleware redirige les visiteurs
+  // depuis une page non autorisée vers /mon-plan?next=<original>). Whitelist
+  // côté serveur pour éviter open redirect : doit commencer par '/' et pas '//'.
+  const safeNext =
+    typeof params.next === 'string' &&
+    params.next.startsWith('/') &&
+    !params.next.startsWith('//')
+      ? params.next
       : null;
 
   if (!user) {
@@ -50,6 +58,7 @@ export default async function MonPlanPage({
             subscription={null}
             checkoutStatus={params.checkout ?? null}
             requestedPlan={null}
+            forbiddenNext={safeNext}
           />
         </main>
         <BottomNav />
@@ -86,6 +95,7 @@ export default async function MonPlanPage({
           subscription={subscription}
           checkoutStatus={params.checkout ?? null}
           requestedPlan={requestedPlan}
+          forbiddenNext={safeNext}
         />
       </main>
       <BottomNav />

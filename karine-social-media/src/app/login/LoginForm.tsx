@@ -32,8 +32,13 @@ export default function LoginForm() {
         password,
       });
       if (error) throw error;
-      router.push(redirect);
-      router.refresh();
+      // Hard navigation au lieu de router.push :
+      // sur Android, Chrome affiche l'invite "enregistrer le mot de passe"
+      // au submit ; un router.push (nav client SPA) garde la même page
+      // technique et l'invite se redéclenche à chaque ré-interaction.
+      // window.location.assign provoque un vrai changement de doc → l'invite
+      // se ferme proprement et la session refresh est complète.
+      window.location.assign(redirect);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de connexion');
       setLoading(false);
@@ -66,9 +71,12 @@ export default function LoginForm() {
             <form onSubmit={handleSubmit} className="space-y-3">
               <Field icon={Mail} label="Adresse e-mail">
                 <input
+                  id="login-email"
+                  name="email"
                   type="email"
                   required
                   autoComplete="email"
+                  inputMode="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="Adresse e-mail"
@@ -78,6 +86,8 @@ export default function LoginForm() {
 
               <Field icon={KeyRound} label="Mot de passe">
                 <input
+                  id="login-password"
+                  name="password"
                   type={showPass ? 'text' : 'password'}
                   required
                   autoComplete="current-password"

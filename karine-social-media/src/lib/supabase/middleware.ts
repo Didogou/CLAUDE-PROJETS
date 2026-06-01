@@ -61,10 +61,14 @@ export async function updateSession(request: NextRequest) {
       if (rule) {
         const effectiveRole = await computeEffectiveRole(supabase, user?.id ?? null);
         if (!rule.allowedRoles.includes(effectiveRole)) {
+          // Au lieu de rediriger vers /login (qui ne montre pas l'offre),
+          // on envoie directement sur /mon-plan où les plans sont visibles
+          // et cliquables. /mon-plan reçoit `?next=<path>` pour que l'encart
+          // explicatif rappelle d'où vient l'utilisatrice.
+          // /mon-plan est lui-même hors page_permissions (allowed à tous).
           const url = request.nextUrl.clone();
-          url.pathname = '/login';
+          url.pathname = '/mon-plan';
           url.searchParams.set('next', pathname);
-          url.searchParams.set('reason', 'forbidden');
           return NextResponse.redirect(url);
         }
       }

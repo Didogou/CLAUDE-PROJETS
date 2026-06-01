@@ -8,6 +8,7 @@ import { SeasonChip } from './SeasonChip';
 import { InstaComments } from './InstaComments';
 import { FireworkBurst } from './FireworkBurst';
 import { compressImage } from '@/lib/compress-image';
+import { ZoomableImage } from '@/components/ui/ZoomableImage';
 
 type Comment = {
   id: string | number;
@@ -611,24 +612,19 @@ export function RecipeDetailView({
             <Thumbnails size="w-16 lg:w-20" />
           </div>
 
-          {/* Grande fiche + navigation (swipe horizontal sur l'image) */}
+          {/* Grande fiche : pinch-to-zoom (2 doigts) + double-tap + Ctrl+wheel.
+              La nav entre fiches passe par les flèches/vignettes — le swipe
+              horizontal serait en conflit avec le pan-quand-zoomé. */}
           <div
-            className="relative aspect-square h-auto w-full max-w-[min(85vw,85vh)] touch-pan-y"
+            className="relative aspect-square h-auto w-full max-w-[min(85vw,85vh)]"
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={onSwipeStart}
-            onTouchEnd={onSwipeEnd}
           >
-            {images.map((src, i) => (
-              <span
-                key={src}
-                aria-hidden
-                className={`absolute inset-0 rounded-[var(--radius-card)] bg-contain bg-center bg-no-repeat shadow-2xl transition-opacity duration-500 ease-in-out ${
-                  i === index ? 'opacity-100' : 'pointer-events-none opacity-0'
-                }`}
-                style={{ backgroundImage: `url(${src})` }}
-              />
-            ))}
-
+            <ZoomableImage
+              src={images[index]}
+              alt={`${title} — fiche ${index + 1}/${images.length}`}
+              className="h-full w-full rounded-[var(--radius-card)] shadow-2xl"
+              imgClassName="h-full w-full"
+            />
           </div>
 
           {/* Flèches navigation : en bas de l'overlay, hors de l'image */}
@@ -683,16 +679,14 @@ export function RecipeDetailView({
           aria-label="Photo de préparation agrandie"
         >
           <div
-            className="relative h-auto w-full max-w-[min(90vw,85vh)] touch-pan-y"
+            className="relative flex h-[85vh] w-full max-w-[min(90vw,85vh)] flex-col"
             onClick={(e) => e.stopPropagation()}
-            onTouchStart={onSwipeStart}
-            onTouchEnd={onPrepSwipeEnd}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <ZoomableImage
               src={prepPhotos[prepZoomIndex]}
               alt={`Photo de préparation ${prepZoomIndex + 1}`}
-              className="mx-auto block max-h-[85vh] w-auto rounded-[var(--radius-card)] shadow-2xl"
+              className="flex-1 rounded-[var(--radius-card)] shadow-2xl"
+              imgClassName="h-full w-full"
             />
             <span className="mt-3 block text-center text-xs font-semibold text-white/80">
               {prepZoomIndex + 1} / {prepPhotos.length}

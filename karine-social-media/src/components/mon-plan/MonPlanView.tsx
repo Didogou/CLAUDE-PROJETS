@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   CreditCard,
   HeartHandshake,
+  Lock,
   Pause,
   Play,
   Sparkles,
@@ -30,6 +31,7 @@ export function MonPlanView({
   subscription,
   checkoutStatus,
   requestedPlan,
+  forbiddenNext,
 }: {
   email: string;
   role: string;
@@ -38,6 +40,8 @@ export function MonPlanView({
   checkoutStatus: string | null;
   /** Plan demandé via ?plan= dans l'URL — sert à l'auto-trigger après auth. */
   requestedPlan: PlanKind | null;
+  /** Page restreinte d'origine si l'utilisatrice a été redirigée par le proxy. */
+  forbiddenNext: string | null;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
@@ -163,6 +167,17 @@ export function MonPlanView({
         <h1 className="font-script text-5xl text-coral-dark">Mon plan</h1>
         <p className="mt-1 text-sm text-ink-soft">{email}</p>
       </header>
+
+      {forbiddenNext && !hasActiveSub && !patientActive && (
+        <div className="flex items-start gap-3 rounded-2xl border border-coral-soft bg-coral-soft/30 px-4 py-3 text-sm text-ink shadow-sm">
+          <Lock className="mt-0.5 h-5 w-5 shrink-0 text-coral-dark" />
+          <p>
+            La page <span className="font-semibold">{forbiddenNext}</span> est
+            réservée aux abonnées et aux patientes de Karine. Choisis un plan
+            ci-dessous pour y accéder.
+          </p>
+        </div>
+      )}
 
       {checkoutStatus === 'success' && (
         <div className="flex items-center gap-3 rounded-2xl border border-sage/40 bg-sage/15 px-4 py-3 text-sm text-ink">
