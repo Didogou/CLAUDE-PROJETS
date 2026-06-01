@@ -28,10 +28,10 @@ export async function AppHeader({
             <Link
               href="/mon-plan"
               aria-label="Voir les abonnements"
-              className="hidden h-10 items-center gap-1.5 rounded-full bg-coral px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-coral-dark sm:inline-flex"
+              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-coral px-2 text-xs font-semibold text-white shadow-sm transition hover:bg-coral-dark sm:px-3"
             >
-              <Sparkles className="h-3.5 w-3.5" />
-              S&apos;abonner
+              <Sparkles className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+              <span className="hidden sm:inline">S&apos;abonner</span>
             </Link>
           )}
           <Link

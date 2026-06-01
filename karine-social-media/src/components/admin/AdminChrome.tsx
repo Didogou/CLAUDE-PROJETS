@@ -17,6 +17,7 @@ import {
   ExternalLink,
   MessageSquare,
   HeartHandshake,
+  Lightbulb,
   Shield,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -30,6 +31,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/conseils', label: 'Conseils', icon: Leaf },
   { href: '/admin/astuces', label: 'Astuces', icon: Sparkles },
   { href: '/admin/avis', label: 'Avis', icon: MessageSquare },
+  { href: '/admin/idees', label: 'Idées', icon: Lightbulb },
   { href: '/admin/patientes', label: 'Patientes', icon: HeartHandshake },
   { href: '/admin/abonnes', label: 'Abonnés', icon: Users },
   { href: '/admin/permissions', label: 'Permissions', icon: Shield },
