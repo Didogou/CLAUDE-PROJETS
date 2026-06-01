@@ -44,7 +44,7 @@ export default function LoginForm() {
     <main className="relative flex min-h-screen flex-col overflow-x-hidden">
       <BrandHeader />
 
-      <div className="flex flex-1 items-start justify-center px-3 py-5 sm:items-center sm:px-5 sm:py-6">
+      <div className="flex flex-1 items-center justify-center px-3 py-5 sm:px-5 sm:py-6">
         <div className="w-full max-w-md">
           {reason === 'forbidden' && (
             <div className="mb-4 rounded-2xl border border-coral-soft bg-white/80 px-4 py-3 text-center text-sm text-coral-dark shadow-sm">

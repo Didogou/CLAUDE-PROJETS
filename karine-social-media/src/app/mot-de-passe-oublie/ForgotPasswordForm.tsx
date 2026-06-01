@@ -34,7 +34,7 @@ export default function ForgotPasswordForm() {
     <main className="relative flex min-h-screen flex-col overflow-x-hidden">
       <BrandHeader />
 
-      <div className="flex flex-1 items-start justify-center px-3 py-5 sm:items-center sm:px-5 sm:py-6">
+      <div className="flex flex-1 items-center justify-center px-3 py-5 sm:px-5 sm:py-6">
         <div className="w-full max-w-md">
           <section className="rounded-3xl border border-coral-soft/40 bg-white/85 px-4 py-6 shadow-[0_18px_40px_-22px_rgba(226,120,141,0.55)] backdrop-blur-sm sm:px-7 sm:py-7">
             <header className="mb-5 text-center">
