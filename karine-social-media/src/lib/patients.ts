@@ -2,7 +2,6 @@ import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
 import type { ActivePatient, PatientRequest } from '@/data/patients';
 
-// Cast à la volée car les types Supabase ne connaissent pas patient_requests
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapRequest(row: any): PatientRequest {
   return {
@@ -14,20 +13,36 @@ function mapRequest(row: any): PatientRequest {
     status: row.status,
     reviewedAt: row.reviewed_at,
     createdAt: row.created_at,
+    reminderCount: row.reminder_count ?? 0,
+    reviewerComment: row.reviewer_comment ?? null,
   };
 }
 
-export async function getPendingPatientRequests(): Promise<PatientRequest[]> {
+async function getRequestsByStatus(
+  status: 'pending' | 'approved' | 'rejected',
+): Promise<PatientRequest[]> {
   const supabase = createServiceClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data, error } = await (supabase as any)
     .from('patient_requests')
-    .select('*, profile:profiles!patient_requests_user_id_fkey(email, full_name)')
-    .eq('status', 'pending')
-    .order('created_at', { ascending: false });
+    .select(
+      '*, profile:profiles!patient_requests_user_id_fkey(email, full_name)',
+    )
+    .eq('status', status)
+    .order(status === 'pending' ? 'created_at' : 'reviewed_at', {
+      ascending: status === 'pending',
+    });
   if (error) throw error;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return ((data ?? []) as any[]).map(mapRequest);
+}
+
+export async function getPendingPatientRequests(): Promise<PatientRequest[]> {
+  return getRequestsByStatus('pending');
+}
+
+export async function getRejectedPatientRequests(): Promise<PatientRequest[]> {
+  return getRequestsByStatus('rejected');
 }
 
 export async function getAllPatientRequests(): Promise<PatientRequest[]> {
@@ -67,4 +82,12 @@ export async function getActivePatients(): Promise<ActivePatient[]> {
       daysRemaining,
     };
   });
+}
+
+/**
+ * Email à utiliser pour notifier Karine d'une relance / nouvelle demande.
+ * Lue depuis env var EMAIL_TO_ADMIN, fallback : 'karine@karine-dietetique.fr'.
+ */
+export function getAdminEmail(): string {
+  return process.env.EMAIL_TO_ADMIN ?? 'karine@karine-dietetique.fr';
 }

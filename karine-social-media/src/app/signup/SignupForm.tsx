@@ -68,13 +68,19 @@ export default function SignupForm() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ message: patientMessage.trim() }),
         });
+        let isReminder = false;
         if (!res.ok) {
           const j = await res.json().catch(() => ({}));
           // On ne bloque pas le signup si la demande échoue, on prévient juste
           console.warn('[patient-request] échec', j?.error);
+        } else {
+          const j = await res.json().catch(() => ({}));
+          isReminder = !!j?.reminder;
         }
         setSuccess(
-          'Compte créé ! Ta demande d\'accès patiente a été envoyée à Karine. Tu auras un accès gratuit dès validation. Tu peux aussi t\'abonner en attendant depuis ton plan.',
+          isReminder
+            ? 'Compte créé ! Une demande existe déjà — Karine vient d\'être notifiée à nouveau, elle te répondra bientôt.'
+            : 'Compte créé ! Ta demande d\'accès patiente a été envoyée à Karine. Tu auras un accès gratuit dès validation. Tu peux aussi t\'abonner en attendant depuis ton plan.',
         );
         // ⚠️ Si l'utilisatrice arrive depuis un click plan (?next=/mon-plan?plan=monthly),
         // on SUPPRIME le paramètre ?plan= pour éviter de déclencher Stripe — la

@@ -1,11 +1,16 @@
-import { getActivePatients, getPendingPatientRequests } from '@/lib/patients';
+import {
+  getActivePatients,
+  getPendingPatientRequests,
+  getRejectedPatientRequests,
+} from '@/lib/patients';
 import { PatientesView } from '@/components/admin/PatientesView';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPatientesPage() {
-  const [requests, actives] = await Promise.all([
+  const [requests, rejected, actives] = await Promise.all([
     getPendingPatientRequests(),
+    getRejectedPatientRequests(),
     getActivePatients(),
   ]);
 
@@ -17,12 +22,16 @@ export default async function AdminPatientesPage() {
         </p>
         <h2 className="font-script text-4xl text-admin-primary-dark">Patientes</h2>
         <p className="mt-1 text-sm text-admin-ink-soft">
-          Demandes d&apos;acc&egrave;s en attente et patientes valid&eacute;es avec leur
-          &eacute;ch&eacute;ance (6 semaines depuis l&apos;approbation).
+          Demandes en attente, patientes valid&eacute;es (6 sem.) et demandes
+          refus&eacute;es (Karine peut revenir sur sa d&eacute;cision).
         </p>
       </header>
 
-      <PatientesView requests={requests} actives={actives} />
+      <PatientesView
+        requests={requests}
+        rejected={rejected}
+        actives={actives}
+      />
     </div>
   );
 }
