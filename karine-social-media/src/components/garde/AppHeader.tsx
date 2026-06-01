@@ -3,9 +3,16 @@ import { Bell, HeartHandshake } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { MainDrawer } from './MainDrawer';
 import { getCurrentUser } from '@/lib/current-user';
+import { getMyUnreadCount } from '@/lib/notifications';
 
-export async function AppHeader({ withSlogan = false }: { withSlogan?: boolean }) {
+export async function AppHeader({
+  withSlogan = false,
+}: {
+  withSlogan?: boolean;
+}) {
   const user = await getCurrentUser();
+  const unreadCount =
+    user.isAuthenticated && user.id ? await getMyUnreadCount(user.id) : 0;
 
   return (
     <header className="flex items-center justify-between px-5 py-3 lg:py-5">
@@ -14,16 +21,22 @@ export async function AppHeader({ withSlogan = false }: { withSlogan?: boolean }
       <Logo slogan={withSlogan} />
 
       {user.isAuthenticated ? (
-        <button
-          type="button"
-          aria-label="Notifications"
+        <Link
+          href="/notifications"
+          aria-label={
+            unreadCount > 0
+              ? `Notifications (${unreadCount} non lues)`
+              : 'Notifications'
+          }
           className="relative grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink backdrop-blur transition hover:bg-white/80"
         >
           <Bell className="h-6 w-6" strokeWidth={2} />
-          <span className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-coral text-[0.6rem] font-bold text-white">
-            2
-          </span>
-        </button>
+          {unreadCount > 0 && (
+            <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-coral px-1 text-[0.6rem] font-bold text-white ring-2 ring-white/80">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
+        </Link>
       ) : (
         <Link
           href="/login"
