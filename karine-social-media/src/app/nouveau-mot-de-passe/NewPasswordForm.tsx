@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Heart, KeyRound } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { BrandHeader } from '@/components/brand/BrandHeader';
+import { AuthFooter } from '@/components/brand/AuthFooter';
 
 export default function NewPasswordForm() {
   const router = useRouter();
@@ -144,6 +145,8 @@ export default function NewPasswordForm() {
           </section>
         </div>
       </div>
+
+      <AuthFooter />
 
       <style>{`
         .input-pill {

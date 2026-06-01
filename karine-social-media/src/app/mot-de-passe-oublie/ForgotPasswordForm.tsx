@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Heart, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { BrandHeader } from '@/components/brand/BrandHeader';
+import { AuthFooter } from '@/components/brand/AuthFooter';
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
@@ -105,6 +106,8 @@ export default function ForgotPasswordForm() {
           </section>
         </div>
       </div>
+
+      <AuthFooter />
 
       <style>{`
         .input-pill {

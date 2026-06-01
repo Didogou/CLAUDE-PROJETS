@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { BrandHeader } from '@/components/brand/BrandHeader';
+import { AuthFooter } from '@/components/brand/AuthFooter';
 
 export default function SignupForm() {
   const router = useRouter();
@@ -280,6 +281,8 @@ export default function SignupForm() {
           )}
         </div>
       </div>
+
+      <AuthFooter />
 
       <style>{`
         .input-pill {

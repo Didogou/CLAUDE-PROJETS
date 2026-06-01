@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, Heart, KeyRound, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { BrandHeader } from '@/components/brand/BrandHeader';
+import { AuthFooter } from '@/components/brand/AuthFooter';
 import { OAuthButton } from '@/components/auth/OAuthButtons';
 
 export default function LoginForm() {
@@ -159,6 +160,8 @@ export default function LoginForm() {
           </p>
         </div>
       </div>
+
+      <AuthFooter />
 
       <style>{`
         .input-pill {
