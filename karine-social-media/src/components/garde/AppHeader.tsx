@@ -20,20 +20,23 @@ export async function AppHeader({
 
       <Logo slogan={withSlogan} />
 
-      {user.isAuthenticated ? (
-        <div className="flex items-center gap-2">
-          {/* Bouton accès abonnement si connecté MAIS sans accès actif
-              (ni patient actif, ni subscriber actif). Discret mais visible. */}
-          {user.effectiveRole === 'visitor' && (
-            <Link
-              href="/mon-plan"
-              aria-label="Voir les abonnements"
-              className="inline-flex h-10 items-center gap-1.5 rounded-full bg-coral px-2 text-xs font-semibold text-white shadow-sm transition hover:bg-coral-dark sm:px-3"
-            >
-              <Sparkles className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
-              <span className="hidden sm:inline">S&apos;abonner</span>
-            </Link>
-          )}
+      <div className="flex items-center gap-2">
+        {/* Bouton "S'abonner" — visible AUTOMATIQUEMENT pour quiconque n'a
+            pas d'accès actif (visiteur non connecté OU connecté sans abo /
+            patient expiré). Masqué seulement pour patient/subscriber/admin
+            actif. C'est notre principal point d'entrée commercial. */}
+        {user.effectiveRole === 'visitor' && (
+          <Link
+            href="/mon-plan"
+            aria-label="Voir les abonnements"
+            className="inline-flex h-10 items-center gap-1.5 rounded-full bg-coral px-3 text-xs font-bold text-white shadow-md ring-1 ring-coral-dark/30 transition hover:scale-105 hover:bg-coral-dark sm:text-sm"
+          >
+            <Sparkles className="h-4 w-4" strokeWidth={2.2} />
+            S&apos;abonner
+          </Link>
+        )}
+
+        {user.isAuthenticated ? (
           <Link
             href="/notifications"
             aria-label={
@@ -50,21 +53,21 @@ export async function AppHeader({
               </span>
             )}
           </Link>
-        </div>
-      ) : (
-        <Link
-          href="/login"
-          aria-label="Se connecter"
-          className="group flex h-10 items-center gap-1.5 rounded-full bg-coral px-3 text-sm font-semibold text-white shadow-md ring-1 ring-coral-dark/30 transition hover:scale-105 hover:bg-coral-dark sm:px-4"
-        >
-          <HeartHandshake
-            className="h-4 w-4 transition-transform group-hover:rotate-12 sm:h-5 sm:w-5"
-            strokeWidth={2.2}
-          />
-          <span className="hidden sm:inline">Se connecter</span>
-          <span className="sm:hidden">Login</span>
-        </Link>
-      )}
+        ) : (
+          <Link
+            href="/login"
+            aria-label="Se connecter"
+            className="group flex h-10 items-center gap-1.5 rounded-full border border-coral-soft bg-white px-3 text-xs font-semibold text-coral-dark shadow-sm transition hover:bg-coral-soft/30 sm:text-sm"
+          >
+            <HeartHandshake
+              className="h-4 w-4 transition-transform group-hover:rotate-12"
+              strokeWidth={2.2}
+            />
+            <span className="hidden sm:inline">Se connecter</span>
+            <span className="sm:hidden">Login</span>
+          </Link>
+        )}
+      </div>
     </header>
   );
 }
