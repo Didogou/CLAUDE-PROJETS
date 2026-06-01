@@ -80,7 +80,11 @@ function shouldCheckPermissions(pathname: string): boolean {
   if (pathname.startsWith('/api/')) return false;
   if (pathname.startsWith('/auth/')) return false;
   if (pathname.startsWith('/_next/')) return false;
+  // Pages d'auth toujours accessibles publiquement (anti-loop)
   if (pathname === '/login') return false;
+  if (pathname === '/signup') return false;
+  if (pathname === '/mot-de-passe-oublie') return false;
+  if (pathname === '/nouveau-mot-de-passe') return false;
   if (pathname === '/admin/login') return false;
   if (pathname === '/manifest.webmanifest') return false;
   if (pathname === '/sw.js') return false;

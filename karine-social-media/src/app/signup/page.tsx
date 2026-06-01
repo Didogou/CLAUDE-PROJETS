@@ -1,15 +1,15 @@
 import { Suspense } from 'react';
 import { FloralBackground } from '@/components/garde/FloralBackground';
-import LoginForm from './LoginForm';
+import SignupForm from './SignupForm';
 
 export const dynamic = 'force-dynamic';
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <>
       <FloralBackground />
       <Suspense fallback={null}>
-        <LoginForm />
+        <SignupForm />
       </Suspense>
     </>
   );
