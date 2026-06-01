@@ -53,14 +53,15 @@ export function SubscribeAuthGate({
   const content = (
     <div
       className="fixed inset-0 z-[100] flex items-end justify-center bg-black/45 backdrop-blur-sm sm:items-center"
-      onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={`Souscription — ${cfg.label}`}
     >
+      {/* ⚠️ Pas de onClick sur le backdrop : la modal ne se ferme QUE via
+          le bouton ✕, le bouton « Annuler » ou la touche Échap. Évite la
+          perte accidentelle quand on clique à côté en saisissant. */}
       <div
         className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl sm:p-7"
-        onClick={(e) => e.stopPropagation()}
       >
         <header className="mb-4 flex items-start gap-3">
           <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-coral-soft/50 text-coral-dark">
