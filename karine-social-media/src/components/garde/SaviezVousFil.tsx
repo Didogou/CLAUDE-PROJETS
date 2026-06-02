@@ -51,13 +51,13 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
           <Sparkles className="h-5 w-5 text-tangerine" aria-hidden />
         </header>
 
-        {/* Fil courbé en U — TOUTE la largeur du cadre rose (inset-x-0),
-            le SVG déborde par-dessus le padding pour atteindre les bords. */}
+        {/* Fil tendu d'un bord à l'autre du cadre rose. Légère courbe
+            naturelle (sag de quelques px), pile à hauteur des pinces. */}
         <svg
           aria-hidden
-          viewBox="0 0 100 14"
+          viewBox="0 0 100 6"
           preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-x-0 top-[3.25rem] h-9 lg:top-[3.75rem]"
+          className="pointer-events-none absolute inset-x-0 top-[3.75rem] h-4 lg:top-[4.5rem]"
         >
           <defs>
             <linearGradient id="rope-shade" x1="0" x2="0" y1="0" y2="1">
@@ -66,21 +66,21 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
             </linearGradient>
           </defs>
           <path
-            d="M 0 1 Q 50 13 100 1"
+            d="M 0 1.5 Q 50 4.5 100 1.5"
             fill="none"
-            stroke="#b59ea4"
-            strokeWidth="0.6"
+            stroke="#9c8c75"
+            strokeWidth="1.4"
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
           />
           <path
-            d="M 0 1 Q 50 13 100 1"
+            d="M 0 1.5 Q 50 4.5 100 1.5"
             fill="none"
             stroke="url(#rope-shade)"
-            strokeWidth="0.3"
+            strokeWidth="0.6"
             strokeLinecap="round"
             vectorEffect="non-scaling-stroke"
-            transform="translate(0,-0.2)"
+            transform="translate(0,-0.25)"
           />
         </svg>
 
