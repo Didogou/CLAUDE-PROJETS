@@ -465,7 +465,7 @@ export function RecipeDetailView({
                 /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   key={id}
-                  src="/images/effects/coeur.png"
+                  src="/images/effects/coeur.webp"
                   alt=""
                   aria-hidden
                   draggable={false}

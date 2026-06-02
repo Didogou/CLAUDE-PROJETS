@@ -8,10 +8,10 @@ import type { RecipeCategory } from '@/data/recipes';
 // `tomate` à venir. En attendant les images dédiées (fruits + chocolat pour
 // desserts, salades pour entrées), on utilise le même pool partout.
 const COMMON = [
-  '/images/effects/courgette.png',
-  '/images/effects/oignons.png',
-  '/images/effects/poivron.png',
-  '/images/effects/coeur.png',
+  '/images/effects/courgette.webp',
+  '/images/effects/oignons.webp',
+  '/images/effects/poivron.webp',
+  '/images/effects/coeur.webp',
 ];
 
 const PARTICLES: Record<RecipeCategory, string[]> = {

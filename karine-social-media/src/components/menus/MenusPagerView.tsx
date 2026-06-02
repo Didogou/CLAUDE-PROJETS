@@ -209,7 +209,7 @@ export function MenusPagerView({ menus }: { menus: WeeklyMenu[] }) {
           {floatingHearts.map((id) => (
             <img
               key={id}
-              src="/images/effects/coeur.png"
+              src="/images/effects/coeur.webp"
               alt=""
               aria-hidden
               draggable={false}

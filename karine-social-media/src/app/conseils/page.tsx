@@ -1,26 +1,36 @@
 import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
-import { Leaf } from 'lucide-react';
+import { AdviceGrid } from '@/components/conseils/AdviceGrid';
+import { AdviceFireworkBurst } from '@/components/conseils/AdviceFireworkBurst';
+import { getPublishedAdvice } from '@/lib/advice';
 
 export const dynamic = 'force-dynamic';
 
-export default function ConseilsPage() {
+export default async function ConseilsPage() {
+  const items = await getPublishedAdvice();
+
   return (
-    <div className="relative flex min-h-screen flex-col">
-      <FloralBackground variant="conseils" />
-      <AppHeader />
-      <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-md xl:max-w-lg">
-        <h1 className="mb-5 font-script text-4xl text-coral lg:text-5xl">Conseils</h1>
-        <div className="rounded-2xl bg-white/85 px-6 py-10 text-center shadow-sm">
-          <Leaf className="mx-auto mb-3 h-10 w-10 text-coral" />
-          <p className="text-sm font-semibold text-ink">Bientôt disponible</p>
-          <p className="mt-1 text-xs text-ink-soft">
-            Karine prépare ses conseils diététiques pour vous accompagner au quotidien.
+    <div className="relative flex min-h-screen flex-col print:hidden">
+      <div className="print:hidden">
+        <FloralBackground variant="conseils" />
+      </div>
+      <div className="print:hidden">
+        <AppHeader />
+      </div>
+      <main className="relative mx-auto w-full max-w-md flex-1 overflow-x-clip px-2 pb-8 sm:max-w-2xl sm:px-4 md:max-w-4xl md:px-6 lg:max-w-7xl lg:px-10 print:hidden">
+        <div className="relative">
+          <h1 className="mb-2 text-center font-script text-4xl text-coral lg:text-5xl">Conseils</h1>
+          <p className="mb-3 text-center text-xs italic text-ink-soft lg:text-sm">
+            Mieux comprendre votre santé, jour après jour
           </p>
+          <AdviceFireworkBurst />
         </div>
+        <AdviceGrid items={items} />
       </main>
-      <BottomNav />
+      <div className="print:hidden">
+        <BottomNav />
+      </div>
     </div>
   );
 }

@@ -125,7 +125,7 @@ export function IdeasFloatingButton() {
         {/* Icone PNG dediee (ampoule + fee 'Proposer moi une idee de recette') */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/images/icons/idee-recette.png"
+          src="/images/icons/idee-recette.webp"
           alt=""
           draggable={false}
           className="h-10 w-10 select-none rounded-full object-cover"

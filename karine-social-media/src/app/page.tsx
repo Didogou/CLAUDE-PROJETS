@@ -31,14 +31,14 @@ const TILES: TileDef[] = [
     title: 'Menu de la semaine',
     subtitle: 'Des repas équilibrés\nchaque jour',
     bgClass: 'bg-peach',
-    iconImage: '/images/icons/ms.png',
+    iconImage: '/images/icons/ms.webp',
   },
   {
     href: '/recettes',
     title: 'Idées recettes',
     subtitle: 'Inspiration saine\net gourmande',
     bgClass: 'bg-cream',
-    iconImage: '/images/icons/ir.png',
+    iconImage: '/images/icons/ir.webp',
     burstOnClick: true,
   },
   // Tuile "Mon menu" masquée (à réintroduire quand la fonctionnalité
@@ -48,14 +48,14 @@ const TILES: TileDef[] = [
     title: 'Conseils santé',
     subtitle: 'Mieux comprendre\nvotre santé',
     bgClass: 'bg-mint',
-    iconImage: '/images/icons/cs.png',
+    iconImage: '/images/icons/cs.webp',
   },
   {
     href: '/astuces',
     title: 'Astuces diététiques',
     subtitle: 'Des astuces simples\nau quotidien',
     bgClass: 'bg-lavender',
-    iconImage: '/images/icons/ad.png',
+    iconImage: '/images/icons/ad.webp',
   },
 ];
 

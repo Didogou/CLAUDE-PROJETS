@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 
-const ICON = '/images/ui/desaison.png';
+const ICON = '/images/ui/desaison.webp';
 
 /**
  * Icône "légumes de saison" épinglée sur la recette.

@@ -110,7 +110,16 @@
       "Bash(curl -s -o /tmp/login.html -w \"HTTP %{http_code}\\\\n\" https://karine-social-media.vercel.app/login)",
       "Bash(git commit *)",
       "Bash(cp \"assets-source/06_ICONES_ET_UI/Fond_conseil_P.png\" \"public/images/fond-conseils-portrait.png\")",
-      "Bash(cp \"assets-source/06_ICONES_ET_UI/Fond_conseil_M.png\" \"public/images/fond-conseils-paysage.png\")"
+      "Bash(cp \"assets-source/06_ICONES_ET_UI/Fond_conseil_M.png\" \"public/images/fond-conseils-paysage.png\")",
+      "Bash(cp src/components/astuces/TipDetailModal.tsx src/components/conseils/AdviceDetailModal.tsx)",
+      "Bash(sed -i -e \"s/Tip /Advice /g\" -e \"s/@\\\\\\\\/data\\\\\\\\/tips/@\\\\\\\\/data\\\\\\\\/advice/g\" -e \"s/TipDetailModal/AdviceDetailModal/g\" -e \"s/tip: Advice/advice: Advice/g\" -e \"s/tip\\\\\\\\./advice./g\" -e \"s/{ tip,/{ advice,/g\" -e \"s/Tip\\\\\\\\.label/Advice.label/g\" -e \"s/tip}/advice}/g\" -e \"s/\\(tip/\\(advice/g\" -e \"s/Astuce —/Conseil —/g\" src/components/conseils/AdviceDetailModal.tsx)",
+      "Bash(cp src/app/api/tips/\\\\[slug\\\\]/like/route.ts src/app/api/advice/\\\\[slug\\\\]/like/route.ts)",
+      "Bash(cp src/app/api/admin/tips/route.ts src/app/api/admin/advice/route.ts)",
+      "Bash(cp src/app/api/admin/tips/\\\\[slug\\\\]/route.ts src/app/api/admin/advice/\\\\[slug\\\\]/route.ts)",
+      "Bash(cp src/app/api/admin/tips/\\\\[slug\\\\]/asset/route.ts src/app/api/admin/advice/\\\\[slug\\\\]/asset/route.ts)",
+      "Bash(cp src/app/admin/\\\\\\(panel\\\\\\)/astuces/page.tsx src/app/admin/\\\\\\(panel\\\\\\)/conseils/page.tsx)",
+      "Bash(node scripts/optimize-images.mjs)",
+      "Bash(grep -rn \"/images/.*\\\\\\\\.png\" src/)"
     ],
     "additionalDirectories": [
       "\\tmp"

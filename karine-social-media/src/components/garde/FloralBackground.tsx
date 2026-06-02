@@ -5,24 +5,24 @@
 //   'salade'  — page catégorie Salades
 const VARIANTS = {
   default: {
-    portrait: '/images/fond-portrait.png',
-    paysage: '/images/fond-paysage.png',
+    portrait: '/images/fond-portrait.webp',
+    paysage: '/images/fond-paysage.webp',
   },
   astuces: {
-    portrait: '/images/fond-astuces-portrait.png',
-    paysage: '/images/fond-astuces-paysage.png',
+    portrait: '/images/fond-astuces-portrait.webp',
+    paysage: '/images/fond-astuces-paysage.webp',
   },
   salade: {
-    portrait: '/images/fond-salade-portrait.png',
-    paysage: '/images/fond-salade-paysage.png',
+    portrait: '/images/fond-salade-portrait.webp',
+    paysage: '/images/fond-salade-paysage.webp',
   },
   dessert: {
-    portrait: '/images/fond-dessert-portrait.png',
-    paysage: '/images/fond-dessert-paysage.png',
+    portrait: '/images/fond-dessert-portrait.webp',
+    paysage: '/images/fond-dessert-paysage.webp',
   },
   conseils: {
-    portrait: '/images/fond-conseils-portrait.png',
-    paysage: '/images/fond-conseils-paysage.png',
+    portrait: '/images/fond-conseils-portrait.webp',
+    paysage: '/images/fond-conseils-paysage.webp',
   },
 } as const;
 
