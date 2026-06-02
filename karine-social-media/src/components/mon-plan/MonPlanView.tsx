@@ -48,7 +48,9 @@ export function MonPlanView({
   const [error, setError] = useState<string | null>(null);
   /** Plan choisi par un visiteur (non connecté) → ouvre la modal auth gate. */
   const [pendingPlan, setPendingPlan] = useState<PlanKind | null>(null);
-  /** Case CGV/Confidentialité cochée. Obligatoire avant clic sur plan. */
+  /** Plan actuellement selectionne (ring coral autour de la carte). */
+  const [selectedPlan, setSelectedPlan] = useState<PlanKind | null>(null);
+  /** Case CGV/Confidentialité cochée. Obligatoire avant 'Continuer'. */
   const [acceptedTos, setAcceptedTos] = useState(false);
   /** Indique si l'utilisateur est connecté. Si email vide → visiteur. */
   const isAuthenticated = email !== '';
@@ -75,6 +77,17 @@ export function MonPlanView({
         body: JSON.stringify({ plan }),
       });
       const j = await res.json().catch(() => ({}));
+      // 409 alreadySubscribed : utilisatrice qui a deja un abo actif.
+      // On ne redirige PAS vers Stripe (double paiement). On rafraichit
+      // la page pour afficher le bloc abo actif.
+      if (res.status === 409 && j?.alreadySubscribed) {
+        setError(
+          'Tu as déjà un abonnement actif. Gère-le depuis le portail Stripe.',
+        );
+        router.refresh();
+        setBusy(null);
+        return;
+      }
       if (!res.ok) throw new Error(j?.error || 'Erreur');
       window.location.href = j.url;
     } catch (err) {
@@ -84,29 +97,38 @@ export function MonPlanView({
   }
 
   /**
-   * Visiteur clique sur un plan → ouvre la modal auth gate.
-   * Connecté → lance le checkout direct.
-   * Dans les 2 cas : exige que la case CGV soit cochée.
+   * Étape 1 : clic sur une carte de plan → on marque le plan comme
+   *           selectionne (visuel ring coral), on scrolle vers la case
+   *           CGV. Aucune action irreversible a ce stade.
    */
   function onChoosePlan(plan: PlanKind) {
+    setSelectedPlan(plan);
+    setError(null);
+    window.setTimeout(() => {
+      document.getElementById('tos-checkbox')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }, 50);
+  }
+
+  /**
+   * Étape 2 : clic sur 'Continuer vers le paiement' → exige la case CGV
+   *           cochee. Si visiteur, on ouvre le gate auth. Sinon checkout.
+   */
+  function onContinueToPayment() {
+    if (!selectedPlan) return;
     if (!acceptedTos) {
       setError(
-        'Pour continuer, accepte d’abord les Conditions générales de vente et la Politique de confidentialité.',
+        'Pour continuer, accepte d’abord les Conditions générales de vente.',
       );
-      // Scroll vers la case pour qu'on la voie
-      window.setTimeout(() => {
-        document.getElementById('tos-checkbox')?.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
-      }, 50);
       return;
     }
     if (!isAuthenticated) {
-      setPendingPlan(plan);
+      setPendingPlan(selectedPlan);
       return;
     }
-    startCheckout(plan);
+    startCheckout(selectedPlan);
   }
 
   // === AUTO-TRIGGER STRIPE après auth ===
@@ -314,12 +336,14 @@ export function MonPlanView({
               plan="monthly"
               onChoose={() => onChoosePlan('monthly')}
               busy={busy === 'checkout-monthly'}
+              selected={selectedPlan === 'monthly'}
             />
             <PlanCard
               plan="yearly"
               onChoose={() => onChoosePlan('yearly')}
               busy={busy === 'checkout-yearly'}
               highlighted
+              selected={selectedPlan === 'yearly'}
             />
           </div>
 
@@ -364,6 +388,24 @@ export function MonPlanView({
             </span>
           </label>
 
+          {/* Bouton 'Continuer vers le paiement' — apparait si un plan a
+              ete selectionne. Le contour vert+sage indique que c'est l'etape
+              finale. Disabled si CGV pas cochee. */}
+          {selectedPlan && (
+            <button
+              type="button"
+              onClick={onContinueToPayment}
+              disabled={!acceptedTos || !!busy}
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-coral py-3 text-sm font-bold text-white shadow-lg ring-2 ring-coral-soft/40 transition hover:bg-coral-dark disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy
+                ? 'Redirection vers le paiement…'
+                : `Continuer avec le plan ${
+                    selectedPlan === 'monthly' ? 'Mensuel — 8 €/mois' : 'Annuel — 80 €/an'
+                  }`}
+            </button>
+          )}
+
           {!isAuthenticated && (
             <p className="text-center text-xs text-ink-soft">
               Patiente de Karine ?{' '}
@@ -390,19 +432,23 @@ function PlanCard({
   onChoose,
   busy,
   highlighted = false,
+  selected = false,
 }: {
   plan: PlanKind;
   onChoose: () => void;
   busy: boolean;
   highlighted?: boolean;
+  selected?: boolean;
 }) {
   const cfg = PLANS[plan];
   return (
     <div
       className={`relative rounded-3xl bg-white/85 p-5 shadow-sm transition ${
-        highlighted
-          ? 'border-2 border-coral ring-2 ring-coral/20'
-          : 'border border-coral-soft'
+        selected
+          ? 'border-4 border-coral ring-4 ring-coral/40 shadow-lg'
+          : highlighted
+            ? 'border-2 border-coral ring-2 ring-coral/20'
+            : 'border border-coral-soft'
       }`}
     >
       {highlighted && (
@@ -442,7 +488,11 @@ function PlanCard({
             : 'border border-coral bg-white text-coral-dark hover:bg-coral-soft/30'
         }`}
       >
-        {busy ? 'Redirection…' : `Choisir le ${cfg.label.toLowerCase()}`}
+        {selected
+          ? `✓ Plan ${cfg.label.toLowerCase()} sélectionné`
+          : busy
+            ? 'Redirection…'
+            : `Choisir le ${cfg.label.toLowerCase()}`}
       </button>
     </div>
   );

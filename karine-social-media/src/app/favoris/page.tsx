@@ -3,6 +3,7 @@ import { Heart, HeartHandshake } from 'lucide-react';
 import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
+import { FavoriteCard } from '@/components/favorites/FavoriteCard';
 import { getCurrentUser } from '@/lib/current-user';
 import { enrichFavorites, getUserFavorites } from '@/lib/favorites';
 import {
@@ -87,23 +88,7 @@ export default async function FavorisPage() {
                   <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                     {arr.map((item) => (
                       <li key={`${item.targetType}-${item.targetId}`}>
-                        <Link
-                          href={item.href}
-                          className="group flex flex-col gap-2 rounded-2xl bg-white/90 p-2 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                        >
-                          <div
-                            aria-hidden
-                            className="aspect-square w-full overflow-hidden rounded-xl bg-blush/40 bg-cover bg-center"
-                            style={
-                              item.imageUrl
-                                ? { backgroundImage: `url(${item.imageUrl})` }
-                                : undefined
-                            }
-                          />
-                          <p className="line-clamp-2 px-1 text-center text-xs font-semibold text-ink">
-                            {item.label}
-                          </p>
-                        </Link>
+                        <FavoriteCard item={item} />
                       </li>
                     ))}
                   </ul>

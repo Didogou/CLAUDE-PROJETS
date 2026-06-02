@@ -43,6 +43,9 @@ export function SaviezVousLightbox({
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(startIndex);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  /** Like local par photo : V1 sans persistance DB.
+   *  Le favori est dans le bouton du haut. Ici on a juste un like UX. */
+  const [liked, setLiked] = useState<Record<string, boolean>>({});
   const { phase, requestClose } = useLightboxAnim(onClose);
 
   const total = items.length;
@@ -137,6 +140,22 @@ export function SaviezVousLightbox({
         />
       </div>
 
+      {/* Bouton favori AU-DESSUS de l'image. key={current.id} → reset
+          complet à chaque navigation, l'etat 'favorited' se rafraichit. */}
+      <div className="pointer-events-none absolute inset-x-0 top-16 z-20 flex justify-center px-4 print:hidden">
+        <div className="pointer-events-auto">
+          <FavoriteButton
+            key={current.id}
+            targetType="featured"
+            targetId={current.id}
+            initialFavorited={favoritedIds.has(current.id)}
+            isAuthenticated={isAuthenticated}
+            size="sm"
+            showLabel
+          />
+        </div>
+      </div>
+
       {/* Header : caption + compteur + bouton fermer */}
       <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start gap-3 bg-gradient-to-b from-black/55 to-transparent px-4 py-3 sm:px-6 sm:py-4 print:hidden">
         <p className="pointer-events-auto flex-1 truncate font-script text-2xl text-white sm:text-3xl">
@@ -191,16 +210,16 @@ export function SaviezVousLightbox({
           label="Imprimer"
           onClick={handlePrint}
         />
-        {/* Bouton favori dédié à la place du like local : persiste en DB. */}
-        <div className="pointer-events-auto">
-          <FavoriteButton
-            targetType="featured"
-            targetId={current.id}
-            initialFavorited={favoritedIds.has(current.id)}
-            isAuthenticated={isAuthenticated}
-            size="lg"
-          />
-        </div>
+        {/* Like local (V1 sans persistance DB) — distinct du favori
+            qui est dans le header. */}
+        <ActionButton
+          icon={Heart}
+          label={liked[current.id] ? 'Liké' : 'J’aime'}
+          onClick={() =>
+            setLiked((m) => ({ ...m, [current.id]: !m[current.id] }))
+          }
+          active={!!liked[current.id]}
+        />
       </footer>
 
       {shareToast && (

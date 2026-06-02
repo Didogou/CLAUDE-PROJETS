@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { ensureStripeConfigured, stripe, STRIPE_PRICES } from '@/lib/stripe/client';
-import { getStripeCustomerId } from '@/lib/subscriptions';
+import { getStripeCustomerId, getUserSubscription } from '@/lib/subscriptions';
 import { PLANS, type PlanKind } from '@/data/plans';
 
 /**
@@ -31,6 +31,26 @@ export async function POST(request: NextRequest) {
     const plan = String(json?.plan ?? '') as PlanKind;
     if (!PLANS[plan]) {
       return NextResponse.json({ error: 'Plan invalide' }, { status: 400 });
+    }
+
+    // GARDE-FOU CRITIQUE : si l'utilisatrice a déjà un abonnement actif
+    // (statut trialing/active/past_due/paused), on REFUSE de creer une
+    // nouvelle session checkout — sinon elle paierait 2x. Le frontend
+    // affiche normalement le bloc 'abo actif' a la place des plans, mais
+    // on protege au cas où (replay de l'URL, race condition, etc.).
+    const currentSub = await getUserSubscription(user.id);
+    if (
+      currentSub &&
+      ['trialing', 'active', 'past_due', 'paused'].includes(currentSub.status)
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            'Tu as déjà un abonnement actif. Pour changer de plan, utilise le portail Stripe depuis ton espace.',
+          alreadySubscribed: true,
+        },
+        { status: 409 },
+      );
     }
 
     const priceId = STRIPE_PRICES[plan];
