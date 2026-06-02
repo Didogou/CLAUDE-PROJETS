@@ -116,9 +116,16 @@ export function IdeasFloatingButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Soumettre une idée à Karine"
-        className="fixed bottom-24 right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-coral text-white shadow-lg ring-4 ring-white/70 transition hover:scale-105 hover:bg-coral-dark active:scale-95 lg:bottom-8 lg:right-8"
+        className="fixed bottom-24 right-4 z-30 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-lg ring-2 ring-coral-soft/60 transition hover:scale-105 active:scale-95 lg:bottom-8 lg:right-8"
       >
-        <Lightbulb className="h-6 w-6" strokeWidth={2.2} />
+        {/* Icone PNG dediee (ampoule + fee 'Proposer moi une idee de recette') */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/images/icons/idee-recette.png"
+          alt=""
+          draggable={false}
+          className="h-full w-full select-none rounded-full object-cover"
+        />
       </button>
 
       {mounted &&

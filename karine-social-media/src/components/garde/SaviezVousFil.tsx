@@ -137,7 +137,7 @@ function Polaroid({
 }) {
   return (
     <figure
-      className={`relative flex w-20 flex-col items-center transition-transform hover:scale-110 hover:rotate-0 sm:w-24 lg:w-28 ${rotationClass}`}
+      className={`relative flex w-20 flex-col items-center transition-transform duration-200 sm:w-24 lg:w-28 ${rotationClass} hover:-translate-y-1 hover:rotate-0`}
     >
       {/* Pince — centrée au-dessus du polaroid, dépasse sur le fil */}
       <ClothesPin className="absolute -top-2 z-10 h-5 w-3" />

@@ -5,6 +5,7 @@ import { FeatureTile } from '@/components/garde/FeatureTile';
 import { SaviezVousFil } from '@/components/garde/SaviezVousFil';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
+import { LegalFooter } from '@/components/garde/LegalFooter';
 import { discoverPages } from '@/lib/discover-pages';
 import { getCurrentUser } from '@/lib/current-user';
 import { getAllCapabilities } from '@/lib/capabilities';
@@ -35,7 +36,7 @@ const TILES: TileDef[] = [
     title: 'Idées recettes',
     subtitle: 'Inspiration saine\net gourmande',
     bgClass: 'bg-cream',
-    iconImage: '/images/icons/idee-recette.png',
+    iconImage: '/images/icons/ir.png',
   },
   // Tuile "Mon menu" masquée (à réintroduire quand la fonctionnalité
   // personnalisée par profil utilisatrice sera prête).
@@ -164,6 +165,7 @@ export default async function Home({
         </div>
       </main>
 
+      <LegalFooter />
       <BottomNav />
     </div>
   );
