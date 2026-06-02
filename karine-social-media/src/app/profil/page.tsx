@@ -11,6 +11,7 @@ import {
 import { getUserSubscription } from '@/lib/subscriptions';
 import { PatientRequestStatusBlock } from '@/components/profil/PatientRequestStatusBlock';
 import { MyPlanCard } from '@/components/profil/MyPlanCard';
+import { AvatarUploader } from '@/components/profil/AvatarUploader';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,12 +34,14 @@ export default async function ProfilPage() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase as any)
               .from('profiles')
-              .select('role, patient_access_expires_at')
+              .select('role, patient_access_expires_at, avatar_url, full_name')
               .eq('id', user.id)
               .maybeSingle();
             return data as {
               role?: string;
               patient_access_expires_at?: string | null;
+              avatar_url?: string | null;
+              full_name?: string | null;
             } | null;
           })()
         : Promise.resolve(null),
@@ -54,8 +57,21 @@ export default async function ProfilPage() {
         {user.isAuthenticated ? (
           <div className="space-y-4">
             <div className="space-y-4 rounded-2xl bg-white/85 p-6 shadow-sm">
-              <p className="text-sm text-ink">
-                Connectée en tant que <span className="font-bold">{user.email}</span>
+              <div className="flex flex-col items-center gap-3">
+                <AvatarUploader
+                  initialUrl={profileExtra?.avatar_url ?? null}
+                  displayName={
+                    profileExtra?.full_name?.trim() || user.email?.split('@')[0] || '?'
+                  }
+                />
+                {profileExtra?.full_name && (
+                  <p className="text-center text-base font-bold text-ink">
+                    {profileExtra.full_name}
+                  </p>
+                )}
+              </div>
+              <p className="text-center text-sm text-ink-soft">
+                <span className="font-semibold">{user.email}</span>
               </p>
               {user.isAdmin && (
                 <Link
