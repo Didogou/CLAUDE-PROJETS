@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { AppHeader } from '@/components/garde/AppHeader';
 import { WelcomeBlock } from '@/components/garde/WelcomeBlock';
 import { FeatureTile } from '@/components/garde/FeatureTile';
-import { MaJourneeCard } from '@/components/garde/MaJourneeCard';
+import { SaviezVousFil } from '@/components/garde/SaviezVousFil';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { discoverPages } from '@/lib/discover-pages';
@@ -132,7 +132,27 @@ export default async function Home({
         </div>
 
         <div className="mt-3 lg:mt-4">
-          <MaJourneeCard />
+          {/* V1 : photos stub. À brancher sur une table "featured_photos"
+              + page admin /admin/le-saviez-vous quand le visuel est validé. */}
+          <SaviezVousFil
+            items={[
+              {
+                id: 'stub-1',
+                imageUrl: '/images/effects/poivron.png',
+                caption: 'Les poivrons de saison',
+              },
+              {
+                id: 'stub-2',
+                imageUrl: '/images/effects/courgette.png',
+                caption: 'La courgette : 18 kcal / 100 g',
+              },
+              {
+                id: 'stub-3',
+                imageUrl: '/images/effects/oignons.png',
+                caption: 'L’oignon riche en antioxydants',
+              },
+            ]}
+          />
         </div>
       </main>
 
