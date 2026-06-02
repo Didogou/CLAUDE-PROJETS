@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BellRing, Save } from 'lucide-react';
+import { BellRing, ChevronRight, ImagePlus, Save } from 'lucide-react';
 import type { AppSettings } from '@/data/app-settings';
 
 export function ParametresView({ initial }: { initial: AppSettings }) {
@@ -41,7 +42,25 @@ export function ParametresView({ initial }: { initial: AppSettings }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <div className="space-y-5">
+      {/* === Lien vers la page Fonds d'écran === */}
+      <Link
+        href="/admin/parametres/fonds"
+        className="flex items-center gap-3 rounded-2xl bg-admin-surface p-5 shadow-sm transition hover:shadow-md"
+      >
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-coral-soft/40 text-coral-dark">
+          <ImagePlus className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="text-base font-bold text-admin-ink">Fonds d&apos;écran</h3>
+          <p className="mt-0.5 text-xs text-admin-ink-soft">
+            Personnaliser les images de fond pour chaque section (mobile + PC).
+          </p>
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-admin-ink-soft" />
+      </Link>
+
+      <form onSubmit={handleSubmit} className="space-y-5">
       {/* === Section : Délai entre relances patiente === */}
       <section className="rounded-2xl bg-admin-surface p-5 shadow-sm">
         <header className="mb-3 flex items-start gap-3">
@@ -99,5 +118,6 @@ export function ParametresView({ initial }: { initial: AppSettings }) {
         {busy ? 'Sauvegarde…' : 'Sauvegarder'}
       </button>
     </form>
+    </div>
   );
 }

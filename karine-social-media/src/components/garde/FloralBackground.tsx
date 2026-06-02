@@ -1,35 +1,34 @@
-// Fond floral partagé (mobile portrait / desktop paysage), calques fixes iOS-safe.
-// Variants :
-//   'default' — fond global (toutes pages sans variant dédié)
-//   'astuces' — page Astuces
-//   'salade'  — page catégorie Salades
-const VARIANTS = {
-  default: {
-    portrait: '/images/fond-portrait.webp',
-    paysage: '/images/fond-paysage.webp',
-  },
-  astuces: {
-    portrait: '/images/fond-astuces-portrait.webp',
-    paysage: '/images/fond-astuces-paysage.webp',
-  },
-  salade: {
-    portrait: '/images/fond-salade-portrait.webp',
-    paysage: '/images/fond-salade-paysage.webp',
-  },
-  dessert: {
-    portrait: '/images/fond-dessert-portrait.webp',
-    paysage: '/images/fond-dessert-paysage.webp',
-  },
-  conseils: {
-    portrait: '/images/fond-conseils-portrait.webp',
-    paysage: '/images/fond-conseils-paysage.webp',
-  },
-} as const;
+import { BACKGROUND_VARIANTS, type BackgroundVariantKey } from '@/data/background-images';
+import { getBackgroundOverrides } from '@/lib/background-images';
 
-export type BackgroundVariant = keyof typeof VARIANTS;
+// Fond floral partagé (mobile portrait / desktop paysage).
+// Karine peut surcharger chaque variant depuis /admin/parametres/fonds.
+// Si rien en DB → fallback vers le fichier livré /images/fond-*.webp.
 
-export function FloralBackground({ variant = 'default' }: { variant?: BackgroundVariant }) {
-  const { portrait, paysage } = VARIANTS[variant];
+export type BackgroundVariant = BackgroundVariantKey;
+
+export async function FloralBackground({
+  variant = 'default',
+}: {
+  variant?: BackgroundVariant;
+}) {
+  const meta = BACKGROUND_VARIANTS.find((v) => v.key === variant);
+  const fallbackPortrait = meta?.fallbackPortrait ?? '/images/fond-portrait.webp';
+  const fallbackPaysage = meta?.fallbackPaysage ?? '/images/fond-paysage.webp';
+
+  // try/catch : si table absente (migration pas encore appliquée),
+  // on retombe sur les fallbacks sans planter la page.
+  let portrait = fallbackPortrait;
+  let paysage = fallbackPaysage;
+  try {
+    const overrides = await getBackgroundOverrides();
+    const o = overrides.get(variant);
+    if (o?.portraitUrl) portrait = o.portraitUrl;
+    if (o?.paysageUrl) paysage = o.paysageUrl;
+  } catch {
+    /* table absente ou erreur : on garde les fallbacks */
+  }
+
   return (
     <>
       <div

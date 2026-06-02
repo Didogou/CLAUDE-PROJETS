@@ -1,41 +1,41 @@
 import Link from 'next/link';
 import { Plus } from 'lucide-react';
-import { getAllTipsAdmin } from '@/lib/tips';
-import { TipRowActions } from '@/components/admin/TipRowActions';
+import { getAllAdviceAdmin } from '@/lib/advice';
+import { AdviceRowActions } from '@/components/admin/AdviceRowActions';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminAstucesPage() {
-  const tips = await getAllTipsAdmin();
+export default async function AdminConseilsPage() {
+  const items = await getAllAdviceAdmin();
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <header>
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-admin-primary">Contenu</p>
-          <h2 className="font-script text-4xl text-admin-primary-dark">Astuces</h2>
+          <h2 className="font-script text-4xl text-admin-primary-dark">Conseils santé</h2>
         </header>
         <Link
-          href="/admin/astuces/new"
+          href="/admin/conseils/new"
           className="flex items-center gap-2 rounded-full bg-admin-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-admin-primary-dark"
         >
-          <Plus className="h-4 w-4" /> Nouvelle
+          <Plus className="h-4 w-4" /> Nouveau
         </Link>
       </div>
 
-      {tips.length === 0 ? (
+      {items.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-admin-border bg-admin-surface px-6 py-10 text-center text-admin-ink-soft">
-          Aucune astuce pour l&apos;instant. Clique sur «&nbsp;Nouvelle&nbsp;».
+          Aucun conseil pour l&apos;instant. Clique sur «&nbsp;Nouveau&nbsp;».
         </p>
       ) : (
         <ul className="space-y-2">
-          {tips.map((t) => (
+          {items.map((t) => (
             <li
               key={t.id}
               className="flex items-center gap-3 rounded-2xl bg-admin-surface p-3 shadow-sm"
             >
               <Link
-                href={`/admin/astuces/${t.id}`}
+                href={`/admin/conseils/${t.id}`}
                 aria-label={`Modifier ${t.label}`}
                 className="flex min-w-0 flex-1 items-center gap-3 transition hover:opacity-80"
               >
@@ -61,7 +61,7 @@ export default async function AdminAstucesPage() {
               >
                 {t.status}
               </span>
-              <TipRowActions slug={t.id} label={t.label} />
+              <AdviceRowActions slug={t.id} label={t.label} />
             </li>
           ))}
         </ul>

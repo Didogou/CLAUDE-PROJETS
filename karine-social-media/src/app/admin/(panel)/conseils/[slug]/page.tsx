@@ -1,25 +1,25 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
-import { getTipBySlug } from '@/lib/tips';
-import { EditTipForm } from '@/components/admin/EditTipForm';
+import { getAdviceBySlug } from '@/lib/advice';
+import { EditAdviceForm } from '@/components/admin/EditAdviceForm';
 
 export const dynamic = 'force-dynamic';
 
-export default async function AdminEditTipPage({
+export default async function AdminEditAdvicePage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const tip = await getTipBySlug(slug);
-  if (!tip) notFound();
+  const advice = await getAdviceBySlug(slug);
+  if (!advice) notFound();
 
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
         <Link
-          href="/admin/astuces"
+          href="/admin/conseils"
           aria-label="Retour"
           className="grid h-10 w-10 place-items-center rounded-full bg-admin-surface text-admin-ink transition hover:bg-admin-soft/40"
         >
@@ -27,11 +27,11 @@ export default async function AdminEditTipPage({
         </Link>
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-admin-primary">Modifier</p>
-          <h2 className="truncate font-script text-3xl text-admin-primary-dark">{tip.label}</h2>
+          <h2 className="truncate font-script text-3xl text-admin-primary-dark">{advice.label}</h2>
         </div>
       </div>
 
-      <EditTipForm tip={tip} />
+      <EditAdviceForm advice={advice} />
     </div>
   );
 }
