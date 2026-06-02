@@ -37,15 +37,8 @@ const TILES: TileDef[] = [
     bgClass: 'bg-cream',
     iconImage: '/images/icons/ir.png',
   },
-  {
-    href: '/mon-menu',
-    title: 'Mon menu',
-    subtitle: 'Adapté à vos besoins\net objectifs',
-    bgClass: 'bg-petal',
-    iconImage: '/images/icons/mp.png',
-    badge: 'Nouveau',
-    accentImage: '/images/exclamations.png',
-  },
+  // Tuile "Mon menu" masquée (à réintroduire quand la fonctionnalité
+  // personnalisée par profil utilisatrice sera prête).
   {
     href: '/conseils',
     title: 'Conseils santé',
