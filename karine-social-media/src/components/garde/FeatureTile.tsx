@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowRight, Lock, type LucideIcon } from 'lucide-react';
 import { LockedTileModal } from './LockedTileModal';
+import { FireworkBurst } from '@/components/recettes/FireworkBurst';
 
 type FeatureTileProps = {
   href: string;
@@ -24,6 +26,9 @@ type FeatureTileProps = {
   locked?: boolean;
   /** Pour personnaliser le contenu de la modal (visiteur vs connecté sans abo). */
   isAuthenticated?: boolean;
+  /** Si true → déclenche un feu d'artifice de particules cuisine au clic
+   *  avant la navigation (~700ms). Utilisé pour la tuile Recettes. */
+  burstOnClick?: boolean;
 };
 
 export function FeatureTile({
@@ -39,11 +44,34 @@ export function FeatureTile({
   className = '',
   locked = false,
   isAuthenticated = false,
+  burstOnClick = false,
 }: FeatureTileProps) {
+  const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
+  const [burstCount, setBurstCount] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  function handleBurstClick(e: React.MouseEvent) {
+    if (!burstOnClick || locked || busy) return;
+    e.preventDefault();
+    setBurstCount((n) => n + 1);
+    setBusy(true);
+    window.setTimeout(() => router.push(href), 700);
+  }
 
   const innerContent = (
     <>
+      {/* Feu d'artifice au clic (visible 1.6s, key change pour remount) */}
+      {burstOnClick && burstCount > 0 && (
+        <span
+          key={burstCount}
+          className="pointer-events-none absolute inset-0 z-20"
+          aria-hidden
+        >
+          <FireworkBurst category="plat" count={14} />
+        </span>
+      )}
+
       {badge && (
         <span
           className={`absolute top-3 z-10 rounded-full bg-sage px-2 py-0.5 text-[0.55rem] font-bold uppercase tracking-wide text-white ${
@@ -125,7 +153,11 @@ export function FeatureTile({
   }
 
   return (
-    <Link href={href} className={`${baseClass} ${lockedClass}`}>
+    <Link
+      href={href}
+      onClick={burstOnClick ? handleBurstClick : undefined}
+      className={`${baseClass} ${lockedClass}`}
+    >
       {innerContent}
     </Link>
   );

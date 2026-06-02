@@ -22,6 +22,7 @@ type TileDef = {
   iconImage: string;
   badge?: string;
   accentImage?: string;
+  burstOnClick?: boolean;
 };
 
 const TILES: TileDef[] = [
@@ -38,6 +39,7 @@ const TILES: TileDef[] = [
     subtitle: 'Inspiration saine\net gourmande',
     bgClass: 'bg-cream',
     iconImage: '/images/icons/ir.png',
+    burstOnClick: true,
   },
   // Tuile "Mon menu" masquée (à réintroduire quand la fonctionnalité
   // personnalisée par profil utilisatrice sera prête).
@@ -125,6 +127,7 @@ export default async function Home({
               accentImage={tile.accentImage}
               locked={tile.locked}
               isAuthenticated={user.isAuthenticated}
+              burstOnClick={tile.burstOnClick}
             />
           ))}
         </div>
