@@ -60,6 +60,22 @@ export async function POST(request: NextRequest) {
         metadata: { user_id: user.id, plan },
       },
       allow_promotion_codes: true,
+      // Conformité RGPD/Conso : Karine doit faire accepter les CGV
+      // avant le paiement. Stripe affiche une checkbox obligatoire avec
+      // un lien direct vers nos CGV (configurées dans le Dashboard
+      // Stripe : Settings > Public details > Terms of service).
+      // L'utilisatrice doit cocher avant que le bouton "Payer" s'active.
+      consent_collection: {
+        terms_of_service: 'required',
+      },
+      // Texte custom rappelant la rétractation 14 jours (avec waiver
+      // implicite : service numérique à exécution immédiate).
+      custom_text: {
+        terms_of_service_acceptance: {
+          message:
+            'J’accepte les [Conditions générales de vente](https://karine-social-media.vercel.app/cgv) et la [Politique de confidentialité](https://karine-social-media.vercel.app/confidentialite). Je demande à bénéficier immédiatement du service et renonce à mon droit de rétractation de 14 jours.',
+        },
+      },
     });
 
     if (!session.url) {
