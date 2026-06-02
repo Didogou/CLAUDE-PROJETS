@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 
 // Note : la colonne `is_seasonal` (migration 20260530180000_recipes_is_seasonal.sql)
 // n'est pas encore dans les types Supabase générés (`src/types/database.ts`).
@@ -42,20 +43,13 @@ async function uploadImage(
   name: string,
   file: File,
 ): Promise<string> {
-  const rawExt = file.name.includes('.') ? file.name.split('.').pop() ?? '' : '';
-  // Fallback selon le type MIME si pas d'extension lisible
-  const ext = sanitizeExt(
-    rawExt,
-    file.type === 'image/png' ? 'png' :
-    file.type === 'image/webp' ? 'webp' :
-    file.type === 'image/heic' ? 'heic' :
-    'jpg',
-  );
+  // Conversion WebP (qualité 85) systématique avant upload Storage
+  const { buffer, ext, contentType } = await optimizeUploadToWebp(file);
   const safeName = name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
   const path = `recipes/${slug}/${safeName}.${ext}`;
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+    .upload(path, buffer, { upsert: true, contentType });
   if (error) {
     console.error('[uploadImage] Storage error for file:', {
       originalName: file.name,

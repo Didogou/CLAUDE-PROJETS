@@ -1,13 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 
 const BUCKET = 'content-images';
-
-function sanitizeExt(ext: string, fallback = 'jpg'): string {
-  const cleaned = ext.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
-  return cleaned || fallback;
-}
 
 /**
  * POST 1 slide additionnelle à une astuce existante.
@@ -28,19 +24,13 @@ export async function POST(
 
     const supabase = createServiceClient();
 
-    const rawExt = file.name.includes('.') ? file.name.split('.').pop() ?? '' : '';
-    const ext = sanitizeExt(
-      rawExt,
-      file.type === 'image/png' ? 'png' :
-      file.type === 'image/webp' ? 'webp' :
-      file.type === 'image/heic' ? 'heic' :
-      'jpg',
-    );
+    // Conversion WebP (qualité 85) systématique avant upload Storage
+    const { buffer, ext, contentType } = await optimizeUploadToWebp(file);
     const name = `slide-${Date.now().toString(36)}-${Math.floor(Math.random() * 1000)}`;
     const path = `advice/${slug}/${name}.${ext}`;
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
-      .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+      .upload(path, buffer, { upsert: true, contentType });
     if (upErr) throw upErr;
     const url = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 

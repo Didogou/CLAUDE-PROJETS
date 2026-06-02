@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 
 const BUCKET = 'content-images';
 
@@ -33,19 +34,13 @@ async function uploadImage(
   name: string,
   file: File,
 ): Promise<string> {
-  const rawExt = file.name.includes('.') ? file.name.split('.').pop() ?? '' : '';
-  const ext = sanitizeExt(
-    rawExt,
-    file.type === 'image/png' ? 'png' :
-    file.type === 'image/webp' ? 'webp' :
-    file.type === 'image/heic' ? 'heic' :
-    'jpg',
-  );
+  // Conversion WebP (qualité 85) systematique avant upload Supabase Storage
+  const { buffer, ext, contentType } = await optimizeUploadToWebp(file);
   const safeName = name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
   const path = `tips/${slug}/${safeName}.${ext}`;
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+    .upload(path, buffer, { upsert: true, contentType });
   if (error) throw error;
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }

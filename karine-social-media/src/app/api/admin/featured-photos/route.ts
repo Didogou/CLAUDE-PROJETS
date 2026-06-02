@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/current-user';
 import { createServiceClient } from '@/lib/supabase/server';
+import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 import {
   createFeaturedPhoto,
   deleteFeaturedPhoto,
@@ -49,16 +50,15 @@ export async function POST(req: Request) {
       ? caption.trim().slice(0, 200)
       : null;
 
-  // Upload Supabase Storage
+  // Conversion WebP (qualité 85) systématique avant upload Storage
   const supabase = createServiceClient();
-  const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
+  const { buffer, ext, contentType } = await optimizeUploadToWebp(file);
   const path = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error: uploadError } = await (supabase.storage as any)
     .from(BUCKET)
     .upload(path, buffer, {
-      contentType: file.type,
+      contentType,
       upsert: false,
     });
   if (uploadError) {
