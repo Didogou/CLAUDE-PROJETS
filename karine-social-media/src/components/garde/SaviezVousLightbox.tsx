@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
+  ChevronLeft,
+  ChevronRight,
   Heart,
   Printer,
   Share2,
@@ -11,30 +13,41 @@ import {
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { useLightboxAnim } from '@/lib/use-lightbox-anim';
 
-/**
- * Lightbox plein écran pour les photos de la section "Le saviez-vous ?".
- *  - Pinch-to-zoom / double-tap / Ctrl+wheel via ZoomableImage
- *  - Partager (Web Share API + fallback copie URL)
- *  - Imprimer (window.print + CSS print qui masque tout sauf l'image)
- *  - Liker (état local V1 — DB plus tard)
- *  - Fermer (X, Escape, ou clic backdrop)
- */
-export function SaviezVousLightbox({
-  imageUrl,
-  caption,
-  onClose,
-}: {
+export type SaviezVousLightboxItem = {
+  id: string;
   imageUrl: string;
   caption: string | null;
+};
+
+/**
+ * Lightbox plein écran pour les photos "Le saviez-vous ?".
+ *  - Pinch-to-zoom / double-tap / Ctrl+wheel via ZoomableImage
+ *  - Navigation entre photos via flèches + swipe + touches clavier ←/→
+ *  - Partager, Imprimer, Liker (état local V1)
+ *  - Fermer (X, Escape)
+ */
+export function SaviezVousLightbox({
+  items,
+  startIndex,
+  onClose,
+}: {
+  items: SaviezVousLightboxItem[];
+  startIndex: number;
   onClose: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const [index, setIndex] = useState(startIndex);
+  const [liked, setLiked] = useState<Record<string, boolean>>({});
   const [shareToast, setShareToast] = useState<string | null>(null);
   const { phase, requestClose } = useLightboxAnim(onClose);
 
+  const total = items.length;
+  const current = items[index];
+  const multi = total > 1;
+
   useEffect(() => setMounted(true), []);
 
+  // Lock scroll body
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -43,10 +56,29 @@ export function SaviezVousLightbox({
     };
   }, []);
 
+  // Navigation clavier
+  useEffect(() => {
+    if (!multi) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft') setIndex((i) => (i - 1 + total) % total);
+      else if (e.key === 'ArrowRight') setIndex((i) => (i + 1) % total);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [multi, total]);
+
+  function next() {
+    if (multi) setIndex((i) => (i + 1) % total);
+  }
+  function prev() {
+    if (multi) setIndex((i) => (i - 1 + total) % total);
+  }
+
   async function handleShare() {
+    if (!current) return;
     const shareData = {
       title: 'Karine Diététique',
-      text: caption ?? 'Le saviez-vous ?',
+      text: current.caption ?? 'Le saviez-vous ?',
       url: typeof window !== 'undefined' ? window.location.href : '',
     };
     try {
@@ -55,10 +87,8 @@ export function SaviezVousLightbox({
         return;
       }
     } catch {
-      // L'utilisateur a annulé le share natif — pas une vraie erreur
       return;
     }
-    // Fallback : copier l'URL au clipboard
     try {
       await navigator.clipboard.writeText(shareData.url);
       setShareToast('Lien copié');
@@ -73,7 +103,9 @@ export function SaviezVousLightbox({
     window.print();
   }
 
-  if (!mounted) return null;
+  if (!mounted || !current) return null;
+
+  const isLiked = liked[current.id] ?? false;
 
   return createPortal(
     <div
@@ -82,29 +114,35 @@ export function SaviezVousLightbox({
       }`}
       role="dialog"
       aria-modal="true"
-      aria-label={caption ?? 'Photo agrandie'}
+      aria-label={current.caption ?? 'Photo agrandie'}
     >
-      {/* Image plein écran avec marges pour les contrôles. L'image entre
-          en scale doux pour eviter l'effet abrupt. */}
+      {/* Image plein écran. key=index → la transition se rejoue à chaque
+          changement de photo (effet doux pendant la navigation). */}
       <div
+        key={current.id}
         className={`absolute inset-0 ${
           phase === 'exit' ? 'ie-lightbox-content-out' : 'ie-lightbox-content-in'
         }`}
       >
         <ZoomableImage
-          src={imageUrl}
-          alt={caption ?? ''}
+          src={current.imageUrl}
+          alt={current.caption ?? ''}
           className="absolute inset-0 px-4 pb-24 pt-16 sm:px-12"
           imgClassName="max-h-full max-w-full"
+          onSwipeLeft={multi ? next : undefined}
+          onSwipeRight={multi ? prev : undefined}
         />
       </div>
 
-      {/* Header : caption + bouton fermer */}
+      {/* Header : caption + compteur + bouton fermer */}
       <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start gap-3 bg-gradient-to-b from-black/55 to-transparent px-4 py-3 sm:px-6 sm:py-4 print:hidden">
-        {caption && (
-          <p className="pointer-events-auto flex-1 truncate font-script text-2xl text-white sm:text-3xl">
-            {caption}
-          </p>
+        <p className="pointer-events-auto flex-1 truncate font-script text-2xl text-white sm:text-3xl">
+          {current.caption ?? ' '}
+        </p>
+        {multi && (
+          <span className="pointer-events-auto shrink-0 rounded-full bg-white/20 px-3 py-1 text-xs font-bold text-white backdrop-blur-sm">
+            {index + 1} / {total}
+          </span>
         )}
         <button
           type="button"
@@ -115,6 +153,28 @@ export function SaviezVousLightbox({
           <X className="h-5 w-5" />
         </button>
       </header>
+
+      {/* Flèches navigation latérales (visible mobile + desktop) */}
+      {multi && (
+        <button
+          type="button"
+          onClick={prev}
+          aria-label="Précédente"
+          className="absolute left-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:left-3 sm:h-12 sm:w-12 print:hidden"
+        >
+          <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.5} />
+        </button>
+      )}
+      {multi && (
+        <button
+          type="button"
+          onClick={next}
+          aria-label="Suivante"
+          className="absolute right-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:right-3 sm:h-12 sm:w-12 print:hidden"
+        >
+          <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.5} />
+        </button>
+      )}
 
       {/* Footer : actions (partager / imprimer / liker) */}
       <footer className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-center justify-center gap-3 bg-gradient-to-t from-black/55 to-transparent px-4 pb-6 pt-4 sm:gap-4 sm:px-6 print:hidden">
@@ -130,9 +190,11 @@ export function SaviezVousLightbox({
         />
         <ActionButton
           icon={Heart}
-          label={liked ? 'Liké' : 'J’aime'}
-          onClick={() => setLiked((v) => !v)}
-          active={liked}
+          label={isLiked ? 'Liké' : 'J’aime'}
+          onClick={() =>
+            setLiked((m) => ({ ...m, [current.id]: !m[current.id] }))
+          }
+          active={isLiked}
         />
       </footer>
 

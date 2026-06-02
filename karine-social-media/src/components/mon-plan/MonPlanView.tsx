@@ -48,6 +48,8 @@ export function MonPlanView({
   const [error, setError] = useState<string | null>(null);
   /** Plan choisi par un visiteur (non connecté) → ouvre la modal auth gate. */
   const [pendingPlan, setPendingPlan] = useState<PlanKind | null>(null);
+  /** Case CGV/Confidentialité cochée. Obligatoire avant clic sur plan. */
+  const [acceptedTos, setAcceptedTos] = useState(false);
   /** Indique si l'utilisateur est connecté. Si email vide → visiteur. */
   const isAuthenticated = email !== '';
 
@@ -84,8 +86,22 @@ export function MonPlanView({
   /**
    * Visiteur clique sur un plan → ouvre la modal auth gate.
    * Connecté → lance le checkout direct.
+   * Dans les 2 cas : exige que la case CGV soit cochée.
    */
   function onChoosePlan(plan: PlanKind) {
+    if (!acceptedTos) {
+      setError(
+        'Pour continuer, accepte d’abord les Conditions générales de vente et la Politique de confidentialité.',
+      );
+      // Scroll vers la case pour qu'on la voie
+      window.setTimeout(() => {
+        document.getElementById('tos-checkbox')?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }, 50);
+      return;
+    }
     if (!isAuthenticated) {
       setPendingPlan(plan);
       return;
@@ -306,6 +322,47 @@ export function MonPlanView({
               highlighted
             />
           </div>
+
+          {/* Acceptation CGV + Confidentialité obligatoire avant paiement.
+              Conformite Code de la consommation. Si decoche → clic sur
+              plan est bloqué avec un message. */}
+          <label
+            id="tos-checkbox"
+            className="flex cursor-pointer items-start gap-3 rounded-2xl border border-coral-soft bg-white/90 p-4 text-sm text-ink shadow-sm"
+          >
+            <input
+              type="checkbox"
+              checked={acceptedTos}
+              onChange={(e) => {
+                setAcceptedTos(e.target.checked);
+                if (e.target.checked) setError(null);
+              }}
+              className="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-coral"
+            />
+            <span>
+              J&apos;accepte les{' '}
+              <a
+                href="/cgv"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-coral underline hover:text-coral-dark"
+              >
+                Conditions générales de vente
+              </a>{' '}
+              et la{' '}
+              <a
+                href="/confidentialite"
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-coral underline hover:text-coral-dark"
+              >
+                Politique de confidentialité
+              </a>
+              . Je demande à bénéficier immédiatement du service et renonce à
+              mon droit de rétractation de 14 jours (service numérique à
+              exécution immédiate).
+            </span>
+          </label>
 
           {!isAuthenticated && (
             <p className="text-center text-xs text-ink-soft">

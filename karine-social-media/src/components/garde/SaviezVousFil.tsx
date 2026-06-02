@@ -40,7 +40,12 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
 
   if (items.length === 0) return null;
 
-  const openItem = openIdx !== null ? items[openIdx] : null;
+  // Items normalisés pour la lightbox (caption typé string | null)
+  const lightboxItems = items.map((it) => ({
+    id: it.id,
+    imageUrl: it.imageUrl,
+    caption: it.caption ?? null,
+  }));
 
   return (
     <>
@@ -113,10 +118,10 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
         </div>
       </section>
 
-      {openItem && (
+      {openIdx !== null && (
         <SaviezVousLightbox
-          imageUrl={openItem.imageUrl}
-          caption={openItem.caption ?? null}
+          items={lightboxItems}
+          startIndex={openIdx}
           onClose={() => setOpenIdx(null)}
         />
       )}
