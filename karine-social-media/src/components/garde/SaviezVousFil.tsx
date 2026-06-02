@@ -1,7 +1,7 @@
-/* eslint-disable @next/next/no-img-element */
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Heart, Sparkles } from 'lucide-react';
 import { SaviezVousLightbox } from './SaviezVousLightbox';
 
@@ -150,14 +150,20 @@ function Polaroid({
         </span>
       )}
 
-      {/* Polaroid : bord blanc épais en bas (zone caption) */}
+      {/* Polaroid : bord blanc épais en bas (zone caption). Image servie
+          en versions responsive par next/image (sizes 96-128 px selon
+          breakpoint, plus pixel ratio mobile). Au lieu d'envoyer la
+          version 1254×1254 à tout le monde, on envoie une 160×160 à
+          la plupart des appareils. Gain ~95% sur cette zone. */}
       <div className="block w-full rounded-sm bg-white p-1.5 pb-5 shadow-[0_6px_14px_-8px_rgba(0,0,0,0.35)] ring-1 ring-ink/5">
-        <div className="aspect-square w-full overflow-hidden bg-blush/40">
-          <img
+        <div className="relative aspect-square w-full overflow-hidden bg-blush/40">
+          <Image
             src={imageUrl}
             alt={caption ?? ''}
+            fill
+            sizes="(min-width: 1024px) 128px, (min-width: 640px) 112px, 96px"
             draggable={false}
-            className="h-full w-full select-none object-cover"
+            className="select-none object-cover"
           />
         </div>
         {caption && (

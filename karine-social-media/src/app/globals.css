@@ -21,7 +21,7 @@
   --color-violet-icon: #9d7cb8;  /* icône violette (astuces) */
 
   --color-ink: #4b4248;          /* texte titres */
-  --color-ink-soft: #9e949a;     /* texte secondaire */
+  --color-ink-soft: #7a6d75;     /* texte secondaire — fonce pour respecter le contraste WCAG AA sur fond rose pale */
 
   /* --- Palette admin (rose foncé, look outil pro) --- */
   --color-admin-bg: #f4dde4;         /* fond admin */
