@@ -107,7 +107,7 @@ export default async function Home({
       </div>
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 pb-6 lg:max-w-7xl lg:justify-center lg:px-10 lg:pb-4">
-        <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-5">
+        <div className="mx-auto grid auto-rows-fr grid-cols-2 gap-3 lg:max-w-5xl lg:grid-cols-4">
           {tilesWithAccess.map((tile) => (
             <FeatureTile
               key={tile.href}

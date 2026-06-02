@@ -51,13 +51,13 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
           <Sparkles className="h-5 w-5 text-tangerine" aria-hidden />
         </header>
 
-        {/* Fil courbé en U placé EN ABSOLU dans la section, donc s'étend
-            toujours de bord à bord (gauche → droite du cadre rose). */}
+        {/* Fil courbé en U — TOUTE la largeur du cadre rose (inset-x-0),
+            le SVG déborde par-dessus le padding pour atteindre les bords. */}
         <svg
           aria-hidden
           viewBox="0 0 100 14"
           preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-x-3 top-[3.25rem] h-9 lg:inset-x-5 lg:top-[3.75rem]"
+          className="pointer-events-none absolute inset-x-0 top-[3.25rem] h-9 lg:top-[3.75rem]"
         >
           <defs>
             <linearGradient id="rope-shade" x1="0" x2="0" y1="0" y2="1">
