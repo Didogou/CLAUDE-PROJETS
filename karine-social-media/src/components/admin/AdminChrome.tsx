@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   ChefHat,
   ClipboardList,
+  FileText,
   Leaf,
   Sparkles,
   Users,
@@ -37,6 +38,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/patientes', label: 'Patientes', icon: HeartHandshake },
   { href: '/admin/abonnes', label: 'Abonnés', icon: Users },
   { href: '/admin/permissions', label: 'Permissions', icon: Shield },
+  { href: '/admin/informations-legales', label: 'Infos légales & banque', icon: FileText },
   { href: '/admin/parametres', label: 'Paramètres', icon: SlidersHorizontal },
   { href: '/admin/compte', label: 'Compte', icon: Settings },
 ];

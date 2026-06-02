@@ -92,9 +92,25 @@ export function LegalLayout({
 }
 
 /**
- * Composant inline pour marquer les blancs à remplir avant lancement.
- * Visuellement bien visible (badge rose) pour que personne n'oublie.
+ * Composant inline qui affiche soit la VALEUR fournie (rempli depuis l'admin),
+ * soit un PLACEHOLDER rose visible si rien n'est saisi.
+ *
+ * Usage :
+ *   <Blank value={settings.companyName} placeholder="NOM SOCIÉTÉ" />
+ *
+ * Si une valeur non vide est fournie → affichage normal (texte inline).
+ * Sinon → badge rose [NOM SOCIÉTÉ] qui ressort dans la page.
  */
-export function Blank({ children }: { children: React.ReactNode }) {
-  return <span className="blank">[{children}]</span>;
+export function Blank({
+  value,
+  placeholder,
+}: {
+  value?: string | null;
+  placeholder: string;
+}) {
+  const trimmed = value?.trim();
+  if (trimmed && trimmed.length > 0) {
+    return <span>{trimmed}</span>;
+  }
+  return <span className="blank">[{placeholder}]</span>;
 }

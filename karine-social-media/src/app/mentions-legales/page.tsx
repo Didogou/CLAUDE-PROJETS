@@ -1,9 +1,11 @@
 import { Blank, LegalLayout } from '@/components/garde/LegalLayout';
+import { getPublicLegalSettings } from '@/lib/legal-settings';
 
 export const metadata = { title: 'Mentions légales — Karine Diététique' };
-// dynamic par défaut : AppHeader lit la session (cookies) à chaque request.
 
-export default function MentionsLegalesPage() {
+export default async function MentionsLegalesPage() {
+  const s = await getPublicLegalSettings();
+
   return (
     <LegalLayout title="Mentions légales" lastUpdated="2 juin 2026">
       <h2>1. Éditeur du site</h2>
@@ -12,18 +14,21 @@ export default function MentionsLegalesPage() {
         (ci-après « le Service ») sont édités par&nbsp;:
       </p>
       <ul>
-        <li>Raison sociale : <Blank>NOM SOCIÉTÉ</Blank></li>
-        <li>Forme juridique : <Blank>SAS / SARL / Auto-entrepreneur</Blank></li>
-        <li>Capital social : <Blank>MONTANT</Blank> €</li>
-        <li>Siège social : <Blank>ADRESSE COMPLÈTE</Blank></li>
-        <li>RCS : <Blank>VILLE</Blank> n° <Blank>NUMÉRO RCS</Blank></li>
-        <li>SIRET : <Blank>14 CHIFFRES</Blank></li>
-        <li>N° TVA intracommunautaire : <Blank>FR XX XXX XXX XXX</Blank></li>
-        <li>Email : <Blank>contact@karine-dietetique.fr</Blank></li>
+        <li>Raison sociale : <Blank value={s.companyName} placeholder="NOM SOCIÉTÉ" /></li>
+        <li>Forme juridique : <Blank value={s.legalForm} placeholder="SAS / SARL / Auto-entrepreneur" /></li>
+        <li>Capital social : <Blank value={s.capitalSocial} placeholder="MONTANT" /> €</li>
+        <li>Siège social : <Blank value={s.siegeSocial} placeholder="ADRESSE COMPLÈTE" /></li>
+        <li>RCS : <Blank value={s.rcsCity} placeholder="VILLE" /> n° <Blank value={s.rcsNumber} placeholder="NUMÉRO RCS" /></li>
+        <li>SIRET : <Blank value={s.siret} placeholder="14 CHIFFRES" /></li>
+        <li>N° TVA intracommunautaire : <Blank value={s.vatNumber} placeholder="FR XX XXX XXX XXX" /></li>
+        <li>Email : <Blank value={s.contactEmail} placeholder="contact@karine-dietetique.fr" /></li>
       </ul>
 
       <h2>2. Directeur de la publication</h2>
-      <p><Blank>PRÉNOM NOM</Blank>, en qualité de <Blank>FONCTION</Blank>.</p>
+      <p>
+        <Blank value={s.directorName} placeholder="PRÉNOM NOM" />, en qualité de{' '}
+        <Blank value={s.directorFunction} placeholder="FONCTION" />.
+      </p>
 
       <h2>3. Hébergeur</h2>
       <p>
@@ -41,17 +46,17 @@ export default function MentionsLegalesPage() {
       <p>
         L&apos;ensemble des contenus présents sur le Service (textes, images,
         photographies, vidéos, recettes, illustrations, logos, marques) sont la
-        propriété exclusive de <Blank>NOM SOCIÉTÉ</Blank> ou de leurs ayants
-        droit respectifs. Toute reproduction, représentation ou diffusion, totale
-        ou partielle, sans autorisation écrite préalable, est interdite et
-        constituerait une contrefaçon sanctionnée par les articles L.335-2 et
-        suivants du Code de la propriété intellectuelle.
+        propriété exclusive de <Blank value={s.companyName} placeholder="NOM SOCIÉTÉ" /> ou
+        de leurs ayants droit respectifs. Toute reproduction, représentation ou
+        diffusion, totale ou partielle, sans autorisation écrite préalable, est
+        interdite et constituerait une contrefaçon sanctionnée par les articles
+        L.335-2 et suivants du Code de la propriété intellectuelle.
       </p>
 
       <h2>5. Contact</h2>
       <p>
         Pour toute question relative au présent site, vous pouvez contacter
-        l&apos;éditeur à l&apos;adresse&nbsp;: <Blank>contact@karine-dietetique.fr</Blank>.
+        l&apos;éditeur à l&apos;adresse&nbsp;: <Blank value={s.contactEmail} placeholder="contact@karine-dietetique.fr" />.
       </p>
     </LegalLayout>
   );

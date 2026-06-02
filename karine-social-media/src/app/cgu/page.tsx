@@ -1,15 +1,17 @@
 import { Blank, LegalLayout } from '@/components/garde/LegalLayout';
+import { getPublicLegalSettings } from '@/lib/legal-settings';
 
 export const metadata = { title: 'Conditions générales d’utilisation — Karine Diététique' };
 
-export default function CguPage() {
+export default async function CguPage() {
+  const s = await getPublicLegalSettings();
   return (
     <LegalLayout title="Conditions générales d'utilisation" lastUpdated="2 juin 2026">
       <p>
         Les présentes Conditions Générales d&apos;Utilisation (« CGU »)
         régissent l&apos;accès et l&apos;utilisation du service en ligne
         accessible à l&apos;adresse <strong>karine-social-media.vercel.app</strong>
-        {' '}(« le Service ») édité par <Blank>NOM SOCIÉTÉ</Blank>.
+        {' '}(« le Service ») édité par <Blank value={s.companyName} placeholder="NOM SOCIÉTÉ" />.
       </p>
       <p>
         L&apos;utilisation du Service implique l&apos;acceptation pleine et
@@ -70,7 +72,7 @@ export default function CguPage() {
       <p>
         L&apos;ensemble du contenu éditorial (recettes, menus, articles, photos,
         logos, code, design) est protégé au titre du droit d&apos;auteur et
-        appartient à <Blank>NOM SOCIÉTÉ</Blank> ou à ses ayants droit.
+        appartient à <Blank value={s.companyName} placeholder="NOM SOCIÉTÉ" /> ou à ses ayants droit.
         L&apos;utilisatrice obtient une licence personnelle, non exclusive et
         non transférable d&apos;utilisation pour son usage privé uniquement.
         Toute reproduction, redistribution ou usage commercial est interdit.
@@ -111,12 +113,12 @@ export default function CguPage() {
       <p>
         Les présentes CGU sont soumises au droit français. À défaut de
         résolution amiable, tout litige sera porté devant les tribunaux
-        compétents de <Blank>VILLE TRIBUNAL</Blank>.
+        compétents de <Blank value={s.courtJurisdiction} placeholder="VILLE TRIBUNAL" />.
       </p>
 
       <h2>11. Contact</h2>
       <p>
-        Pour toute question relative aux CGU : <Blank>contact@karine-dietetique.fr</Blank>.
+        Pour toute question relative aux CGU : <Blank value={s.contactEmail} placeholder="contact@karine-dietetique.fr" />.
       </p>
     </LegalLayout>
   );

@@ -1,12 +1,14 @@
 import { Blank, LegalLayout } from '@/components/garde/LegalLayout';
+import { getPublicLegalSettings } from '@/lib/legal-settings';
 
 export const metadata = { title: 'Politique de confidentialité — Karine Diététique' };
 
-export default function ConfidentialitePage() {
+export default async function ConfidentialitePage() {
+  const s = await getPublicLegalSettings();
   return (
     <LegalLayout title="Politique de confidentialité" lastUpdated="2 juin 2026">
       <p>
-        La présente politique décrit la manière dont <Blank>NOM SOCIÉTÉ</Blank>{' '}
+        La présente politique décrit la manière dont <Blank value={s.companyName} placeholder="NOM SOCIÉTÉ" />{' '}
         (« nous ») collecte, utilise et protège vos données personnelles dans
         le cadre de l&apos;utilisation du service en ligne{' '}
         <strong>karine-social-media.vercel.app</strong> (« le Service »), en
@@ -16,9 +18,9 @@ export default function ConfidentialitePage() {
 
       <h2>1. Responsable du traitement</h2>
       <p>
-        <Blank>NOM SOCIÉTÉ</Blank>, <Blank>ADRESSE</Blank>, SIRET{' '}
-        <Blank>NUMÉRO</Blank>.<br />
-        Contact&nbsp;: <Blank>contact@karine-dietetique.fr</Blank>.
+        <Blank value={s.companyName} placeholder="NOM SOCIÉTÉ" />, <Blank value={s.siegeSocial} placeholder="ADRESSE" />, SIRET{' '}
+        <Blank value={s.siret} placeholder="NUMÉRO" />.<br />
+        Contact&nbsp;: <Blank value={s.contactEmail} placeholder="contact@karine-dietetique.fr" />.
       </p>
 
       <h2>2. Données collectées</h2>
@@ -57,7 +59,7 @@ export default function ConfidentialitePage() {
       <h2>5. Sous-traitants et destinataires</h2>
       <p>Vos données sont susceptibles d&apos;être traitées par&nbsp;:</p>
       <ul>
-        <li><strong>Vercel Inc.</strong> (hébergement) — <Blank>États-Unis, certifié EU-US Data Privacy Framework</Blank>.</li>
+        <li><strong>Vercel Inc.</strong> (hébergement) — États-Unis, certifié EU-US Data Privacy Framework.</li>
         <li><strong>Supabase Inc.</strong> (base de données et authentification) — Singapour / UE selon région.</li>
         <li><strong>Stripe Inc.</strong> (traitement des paiements) — Irlande pour l&apos;UE.</li>
         <li><strong>Resend Inc.</strong> (envoi d&apos;emails transactionnels) — États-Unis.</li>
@@ -88,7 +90,7 @@ export default function ConfidentialitePage() {
       </ul>
       <p>
         Pour exercer ces droits, contactez-nous à&nbsp;:
-        <Blank>contact@karine-dietetique.fr</Blank>. Nous répondrons dans un
+        <Blank value={s.contactEmail} placeholder="contact@karine-dietetique.fr" />. Nous répondrons dans un
         délai d&apos;un mois.
       </p>
       <p>

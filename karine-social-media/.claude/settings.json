@@ -108,7 +108,9 @@
       "Bash(curl -s https://karine-social-media.vercel.app/login -o /tmp/login.html -w \"HTTP %{http_code}\\\\n\")",
       "Bash(vercel --version)",
       "Bash(curl -s -o /tmp/login.html -w \"HTTP %{http_code}\\\\n\" https://karine-social-media.vercel.app/login)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(cp \"assets-source/06_ICONES_ET_UI/Fond_conseil_P.png\" \"public/images/fond-conseils-portrait.png\")",
+      "Bash(cp \"assets-source/06_ICONES_ET_UI/Fond_conseil_M.png\" \"public/images/fond-conseils-paysage.png\")"
     ],
     "additionalDirectories": [
       "\\tmp"

@@ -1,15 +1,17 @@
 import { Blank, LegalLayout } from '@/components/garde/LegalLayout';
+import { getPublicLegalSettings } from '@/lib/legal-settings';
 
 export const metadata = { title: 'Conditions générales de vente — Karine Diététique' };
 
-export default function CgvPage() {
+export default async function CgvPage() {
+  const s = await getPublicLegalSettings();
   return (
     <LegalLayout title="Conditions générales de vente" lastUpdated="2 juin 2026">
       <p>
         Les présentes Conditions Générales de Vente (« CGV ») régissent les
         souscriptions d&apos;abonnement au service en ligne
         <strong> karine-social-media.vercel.app</strong> édité par{' '}
-        <Blank>NOM SOCIÉTÉ</Blank>.
+        <Blank value={s.companyName} placeholder="NOM SOCIÉTÉ" />.
       </p>
 
       <h2>1. Offre d&apos;abonnement</h2>
@@ -64,7 +66,7 @@ export default function CgvPage() {
       </p>
       <p>
         En l&apos;absence de renonciation, la demande de rétractation peut être
-        formulée à <Blank>contact@karine-dietetique.fr</Blank>.
+        formulée à <Blank value={s.contactEmail} placeholder="contact@karine-dietetique.fr" />.
       </p>
 
       <h2>5. Résiliation</h2>
@@ -96,7 +98,7 @@ export default function CgvPage() {
 
       <h2>8. Service après-vente</h2>
       <p>
-        Toute réclamation peut être adressée à&nbsp;: <Blank>contact@karine-dietetique.fr</Blank>.
+        Toute réclamation peut être adressée à&nbsp;: <Blank value={s.contactEmail} placeholder="contact@karine-dietetique.fr" />.
         L&apos;éditeur s&apos;engage à apporter une première réponse dans un
         délai maximal de 7 jours ouvrés.
       </p>
@@ -106,7 +108,7 @@ export default function CgvPage() {
         Conformément aux articles L612-1 et suivants du Code de la
         consommation, l&apos;utilisatrice consommatrice peut, en cas de litige
         non résolu, recourir gratuitement à un médiateur de la consommation&nbsp;:
-        <Blank>NOM ET COORDONNÉES DU MÉDIATEUR</Blank>.
+        <Blank value={s.mediatorName} placeholder="NOM ET COORDONNÉES DU MÉDIATEUR" />.
       </p>
 
       <h2>10. Droit applicable et juridiction</h2>

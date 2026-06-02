@@ -20,6 +20,10 @@ const VARIANTS = {
     portrait: '/images/fond-dessert-portrait.png',
     paysage: '/images/fond-dessert-paysage.png',
   },
+  conseils: {
+    portrait: '/images/fond-conseils-portrait.png',
+    paysage: '/images/fond-conseils-paysage.png',
+  },
 } as const;
 
 export type BackgroundVariant = keyof typeof VARIANTS;
