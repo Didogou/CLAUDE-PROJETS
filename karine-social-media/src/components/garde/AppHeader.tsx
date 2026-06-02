@@ -18,7 +18,10 @@ export async function AppHeader({
   return (
     <header className="sticky top-0 z-40 flex flex-col bg-transparent px-5 py-3 lg:py-5">
       <div className="flex items-center justify-between">
-        <MainDrawer isAdmin={user.isAdmin} />
+        <MainDrawer
+          isAdmin={user.isAdmin}
+          isAuthenticated={user.isAuthenticated}
+        />
 
         <Logo slogan={withSlogan} />
 

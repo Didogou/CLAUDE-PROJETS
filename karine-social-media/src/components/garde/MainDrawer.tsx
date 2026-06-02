@@ -14,6 +14,7 @@ import {
   User,
   Shield,
   LogIn,
+  LogOut,
 } from 'lucide-react';
 
 type Section = { href: string; label: string; icon: typeof Home };
@@ -27,7 +28,13 @@ const SECTIONS: Section[] = [
   { href: '/profil', label: 'Profil', icon: User },
 ];
 
-export function MainDrawer({ isAdmin = false }: { isAdmin?: boolean }) {
+export function MainDrawer({
+  isAdmin = false,
+  isAuthenticated = false,
+}: {
+  isAdmin?: boolean;
+  isAuthenticated?: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -95,9 +102,9 @@ export function MainDrawer({ isAdmin = false }: { isAdmin?: boolean }) {
           }
         `}</style>
 
-        {/* Footer collé en bas : section admin ou connexion */}
-        <div className="mt-3 shrink-0 border-t border-coral-soft/60 pt-3">
-          {isAdmin ? (
+        {/* Footer : admin space + (connexion OU déconnexion selon état). */}
+        <div className="mt-3 shrink-0 space-y-1.5 border-t border-coral-soft/60 pt-3">
+          {isAdmin && (
             <Link
               href="/admin"
               onClick={() => setOpen(false)}
@@ -106,6 +113,19 @@ export function MainDrawer({ isAdmin = false }: { isAdmin?: boolean }) {
               <Shield className="h-5 w-5" />
               Espace admin
             </Link>
+          )}
+          {isAuthenticated ? (
+            // Sign-out = POST sur /auth/signout (un GET ne suffit pas :
+            // Supabase exige POST pour invalider la session).
+            <form action="/auth/signout" method="post">
+              <button
+                type="submit"
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink-soft transition hover:bg-coral-soft/40"
+              >
+                <LogOut className="h-5 w-5 text-coral" />
+                Se déconnecter
+              </button>
+            </form>
           ) : (
             <Link
               href="/login"
