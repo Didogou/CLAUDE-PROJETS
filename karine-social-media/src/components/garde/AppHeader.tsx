@@ -15,7 +15,7 @@ export async function AppHeader({
     user.isAuthenticated && user.id ? await getMyUnreadCount(user.id) : 0;
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between border-b border-coral-soft/30 bg-white/85 px-5 py-3 backdrop-blur-md lg:py-5">
+    <header className="sticky top-0 z-40 flex items-center justify-between bg-transparent px-5 py-3 lg:py-5">
       <MainDrawer isAdmin={user.isAdmin} />
 
       <Logo slogan={withSlogan} />
