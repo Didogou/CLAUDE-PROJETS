@@ -1,7 +1,7 @@
 import { Blank, LegalLayout } from '@/components/garde/LegalLayout';
 
 export const metadata = { title: 'Mentions légales — Karine Diététique' };
-export const dynamic = 'force-static';
+// dynamic par défaut : AppHeader lit la session (cookies) à chaque request.
 
 export default function MentionsLegalesPage() {
   return (

@@ -1,7 +1,6 @@
 import { Blank, LegalLayout } from '@/components/garde/LegalLayout';
 
 export const metadata = { title: 'Conditions générales de vente — Karine Diététique' };
-export const dynamic = 'force-static';
 
 export default function CgvPage() {
   return (

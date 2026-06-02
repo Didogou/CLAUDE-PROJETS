@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Bell, HeartHandshake, Sparkles } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { MainDrawer } from './MainDrawer';
+import { IdeasFloatingButton } from '@/components/ideas/IdeasFloatingButton';
 import { getCurrentUser } from '@/lib/current-user';
 import { getMyUnreadCount } from '@/lib/notifications';
 
@@ -15,12 +16,13 @@ export async function AppHeader({
     user.isAuthenticated && user.id ? await getMyUnreadCount(user.id) : 0;
 
   return (
-    <header className="sticky top-0 z-40 flex items-center justify-between bg-transparent px-5 py-3 lg:py-5">
-      <MainDrawer isAdmin={user.isAdmin} />
+    <header className="sticky top-0 z-40 flex flex-col bg-transparent px-5 py-3 lg:py-5">
+      <div className="flex items-center justify-between">
+        <MainDrawer isAdmin={user.isAdmin} />
 
-      <Logo slogan={withSlogan} />
+        <Logo slogan={withSlogan} />
 
-      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
         {/* Bouton "S'abonner" — visible AUTOMATIQUEMENT pour quiconque n'a
             pas d'accès actif (visiteur non connecté OU connecté sans abo /
             patient expiré). Masqué seulement pour patient/subscriber/admin
@@ -67,7 +69,17 @@ export async function AppHeader({
             <span className="sm:hidden">Login</span>
           </Link>
         )}
+        </div>
       </div>
+
+      {/* Ligne 2 : bouton "Une idée ?" centré. Visible uniquement pour
+          les utilisatrices authentifiees (la soumission requiert un compte
+          pour pouvoir leur notifier la reponse de Karine). */}
+      {user.isAuthenticated && (
+        <div className="mt-2 flex justify-center">
+          <IdeasFloatingButton />
+        </div>
+      )}
     </header>
   );
 }

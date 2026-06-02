@@ -112,11 +112,15 @@ export function IdeasFloatingButton() {
 
   return (
     <>
+      {/* Bouton "Une idée ?" — en haut de page (placé par le composant
+          appelant). Pill blanc avec l'icone PNG + label en font-script
+          coral pour rester chaleureux. Mis en avant pour pousser les
+          utilisatrices a proposer. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Soumettre une idée à Karine"
-        className="fixed bottom-24 right-4 z-30 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-lg ring-2 ring-coral-soft/60 transition hover:scale-105 active:scale-95 lg:bottom-8 lg:right-8"
+        className="group mx-auto flex items-center gap-2 rounded-full bg-white py-1.5 pl-1.5 pr-4 shadow-md ring-2 ring-coral-soft/60 transition hover:scale-105 active:scale-95"
       >
         {/* Icone PNG dediee (ampoule + fee 'Proposer moi une idee de recette') */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -124,8 +128,11 @@ export function IdeasFloatingButton() {
           src="/images/icons/idee-recette.png"
           alt=""
           draggable={false}
-          className="h-full w-full select-none rounded-full object-cover"
+          className="h-10 w-10 select-none rounded-full object-cover"
         />
+        <span className="font-script text-xl text-coral-dark sm:text-2xl">
+          Une idée&nbsp;?
+        </span>
       </button>
 
       {mounted &&

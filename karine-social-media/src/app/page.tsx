@@ -6,6 +6,7 @@ import { SaviezVousFil } from '@/components/garde/SaviezVousFil';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { LegalFooter } from '@/components/garde/LegalFooter';
+import { getPublishedFeaturedPhotos } from '@/lib/featured-photos';
 import { discoverPages } from '@/lib/discover-pages';
 import { getCurrentUser } from '@/lib/current-user';
 import { getAllCapabilities } from '@/lib/capabilities';
@@ -81,7 +82,10 @@ export default async function Home({
     user.effectiveRole === 'patient' ||
     user.effectiveRole === 'subscriber' ||
     user.effectiveRole === 'admin';
-  const capabilities = userHasPlan ? [] : await getAllCapabilities();
+  const [capabilities, saviezVousPhotos] = await Promise.all([
+    userHasPlan ? Promise.resolve([]) : getAllCapabilities(),
+    getPublishedFeaturedPhotos(),
+  ]);
   const capByKey = new Map(capabilities.map((c) => [c.key, c]));
 
   const tilesWithAccess = TILES.map((tile) => {
@@ -99,7 +103,7 @@ export default async function Home({
   });
 
   return (
-    <div className="relative flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
+    <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
 
       <div className="relative">
@@ -107,7 +111,7 @@ export default async function Home({
         <WelcomeBlock />
       </div>
 
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 pb-6 lg:max-w-7xl lg:justify-center lg:px-10 lg:pb-4">
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 pb-6 lg:max-w-7xl lg:px-10 lg:pb-4">
         <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-4">
           {tilesWithAccess.map((tile) => (
             <FeatureTile
@@ -125,44 +129,18 @@ export default async function Home({
           ))}
         </div>
 
-        <div className="mt-3 lg:mt-4">
-          {/* V1 : photos stub. À brancher sur une table "featured_photos"
-              + page admin /admin/le-saviez-vous quand le visuel est validé. */}
-          <SaviezVousFil
-            items={[
-              {
-                id: 'stub-1',
-                imageUrl: '/images/effects/poivron.png',
-                caption: 'Les poivrons de saison',
-                likesCount: 12,
-              },
-              {
-                id: 'stub-2',
-                imageUrl: '/images/effects/courgette.png',
-                caption: 'La courgette : 18 kcal / 100 g',
-                likesCount: 28,
-              },
-              {
-                id: 'stub-3',
-                imageUrl: '/images/effects/oignons.png',
-                caption: 'L’oignon riche en antioxydants',
-                likesCount: 7,
-              },
-              {
-                id: 'stub-4',
-                imageUrl: '/images/effects/coeur.png',
-                caption: 'L’ail bon pour le cœur',
-                likesCount: 34,
-              },
-              {
-                id: 'stub-5',
-                imageUrl: '/images/effects/poivron.png',
-                caption: 'Vitamine C : 3× plus que l’orange',
-                likesCount: 19,
-              },
-            ]}
-          />
-        </div>
+        {saviezVousPhotos.length > 0 && (
+          <div className="mt-3 lg:mt-4">
+            <SaviezVousFil
+              items={saviezVousPhotos.map((p) => ({
+                id: String(p.id),
+                imageUrl: p.imageUrl,
+                caption: p.caption,
+                likesCount: p.likesCount,
+              }))}
+            />
+          </div>
+        )}
       </main>
 
       <LegalFooter />
