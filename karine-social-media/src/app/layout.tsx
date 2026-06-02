@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Nunito, Sacramento } from 'next/font/google';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { DebugConsole } from '@/components/debug/DebugConsole';
 import './globals.css';
@@ -32,6 +33,7 @@ export default function RootLayout({
         <ServiceWorkerRegister />
         <DebugConsole />
         {children}
+        <SpeedInsights />
       </body>
     </html>
   );
