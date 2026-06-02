@@ -1,13 +1,26 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type FormEvent, type ChangeEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ChangeEvent,
+} from 'react';
 import { Trash2, X } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import { ShoppingListEditor } from './ShoppingListEditor';
 import { compressImage } from '@/lib/compress-image';
-import type { WeeklyMenu } from '@/data/menus';
+import type { WeeklyMenu, ShoppingListItem } from '@/data/menus';
 import { DAYS_LABELS } from '@/data/menus';
+
+type ShoppingPreviewData = {
+  tempPath: string | null;
+  portions: number;
+  items: ShoppingListItem[];
+};
 
 /**
  * Helper : suppression d'une image existante côté serveur.
@@ -78,6 +91,16 @@ export function MenuForm({ menu, recipeOptions }: Props) {
 
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [shoppingPreview, setShoppingPreview] = useState<string | null>(null);
+  // Liste de courses extraite par Vision DANS la page création (mode !isEdit).
+  // En mode édition, ShoppingListEditor sauve directement via PUT sans
+  // remonter de données ici.
+  const [shoppingPreviewData, setShoppingPreviewData] =
+    useState<ShoppingPreviewData | null>(null);
+  // Stabilise la référence du callback pour éviter de retrigger
+  // le useEffect interne de ShoppingListEditor à chaque render parent.
+  const onShoppingPreviewChange = useCallback((data: ShoppingPreviewData | null) => {
+    setShoppingPreviewData(data);
+  }, []);
   // Previews par jour×repas — clé "lunch-0" / "dinner-3" / …
   const [dayPreviews, setDayPreviews] = useState<Record<string, string>>({});
 
@@ -152,6 +175,16 @@ export function MenuForm({ menu, recipeOptions }: Props) {
         } else {
           textForm.set(input.name, input.value);
         }
+      }
+
+      // Liste de courses pré-analysée en création : on inclut les données
+      // pour que la route POST move l'image temp + sauve portions/items en
+      // une seule fois.
+      if (!isEdit && shoppingPreviewData) {
+        if (shoppingPreviewData.tempPath)
+          textForm.set('shopping_list_temp_path', shoppingPreviewData.tempPath);
+        textForm.set('shopping_list_portions', String(shoppingPreviewData.portions));
+        textForm.set('shopping_list_items', JSON.stringify(shoppingPreviewData.items));
       }
 
       const url = isEdit ? `/api/admin/menus/${menu!.id}` : '/api/admin/menus';
@@ -314,7 +347,7 @@ export function MenuForm({ menu, recipeOptions }: Props) {
             hint={
               isEdit
                 ? 'Image seule (visuelle). Pour la liste cochable + multiplication par nb de personnes, utilise la zone ci-dessous.'
-                : 'Image seule. Tu pourras ajouter la liste interactive après création.'
+                : 'Image seule (legacy). Pour la liste cochable, utilise la zone ci-dessous.'
             }
             serverBg={menu?.shoppingListImageUrl || ''}
             onDelete={isEdit ? () => handleDelete('shopping') : undefined}
@@ -323,16 +356,17 @@ export function MenuForm({ menu, recipeOptions }: Props) {
       </div>
 
       {/* Liste de courses interactive (extraction Claude Vision + édition).
-          Visible uniquement en édition car nécessite un menuId existant
-          (l'API d'extraction écrit dans Supabase Storage rattaché à ce menu). */}
-      {isEdit && menu && (
-        <ShoppingListEditor
-          menuId={menu.id}
-          initialImageUrl={menu.shoppingListImageUrl || null}
-          initialPortions={menu.shoppingListPortions}
-          initialItems={menu.shoppingListItems}
-        />
-      )}
+          - Mode édition : sauvegarde directe via PUT
+          - Mode création : remonte les données au form parent via onChange,
+            qui les inclut dans le POST de création (image temp move + items
+            persistés en une seule transaction). */}
+      <ShoppingListEditor
+        menuId={isEdit && menu ? menu.id : null}
+        initialImageUrl={menu?.shoppingListImageUrl || null}
+        initialPortions={menu?.shoppingListPortions ?? null}
+        initialItems={menu?.shoppingListItems ?? null}
+        onChange={isEdit ? undefined : onShoppingPreviewChange}
+      />
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-admin-ink">Repas par jour</legend>

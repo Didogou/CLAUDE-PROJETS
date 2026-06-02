@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import {
   Loader2,
   Plus,
@@ -12,10 +12,21 @@ import {
 import type { ShoppingListItem } from '@/data/menus';
 
 type Props = {
-  menuId: string;
+  /** ID du menu (mode édition). null = mode création : on utilise le
+   *  preview endpoint et on remonte les données au parent via onChange. */
+  menuId: string | null;
   initialImageUrl: string | null;
   initialPortions: number | null;
   initialItems: ShoppingListItem[] | null;
+  /** Mode création uniquement : callback à chaque changement local pour que
+   *  le formulaire parent intègre les données au submit. */
+  onChange?: (
+    data: {
+      tempPath: string | null;
+      portions: number;
+      items: ShoppingListItem[];
+    } | null,
+  ) => void;
 };
 
 /**
@@ -38,8 +49,11 @@ export function ShoppingListEditor({
   initialImageUrl,
   initialPortions,
   initialItems,
+  onChange,
 }: Props) {
+  const isCreateMode = menuId === null;
   const [imageUrl, setImageUrl] = useState<string | null>(initialImageUrl);
+  const [tempPath, setTempPath] = useState<string | null>(null);
   const [portions, setPortions] = useState<number>(initialPortions ?? 4);
   const [items, setItems] = useState<ShoppingListItem[]>(initialItems ?? []);
   const [busy, setBusy] = useState<'idle' | 'extracting' | 'saving'>('idle');
@@ -47,6 +61,18 @@ export function ShoppingListEditor({
   const [savedFlash, setSavedFlash] = useState(false);
   const [newCategoryInput, setNewCategoryInput] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Mode création : remonte les données au parent à chaque changement,
+  // pour que le submit du form inclue la liste analysée.
+  useEffect(() => {
+    if (!isCreateMode) return;
+    if (!onChange) return;
+    if (tempPath === null && items.length === 0) {
+      onChange(null);
+    } else {
+      onChange({ tempPath, portions, items });
+    }
+  }, [isCreateMode, onChange, tempPath, portions, items]);
 
   // Catégories ordonnées dans l'ordre d'apparition (pour ne pas casser le
   // groupement visuel quand Karine ajoute un item dans une nouvelle catégorie).
@@ -70,13 +96,16 @@ export function ShoppingListEditor({
     try {
       const fd = new FormData();
       fd.set('file', file);
-      const res = await fetch(
-        `/api/admin/menus/${menuId}/shopping-list/extract`,
-        { method: 'POST', body: fd },
-      );
+      // Mode création : preview endpoint (upload temp + Vision, pas de menuId)
+      // Mode édition : extract endpoint rattaché au menu existant.
+      const url = isCreateMode
+        ? `/api/admin/menus/shopping-list/preview`
+        : `/api/admin/menus/${menuId}/shopping-list/extract`;
+      const res = await fetch(url, { method: 'POST', body: fd });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Échec de l\'analyse de l\'image.');
       setImageUrl(j.imageUrl ?? null);
+      if (isCreateMode) setTempPath(j.tempPath ?? null);
       setPortions(typeof j.portions === 'number' ? j.portions : 4);
       setItems(Array.isArray(j.items) ? j.items : []);
     } catch (err) {
@@ -287,26 +316,39 @@ export function ShoppingListEditor({
             )}
           </div>
 
-          <div className="mt-4 flex items-center justify-end gap-3">
-            {savedFlash && (
-              <span className="flex items-center gap-1 text-sm font-bold text-emerald-600">
-                <Check className="h-4 w-4" /> Liste enregistrée
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={busy !== 'idle' || items.length === 0}
-              className="flex items-center gap-2 rounded-full bg-admin-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-admin-primary-dark disabled:opacity-50"
-            >
-              {busy === 'saving' ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Check className="h-4 w-4" />
+          {/* Bouton "Enregistrer la liste" : édition seulement.
+              En création, c'est le submit du formulaire parent qui
+              persiste tout en une fois (texte + image + liste). */}
+          {!isCreateMode && (
+            <div className="mt-4 flex items-center justify-end gap-3">
+              {savedFlash && (
+                <span className="flex items-center gap-1 text-sm font-bold text-emerald-600">
+                  <Check className="h-4 w-4" /> Liste enregistrée
+                </span>
               )}
-              {busy === 'saving' ? 'Enregistrement…' : 'Enregistrer la liste'}
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={busy !== 'idle' || items.length === 0}
+                className="flex items-center gap-2 rounded-full bg-admin-primary px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-admin-primary-dark disabled:opacity-50"
+              >
+                {busy === 'saving' ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
+                )}
+                {busy === 'saving' ? 'Enregistrement…' : 'Enregistrer la liste'}
+              </button>
+            </div>
+          )}
+
+          {/* En création : juste une mention pour expliquer */}
+          {isCreateMode && items.length > 0 && (
+            <p className="mt-3 rounded-lg bg-admin-soft/40 px-3 py-2 text-xs text-admin-ink-soft">
+              ✨ La liste sera enregistrée automatiquement quand tu cliqueras
+              sur <strong>Créer le menu</strong> en bas de la page.
+            </p>
+          )}
         </>
       )}
     </section>
