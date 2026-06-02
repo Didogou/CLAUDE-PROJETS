@@ -8,7 +8,8 @@
     "start": "next start --port 3100",
     "lint": "eslint",
     "optimize-images": "node scripts/optimize-images.mjs",
-    "migrate-storage": "node scripts/migrate-storage-to-webp.mjs"
+    "migrate-storage": "node scripts/migrate-storage-to-webp.mjs",
+    "cleanup-originals": "node scripts/cleanup-originals.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
