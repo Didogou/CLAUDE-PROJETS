@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent, type ChangeEvent } from 'react';
 import { Trash2, X } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
+import { ShoppingListEditor } from './ShoppingListEditor';
 import { compressImage } from '@/lib/compress-image';
 import type { WeeklyMenu } from '@/data/menus';
 import { DAYS_LABELS } from '@/data/menus';
@@ -310,12 +311,28 @@ export function MenuForm({ menu, recipeOptions }: Props) {
             bg={shoppingBg}
             name="shoppingList"
             onChange={onShoppingChange}
-            hint={isEdit ? 'Optionnel : remplacer la liste de courses.' : 'Optionnel.'}
+            hint={
+              isEdit
+                ? 'Image seule (visuelle). Pour la liste cochable + multiplication par nb de personnes, utilise la zone ci-dessous.'
+                : 'Image seule. Tu pourras ajouter la liste interactive après création.'
+            }
             serverBg={menu?.shoppingListImageUrl || ''}
             onDelete={isEdit ? () => handleDelete('shopping') : undefined}
           />
         </Field>
       </div>
+
+      {/* Liste de courses interactive (extraction Claude Vision + édition).
+          Visible uniquement en édition car nécessite un menuId existant
+          (l'API d'extraction écrit dans Supabase Storage rattaché à ce menu). */}
+      {isEdit && menu && (
+        <ShoppingListEditor
+          menuId={menu.id}
+          initialImageUrl={menu.shoppingListImageUrl || null}
+          initialPortions={menu.shoppingListPortions}
+          initialItems={menu.shoppingListItems}
+        />
+      )}
 
       <fieldset className="space-y-3">
         <legend className="text-sm font-semibold text-admin-ink">Repas par jour</legend>

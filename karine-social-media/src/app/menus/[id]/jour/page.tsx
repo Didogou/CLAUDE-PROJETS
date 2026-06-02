@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ShoppingCart } from 'lucide-react';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { Logo } from '@/components/brand/Logo';
@@ -56,6 +56,19 @@ export default async function MenuDayPage({
         <h1 className="mb-4 text-center font-script text-3xl text-coral lg:text-4xl print:hidden">
           {menu.title || formatWeekTitle(menu.weekStart)}
         </h1>
+
+        {/* CTA Liste de courses — visible uniquement si la liste interactive
+            est disponible (items extraits + validés par Karine). */}
+        {menu.shoppingListItems && menu.shoppingListItems.length > 0 && (
+          <Link
+            href={`/menus/${menu.id}/liste-courses`}
+            className="mb-4 flex items-center justify-center gap-2 rounded-full bg-coral px-5 py-3 text-sm font-bold text-white shadow-md transition hover:bg-coral-dark hover:shadow-lg print:hidden"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            Liste de courses ({menu.shoppingListItems.length} ingrédients)
+          </Link>
+        )}
+
         <DayPagerView menu={menu} defaultDayIndex={today} recipesBySlug={recipesBySlug} />
       </main>
 

@@ -1,6 +1,6 @@
 import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { WeeklyMenu, WeeklyMenuDay } from '@/data/menus';
+import type { WeeklyMenu, WeeklyMenuDay, ShoppingListItem } from '@/data/menus';
 
 function isMissingTable(err: unknown): boolean {
   return (
@@ -13,12 +13,31 @@ function isMissingTable(err: unknown): boolean {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapMenu(row: any, days: any[]): WeeklyMenu {
+  // shopping_list_items en DB est jsonb : peut être null, [] ou un array
+  // d'objets. On filtre les entrées malformées par sécurité.
+  const rawItems = row.shopping_list_items;
+  const items: ShoppingListItem[] | null = Array.isArray(rawItems)
+    ? rawItems
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((it: any) => it && typeof it.label === 'string' && typeof it.category === 'string')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((it: any) => ({
+          category: it.category,
+          label: it.label,
+          quantity: typeof it.quantity === 'number' ? it.quantity : null,
+          unit: typeof it.unit === 'string' ? it.unit : null,
+          note: typeof it.note === 'string' ? it.note : null,
+        }))
+    : null;
   return {
     id: row.id,
     weekStart: row.week_start,
     title: row.title,
     coverImageUrl: row.cover_image_url ?? '',
     shoppingListImageUrl: row.shopping_list_image_url ?? '',
+    shoppingListPortions:
+      typeof row.shopping_list_portions === 'number' ? row.shopping_list_portions : null,
+    shoppingListItems: items,
     status: row.status,
     publishedAt: row.published_at,
     days: days

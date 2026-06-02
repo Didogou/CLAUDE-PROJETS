@@ -34,6 +34,10 @@ export function MenusPagerView({ menus }: { menus: WeeklyMenu[] }) {
   const isLast = idx === 0; // semaine la plus récente
   // Jusqu'à 3 menus précédents derrière (effet pile)
   const stack = menus.slice(idx + 1, idx + 4);
+  // La liste interactive (cochable + multiplication) est disponible dès
+  // que Karine a fait passer l'image dans Claude Vision et validé les items.
+  const hasInteractiveList =
+    Array.isArray(current.shoppingListItems) && current.shoppingListItems.length > 0;
 
   function toggleLike() {
     // Spawn d'un cœur flottant à chaque tap (même répétés)
@@ -147,11 +151,36 @@ export function MenusPagerView({ menus }: { menus: WeeklyMenu[] }) {
           <p className="text-center font-script text-base text-coral">Menu de la semaine</p>
         </div>
 
-        {/* Liste de courses (cliquable → zoom plein écran) */}
+        {/* Liste de courses : si liste interactive disponible → page dédiée
+            (cochage + multiplication par nb de personnes). Sinon, zoom de
+            l'image legacy. Si rien → placeholder. */}
         <div className="flex w-full max-w-sm flex-col items-center gap-1.5">
           <div className="relative w-full overflow-visible">
             <FireworkBurst category="entree" count={8} />
-            {current.shoppingListImageUrl ? (
+            {hasInteractiveList ? (
+              <Link
+                href={`/menus/${current.id}/liste-courses`}
+                aria-label="Ouvrir la liste de courses interactive"
+                className="group relative block w-full overflow-hidden rounded-[var(--radius-card)] shadow-lg transition hover:-translate-y-0.5 hover:shadow-xl"
+              >
+                {current.shoppingListImageUrl ? (
+                  <img
+                    src={current.shoppingListImageUrl}
+                    alt="Liste de courses"
+                    className="block aspect-[3/4] w-full object-cover"
+                  />
+                ) : (
+                  <span
+                    aria-hidden
+                    className="block aspect-[3/4] w-full bg-cream"
+                  />
+                )}
+                {/* Badge "interactive" en haut */}
+                <span className="absolute right-2 top-2 rounded-full bg-coral px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-white shadow-sm">
+                  Cochable
+                </span>
+              </Link>
+            ) : current.shoppingListImageUrl ? (
               <button
                 type="button"
                 onClick={() => setShoppingZoom(true)}

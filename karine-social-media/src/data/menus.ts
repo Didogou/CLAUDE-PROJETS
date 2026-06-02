@@ -27,12 +27,27 @@ export type WeeklyMenuDay = {
   prepPhotos: string[]; // pellicule "en vrai" pour ce jour
 };
 
+/** Un item de la liste de courses structurée. quantity et unit peuvent
+ *  être null (cas "Sel, poivre" / "Persil ou basilic frais"). Note libre
+ *  pour les précisions ("facultatif", "pour les tartinettes"). */
+export type ShoppingListItem = {
+  category: string;
+  label: string;
+  quantity: number | null;
+  unit: string | null;
+  note?: string | null;
+};
+
 export type WeeklyMenu = {
   id: string;
   weekStart: string; // YYYY-MM-DD (lundi)
   title: string | null;
   coverImageUrl: string;        // image "Main_week" (menu de la semaine)
   shoppingListImageUrl: string; // image "Liste_course_week" (liste de courses)
+  /** Nombre de personnes pour lequel la liste est calibrée (default null). */
+  shoppingListPortions: number | null;
+  /** Items extraits par Claude Vision puis validés par l'admin. */
+  shoppingListItems: ShoppingListItem[] | null;
   status: 'draft' | 'published';
   publishedAt: string | null;
   days: WeeklyMenuDay[];

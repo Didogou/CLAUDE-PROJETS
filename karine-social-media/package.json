@@ -12,6 +12,7 @@
     "cleanup-originals": "node scripts/cleanup-originals.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.100.1",
     "@hookform/resolvers": "^5.4.0",
     "@stripe/stripe-js": "^9.6.0",
     "@supabase/ssr": "^0.10.3",
