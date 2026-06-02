@@ -5,9 +5,10 @@ import { FeatureTile } from '@/components/garde/FeatureTile';
 import { MaJourneeCard } from '@/components/garde/MaJourneeCard';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
-import { findPermissionForPath } from '@/lib/page-permissions';
 import { discoverPages } from '@/lib/discover-pages';
 import { getCurrentUser } from '@/lib/current-user';
+import { getAllCapabilities } from '@/lib/capabilities';
+import { pathToCapability } from '@/lib/path-to-capability';
 
 export const dynamic = 'force-dynamic';
 
@@ -76,26 +77,32 @@ export default async function Home({
 
   // Pour chaque tuile, on calcule si l'utilisatrice peut y accéder.
   //   Cas 1 : la page n'existe pas en code → tuile locked d'office
-  //   Cas 2 : la page existe + règle restrictive en DB → check rôle effectif
+  //   Cas 2 : la page existe + capability associée bloquée pour sans-plan
+  //          + user n'a pas de plan → tuile locked
   //
-  // ⚠️ Cette détection est UNIQUEMENT pour l'UX. La SÉCURITÉ RÉELLE est dans
-  // le proxy (`src/lib/supabase/middleware.ts`) qui bloque l'accès direct à l'URL.
+  // ⚠️ UX uniquement. La SÉCURITÉ RÉELLE est dans le proxy
+  // (`src/lib/supabase/middleware.ts`) qui bloque l'accès direct à l'URL.
   const discoveredPaths = new Set(discoverPages().map((p) => p.path));
-  const tilesWithAccess = await Promise.all(
-    TILES.map(async (tile) => {
-      // 1. Si la page n'EXISTE PAS dans src/app/ → tuile locked automatiquement.
-      //    Évite le 404 brut quand on rajoute une tuile vers une page pas encore
-      //    codée (ex. /mon-menu en cours de dev). Modal paywall affichée au clic.
-      if (!discoveredPaths.has(tile.href)) {
-        return { ...tile, locked: true };
-      }
-      // 2. Page existante → check page_permissions vs rôle effectif
-      const rule = await findPermissionForPath(tile.href);
-      if (!rule) return { ...tile, locked: false };
-      const locked = !rule.allowedRoles.includes(user.effectiveRole);
-      return { ...tile, locked };
-    }),
-  );
+  const userHasPlan =
+    user.effectiveRole === 'patient' ||
+    user.effectiveRole === 'subscriber' ||
+    user.effectiveRole === 'admin';
+  const capabilities = userHasPlan ? [] : await getAllCapabilities();
+  const capByKey = new Map(capabilities.map((c) => [c.key, c]));
+
+  const tilesWithAccess = TILES.map((tile) => {
+    if (!discoveredPaths.has(tile.href)) {
+      return { ...tile, locked: true };
+    }
+    if (userHasPlan) return { ...tile, locked: false };
+    // Sans plan : la tuile est lockée si la capability d'entrée
+    // de la section est désactivée (allowed_without_plan = false)
+    const capKey = pathToCapability(tile.href);
+    if (!capKey) return { ...tile, locked: false };
+    const cap = capByKey.get(capKey);
+    const locked = !(cap?.allowedWithoutPlan ?? false);
+    return { ...tile, locked };
+  });
 
   return (
     <div className="relative flex min-h-screen flex-col lg:h-screen lg:overflow-hidden">
