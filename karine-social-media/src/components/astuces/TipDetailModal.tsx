@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Printer, X } from 'lucide-react';
 import type { Tip } from '@/data/tips';
@@ -15,14 +15,24 @@ import { ZoomableImage } from '@/components/ui/ZoomableImage';
 export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () => void }) {
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(0);
+  const [exiting, setExiting] = useState(false);
+
+  // Anim de sortie douce avant unmount
+  const requestClose = useCallback(() => {
+    setExiting(true);
+    window.setTimeout(onClose, 240);
+  }, [onClose]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Reset l'index dès qu'on ouvre une astuce différente
+  // Reset l'index + reset l'exiting state dès qu'on ouvre une astuce différente
   useEffect(() => {
-    if (tip) setIndex(0);
+    if (tip) {
+      setIndex(0);
+      setExiting(false);
+    }
   }, [tip]);
 
   useEffect(() => {
@@ -31,7 +41,7 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
     document.body.style.overflow = 'hidden';
     const slides = tip.slides;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') requestClose();
       else if (e.key === 'ArrowLeft' && slides.length > 1)
         setIndex((i) => (i - 1 + slides.length) % slides.length);
       else if (e.key === 'ArrowRight' && slides.length > 1)
@@ -42,7 +52,7 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [tip, onClose]);
+  }, [tip, requestClose]);
 
   if (!mounted || !tip) return null;
 
@@ -73,23 +83,30 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
 
       {/* ============== VUE ÉCRAN ============== */}
       <div
-        className="fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm print:hidden"
+        className={`fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm print:hidden ${
+          exiting ? 'ie-lightbox-out' : 'ie-lightbox-in'
+        }`}
         role="dialog"
         aria-modal="true"
         aria-label={tip.label}
       >
-        {/* ZoomableImage plein écran avec marges pour les contrôles.
-            Swipe horizontal au scale=1 = nav inter-slide (mobile only).
-            Au scale>1, 1 doigt = pan (priorité au zoom). */}
-        <ZoomableImage
-          key={index}
-          src={slides[index]}
-          alt={`${tip.label} — slide ${index + 1}`}
-          className="absolute inset-0 px-4 pb-24 pt-16 sm:px-16"
-          imgClassName="max-h-full max-w-full"
-          onSwipeLeft={multi ? next : undefined}
-          onSwipeRight={multi ? prev : undefined}
-        />
+        {/* ZoomableImage plein écran avec marges. L'image entre en
+            scale doux pour eviter l'effet abrupt. */}
+        <div
+          className={`absolute inset-0 ${
+            exiting ? 'ie-lightbox-content-out' : 'ie-lightbox-content-in'
+          }`}
+        >
+          <ZoomableImage
+            key={index}
+            src={slides[index]}
+            alt={`${tip.label} — slide ${index + 1}`}
+            className="absolute inset-0 px-4 pb-24 pt-16 sm:px-16"
+            imgClassName="max-h-full max-w-full"
+            onSwipeLeft={multi ? next : undefined}
+            onSwipeRight={multi ? prev : undefined}
+          />
+        </div>
 
         {/* Header overlay : label + index + print + close */}
         <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-center gap-3 bg-gradient-to-b from-black/55 to-transparent px-4 py-3 sm:px-6 sm:py-4">
@@ -111,7 +128,7 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
           </button>
           <button
             type="button"
-            onClick={onClose}
+            onClick={requestClose}
             aria-label="Fermer"
             className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/20 text-white shadow-sm backdrop-blur-sm transition hover:bg-white/35"
           >

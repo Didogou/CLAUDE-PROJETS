@@ -2,7 +2,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Heart, Sparkles } from 'lucide-react';
 import { SaviezVousLightbox } from './SaviezVousLightbox';
 
 /**
@@ -23,6 +23,7 @@ export type SaviezVousItem = {
   id: string;
   imageUrl: string;
   caption?: string | null;
+  likesCount?: number;
 };
 
 const ROTATIONS = [
@@ -53,35 +54,33 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
 
         {/* Wrapper relatif qui ancre le fil au niveau des pinces. */}
         <div className="relative">
-          {/* Fil tendu d'un bord à l'autre du cadre — passe pile au
-              niveau des pinces (top=10px = au milieu de la pince
-              qui dépasse de 8px au-dessus du polaroid). */}
+          {/* Fil tendu d'un bord à l'autre — passe PILE au niveau des pinces.
+              Calcul : la pince a -top-2 (-8px) du polaroid + h-5 (20px),
+              et le polaroid commence à pt-1 (4px) du wrapper.
+              Donc centre vertical de la pince = 4 - 8 + 10 = 6px.
+              Le SVG est positionné en top-[3px] avec h-[6px] et path
+              centré sur y=3 → fil traverse les pinces à 6px du wrapper. */}
           <svg
             aria-hidden
-            viewBox="0 0 100 6"
+            viewBox="0 0 100 4"
             preserveAspectRatio="none"
-            className="pointer-events-none absolute -inset-x-3 top-[0.625rem] h-3 lg:-inset-x-5"
+            className="pointer-events-none absolute -inset-x-3 top-[3px] h-[6px] lg:-inset-x-5"
           >
-            <defs>
-              <linearGradient id="rope-shade" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="#fff" stopOpacity="0.55" />
-                <stop offset="100%" stopColor="#5e4f3c" stopOpacity="0.5" />
-              </linearGradient>
-            </defs>
             <path
-              d="M 0 1.5 Q 50 4 100 1.5"
+              d="M 0 1.5 Q 50 2.5 100 1.5"
               fill="none"
-              stroke="#7a6d5c"
-              strokeWidth="2.2"
+              stroke="#5e4f3c"
+              strokeWidth="2.5"
               strokeLinecap="round"
               vectorEffect="non-scaling-stroke"
             />
             <path
-              d="M 0 1.5 Q 50 4 100 1.5"
+              d="M 0 1.5 Q 50 2.5 100 1.5"
               fill="none"
-              stroke="url(#rope-shade)"
+              stroke="#fff"
               strokeWidth="0.8"
               strokeLinecap="round"
+              strokeOpacity="0.45"
               vectorEffect="non-scaling-stroke"
               transform="translate(0,-0.4)"
             />
@@ -103,6 +102,7 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
                     <Polaroid
                       imageUrl={item.imageUrl}
                       caption={item.caption}
+                      likesCount={item.likesCount}
                       rotationClass={ROTATIONS[i % ROTATIONS.length]}
                     />
                   </button>
@@ -127,10 +127,12 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
 function Polaroid({
   imageUrl,
   caption,
+  likesCount,
   rotationClass,
 }: {
   imageUrl: string;
   caption?: string | null;
+  likesCount?: number;
   rotationClass: string;
 }) {
   return (
@@ -139,6 +141,14 @@ function Polaroid({
     >
       {/* Pince — centrée au-dessus du polaroid, dépasse sur le fil */}
       <ClothesPin className="absolute -top-2 z-10 h-5 w-3" />
+
+      {/* Badge nombre de likes — bas-droit du polaroid, sur la photo. */}
+      {typeof likesCount === 'number' && likesCount > 0 && (
+        <span className="absolute right-1 top-1 z-10 flex items-center gap-0.5 rounded-full bg-white/95 px-1.5 py-0.5 text-[0.6rem] font-bold text-coral shadow-sm ring-1 ring-coral-soft/40">
+          <Heart className="h-2.5 w-2.5 fill-coral" strokeWidth={0} />
+          {likesCount}
+        </span>
+      )}
 
       {/* Polaroid : bord blanc épais en bas (zone caption) */}
       <div className="block w-full rounded-sm bg-white p-1.5 pb-5 shadow-[0_6px_14px_-8px_rgba(0,0,0,0.35)] ring-1 ring-ink/5">

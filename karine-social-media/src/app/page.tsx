@@ -35,7 +35,7 @@ const TILES: TileDef[] = [
     title: 'Idées recettes',
     subtitle: 'Inspiration saine\net gourmande',
     bgClass: 'bg-cream',
-    iconImage: '/images/icons/ir.png',
+    iconImage: '/images/icons/idee-recette.png',
   },
   // Tuile "Mon menu" masquée (à réintroduire quand la fonctionnalité
   // personnalisée par profil utilisatrice sera prête).
@@ -133,26 +133,31 @@ export default async function Home({
                 id: 'stub-1',
                 imageUrl: '/images/effects/poivron.png',
                 caption: 'Les poivrons de saison',
+                likesCount: 12,
               },
               {
                 id: 'stub-2',
                 imageUrl: '/images/effects/courgette.png',
                 caption: 'La courgette : 18 kcal / 100 g',
+                likesCount: 28,
               },
               {
                 id: 'stub-3',
                 imageUrl: '/images/effects/oignons.png',
                 caption: 'L’oignon riche en antioxydants',
+                likesCount: 7,
               },
               {
                 id: 'stub-4',
                 imageUrl: '/images/effects/coeur.png',
                 caption: 'L’ail bon pour le cœur',
+                likesCount: 34,
               },
               {
                 id: 'stub-5',
                 imageUrl: '/images/effects/poivron.png',
                 caption: 'Vitamine C : 3× plus que l’orange',
+                likesCount: 19,
               },
             ]}
           />

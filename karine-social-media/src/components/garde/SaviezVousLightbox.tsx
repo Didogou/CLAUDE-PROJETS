@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
+import { useLightboxAnim } from '@/lib/use-lightbox-anim';
 
 /**
  * Lightbox plein écran pour les photos de la section "Le saviez-vous ?".
@@ -30,21 +31,17 @@ export function SaviezVousLightbox({
   const [mounted, setMounted] = useState(false);
   const [liked, setLiked] = useState(false);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const { phase, requestClose } = useLightboxAnim(onClose);
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
-      window.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, []);
 
   async function handleShare() {
     const shareData = {
@@ -80,18 +77,27 @@ export function SaviezVousLightbox({
 
   return createPortal(
     <div
-      className="saviez-vous-lightbox fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm print:bg-white print:backdrop-blur-none"
+      className={`saviez-vous-lightbox fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm print:bg-white print:backdrop-blur-none ${
+        phase === 'exit' ? 'ie-lightbox-out' : 'ie-lightbox-in'
+      }`}
       role="dialog"
       aria-modal="true"
       aria-label={caption ?? 'Photo agrandie'}
     >
-      {/* Image plein écran avec marges pour les contrôles */}
-      <ZoomableImage
-        src={imageUrl}
-        alt={caption ?? ''}
-        className="absolute inset-0 px-4 pb-24 pt-16 sm:px-12"
-        imgClassName="max-h-full max-w-full"
-      />
+      {/* Image plein écran avec marges pour les contrôles. L'image entre
+          en scale doux pour eviter l'effet abrupt. */}
+      <div
+        className={`absolute inset-0 ${
+          phase === 'exit' ? 'ie-lightbox-content-out' : 'ie-lightbox-content-in'
+        }`}
+      >
+        <ZoomableImage
+          src={imageUrl}
+          alt={caption ?? ''}
+          className="absolute inset-0 px-4 pb-24 pt-16 sm:px-12"
+          imgClassName="max-h-full max-w-full"
+        />
+      </div>
 
       {/* Header : caption + bouton fermer */}
       <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start gap-3 bg-gradient-to-b from-black/55 to-transparent px-4 py-3 sm:px-6 sm:py-4 print:hidden">
@@ -102,7 +108,7 @@ export function SaviezVousLightbox({
         )}
         <button
           type="button"
-          onClick={onClose}
+          onClick={requestClose}
           aria-label="Fermer"
           className="pointer-events-auto grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white text-ink shadow-lg ring-2 ring-white/30 transition hover:scale-105"
         >

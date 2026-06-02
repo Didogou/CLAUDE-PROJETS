@@ -47,6 +47,47 @@ html {
   background-attachment: fixed;
 }
 
+/* Animations d'ouverture/fermeture pour TOUTES les lightboxes d'images
+   (Recettes, Astuces, Le saviez-vous ?). Effet en deux temps : le backdrop
+   fade-in d'abord, puis l'image zoom-in léger avec translation Y. À la
+   fermeture, l'inverse. Easing cubic-bezier pour un mouvement organique. */
+@keyframes ie-lightbox-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes ie-lightbox-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes ie-lightbox-content-in {
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes ie-lightbox-content-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.94) translateY(8px); }
+}
+.ie-lightbox-in {
+  animation: ie-lightbox-backdrop-in 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ie-lightbox-out {
+  animation: ie-lightbox-backdrop-out 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ie-lightbox-content-in {
+  animation: ie-lightbox-content-in 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.ie-lightbox-content-out {
+  animation: ie-lightbox-content-out 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ie-lightbox-in,
+  .ie-lightbox-out,
+  .ie-lightbox-content-in,
+  .ie-lightbox-content-out {
+    animation: none;
+  }
+}
+
 @keyframes heartbeat {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.18); }

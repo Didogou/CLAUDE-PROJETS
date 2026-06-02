@@ -601,23 +601,25 @@ export function RecipeDetailView({
 
       {/* Zoom plein écran : image en plein écran (object-contain), pinch-to-zoom
           peut s'étendre sur TOUTE la surface visible. Contrôles flottants
-          par-dessus (X, flèches, vignettes desktop). */}
+          par-dessus (X, flèches, vignettes desktop). Anim douce à l'ouverture. */}
       {zoom && (
         <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm"
+          className="ie-lightbox-in fixed inset-0 z-50 bg-black/85 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
         >
           {/* ZoomableImage occupe TOUT l'overlay. Swipe horizontal au
               scale=1 = nav inter-fiche. Au scale>1 = pan en zoom. */}
-          <ZoomableImage
-            src={images[index]}
-            alt={`${title} — fiche ${index + 1}/${images.length}`}
-            className="absolute inset-0 px-4 pb-20 pt-16 sm:px-8"
-            imgClassName="max-h-full max-w-full"
-            onSwipeLeft={!isLast ? () => setIndex((i) => i + 1) : undefined}
-            onSwipeRight={!isFirst ? () => setIndex((i) => i - 1) : undefined}
-          />
+          <div className="ie-lightbox-content-in absolute inset-0">
+            <ZoomableImage
+              src={images[index]}
+              alt={`${title} — fiche ${index + 1}/${images.length}`}
+              className="absolute inset-0 px-4 pb-20 pt-16 sm:px-8"
+              imgClassName="max-h-full max-w-full"
+              onSwipeLeft={!isLast ? () => setIndex((i) => i + 1) : undefined}
+              onSwipeRight={!isFirst ? () => setIndex((i) => i - 1) : undefined}
+            />
+          </div>
 
           {/* Vignettes desktop — overlay top-left au-dessus de l'image */}
           <div className="pointer-events-none absolute inset-y-0 left-0 hidden items-center pl-4 sm:flex">
@@ -669,28 +671,30 @@ export function RecipeDetailView({
       {/* Lightbox des photos de préparation : navigation flèches + swipe + close */}
       {prepZoomIndex !== null && prepPhotos[prepZoomIndex] && (
         <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm"
+          className="ie-lightbox-in fixed inset-0 z-50 bg-black/85 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label="Photo de préparation agrandie"
         >
           {/* Image avec marges + swipe au scale=1 pour navigation photos. */}
-          <ZoomableImage
-            src={prepPhotos[prepZoomIndex]}
-            alt={`Photo de préparation ${prepZoomIndex + 1}`}
-            className="absolute inset-0 px-4 pb-20 pt-16 sm:px-8"
-            imgClassName="max-h-full max-w-full"
-            onSwipeLeft={
-              prepZoomIndex < prepPhotos.length - 1
-                ? () => setPrepZoomIndex(prepZoomIndex + 1)
-                : undefined
-            }
-            onSwipeRight={
-              prepZoomIndex > 0
-                ? () => setPrepZoomIndex(prepZoomIndex - 1)
-                : undefined
-            }
-          />
+          <div className="ie-lightbox-content-in absolute inset-0">
+            <ZoomableImage
+              src={prepPhotos[prepZoomIndex]}
+              alt={`Photo de préparation ${prepZoomIndex + 1}`}
+              className="absolute inset-0 px-4 pb-20 pt-16 sm:px-8"
+              imgClassName="max-h-full max-w-full"
+              onSwipeLeft={
+                prepZoomIndex < prepPhotos.length - 1
+                  ? () => setPrepZoomIndex(prepZoomIndex + 1)
+                  : undefined
+              }
+              onSwipeRight={
+                prepZoomIndex > 0
+                  ? () => setPrepZoomIndex(prepZoomIndex - 1)
+                  : undefined
+              }
+            />
+          </div>
 
           {/* Compteur — top-left dans la marge haute */}
           <span className="absolute left-4 top-5 z-20 rounded-full bg-white/90 px-3 py-1 text-xs font-semibold text-ink shadow-sm ring-2 ring-white/30">
