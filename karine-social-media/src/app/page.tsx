@@ -151,6 +151,16 @@ export default async function Home({
                 imageUrl: '/images/effects/oignons.png',
                 caption: 'L’oignon riche en antioxydants',
               },
+              {
+                id: 'stub-4',
+                imageUrl: '/images/effects/coeur.png',
+                caption: 'L’ail bon pour le cœur',
+              },
+              {
+                id: 'stub-5',
+                imageUrl: '/images/effects/poivron.png',
+                caption: 'Vitamine C : 3× plus que l’orange',
+              },
             ]}
           />
         </div>

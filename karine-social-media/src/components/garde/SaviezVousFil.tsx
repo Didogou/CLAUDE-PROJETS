@@ -21,16 +21,18 @@ export type SaviezVousItem = {
   caption?: string | null;
 };
 
-// Rotations stables par index — un peu de variété mais pas trop
-const ROTATIONS = ['-rotate-3', '-rotate-1', 'rotate-2', '-rotate-2'] as const;
-// Décalages verticaux pour accentuer le "naturel" (pinces toutes au même niveau)
-const Y_OFFSETS = ['mt-0', 'mt-2', 'mt-1', 'mt-3'] as const;
+// Rotations stables par index (cycle), amplitude réduite pour rester sobre
+const ROTATIONS = [
+  '-rotate-2',
+  'rotate-1',
+  '-rotate-1',
+  'rotate-2',
+  '-rotate-1',
+  'rotate-1',
+] as const;
 
 export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
   if (items.length === 0) return null;
-
-  // On limite à 4 (UI flexible mais bornée pour l'esthétique)
-  const visible = items.slice(0, 4);
 
   return (
     <section className="relative rounded-[var(--radius-card)] bg-gradient-to-br from-cream via-blush/40 to-peach/30 px-3 pb-6 pt-4 shadow-sm lg:px-5 lg:pb-7 lg:pt-5">
@@ -41,53 +43,60 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
         <Sparkles className="h-5 w-5 text-tangerine" aria-hidden />
       </header>
 
-      {/* Le fil + polaroids : on positionne le fil derrière, les polaroids
-          accrochés par leur pince. Sur mobile : scroll horizontal si > 2. */}
-      <div className="relative">
-        {/* Fil horizontal — cordelette beige avec léger sag */}
-        <svg
-          aria-hidden
-          viewBox="0 0 400 30"
-          preserveAspectRatio="none"
-          className="absolute left-0 right-0 top-3 h-3 w-full"
+      {/* Wrapper scrollable horizontalement quand beaucoup d'images.
+          Le fil est en SVG en arrière-plan et scrolle avec les polaroids. */}
+      <div className="relative -mx-3 overflow-x-auto lg:-mx-5">
+        <div
+          className="relative inline-flex min-w-full px-3 pb-3 pt-1 lg:px-5"
+          style={{ minWidth: `${items.length * 9.5}rem` }}
         >
-          <path
-            d="M 0 4 Q 100 18 200 12 T 400 8"
-            fill="none"
-            stroke="#b59ea4"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            opacity="0.5"
-          />
-          <path
-            d="M 0 4 Q 100 18 200 12 T 400 8"
-            fill="none"
-            stroke="#fff"
-            strokeWidth="0.4"
-            strokeLinecap="round"
-            transform="translate(0,-0.5)"
-            opacity="0.6"
-          />
-        </svg>
+          {/* Fil courbé (vraie courbure en U) — couvre toute la largeur
+              du conteneur (suit le scroll horizontal). Hauteur fixée pour
+              que les pinces tombent dessus de manière cohérente. */}
+          <svg
+            aria-hidden
+            viewBox="0 0 100 14"
+            preserveAspectRatio="none"
+            className="pointer-events-none absolute inset-x-0 top-0 h-14 w-full"
+          >
+            <defs>
+              <linearGradient id="rope-shade" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#fff" stopOpacity="0.5" />
+                <stop offset="100%" stopColor="#9c8c75" stopOpacity="0.4" />
+              </linearGradient>
+            </defs>
+            {/* Sag prononcé : descend de y=1 à y=9 au milieu et remonte */}
+            <path
+              d="M 0 1 Q 50 13 100 1"
+              fill="none"
+              stroke="#b59ea4"
+              strokeWidth="0.6"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d="M 0 1 Q 50 13 100 1"
+              fill="none"
+              stroke="url(#rope-shade)"
+              strokeWidth="0.3"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+              transform="translate(0,-0.2)"
+            />
+          </svg>
 
-        <ul
-          className={`relative flex gap-3 overflow-x-auto px-1 pb-2 pt-1 sm:gap-4 sm:overflow-x-visible ${
-            visible.length <= 2 ? 'justify-around' : 'justify-around'
-          }`}
-        >
-          {visible.map((item, i) => (
-            <li
-              key={item.id}
-              className={`shrink-0 ${Y_OFFSETS[i % Y_OFFSETS.length]}`}
-            >
-              <Polaroid
-                imageUrl={item.imageUrl}
-                caption={item.caption}
-                rotationClass={ROTATIONS[i % ROTATIONS.length]}
-              />
-            </li>
-          ))}
-        </ul>
+          <ul className="relative flex flex-1 items-start gap-3 sm:gap-4">
+            {items.map((item, i) => (
+              <li key={item.id} className="shrink-0">
+                <Polaroid
+                  imageUrl={item.imageUrl}
+                  caption={item.caption}
+                  rotationClass={ROTATIONS[i % ROTATIONS.length]}
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
   );
