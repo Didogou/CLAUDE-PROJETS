@@ -12,10 +12,12 @@ import {
   NotebookText,
   Sparkles,
   User,
+  Heart,
   Shield,
   LogIn,
   LogOut,
 } from 'lucide-react';
+import { RecentViewsList } from './RecentViewsList';
 
 type Section = { href: string; label: string; icon: typeof Home };
 
@@ -25,6 +27,7 @@ const SECTIONS: Section[] = [
   { href: '/menus', label: 'Mes menus', icon: NotebookText },
   { href: '/conseils', label: 'Conseils', icon: Leaf },
   { href: '/astuces', label: 'Astuces', icon: Sparkles },
+  { href: '/favoris', label: 'Mes favoris', icon: Heart },
   { href: '/profil', label: 'Profil', icon: User },
 ];
 
@@ -79,23 +82,29 @@ export function MainDrawer({
           </button>
         </div>
 
-        <ul
-          className="drawer-list flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto"
+        <div
+          className="drawer-list flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pb-2"
           style={{ scrollbarColor: 'var(--color-coral) transparent' }}
         >
-          {SECTIONS.map(({ href, label, icon: Icon }) => (
-            <li key={href}>
-              <Link
-                href={href}
-                onClick={() => setOpen(false)}
-                className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-ink transition hover:bg-coral-soft/40"
-              >
-                <Icon className="h-5 w-5 text-coral" />
-                {label}
-              </Link>
-            </li>
-          ))}
-        </ul>
+          <ul className="flex flex-col gap-0.5">
+            {SECTIONS.map(({ href, label, icon: Icon }) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-ink transition hover:bg-coral-soft/40"
+                >
+                  <Icon className="h-5 w-5 text-coral" />
+                  {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+
+          <div className="border-t border-coral-soft/40 pt-3">
+            <RecentViewsList onItemClick={() => setOpen(false)} />
+          </div>
+        </div>
         <style>{`
           .drawer-list::-webkit-scrollbar-thumb {
             background: var(--color-coral);

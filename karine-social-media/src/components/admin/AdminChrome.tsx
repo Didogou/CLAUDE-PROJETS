@@ -21,6 +21,7 @@ import {
   Image as ImageIcon,
   Lightbulb,
   Shield,
+  ShieldAlert,
   SlidersHorizontal,
 } from 'lucide-react';
 
@@ -33,6 +34,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/conseils', label: 'Conseils', icon: Leaf },
   { href: '/admin/astuces', label: 'Astuces', icon: Sparkles },
   { href: '/admin/avis', label: 'Avis', icon: MessageSquare },
+  { href: '/admin/moderation', label: 'Modération', icon: ShieldAlert },
   { href: '/admin/idees', label: 'Idées', icon: Lightbulb },
   { href: '/admin/le-saviez-vous', label: 'Le saviez-vous ?', icon: ImageIcon },
   { href: '/admin/patientes', label: 'Patientes', icon: HeartHandshake },

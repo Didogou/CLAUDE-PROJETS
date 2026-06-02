@@ -4,9 +4,13 @@ import { ArrowLeft } from 'lucide-react';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { Logo } from '@/components/brand/Logo';
+import { TrackView } from '@/components/garde/TrackView';
+import { FavoriteButton } from '@/components/favorites/FavoriteButton';
 import { RecipeDetailView } from '@/components/recettes/RecipeDetailView';
 import { getPublishedRecipes, getRecipeBySlug } from '@/lib/recipes';
 import { getVisibleCommentsForRecipe } from '@/lib/comments';
+import { getCurrentUser } from '@/lib/current-user';
+import { isFavorited } from '@/lib/favorites';
 import { CATEGORY_SLUG } from '@/data/recipes';
 
 export const dynamic = 'force-dynamic';
@@ -22,9 +26,11 @@ export default async function RecipeDetailPage({
 
   const images = [recipe.coverImage, ...recipe.slides];
 
-  const [comments, all] = await Promise.all([
+  const user = await getCurrentUser();
+  const [comments, all, favorited] = await Promise.all([
     getVisibleCommentsForRecipe(recipe.id),
     getPublishedRecipes(),
+    user.id ? isFavorited(user.id, 'recipe', recipe.id) : Promise.resolve(false),
   ]);
   const suggestions = [
     ...all.filter((r) => r.id !== recipe.id && r.category === recipe.category),
@@ -37,7 +43,7 @@ export default async function RecipeDetailPage({
         <FloralBackground />
       </div>
 
-      <header className="relative flex items-center px-5 py-6 lg:py-8 print:hidden">
+      <header className="relative flex items-center justify-between px-5 py-6 lg:py-8 print:hidden">
         <Link
           href={`/recettes/${CATEGORY_SLUG[recipe.category]}`}
           aria-label={`Retour aux ${recipe.category}`}
@@ -48,7 +54,24 @@ export default async function RecipeDetailPage({
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <Logo />
         </div>
+        <div className="z-10">
+          <FavoriteButton
+            targetType="recipe"
+            targetId={recipe.id}
+            initialFavorited={favorited}
+            isAuthenticated={user.isAuthenticated}
+            size="md"
+          />
+        </div>
       </header>
+
+      <TrackView
+        type="recipe"
+        id={recipe.id}
+        label={recipe.title}
+        imageUrl={images[0] ?? null}
+        href={`/recettes/${recipe.id}`}
+      />
 
       <RecipeDetailView
         slug={recipe.id}
