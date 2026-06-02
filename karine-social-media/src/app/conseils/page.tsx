@@ -4,11 +4,18 @@ import { FloralBackground } from '@/components/garde/FloralBackground';
 import { AdviceGrid } from '@/components/conseils/AdviceGrid';
 import { AdviceFireworkBurst } from '@/components/conseils/AdviceFireworkBurst';
 import { getPublishedAdvice } from '@/lib/advice';
+import { getCurrentUser } from '@/lib/current-user';
+import { getUserFavorites } from '@/lib/favorites';
 
 export const dynamic = 'force-dynamic';
 
 export default async function ConseilsPage() {
+  const user = await getCurrentUser();
   const items = await getPublishedAdvice();
+  const favRows = user.id ? await getUserFavorites(user.id) : [];
+  const favoritedSlugs = new Set(
+    favRows.filter((r) => r.targetType === 'advice').map((r) => r.targetId),
+  );
 
   return (
     <div className="relative flex min-h-screen flex-col print:hidden">
@@ -26,7 +33,11 @@ export default async function ConseilsPage() {
           </p>
           <AdviceFireworkBurst />
         </div>
-        <AdviceGrid items={items} />
+        <AdviceGrid
+          items={items}
+          isAuthenticated={user.isAuthenticated}
+          favoritedSlugs={favoritedSlugs}
+        />
       </main>
       <div className="print:hidden">
         <BottomNav />

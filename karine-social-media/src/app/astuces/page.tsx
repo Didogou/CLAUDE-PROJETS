@@ -5,12 +5,21 @@ import { TipsGrid } from '@/components/astuces/TipsGrid';
 import { TipsFireworkBurst } from '@/components/astuces/TipsFireworkBurst';
 import { getPublishedTips } from '@/lib/tips';
 import { getTipCommentCounts } from '@/lib/comments';
+import { getCurrentUser } from '@/lib/current-user';
+import { getUserFavorites } from '@/lib/favorites';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AstucesPage() {
+  const user = await getCurrentUser();
   const tips = await getPublishedTips();
-  const commentCounts = await getTipCommentCounts(tips.map((t) => t.id));
+  const [commentCounts, favRows] = await Promise.all([
+    getTipCommentCounts(tips.map((t) => t.id)),
+    user.id ? getUserFavorites(user.id) : Promise.resolve([]),
+  ]);
+  const favoritedSlugs = new Set(
+    favRows.filter((r) => r.targetType === 'tip').map((r) => r.targetId),
+  );
   return (
     <div className="relative flex min-h-screen flex-col print:hidden">
       <div className="print:hidden">
@@ -27,7 +36,12 @@ export default async function AstucesPage() {
           </p>
           <TipsFireworkBurst />
         </div>
-        <TipsGrid tips={tips} commentCounts={commentCounts} />
+        <TipsGrid
+          tips={tips}
+          commentCounts={commentCounts}
+          isAuthenticated={user.isAuthenticated}
+          favoritedSlugs={favoritedSlugs}
+        />
       </main>
       <div className="print:hidden">
         <BottomNav />

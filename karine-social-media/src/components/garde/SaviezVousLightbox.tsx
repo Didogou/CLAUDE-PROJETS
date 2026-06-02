@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
+import { FavoriteButton } from '@/components/favorites/FavoriteButton';
 import { useLightboxAnim } from '@/lib/use-lightbox-anim';
 
 export type SaviezVousLightboxItem = {
@@ -30,14 +31,17 @@ export function SaviezVousLightbox({
   items,
   startIndex,
   onClose,
+  isAuthenticated = false,
+  favoritedIds = new Set<string>(),
 }: {
   items: SaviezVousLightboxItem[];
   startIndex: number;
   onClose: () => void;
+  isAuthenticated?: boolean;
+  favoritedIds?: Set<string>;
 }) {
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(startIndex);
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
   const [shareToast, setShareToast] = useState<string | null>(null);
   const { phase, requestClose } = useLightboxAnim(onClose);
 
@@ -105,7 +109,6 @@ export function SaviezVousLightbox({
 
   if (!mounted || !current) return null;
 
-  const isLiked = liked[current.id] ?? false;
 
   return createPortal(
     <div
@@ -188,14 +191,16 @@ export function SaviezVousLightbox({
           label="Imprimer"
           onClick={handlePrint}
         />
-        <ActionButton
-          icon={Heart}
-          label={isLiked ? 'Liké' : 'J’aime'}
-          onClick={() =>
-            setLiked((m) => ({ ...m, [current.id]: !m[current.id] }))
-          }
-          active={isLiked}
-        />
+        {/* Bouton favori dédié à la place du like local : persiste en DB. */}
+        <div className="pointer-events-auto">
+          <FavoriteButton
+            targetType="featured"
+            targetId={current.id}
+            initialFavorited={favoritedIds.has(current.id)}
+            isAuthenticated={isAuthenticated}
+            size="lg"
+          />
+        </div>
       </footer>
 
       {shareToast && (

@@ -1,4 +1,4 @@
-export const FAVORITE_TYPES = ['recipe', 'menu', 'tip', 'advice'] as const;
+export const FAVORITE_TYPES = ['recipe', 'menu', 'tip', 'advice', 'featured'] as const;
 export type FavoriteType = (typeof FAVORITE_TYPES)[number];
 
 export type FavoriteRow = {
@@ -22,6 +22,7 @@ export const FAVORITE_LABELS: Record<FavoriteType, string> = {
   menu: 'Menu de la semaine',
   tip: 'Astuce',
   advice: 'Conseil santé',
+  featured: 'Le saviez-vous',
 };
 
 export const FAVORITE_GROUP_LABELS: Record<FavoriteType, string> = {
@@ -29,4 +30,5 @@ export const FAVORITE_GROUP_LABELS: Record<FavoriteType, string> = {
   menu: 'Menus de la semaine',
   tip: 'Astuces',
   advice: 'Conseils santé',
+  featured: 'Le saviez-vous ?',
 };

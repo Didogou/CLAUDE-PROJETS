@@ -18,7 +18,15 @@ function translateYFor(slug: string): number {
   return ((Math.abs(h) % 17) - 8);
 }
 
-export function AdviceGrid({ items }: { items: Advice[] }) {
+export function AdviceGrid({
+  items,
+  isAuthenticated = false,
+  favoritedSlugs = new Set<string>(),
+}: {
+  items: Advice[];
+  isAuthenticated?: boolean;
+  favoritedSlugs?: Set<string>;
+}) {
   const [mounted, setMounted] = useState(false);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const [printSlug, setPrintSlug] = useState<string | null>(null);
@@ -177,7 +185,12 @@ export function AdviceGrid({ items }: { items: Advice[] }) {
           )
         : null}
 
-      <AdviceDetailModal advice={active} onClose={() => setActiveSlug(null)} />
+      <AdviceDetailModal
+        advice={active}
+        onClose={() => setActiveSlug(null)}
+        isAuthenticated={isAuthenticated}
+        favoritedSlugs={favoritedSlugs}
+      />
     </>
   );
 }

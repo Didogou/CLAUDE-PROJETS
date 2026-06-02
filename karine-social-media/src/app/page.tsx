@@ -7,6 +7,7 @@ import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { LegalFooter } from '@/components/garde/LegalFooter';
 import { getPublishedFeaturedPhotos } from '@/lib/featured-photos';
+import { getUserFavorites } from '@/lib/favorites';
 import { discoverPages } from '@/lib/discover-pages';
 import { getCurrentUser } from '@/lib/current-user';
 import { getAllCapabilities } from '@/lib/capabilities';
@@ -84,11 +85,15 @@ export default async function Home({
     user.effectiveRole === 'patient' ||
     user.effectiveRole === 'subscriber' ||
     user.effectiveRole === 'admin';
-  const [capabilities, saviezVousPhotos] = await Promise.all([
+  const [capabilities, saviezVousPhotos, favRows] = await Promise.all([
     userHasPlan ? Promise.resolve([]) : getAllCapabilities(),
     getPublishedFeaturedPhotos(),
+    user.id ? getUserFavorites(user.id) : Promise.resolve([]),
   ]);
   const capByKey = new Map(capabilities.map((c) => [c.key, c]));
+  const favoritedFeaturedIds = new Set(
+    favRows.filter((r) => r.targetType === 'featured').map((r) => r.targetId),
+  );
 
   const tilesWithAccess = TILES.map((tile) => {
     if (!discoveredPaths.has(tile.href)) {
@@ -141,6 +146,8 @@ export default async function Home({
                 caption: p.caption,
                 likesCount: p.likesCount,
               }))}
+              isAuthenticated={user.isAuthenticated}
+              favoritedIds={favoritedFeaturedIds}
             />
           </div>
         )}

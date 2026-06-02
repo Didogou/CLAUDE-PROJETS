@@ -60,7 +60,8 @@ export default async function RecipeDetailPage({
             targetId={recipe.id}
             initialFavorited={favorited}
             isAuthenticated={user.isAuthenticated}
-            size="md"
+            size="sm"
+            showLabel
           />
         </div>
       </header>

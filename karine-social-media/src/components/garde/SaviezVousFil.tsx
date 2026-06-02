@@ -35,7 +35,15 @@ const ROTATIONS = [
   'rotate-1',
 ] as const;
 
-export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
+export function SaviezVousFil({
+  items,
+  isAuthenticated = false,
+  favoritedIds = new Set<string>(),
+}: {
+  items: SaviezVousItem[];
+  isAuthenticated?: boolean;
+  favoritedIds?: Set<string>;
+}) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
 
   if (items.length === 0) return null;
@@ -123,6 +131,8 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
           items={lightboxItems}
           startIndex={openIdx}
           onClose={() => setOpenIdx(null)}
+          isAuthenticated={isAuthenticated}
+          favoritedIds={favoritedIds}
         />
       )}
     </>

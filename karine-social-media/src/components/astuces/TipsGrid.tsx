@@ -28,9 +28,13 @@ function translateYFor(slug: string): number {
 export function TipsGrid({
   tips,
   commentCounts,
+  isAuthenticated = false,
+  favoritedSlugs = new Set<string>(),
 }: {
   tips: Tip[];
   commentCounts: Record<string, number>;
+  isAuthenticated?: boolean;
+  favoritedSlugs?: Set<string>;
 }) {
   const [mounted, setMounted] = useState(false);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
@@ -203,7 +207,12 @@ export function TipsGrid({
           )
         : null}
 
-      <TipDetailModal tip={active} onClose={() => setActiveSlug(null)} />
+      <TipDetailModal
+        tip={active}
+        onClose={() => setActiveSlug(null)}
+        isAuthenticated={isAuthenticated}
+        favoritedSlugs={favoritedSlugs}
+      />
       <TipCommentsDrawer
         open={commentsSlug != null}
         tipSlug={commentsTip?.id ?? null}

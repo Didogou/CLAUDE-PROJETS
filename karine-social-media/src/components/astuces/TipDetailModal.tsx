@@ -5,6 +5,8 @@ import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Printer, X } from 'lucide-react';
 import type { Tip } from '@/data/tips';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
+import { FavoriteButton } from '@/components/favorites/FavoriteButton';
+import { trackView } from '@/lib/recent-views';
 
 /**
  * Modal plein écran qui présente les slides de l'astuce en grand.
@@ -12,7 +14,17 @@ import { ZoomableImage } from '@/components/ui/ZoomableImage';
  *  - L'image courante doit être visible sans scroll (mobile et PC).
  *  - Si plusieurs slides : flèches gauche/droite + dots + swipe tactile + flèches clavier.
  */
-export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () => void }) {
+export function TipDetailModal({
+  tip,
+  onClose,
+  isAuthenticated = false,
+  favoritedSlugs = new Set(),
+}: {
+  tip: Tip | null;
+  onClose: () => void;
+  isAuthenticated?: boolean;
+  favoritedSlugs?: Set<string>;
+}) {
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(0);
   const [exiting, setExiting] = useState(false);
@@ -27,11 +39,19 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
     setMounted(true);
   }, []);
 
-  // Reset l'index + reset l'exiting state dès qu'on ouvre une astuce différente
+  // Reset l'index + reset l'exiting state dès qu'on ouvre une astuce différente.
+  // Et on tracke la visite dans l'historique local.
   useEffect(() => {
     if (tip) {
       setIndex(0);
       setExiting(false);
+      trackView({
+        type: 'tip',
+        id: tip.id,
+        label: tip.label,
+        imageUrl: tip.slides[0] ?? null,
+        href: `/astuces?open=${tip.id}`,
+      });
     }
   }, [tip]);
 
@@ -118,6 +138,15 @@ export function TipDetailModal({ tip, onClose }: { tip: Tip | null; onClose: () 
               {index + 1}/{slides.length}
             </span>
           )}
+          <div className="pointer-events-auto">
+            <FavoriteButton
+              targetType="tip"
+              targetId={tip.id}
+              initialFavorited={favoritedSlugs.has(tip.id)}
+              isAuthenticated={isAuthenticated}
+              size="md"
+            />
+          </div>
           <button
             type="button"
             onClick={() => window.print()}

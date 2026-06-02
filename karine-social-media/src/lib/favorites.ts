@@ -102,6 +102,7 @@ export async function enrichFavorites(
     menu: [],
     tip: [],
     advice: [],
+    featured: [],
   };
   for (const r of rows) ids[r.targetType].push(r.targetId);
 
@@ -173,6 +174,26 @@ export async function enrichFavorites(
         imageUrl: (r.slides as string[] | null)?.[0] ?? null,
         href: `/conseils?open=${r.slug}`,
       });
+    }
+  }
+
+  // Le saviez-vous (table featured_photos) — id en chaîne
+  if (ids.featured.length > 0) {
+    const numIds = ids.featured.map((s) => Number(s)).filter((n) => Number.isFinite(n));
+    if (numIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from('featured_photos')
+        .select('id, image_url, caption')
+        .in('id', numIds);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const r of (data ?? []) as any[]) {
+        metaByKey.set(`featured:${String(r.id)}`, {
+          label: r.caption ?? 'Le saviez-vous',
+          imageUrl: r.image_url,
+          href: `/?fav=${r.id}`,
+        });
+      }
     }
   }
 

@@ -5,14 +5,23 @@ import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Printer, X } from 'lucide-react';
 import type { Advice } from '@/data/advice';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
+import { FavoriteButton } from '@/components/favorites/FavoriteButton';
+import { trackView } from '@/lib/recent-views';
 
 /**
- * Modal plein écran qui présente les slides de l'astuce en grand.
- * Contraintes :
- *  - L'image courante doit être visible sans scroll (mobile et PC).
- *  - Si plusieurs slides : flèches gauche/droite + dots + swipe tactile + flèches clavier.
+ * Modal plein écran qui présente les slides du conseil en grand.
  */
-export function AdviceDetailModal({ advice, onClose }: { advice: Advice | null; onClose: () => void }) {
+export function AdviceDetailModal({
+  advice,
+  onClose,
+  isAuthenticated = false,
+  favoritedSlugs = new Set<string>(),
+}: {
+  advice: Advice | null;
+  onClose: () => void;
+  isAuthenticated?: boolean;
+  favoritedSlugs?: Set<string>;
+}) {
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(0);
   const [exiting, setExiting] = useState(false);
@@ -27,11 +36,19 @@ export function AdviceDetailModal({ advice, onClose }: { advice: Advice | null; 
     setMounted(true);
   }, []);
 
-  // Reset l'index + reset l'exiting state dès qu'on ouvre une astuce différente
+  // Reset l'index + reset l'exiting state dès qu'on ouvre un conseil
+  // différent. Et on tracke la visite dans l'historique local.
   useEffect(() => {
     if (advice) {
       setIndex(0);
       setExiting(false);
+      trackView({
+        type: 'advice',
+        id: advice.id,
+        label: advice.label,
+        imageUrl: advice.slides[0] ?? null,
+        href: `/conseils?open=${advice.id}`,
+      });
     }
   }, [advice]);
 
@@ -118,6 +135,15 @@ export function AdviceDetailModal({ advice, onClose }: { advice: Advice | null; 
               {index + 1}/{slides.length}
             </span>
           )}
+          <div className="pointer-events-auto">
+            <FavoriteButton
+              targetType="advice"
+              targetId={advice.id}
+              initialFavorited={favoritedSlugs.has(advice.id)}
+              isAuthenticated={isAuthenticated}
+              size="md"
+            />
+          </div>
           <button
             type="button"
             onClick={() => window.print()}
