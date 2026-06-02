@@ -51,62 +51,65 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
           <Sparkles className="h-5 w-5 text-tangerine" aria-hidden />
         </header>
 
-        {/* Fil tendu d'un bord à l'autre du cadre rose. Légère courbe
-            naturelle (sag de quelques px), pile à hauteur des pinces. */}
-        <svg
-          aria-hidden
-          viewBox="0 0 100 6"
-          preserveAspectRatio="none"
-          className="pointer-events-none absolute inset-x-0 top-[3.75rem] h-4 lg:top-[4.5rem]"
-        >
-          <defs>
-            <linearGradient id="rope-shade" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#fff" stopOpacity="0.5" />
-              <stop offset="100%" stopColor="#9c8c75" stopOpacity="0.4" />
-            </linearGradient>
-          </defs>
-          <path
-            d="M 0 1.5 Q 50 4.5 100 1.5"
-            fill="none"
-            stroke="#9c8c75"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          />
-          <path
-            d="M 0 1.5 Q 50 4.5 100 1.5"
-            fill="none"
-            stroke="url(#rope-shade)"
-            strokeWidth="0.6"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-            transform="translate(0,-0.25)"
-          />
-        </svg>
+        {/* Wrapper relatif qui ancre le fil au niveau des pinces. */}
+        <div className="relative">
+          {/* Fil tendu d'un bord à l'autre du cadre — passe pile au
+              niveau des pinces (top=10px = au milieu de la pince
+              qui dépasse de 8px au-dessus du polaroid). */}
+          <svg
+            aria-hidden
+            viewBox="0 0 100 6"
+            preserveAspectRatio="none"
+            className="pointer-events-none absolute -inset-x-3 top-[0.625rem] h-3 lg:-inset-x-5"
+          >
+            <defs>
+              <linearGradient id="rope-shade" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor="#fff" stopOpacity="0.55" />
+                <stop offset="100%" stopColor="#5e4f3c" stopOpacity="0.5" />
+              </linearGradient>
+            </defs>
+            <path
+              d="M 0 1.5 Q 50 4 100 1.5"
+              fill="none"
+              stroke="#7a6d5c"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+            <path
+              d="M 0 1.5 Q 50 4 100 1.5"
+              fill="none"
+              stroke="url(#rope-shade)"
+              strokeWidth="0.8"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+              transform="translate(0,-0.4)"
+            />
+          </svg>
 
-        {/* Polaroids — petits, scrollable horizontalement si overflow.
-            justify-start sur mobile (sinon le 1er polaroid est tronque au
-            scroll gauche). justify-center sur sm+ pour centrer quand pas
-            d'overflow. */}
-        <div className="relative -mx-3 overflow-x-auto lg:-mx-5">
-          <ul className="flex items-start justify-start gap-3 px-3 pb-2 pt-1 sm:justify-center sm:gap-4 lg:px-5">
-            {items.map((item, i) => (
-              <li key={item.id} className="shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setOpenIdx(i)}
-                  aria-label={`Agrandir : ${item.caption ?? 'photo'}`}
-                  className="block"
-                >
-                  <Polaroid
-                    imageUrl={item.imageUrl}
-                    caption={item.caption}
-                    rotationClass={ROTATIONS[i % ROTATIONS.length]}
-                  />
-                </button>
-              </li>
-            ))}
-          </ul>
+          {/* Polaroids — scrollable horizontal si overflow.
+              justify-start sur mobile (sinon le 1er polaroid est tronqué).
+              sm:justify-center pour centrer quand pas d'overflow. */}
+          <div className="-mx-3 overflow-x-auto lg:-mx-5">
+            <ul className="flex items-start justify-start gap-3 px-3 pb-2 pt-1 sm:justify-center sm:gap-4 lg:px-5">
+              {items.map((item, i) => (
+                <li key={item.id} className="shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenIdx(i)}
+                    aria-label={`Agrandir : ${item.caption ?? 'photo'}`}
+                    className="block"
+                  >
+                    <Polaroid
+                      imageUrl={item.imageUrl}
+                      caption={item.caption}
+                      rotationClass={ROTATIONS[i % ROTATIONS.length]}
+                    />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
       </section>
 
