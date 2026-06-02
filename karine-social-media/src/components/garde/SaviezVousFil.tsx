@@ -84,9 +84,12 @@ export function SaviezVousFil({ items }: { items: SaviezVousItem[] }) {
           />
         </svg>
 
-        {/* Polaroids — petits, centrés, scrollable horizontalement si overflow. */}
+        {/* Polaroids — petits, scrollable horizontalement si overflow.
+            justify-start sur mobile (sinon le 1er polaroid est tronque au
+            scroll gauche). justify-center sur sm+ pour centrer quand pas
+            d'overflow. */}
         <div className="relative -mx-3 overflow-x-auto lg:-mx-5">
-          <ul className="flex items-start justify-center gap-3 px-3 pb-2 pt-1 sm:gap-4 lg:px-5">
+          <ul className="flex items-start justify-start gap-3 px-3 pb-2 pt-1 sm:justify-center sm:gap-4 lg:px-5">
             {items.map((item, i) => (
               <li key={item.id} className="shrink-0">
                 <button
