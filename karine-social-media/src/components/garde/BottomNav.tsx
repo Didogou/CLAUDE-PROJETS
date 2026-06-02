@@ -2,15 +2,16 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, UtensilsCrossed, Leaf, NotebookText, User, type LucideIcon } from 'lucide-react';
+import { Heart, Home, User, UtensilsCrossed, type LucideIcon } from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
+// V1 espace user : 4 items confortables sur mobile.
+// Conseils, Mes menus et Astuces restent accessibles via tuiles home + burger.
 const ITEMS: NavItem[] = [
   { href: '/', label: 'Accueil', icon: Home },
   { href: '/recettes', label: 'Recettes', icon: UtensilsCrossed },
-  { href: '/conseils', label: 'Conseils', icon: Leaf },
-  { href: '/menus', label: 'Mes menus', icon: NotebookText },
+  { href: '/favoris', label: 'Favoris', icon: Heart },
   { href: '/profil', label: 'Profil', icon: User },
 ];
 

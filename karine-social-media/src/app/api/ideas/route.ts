@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/current-user';
 import { createIdea } from '@/lib/ideas';
 import { sendEmail, ideaSubmissionEmailForAdmin } from '@/lib/email';
 import { createServiceClient } from '@/lib/supabase/server';
+import { isUserMuted } from '@/lib/mutes';
 
 export const runtime = 'nodejs';
 
@@ -15,6 +16,15 @@ export async function POST(req: Request) {
     return NextResponse.json(
       { error: 'Authentification requise' },
       { status: 401 },
+    );
+  }
+  if (await isUserMuted(user.id)) {
+    return NextResponse.json(
+      {
+        error:
+          'Tu es actuellement modérée par Karine et ne peux pas soumettre d’idée. Contacte-la si besoin.',
+      },
+      { status: 403 },
     );
   }
 
