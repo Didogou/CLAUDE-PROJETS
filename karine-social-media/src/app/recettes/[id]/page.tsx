@@ -5,7 +5,6 @@ import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { Logo } from '@/components/brand/Logo';
 import { TrackView } from '@/components/garde/TrackView';
-import { FavoriteButton } from '@/components/favorites/FavoriteButton';
 import { RecipeDetailView } from '@/components/recettes/RecipeDetailView';
 import { SheetCarousel } from '@/components/recettes/SheetCarousel';
 import { getPublishedRecipes, getRecipeBySlug } from '@/lib/recipes';
@@ -44,6 +43,9 @@ export default async function RecipeDetailPage({
         <FloralBackground />
       </div>
 
+      {/* Header simplifié : retour + logo. Le bouton "Ajouter aux favoris"
+          est désormais en overlay top-right de l'image de la fiche dans
+          SheetCarousel (UX demandée par Didier 2026-06-03). */}
       <header className="relative flex items-center justify-between px-5 py-6 lg:py-8 print:hidden">
         <Link
           href={`/recettes/${CATEGORY_SLUG[recipe.category]}`}
@@ -55,16 +57,7 @@ export default async function RecipeDetailPage({
         <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
           <Logo />
         </div>
-        <div className="z-10">
-          <FavoriteButton
-            targetType="recipe"
-            targetId={recipe.id}
-            initialFavorited={favorited}
-            isAuthenticated={user.isAuthenticated}
-            size="sm"
-            showLabel
-          />
-        </div>
+        <span aria-hidden className="h-10 w-10" />
       </header>
 
       <TrackView
@@ -76,12 +69,17 @@ export default async function RecipeDetailPage({
       />
 
       {/* Carrousel des fiches détaillées (chaque fiche = une variante de
-          la recette avec son bouton "Ajouter à ma liste" propre). */}
+          la recette avec son bouton "Ajouter à ma liste" propre).
+          Layout : center sur mobile, max-w-3xl sur PC pour image grande. */}
       {recipe.sheets.length > 0 && (
-        <div className="mx-auto w-full max-w-md px-5 print:hidden">
+        <div className="mx-auto w-full max-w-3xl px-4 print:hidden lg:px-6">
           <SheetCarousel
             sheets={recipe.sheets}
             isAuthenticated={user.isAuthenticated}
+            recipeId={recipe.id}
+            recipeTitle={recipe.title}
+            favoritedInitial={favorited}
+            likesCountInitial={recipe.likesCount}
           />
         </div>
       )}
@@ -106,6 +104,7 @@ export default async function RecipeDetailPage({
           parentId: c.parentId,
           parentAuthor: c.parentAuthor,
         }))}
+        hideMainBlock={recipe.sheets.length > 0}
       />
 
       <div className="print:hidden">

@@ -32,6 +32,7 @@ export function RecipeDetailView({
   cookTimeMin,
   initialLikes,
   initialComments,
+  hideMainBlock = false,
 }: {
   slug: string;
   title: string;
@@ -44,6 +45,12 @@ export function RecipeDetailView({
   cookTimeMin: number | null;
   initialLikes: number;
   initialComments: Comment[];
+  /** Si true, on cache l'image principale + actions Share/Like/Print
+   *  + asides desktop (Vous aimerez aussi / Commentaires) car ces blocs
+   *  sont désormais gérés par SheetCarousel et ses asides parents. Garde
+   *  uniquement la pellicule "En vrai dans la cuisine" + suggestions
+   *  mobile + commentaires mobile. */
+  hideMainBlock?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const [zoom, setZoom] = useState(false);
@@ -346,7 +353,9 @@ export function RecipeDetailView({
 
     {/* ============== VUE ÉCRAN ============== */}
     <div className="relative mx-auto flex w-full max-w-7xl flex-1 flex-col gap-6 px-4 pb-8 print:hidden">
-      {/* Fiche + actions, centré dans le viewport — relative pour ancrer les asides */}
+      {/* Fiche + actions, centré dans le viewport. Caché si SheetCarousel
+          prend en charge l'affichage principal (cas recette avec sheets). */}
+      {!hideMainBlock && (
       <div className="relative flex items-center justify-center lg:flex-1">
         <div className="flex flex-col items-center gap-4">
           <div className="relative mx-auto aspect-square w-[min(55vh,92vw)] max-w-md lg:w-[26rem] xl:w-[30rem]">
@@ -517,9 +526,11 @@ export function RecipeDetailView({
           {commentsContent}
         </aside>
       </div>
+      )}
 
-      {/* Mobile : vignettes des slides de la recette (parcours rapide via tap) */}
-      {images.length > 1 && (
+      {/* Mobile : vignettes des slides de la recette (parcours rapide via tap)
+          Caché si SheetCarousel gère déjà la navigation entre les fiches. */}
+      {!hideMainBlock && images.length > 1 && (
         <section className="md:hidden">
           <h3 className="mb-2 font-script text-3xl text-coral">Toutes les fiches</h3>
           <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2">
@@ -573,21 +584,26 @@ export function RecipeDetailView({
         </section>
       )}
 
-      {/* Mobile : suggestions de recettes (placées après la pellicule) */}
+      {/* "Vous aimerez aussi" : juste les images cover (sans titre — UX
+          demandée 2026-06-03). Visible sur tous les viewports puisque les
+          asides desktop d'origine sont retirées quand hideMainBlock=true. */}
       {suggestions.length > 0 && (
-        <section className="md:hidden">
+        <section>
           <h3 className="mb-2 font-script text-3xl text-coral">Vous aimerez aussi</h3>
-          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2">
+          <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-2 lg:mx-0 lg:flex-wrap lg:justify-center lg:px-0">
             {suggestions.map((r) => (
-              <Link key={r.id} href={`/recettes/${r.id}`} className="w-20 shrink-0">
+              <Link
+                key={r.id}
+                href={`/recettes/${r.id}`}
+                aria-label={r.title}
+                title={r.title}
+                className="w-20 shrink-0 lg:w-24"
+              >
                 <span
                   aria-hidden
-                  className="block aspect-square w-full rounded-lg bg-cover bg-center shadow-sm"
+                  className="block aspect-square w-full rounded-lg bg-cover bg-center shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                   style={{ backgroundImage: `url(${r.coverImage})` }}
                 />
-                <p className="mt-1 truncate text-center text-[0.65rem] font-semibold text-ink">
-                  {r.title}
-                </p>
               </Link>
             ))}
           </div>
