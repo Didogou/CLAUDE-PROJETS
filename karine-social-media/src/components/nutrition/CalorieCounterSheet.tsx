@@ -314,6 +314,13 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 <textarea
                   value={naturalText}
                   onChange={(e) => setNaturalText(e.target.value)}
+                  onKeyDown={(e) => {
+                    // Enter = analyser, Shift+Enter = nouvelle ligne.
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleParse();
+                    }
+                  }}
                   placeholder="ex. un yaourt nature et une pomme"
                   rows={2}
                   maxLength={500}
