@@ -56,19 +56,26 @@ export type CiqualSearchResult = {
  * Recherche par nom (compteur calories — résolution "j'ai mangé un
  * yaourt").
  *
- * Bug observé 2026-06-03 : ORDER BY name ASC + ilike '%q%' →
- *   "pomme" → "Aligot (purée de pomme de terre...)" (A < P).
+ * 3 niveaux de tolérance :
+ *  1) Multi-mots : "pomme frite" → split + ILIKE '%pomme%' AND
+ *     ILIKE '%frite%'. Matche "Frites de pommes de terre" sans
+ *     dépendre de l'ordre. Mots <= 2 chars ignorés (de/à/la/le).
+ *  2) Pluriels : ILIKE est substring-based, donc "frite" matche
+ *     "frites" naturellement. Mais "pommes" ne matche pas "pomme"
+ *     direct → on STRIP le 's' final côté token avant la requête
+ *     (token >= 4 chars).
+ *  3) Scoring de pertinence côté JS : on récupère un pool large
+ *     puis on trie pour mettre le résultat le plus probable en 1er.
  *
- * Fix : on récupère un large pool puis on trie côté JS par
- * pertinence :
+ * Score (plus bas = mieux) :
  *   0 = match exact
  *   1 = name commence par "q," ou "q "
  *   2 = name commence par "q"
- *   3 = mot entier "q" présent dans le name
- *   4 = q présent en sous-chaîne (fallback)
+ *   3 = mot entier "q" présent (regex \bq\b)
+ *   4 = tous tokens présents en sous-chaîne (fallback multi-mots)
+ *   5 = sous-chaîne simple (mono-mot fallback)
  *
- * Tie-break : longueur du name (court = plus générique), puis
- * alphabétique FR.
+ * Tie-break : longueur du name (court = générique), alphabétique FR.
  */
 export async function searchCiqualFoods(
   query: string,
@@ -78,23 +85,33 @@ export async function searchCiqualFoods(
   const q = query.trim();
   if (q.length < 2) return [];
 
-  // Pool large pour le tri côté serveur ; l'index trigram garde
-  // la requête rapide même sans LIMIT serré.
-  const POOL = 60;
-  const { data, error } = await (supabase as any)
-    .from('ciqual_foods')
-    .select('id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g')
-    .ilike('name', `%${q}%`)
-    .limit(POOL);
+  // Split + nettoyage des tokens.
+  const tokens = q
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 2)
+    .map((t) => (t.length >= 5 && t.endsWith('s') ? t.slice(0, -1) : t));
 
+  // Si rien d'utile après nettoyage, fallback sur la query brute.
+  const searchTokens = tokens.length > 0 ? tokens : [q.toLowerCase()];
+
+  const POOL = 60;
+  let builder = (supabase as any)
+    .from('ciqual_foods')
+    .select('id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g');
+
+  for (const t of searchTokens) {
+    builder = builder.ilike('name', `%${t}%`);
+  }
+  builder = builder.limit(POOL);
+
+  const { data, error } = await builder;
   if (error) return [];
   const rows = (data ?? []) as CiqualSearchResult[];
 
   const qLower = q.toLowerCase();
-  const wordRe = new RegExp(
-    `\\b${qLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
-    'i',
-  );
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wordRe = new RegExp(`\\b${escape(qLower)}\\b`, 'i');
 
   const score = (name: string): number => {
     const n = name.toLowerCase();
@@ -102,7 +119,8 @@ export async function searchCiqualFoods(
     if (n.startsWith(qLower + ',') || n.startsWith(qLower + ' ')) return 1;
     if (n.startsWith(qLower)) return 2;
     if (wordRe.test(name)) return 3;
-    return 4;
+    if (searchTokens.length > 1) return 4; // tous tokens présents (WHERE le garantit)
+    return 5;
   };
 
   rows.sort((a, b) => {
