@@ -10,15 +10,16 @@ export const maxDuration = 30;
  * POST /api/nutrition/parse
  * Body : { text: string }
  *
- * Pipeline :
- *  1) Mistral extrait les aliments en JSON {items: [{search_query,
- *     portions, approx_grams}, …]}.
- *  2) Pour chaque item, recherche Ciqual (ilike + trigram).
+ * Pipeline 2 étapes :
+ *  1) Mistral extrait les aliments {search_query, portions, approx_grams}.
+ *  2) Pour chaque item :
+ *     a. searchCiqualFoods(query, 15) → pool de candidats classés.
+ *     b. Si 0 candidat → match=null (free entry).
+ *     c. Si 1 seul ou score parfait du top1 → top1.
+ *     d. Sinon → 2e appel Mistral pour CHOISIR parmi les 15 candidats
+ *        en tenant compte de la phrase originale ("contexte").
  *  3) Calcule kcal pour 1 portion = kcal_per_100g × approx_grams/100.
- *  4) Retourne preview pour confirmation côté UI (PAS d'insert).
- *
- * Si Ciqual ne trouve rien : item retourné avec source='free' et
- * kcal=null (utilisatrice peut éditer ou supprimer dans la preview).
+ *  4) Retourne preview pour confirmation UI (PAS d'insert).
  */
 
 type MistralItem = {
@@ -136,33 +137,49 @@ export async function POST(request: NextRequest) {
         ? it.approx_grams
         : 100;
 
-    // Recherche Ciqual : on prend le top 1 par défaut.
-    const candidates = await searchCiqualFoods(query, 1);
-    const top = candidates[0] ?? null;
+    // Étape 2a : large pool de candidats Ciqual
+    const candidates = await searchCiqualFoods(query, 15);
+    type Picked = (typeof candidates)[number] | null;
+    let picked: Picked = candidates[0] ?? null;
+
+    // Étape 2d : si plusieurs candidats et pas de match évident, on
+    // demande à Mistral de choisir avec le contexte de la phrase.
+    if (candidates.length > 1 && !isObviousMatch(query, candidates[0].name)) {
+      const better = await pickBestCandidate(text, query, candidates);
+      if (better) {
+        picked = better;
+      } else {
+        // Mistral dit "aucun pertinent" → on traite comme free entry.
+        picked = null;
+      }
+    }
+
     const factor = grams / 100;
     const kcalPerPortion =
-      top && top.kcal_per_100g !== null ? round1(top.kcal_per_100g * factor) : null;
+      picked && picked.kcal_per_100g !== null
+        ? round1(picked.kcal_per_100g * factor)
+        : null;
     const proteinsPerPortion =
-      top && top.proteins_g !== null ? round1(top.proteins_g * factor) : null;
+      picked && picked.proteins_g !== null ? round1(picked.proteins_g * factor) : null;
     const lipidsPerPortion =
-      top && top.lipids_g !== null ? round1(top.lipids_g * factor) : null;
+      picked && picked.lipids_g !== null ? round1(picked.lipids_g * factor) : null;
     const carbsPerPortion =
-      top && top.carbs_g !== null ? round1(top.carbs_g * factor) : null;
+      picked && picked.carbs_g !== null ? round1(picked.carbs_g * factor) : null;
 
     out.push({
-      label: top ? top.name : query,
+      label: picked ? picked.name : query,
       searchQuery: query,
       portions,
       approxGrams: grams,
-      match: top
+      match: picked
         ? {
-            ciqualId: top.id,
-            alimCode: top.alim_code,
-            name: top.name,
-            kcalPer100g: top.kcal_per_100g,
-            proteinsG: top.proteins_g,
-            lipidsG: top.lipids_g,
-            carbsG: top.carbs_g,
+            ciqualId: picked.id,
+            alimCode: picked.alim_code,
+            name: picked.name,
+            kcalPer100g: picked.kcal_per_100g,
+            proteinsG: picked.proteins_g,
+            lipidsG: picked.lipids_g,
+            carbsG: picked.carbs_g,
           }
         : null,
       kcalPerPortion,
@@ -177,4 +194,71 @@ export async function POST(request: NextRequest) {
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+/**
+ * Si le nom Ciqual commence par la query (ex: query="pomme",
+ * name="Pomme, chair et peau, crue") → match évident, skip l'appel
+ * Mistral. Économise un appel API quand la recherche est triviale.
+ */
+function isObviousMatch(query: string, name: string): boolean {
+  const q = query.toLowerCase();
+  const n = name.toLowerCase();
+  if (n === q) return true;
+  if (n.startsWith(q + ',') || n.startsWith(q + ' ')) return true;
+  return false;
+}
+
+const PICK_PROMPT = `Tu es un assistant nutritionnel. Choisis dans une liste de candidats Ciqual ANSES celui qui correspond le mieux à un aliment mentionné dans une phrase.
+
+SORTIE OBLIGATOIRE (JSON pur) :
+{ "alim_code": <int|null>, "reason": "<courte explication>" }
+
+- alim_code : code numérique du candidat retenu, OU null si aucun ne correspond raisonnablement.
+- reason : 1 phrase ("plat préparé identique", "ingrédient principal", "aucun match correct").
+- Préfère le candidat le plus PROCHE du plat décrit (pas un ingrédient si c'est un plat composé).
+- Si plusieurs candidats sont équivalents, prends le plus court / le plus générique.
+- Si tu n'es pas sûr → null.`;
+
+type CiqualCandidate = Awaited<
+  ReturnType<typeof searchCiqualFoods>
+>[number];
+
+async function pickBestCandidate(
+  originalText: string,
+  searchQuery: string,
+  candidates: CiqualCandidate[],
+): Promise<CiqualCandidate | null> {
+  const list = candidates
+    .map(
+      (c, i) =>
+        `${i + 1}. alim_code=${c.alim_code} — "${c.name}"${
+          c.kcal_per_100g !== null ? ` (${c.kcal_per_100g} kcal/100g)` : ''
+        }`,
+    )
+    .join('\n');
+  const userPrompt = `Phrase originale: "${originalText}"
+Aliment recherché: "${searchQuery}"
+
+Candidats Ciqual :
+${list}`;
+  try {
+    const result = await callMistralJson(PICK_PROMPT, userPrompt, {
+      maxTokens: 200,
+      timeoutMs: 12_000,
+    });
+    const parsed = JSON.parse(result.content) as {
+      alim_code?: number | null;
+      reason?: string;
+    };
+    if (
+      typeof parsed.alim_code !== 'number' ||
+      !Number.isFinite(parsed.alim_code)
+    )
+      return null;
+    return candidates.find((c) => c.alim_code === parsed.alim_code) ?? null;
+  } catch {
+    // Si Mistral plante, fallback sur le top 1 du scoring.
+    return candidates[0] ?? null;
+  }
 }
