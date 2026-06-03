@@ -399,15 +399,12 @@ export function MyShoppingListOverlay({ onClose }: Props) {
         )}
       </div>
 
-      {/* CSS print :
-          - visibility:hidden sur body, visible sur la liste seule
-            (pattern fiable, plus de :has() qui posait probleme).
-          - overflow:visible partout (sinon le contenu long etait
-            clippe et ne sortait pas sur plusieurs pages).
-          - max-height: none pour permettre l etalement sur plusieurs
-            pages.
-          - page-break-inside: avoid sur chaque categorie pour eviter
-            les coupures au milieu d une liste d ingredients. */}
+      {/* CSS print multi-page :
+          - On masque le body entier puis on rend SEULE la liste de
+            courses au flow normal (position: static), ce qui permet
+            au moteur d impression de paginer naturellement.
+          - position:absolute etait le bug precedent : le contenu
+            n avait pas de hauteur de flow donc pas de page 2. */}
       <style>{`
         @media print {
           @page { margin: 1.2cm; }
@@ -415,19 +412,24 @@ export function MyShoppingListOverlay({ onClose }: Props) {
             background: #fff !important;
             margin: 0 !important;
             padding: 0 !important;
-            visibility: hidden !important;
             height: auto !important;
             overflow: visible !important;
           }
+          /* Cache tous les enfants directs du body (overlay backdrop
+             inclus), puis on re-affiche UNIQUEMENT la liste. */
+          body > * {
+            display: none !important;
+          }
+          body > div:has(.my-shopping-list),
           .my-shopping-list,
           .my-shopping-list * {
+            display: block !important;
             visibility: visible !important;
           }
+          /* La liste : position static, flow normal, sans contraintes
+             qui empechent le multi-page. */
           .my-shopping-list {
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            right: 0 !important;
+            position: static !important;
             width: 100% !important;
             max-width: 100% !important;
             max-height: none !important;
@@ -436,14 +438,16 @@ export function MyShoppingListOverlay({ onClose }: Props) {
             background: #fff !important;
             box-shadow: none !important;
             border-radius: 0 !important;
-            display: block !important;
           }
-          .my-shopping-list > div {
+          .my-shopping-list > div,
+          .my-shopping-list > div > div {
             overflow: visible !important;
             max-height: none !important;
             height: auto !important;
+            display: block !important;
           }
-          .my-shopping-list ul {
+          .my-shopping-list ul,
+          .my-shopping-list li {
             page-break-inside: avoid !important;
           }
           .my-shopping-list input {
@@ -452,6 +456,7 @@ export function MyShoppingListOverlay({ onClose }: Props) {
             -webkit-appearance: none !important;
             -moz-appearance: textfield !important;
             padding: 0 !important;
+            display: inline !important;
           }
         }
       `}</style>
