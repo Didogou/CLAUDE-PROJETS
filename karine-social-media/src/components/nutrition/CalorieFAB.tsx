@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { Flame } from 'lucide-react';
 import { CalorieCounterSheet } from './CalorieCounterSheet';
+import { RingProgress } from './RingProgress';
 
 /**
  * Bouton flottant compteur calories (bas-droite).
@@ -53,27 +54,25 @@ export function CalorieFAB() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Compteur de calories"
-        className="fixed bottom-20 right-4 z-30 flex h-14 w-14 flex-col items-center justify-center rounded-full bg-coral text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
-        style={{ fontSize: '0.625rem' }}
+        className="fixed bottom-20 right-4 z-30 flex h-16 w-16 flex-col items-center justify-center rounded-full bg-coral text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
       >
-        <Flame className="size-5" />
-        {todayKcal !== null && (
-          <span className="mt-0.5 font-bold leading-none">
+        <RingProgress percent={percent} color="white" strokeWidth={6} />
+        <Flame className="relative size-4" />
+        {todayKcal !== null ? (
+          <span
+            className="relative font-bold leading-none"
+            style={{ fontSize: '0.75rem' }}
+          >
             {todayKcal}
           </span>
-        )}
-        {/* Anneau de progression : rendu via box-shadow inset coloré
-            sur le bord intérieur. Pour rester en rem partout, on
-            utilise une simple barre absolue. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-b-full"
-        >
+        ) : (
           <span
-            className="block h-full bg-white/70 transition-all"
-            style={{ width: `${percent}%` }}
-          />
-        </span>
+            className="relative font-bold leading-none"
+            style={{ fontSize: '0.625rem' }}
+          >
+            kcal
+          </span>
+        )}
       </button>
 
       {open && (

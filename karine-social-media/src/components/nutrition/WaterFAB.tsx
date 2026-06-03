@@ -3,23 +3,23 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import { GlassWater } from 'lucide-react';
+import { WaterCounterSheet } from './WaterCounterSheet';
+import { RingProgress } from './RingProgress';
 
 /**
- * Bouton flottant verre d'eau.
+ * Bouton flottant verre d'eau (au-dessus du CalorieFAB).
  *
- * Placé au-dessus du CalorieFAB (bottom-36). Click = +1 verre.
- * Anim eau (pulse + ring) au tap. Pour régler l'objectif ou la
- * taille du verre, l'utilisatrice passe par la CalorieCounterSheet
- * (section Eau) — on garde le FAB minimaliste.
+ * Click = ouvre la WaterCounterSheet dédiée (+1 / -1 / réglages /
+ * historique). Affiche un anneau de progression circulaire + le
+ * compteur verres au centre.
  *
- * Sync avec la sheet calories via event 'water-log-updated'.
+ * Sync avec la sheet via event 'water-log-updated'.
  */
 export function WaterFAB() {
   const pathname = usePathname();
+  const [open, setOpen] = useState(false);
   const [glasses, setGlasses] = useState<number | null>(null);
   const [target, setTarget] = useState<number>(6);
-  const [pulsing, setPulsing] = useState(false);
-  const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -27,7 +27,6 @@ export function WaterFAB() {
       if (!res.ok) return;
       const data = await res.json();
       setGlasses(Number(data.glassesCount) || 0);
-      // Objectif en verres = round(target_ml / glass_size_ml)
       const targetGlasses = Math.max(
         1,
         Math.round((data.targetMl ?? 1500) / (data.glassSizeMl ?? 250)),
@@ -45,60 +44,47 @@ export function WaterFAB() {
     return () => window.removeEventListener('water-log-updated', onChange);
   }, [refresh]);
 
-  async function handleAdd() {
-    if (busy) return;
-    setBusy(true);
-    setPulsing(true);
-    setTimeout(() => setPulsing(false), 600);
-    try {
-      const res = await fetch('/api/water/log', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (res.ok) {
-        await refresh();
-        window.dispatchEvent(new CustomEvent('water-log-updated'));
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (pathname?.startsWith('/admin')) return null;
 
-  const percent = target > 0 && glasses !== null
-    ? Math.min(100, Math.round((glasses / target) * 100))
-    : 0;
+  const percent =
+    target > 0 && glasses !== null
+      ? Math.min(100, Math.round((glasses / target) * 100))
+      : 0;
   const reached = glasses !== null && glasses >= target;
 
   return (
-    <button
-      type="button"
-      onClick={handleAdd}
-      disabled={busy}
-      aria-label="Boire un verre d'eau"
-      title="Ajouter un verre d'eau"
-      className={`fixed bottom-36 right-4 z-30 flex h-12 w-12 flex-col items-center justify-center rounded-full text-white shadow-lg ring-2 ring-white transition-transform active:scale-90 print:hidden ${
-        pulsing ? 'animate-pulse' : ''
-      } ${reached ? 'bg-emerald-500' : 'bg-sky-400'}`}
-      style={{ fontSize: '0.6rem' }}
-    >
-      <GlassWater className="size-4" />
-      {glasses !== null && (
-        <span className="mt-0.5 font-bold leading-none">
-          {glasses}/{target}
-        </span>
-      )}
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-0 h-1 overflow-hidden rounded-b-full"
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label="Compteur d'eau"
+        title="Compteur d'eau"
+        className={`fixed bottom-40 right-4 z-30 flex h-16 w-16 flex-col items-center justify-center rounded-full text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden ${
+          reached ? 'bg-emerald-500' : 'bg-sky-400'
+        }`}
       >
-        <span
-          className="block h-full bg-white/70 transition-all"
-          style={{ width: `${percent}%` }}
-        />
-      </span>
-    </button>
+        <RingProgress percent={percent} color="white" strokeWidth={6} />
+        <GlassWater className="relative size-4" />
+        {glasses !== null ? (
+          <span
+            className="relative font-bold leading-none"
+            style={{ fontSize: '0.75rem' }}
+          >
+            {glasses}/{target}
+          </span>
+        ) : (
+          <span
+            className="relative font-bold leading-none"
+            style={{ fontSize: '0.625rem' }}
+          >
+            eau
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <WaterCounterSheet onClose={() => setOpen(false)} onChanged={refresh} />
+      )}
+    </>
   );
 }
