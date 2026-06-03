@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Check, Loader2, Plus } from 'lucide-react';
+import { MyShoppingListOverlay } from './MyShoppingListOverlay';
 
 type Props = {
   sheetId: string;
@@ -39,6 +40,7 @@ export function AddSheetToListButton({
   );
   const [linked, setLinked] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [overlayOpen, setOverlayOpen] = useState(false);
 
   // Hydrate l'état linked depuis la liste courante.
   async function hydrate(signal?: { cancelled: boolean }) {
@@ -120,26 +122,42 @@ export function AddSheetToListButton({
 
   return (
     <>
-      <button
-        type="button"
-        onClick={toggle}
-        disabled={state !== 'ready'}
-        className={`flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold shadow-sm transition disabled:opacity-50 ${
-          linked
-            ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-200'
-            : 'bg-coral text-white hover:bg-coral-dark'
-        }`}
-      >
-        {state === 'busy' || state === 'loading' ? (
-          <Loader2 className="h-4 w-4 animate-spin" />
-        ) : linked ? (
-          <Check className="h-4 w-4" />
-        ) : (
-          <Plus className="h-4 w-4" strokeWidth={3} />
-        )}
-        {linked ? 'Dans mes courses' : 'Mes courses'}
-      </button>
+      <div className="flex flex-col items-center gap-1">
+        <button
+          type="button"
+          onClick={toggle}
+          disabled={state !== 'ready'}
+          className={`flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold shadow-sm transition disabled:opacity-50 ${
+            linked
+              ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-200'
+              : 'bg-coral text-white hover:bg-coral-dark'
+          }`}
+        >
+          {state === 'busy' || state === 'loading' ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : linked ? (
+            <Check className="h-4 w-4" />
+          ) : (
+            <Plus className="h-4 w-4" strokeWidth={3} />
+          )}
+          {linked ? 'Dans mes courses' : 'Mes courses'}
+        </button>
+        {/* Lien discret sous le bouton : ouvre la liste de courses
+            active en overlay (consultation rapide sans quitter la page).
+            Affiché en permanence si user connecté + a des ingredients :
+            l user peut vouloir consulter sa liste meme avant d ajouter. */}
+        <button
+          type="button"
+          onClick={() => setOverlayOpen(true)}
+          className="text-[0.7rem] font-semibold text-coral-dark underline-offset-2 transition hover:underline"
+        >
+          Voir mes courses →
+        </button>
+      </div>
       {error && <p className="mt-1 text-center text-xs text-red-600">{error}</p>}
+      {overlayOpen && (
+        <MyShoppingListOverlay onClose={() => setOverlayOpen(false)} />
+      )}
     </>
   );
 }
