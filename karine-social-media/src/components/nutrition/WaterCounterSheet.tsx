@@ -51,6 +51,16 @@ export function WaterCounterSheet({ onClose, onChanged }: Props) {
     refresh();
   }, [refresh]);
 
+  // Verrouille le scroll body tant que la sheet est ouverte
+  // (anti scroll bleeding sur mobile).
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   async function handleAdd() {
     if (busy) return;
     setBusy(true);
@@ -281,6 +291,8 @@ export function WaterCounterSheet({ onClose, onChanged }: Props) {
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'rgba(56, 189, 248, 0.5) transparent',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
           }}
         >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">

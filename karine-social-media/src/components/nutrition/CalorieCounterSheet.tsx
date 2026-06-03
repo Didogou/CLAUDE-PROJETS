@@ -107,6 +107,17 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
     refresh();
   }, [refresh]);
 
+  // Verrouille le scroll du body tant que la sheet est ouverte.
+  // Sans ça, sur mobile, le drag touch dans la liste fait scroller
+  // la page de fond (scroll bleeding).
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   async function handleDelete(id: string) {
     const res = await fetch(`/api/nutrition/log/${id}`, { method: 'DELETE' });
     if (res.ok) {
@@ -406,6 +417,8 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
+            overscrollBehavior: 'contain',
+            WebkitOverflowScrolling: 'touch',
           }}
         >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">
