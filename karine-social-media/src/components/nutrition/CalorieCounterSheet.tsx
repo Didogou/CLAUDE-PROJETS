@@ -23,22 +23,55 @@ type DayState = {
   totals: { kcal: number; proteinsG: number; lipidsG: number; carbsG: number };
 };
 
+type CiqualCandidate = {
+  ciqualId: number;
+  alimCode: number;
+  name: string;
+  kcalPer100g: number | null;
+  proteinsG?: number | null;
+  lipidsG?: number | null;
+  carbsG?: number | null;
+};
+
 type ParsedItem = {
   label: string;
   searchQuery: string;
   portions: number;
   approxGrams: number;
-  match: {
-    ciqualId: number;
-    alimCode: number;
-    name: string;
-    kcalPer100g: number | null;
-  } | null;
+  match: CiqualCandidate | null;
   kcalPerPortion: number | null;
   proteinsPerPortion: number | null;
   lipidsPerPortion: number | null;
   carbsPerPortion: number | null;
+  fallbackCandidates?: CiqualCandidate[];
 };
+
+function round1(n: number): number {
+  return Math.round(n * 10) / 10;
+}
+
+/** Recalcule kcal/macros pour 1 portion à partir d'un candidat et de approxGrams. */
+function recomputeFromCandidate(
+  candidate: CiqualCandidate,
+  approxGrams: number,
+): {
+  kcalPerPortion: number | null;
+  proteinsPerPortion: number | null;
+  lipidsPerPortion: number | null;
+  carbsPerPortion: number | null;
+} {
+  const factor = approxGrams / 100;
+  return {
+    kcalPerPortion:
+      candidate.kcalPer100g !== null ? round1(candidate.kcalPer100g * factor) : null,
+    proteinsPerPortion:
+      candidate.proteinsG != null ? round1(candidate.proteinsG * factor) : null,
+    lipidsPerPortion:
+      candidate.lipidsG != null ? round1(candidate.lipidsG * factor) : null,
+    carbsPerPortion:
+      candidate.carbsG != null ? round1(candidate.carbsG * factor) : null,
+  };
+}
 
 type Props = {
   onClose: () => void;
@@ -276,6 +309,18 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                       next[i] = { ...p, portions: n };
                       setPreview(next);
                     }}
+                    onPickCandidate={(c) => {
+                      const next = [...preview];
+                      const recomputed = recomputeFromCandidate(c, p.approxGrams);
+                      next[i] = {
+                        ...p,
+                        label: c.name,
+                        match: c,
+                        ...recomputed,
+                        fallbackCandidates: undefined,
+                      };
+                      setPreview(next);
+                    }}
                     onRemove={() => {
                       const next = preview.filter((_, k) => k !== i);
                       setPreview(next.length > 0 ? next : null);
@@ -387,47 +432,193 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 function PreviewRow({
   item,
   onPortionsChange,
+  onPickCandidate,
   onRemove,
 }: {
   item: ParsedItem;
   onPortionsChange: (n: number) => void;
+  onPickCandidate: (c: CiqualCandidate) => void;
   onRemove: () => void;
 }) {
-  const total = item.kcalPerPortion !== null
-    ? Math.round(item.kcalPerPortion * item.portions)
-    : null;
+  const [showPicker, setShowPicker] = useState(false);
+  const total =
+    item.kcalPerPortion !== null
+      ? Math.round(item.kcalPerPortion * item.portions)
+      : null;
+
+  const isFallback = !item.match && (item.fallbackCandidates?.length ?? 0) > 0;
+  const isNotFound = !item.match && (!item.fallbackCandidates || item.fallbackCandidates.length === 0);
+
   return (
-    <li className="flex items-center gap-2 rounded-lg border border-coral-soft/30 bg-cream/40 px-2 py-1.5">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink">{item.label}</p>
-        <p className="text-xs text-ink-soft">
-          {item.match ? '✓ Ciqual' : '⚠ Pas trouvé'} —{' '}
-          {total !== null ? `${total} kcal` : 'kcal inconnues'}
-          {' · '}
-          {item.approxGrams}g/portion
-        </p>
+    <li className="space-y-1.5 rounded-lg border border-coral-soft/30 bg-cream/40 px-2 py-1.5">
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-ink">{item.label}</p>
+          <p className="text-xs text-ink-soft">
+            {item.match
+              ? '✓ Ciqual'
+              : isFallback
+                ? '⚠ Aucun choix sûr — sélectionne ci-dessous'
+                : '⚠ Pas trouvé'}
+            {' — '}
+            {total !== null ? `${total} kcal` : 'kcal inconnues'}
+            {' · '}
+            {item.approxGrams}g/portion
+          </p>
+        </div>
+        <input
+          type="number"
+          min={0.25}
+          max={20}
+          step={0.25}
+          value={item.portions}
+          onChange={(e) => {
+            const n = parseFloat(e.target.value);
+            if (Number.isFinite(n) && n > 0) onPortionsChange(n);
+          }}
+          className="w-14 rounded border border-coral-soft px-1 py-0.5 text-center text-xs"
+        />
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label="Retirer"
+          className="rounded-full p-1 text-ink-soft hover:bg-rose-50 hover:text-rose-600"
+        >
+          <X className="size-3.5" />
+        </button>
       </div>
-      <input
-        type="number"
-        min={0.25}
-        max={20}
-        step={0.25}
-        value={item.portions}
-        onChange={(e) => {
-          const n = parseFloat(e.target.value);
-          if (Number.isFinite(n) && n > 0) onPortionsChange(n);
-        }}
-        className="w-14 rounded border border-coral-soft px-1 py-0.5 text-center text-xs"
-      />
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label="Retirer"
-        className="rounded-full p-1 text-ink-soft hover:bg-rose-50 hover:text-rose-600"
-      >
-        <X className="size-3.5" />
-      </button>
+
+      {/* Liste de candidats si match incertain */}
+      {isFallback && (
+        <ul className="space-y-0.5 rounded-md bg-white p-1.5">
+          <li className="px-1 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
+            Choix possibles :
+          </li>
+          {item.fallbackCandidates!.map((c) => (
+            <li key={c.alimCode}>
+              <button
+                type="button"
+                onClick={() => onPickCandidate(c)}
+                className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-coral-soft/30"
+              >
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                <span className="shrink-0 font-semibold text-coral">
+                  {c.kcalPer100g !== null ? `${Math.round(c.kcalPer100g)} kcal/100g` : '—'}
+                </span>
+              </button>
+            </li>
+          ))}
+          <li>
+            <button
+              type="button"
+              onClick={() => setShowPicker((v) => !v)}
+              className="w-full rounded px-1.5 py-1 text-left text-xs italic text-coral hover:bg-coral-soft/30"
+            >
+              {showPicker ? '↑ Fermer' : '🔍 Chercher autre chose…'}
+            </button>
+          </li>
+        </ul>
+      )}
+
+      {/* Bouton "Chercher autre chose" même si rien trouvé */}
+      {isNotFound && (
+        <button
+          type="button"
+          onClick={() => setShowPicker((v) => !v)}
+          className="w-full rounded-md bg-white px-2 py-1 text-left text-xs italic text-coral hover:bg-coral-soft/30"
+        >
+          {showPicker ? '↑ Fermer la recherche' : '🔍 Chercher dans la base Ciqual'}
+        </button>
+      )}
+
+      {showPicker && (
+        <FreeSearchPicker onPick={(c) => {
+          onPickCandidate(c);
+          setShowPicker(false);
+        }} />
+      )}
     </li>
+  );
+}
+
+/**
+ * Recherche libre dans Ciqual (autocomplete). Utilisé en fallback
+ * quand l'IA ne propose pas le bon aliment.
+ */
+function FreeSearchPicker({
+  onPick,
+}: {
+  onPick: (c: CiqualCandidate) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [items, setItems] = useState<CiqualCandidate[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) {
+      setItems([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/nutrition/search?q=${encodeURIComponent(q)}`,
+          { signal: ctrl.signal },
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setItems(Array.isArray(data.items) ? data.items : []);
+        }
+      } catch {
+        // abort = silencieux
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+    return () => {
+      ctrl.abort();
+      clearTimeout(t);
+    };
+  }, [query]);
+
+  return (
+    <div className="space-y-1 rounded-md bg-white p-1.5">
+      <input
+        type="search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Tapez un aliment…"
+        autoFocus
+        className="w-full rounded border border-coral-soft px-2 py-1 text-sm"
+      />
+      {searching && (
+        <p className="px-1 py-0.5 text-xs italic text-ink-soft">Recherche…</p>
+      )}
+      {!searching && query.trim().length >= 2 && items.length === 0 && (
+        <p className="px-1 py-0.5 text-xs italic text-ink-soft">Aucun résultat.</p>
+      )}
+      {items.length > 0 && (
+        <ul className="max-h-40 space-y-0.5 overflow-y-auto">
+          {items.map((c) => (
+            <li key={c.alimCode}>
+              <button
+                type="button"
+                onClick={() => onPick(c)}
+                className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-coral-soft/30"
+              >
+                <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                <span className="shrink-0 font-semibold text-coral">
+                  {c.kcalPer100g !== null ? `${Math.round(c.kcalPer100g)} kcal/100g` : '—'}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

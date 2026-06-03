@@ -28,25 +28,31 @@ type MistralItem = {
   approx_grams?: number;
 };
 
+type CiqualCandidatePublic = {
+  ciqualId: number;
+  alimCode: number;
+  name: string;
+  kcalPer100g: number | null;
+  proteinsG: number | null;
+  lipidsG: number | null;
+  carbsG: number | null;
+};
+
 type ParsedItem = {
   label: string;
   searchQuery: string;
   portions: number;
   approxGrams: number;
-  match: {
-    ciqualId: number;
-    alimCode: number;
-    name: string;
-    kcalPer100g: number | null;
-    proteinsG: number | null;
-    lipidsG: number | null;
-    carbsG: number | null;
-  } | null;
+  match: CiqualCandidatePublic | null;
   // Kcal pour 1 portion (à multiplier par portions côté UI).
   kcalPerPortion: number | null;
   proteinsPerPortion: number | null;
   lipidsPerPortion: number | null;
   carbsPerPortion: number | null;
+  // Si match=null mais qu'on a quand même trouvé des candidats Ciqual
+  // proches : on les remonte pour que l'UI propose à l'utilisatrice
+  // de choisir manuellement.
+  fallbackCandidates?: CiqualCandidatePublic[];
 };
 
 const SYSTEM_PROMPT = `Tu es un assistant nutritionnel français. L'utilisatrice décrit en français ce qu'elle a mangé. Extrais les aliments mentionnés.
@@ -166,26 +172,32 @@ export async function POST(request: NextRequest) {
     const carbsPerPortion =
       picked && picked.carbs_g !== null ? round1(picked.carbs_g * factor) : null;
 
+    const toPublic = (c: typeof candidates[number]): CiqualCandidatePublic => ({
+      ciqualId: c.id,
+      alimCode: c.alim_code,
+      name: c.name,
+      kcalPer100g: c.kcal_per_100g,
+      proteinsG: c.proteins_g,
+      lipidsG: c.lipids_g,
+      carbsG: c.carbs_g,
+    });
+
     out.push({
       label: picked ? picked.name : query,
       searchQuery: query,
       portions,
       approxGrams: grams,
-      match: picked
-        ? {
-            ciqualId: picked.id,
-            alimCode: picked.alim_code,
-            name: picked.name,
-            kcalPer100g: picked.kcal_per_100g,
-            proteinsG: picked.proteins_g,
-            lipidsG: picked.lipids_g,
-            carbsG: picked.carbs_g,
-          }
-        : null,
+      match: picked ? toPublic(picked) : null,
       kcalPerPortion,
       proteinsPerPortion,
       lipidsPerPortion,
       carbsPerPortion,
+      // Si Mistral a rejeté tous les candidats mais qu'on en avait,
+      // on les remonte au front pour que l'utilisatrice choisisse.
+      fallbackCandidates:
+        !picked && candidates.length > 0
+          ? candidates.slice(0, 8).map(toPublic)
+          : undefined,
     });
   }
 
