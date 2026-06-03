@@ -22,6 +22,7 @@ export function FavoriteButton({
   className = '',
   size = 'md',
   showLabel = false,
+  labelShort = false,
 }: {
   targetType: FavoriteType;
   targetId: string;
@@ -30,6 +31,9 @@ export function FavoriteButton({
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
+  /** Si true, affiche un texte court "Favoris" / "Favori" au lieu de
+   *  la formulation longue "Ajouter aux favoris" / "Dans tes favoris". */
+  labelShort?: boolean;
 }) {
   const router = useRouter();
   const [favorited, setFavorited] = useState(initialFavorited);
@@ -108,8 +112,12 @@ export function FavoriteButton({
 
   const labelText = showLabel
     ? favorited
-      ? 'Dans tes favoris'
-      : 'Ajouter aux favoris'
+      ? labelShort
+        ? 'Favori'
+        : 'Dans tes favoris'
+      : labelShort
+        ? 'Favoris'
+        : 'Ajouter aux favoris'
     : null;
 
   return (

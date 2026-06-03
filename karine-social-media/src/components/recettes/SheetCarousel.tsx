@@ -14,6 +14,7 @@ import {
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
 import { FavoriteButton } from '@/components/favorites/FavoriteButton';
+import { SaviezVousLightbox } from '@/components/garde/SaviezVousLightbox';
 
 type Props = {
   sheets: RecipeSheet[];
@@ -53,10 +54,18 @@ export function SheetCarousel({
   const [active, setActive] = useState(0);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(likesCountInitial);
+  const [zoomOpen, setZoomOpen] = useState(false);
 
   if (sheets.length === 0) return null;
   const sheet = sheets[active];
   const total = sheets.length;
+
+  // Items pour la lightbox plein écran (réutilise SaviezVousLightbox).
+  const lightboxItems = sheets.map((s) => ({
+    id: s.id,
+    imageUrl: s.coverImageUrl,
+    caption: s.title,
+  }));
 
   function toggleLike() {
     setLiked((prev) => {
@@ -110,44 +119,66 @@ export function SheetCarousel({
           isAuthenticated={isAuthenticated}
           size="sm"
           showLabel
+          labelShort
         />
       </header>
 
-      {/* Image principale de la fiche + flèches.
-          Les fiches Karine sont carrées (illustrations recette pleine) →
-          aspect-square pour ne PAS rogner l'image.
-          max-w-[min(36rem,55vh)] → l'image carrée tient toujours dans
-          55% de la hauteur du viewport, donc visible sans scroll sur PC. */}
+      {/* Image + chevrons HORS DE L'IMAGE, dans les marges blanches de la
+          carte. Layout flex 3 colonnes : chevron G / image / chevron D.
+          Au click sur l'image → ouvre la lightbox plein écran (réutilise
+          SaviezVousLightbox déjà dev). */}
       {sheet.coverImageUrl && (
-        <div className="relative mx-auto w-full max-w-md sm:max-w-[min(36rem,55vh)]">
-          <img
-            src={sheet.coverImageUrl}
-            alt={sheet.title ?? ''}
-            className="aspect-square w-full rounded-2xl object-cover shadow-md"
-          />
+        <div className="flex items-center justify-center gap-2 sm:gap-3">
+          {total > 1 ? (
+            <button
+              type="button"
+              onClick={() => setActive((i) => (i - 1 + total) % total)}
+              aria-label="Fiche précédente"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-coral-soft/30 text-coral transition hover:scale-110 hover:bg-coral-soft/60 lg:h-14 lg:w-14"
+            >
+              <ChevronLeft className="h-6 w-6 lg:h-7 lg:w-7" strokeWidth={2.5} />
+            </button>
+          ) : (
+            <span aria-hidden className="h-12 w-12 shrink-0 lg:h-14 lg:w-14" />
+          )}
 
-          {/* Flèches de navigation GRANDES (visibles si >= 2 sheets) */}
-          {total > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={() => setActive((i) => (i - 1 + total) % total)}
-                aria-label="Fiche précédente"
-                className="absolute left-2 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-coral shadow-lg ring-2 ring-white transition hover:scale-110 hover:bg-coral-soft/30 lg:h-14 lg:w-14"
-              >
-                <ChevronLeft className="h-6 w-6 lg:h-7 lg:w-7" strokeWidth={2.5} />
-              </button>
-              <button
-                type="button"
-                onClick={() => setActive((i) => (i + 1) % total)}
-                aria-label="Fiche suivante"
-                className="absolute right-2 top-1/2 grid h-12 w-12 -translate-y-1/2 place-items-center rounded-full bg-white/95 text-coral shadow-lg ring-2 ring-white transition hover:scale-110 hover:bg-coral-soft/30 lg:h-14 lg:w-14"
-              >
-                <ChevronRight className="h-6 w-6 lg:h-7 lg:w-7" strokeWidth={2.5} />
-              </button>
-            </>
+          <button
+            type="button"
+            onClick={() => setZoomOpen(true)}
+            aria-label="Agrandir la fiche"
+            className="relative block w-full max-w-md transition hover:-translate-y-0.5 sm:max-w-[min(36rem,55vh)]"
+          >
+            <img
+              src={sheet.coverImageUrl}
+              alt={sheet.title ?? ''}
+              className="aspect-square w-full rounded-2xl object-cover shadow-md"
+            />
+          </button>
+
+          {total > 1 ? (
+            <button
+              type="button"
+              onClick={() => setActive((i) => (i + 1) % total)}
+              aria-label="Fiche suivante"
+              className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-coral-soft/30 text-coral transition hover:scale-110 hover:bg-coral-soft/60 lg:h-14 lg:w-14"
+            >
+              <ChevronRight className="h-6 w-6 lg:h-7 lg:w-7" strokeWidth={2.5} />
+            </button>
+          ) : (
+            <span aria-hidden className="h-12 w-12 shrink-0 lg:h-14 lg:w-14" />
           )}
         </div>
+      )}
+
+      {/* Lightbox plein écran (réutilise SaviezVousLightbox).
+          Le startIndex synchronise sur l'active sheet. */}
+      {zoomOpen && (
+        <SaviezVousLightbox
+          items={lightboxItems}
+          startIndex={active}
+          onClose={() => setZoomOpen(false)}
+          isAuthenticated={isAuthenticated}
+        />
       )}
 
       {/* Titre variante */}
