@@ -89,11 +89,11 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
     });
   }
 
-  async function removeRecipe(recipeId: string) {
-    await call('/api/shopping-list/toggle-recipe', {
+  async function removeSheet(sheetId: string) {
+    await call('/api/shopping-list/toggle-sheet', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ recipeId }),
+      body: JSON.stringify({ sheetId }),
     });
   }
 
@@ -226,34 +226,34 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
         </section>
       )}
 
-      {/* Recettes ajoutées */}
+      {/* Fiches détaillées ajoutées (anciennement "Recettes") */}
       {list.linkedRecipes.length > 0 && (
         <section className="rounded-2xl bg-white/95 p-3 shadow-sm">
           <h2 className="mb-2 font-script text-xl text-coral">Recettes ajoutées</h2>
           <ul className="flex gap-3 overflow-x-auto pb-1">
             {list.linkedRecipes.map((r) => (
-              <li key={r.recipeId} className="relative shrink-0 w-24">
+              <li key={r.sheetId} className="relative shrink-0 w-24">
                 <Link
-                  href={`/recettes/${r.recipeId}`}
+                  href={`/recettes/${r.recipeSlug}`}
                   className="block overflow-hidden rounded-xl bg-blush/30 shadow-sm"
                 >
                   <div
                     className="aspect-square w-full bg-cover bg-center"
                     style={
-                      r.recipeCoverUrl
-                        ? { backgroundImage: `url(${r.recipeCoverUrl})` }
+                      r.sheetCoverUrl
+                        ? { backgroundImage: `url(${r.sheetCoverUrl})` }
                         : undefined
                     }
                   />
                   <p className="line-clamp-2 px-1.5 py-1 text-center text-[0.7rem] font-semibold text-ink">
-                    {r.recipeTitle}
+                    {r.sheetTitle}
                   </p>
                 </Link>
                 <button
                   type="button"
-                  onClick={() => removeRecipe(r.recipeId)}
+                  onClick={() => removeSheet(r.sheetId)}
                   disabled={busy}
-                  aria-label="Retirer cette recette"
+                  aria-label="Retirer cette fiche"
                   className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-white/95 text-coral shadow ring-1 ring-coral-soft/40 transition hover:scale-110"
                 >
                   <X className="h-3.5 w-3.5" strokeWidth={2.5} />

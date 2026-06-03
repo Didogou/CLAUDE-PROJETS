@@ -9,7 +9,15 @@
 
 /** Origine d'une contribution à un item de la liste. */
 export type ShoppingItemSource =
-  | { type: 'recipe'; recipeId: string; recipeTitle: string }
+  | {
+      type: 'sheet';
+      /** UUID stable de la fiche détaillée (recipe_sheets.id). */
+      sheetId: string;
+      /** Slug de la recette mère, pour reconstruire l'URL. */
+      recipeSlug: string;
+      /** Titre de la fiche au moment de l'ajout (snapshot). */
+      sheetTitle: string;
+    }
   | { type: 'menu'; menuId: string; menuTitle: string | null }
   | { type: 'manual' };
 
@@ -35,11 +43,21 @@ export type ShoppingListV2Item = {
   contributions: ShoppingItemContribution[];
 };
 
-/** Référence à une recette ajoutée à la liste. */
+/** Référence à une fiche détaillée (sheet) ajoutée à la liste.
+ *
+ *  Nommée "LinkedRecipe" pour rétrocompat des champs DB (le JSON
+ *  reste stocké dans `linked_recipes` en DB) mais sémantiquement c'est
+ *  une référence vers une recipe_sheet.
+ */
 export type ShoppingListLinkedRecipe = {
-  recipeId: string;
-  recipeTitle: string;
-  recipeCoverUrl: string | null;
+  /** sheet id (UUID recipe_sheets.id). */
+  sheetId: string;
+  /** slug de la recette mère (pour URL /recettes/[slug]). */
+  recipeSlug: string;
+  /** Titre snapshot de la sheet au moment de l'ajout. */
+  sheetTitle: string;
+  /** Image snapshot de la sheet au moment de l'ajout. */
+  sheetCoverUrl: string | null;
   addedAt: string;
 };
 

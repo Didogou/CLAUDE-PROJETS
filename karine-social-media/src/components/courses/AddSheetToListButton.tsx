@@ -4,21 +4,20 @@ import { useEffect, useState } from 'react';
 import { Check, Loader2, ShoppingCart } from 'lucide-react';
 
 type Props = {
-  recipeId: string;
-  /** true si la recette a des ingrédients structurés (sinon bouton désactivé) */
+  sheetId: string;
+  /** true si la sheet a des ingrédients structurés. Sinon bouton désactivé. */
   hasIngredients: boolean;
 };
 
 /**
- * Bouton "Ajouter à ma liste" affiché sur les pages recettes.
+ * Bouton "Ajouter à ma liste" pour UNE fiche détaillée précise.
  *
- * Au mount, fait un GET /api/shopping-list pour savoir si la recette est
- * déjà dans la liste active du user → toggle visible.
+ * Au mount, GET /api/shopping-list pour vérifier si la sheet est déjà
+ * dans la liste active → toggle visible.
  *
- * Si l'user n'est pas connecté, le GET renvoie 401 → on cache simplement
- * le bouton (l'incentive est ailleurs : "Se connecter").
+ * Non connecté → renvoie 401, on cache simplement (incentive ailleurs).
  */
-export function AddRecipeToListButton({ recipeId, hasIngredients }: Props) {
+export function AddSheetToListButton({ sheetId, hasIngredients }: Props) {
   const [state, setState] = useState<'loading' | 'unauth' | 'ready' | 'busy'>(
     'loading',
   );
@@ -40,34 +39,34 @@ export function AddRecipeToListButton({ recipeId, hasIngredients }: Props) {
         const inList =
           Array.isArray(j.list?.linkedRecipes) &&
           j.list.linkedRecipes.some(
-            (r: { recipeId: string }) => r.recipeId === recipeId,
+            (r: { sheetId: string }) => r.sheetId === sheetId,
           );
         setLinked(inList);
         setState('ready');
       } catch {
-        if (!cancelled) setState('ready'); // fail-open : on affiche le bouton
+        if (!cancelled) setState('ready');
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [recipeId]);
+  }, [sheetId]);
 
   async function toggle() {
     setError(null);
     setState('busy');
     try {
-      const res = await fetch('/api/shopping-list/toggle-recipe', {
+      const res = await fetch('/api/shopping-list/toggle-sheet', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ recipeId }),
+        body: JSON.stringify({ sheetId }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Erreur');
       setLinked(
         Array.isArray(j.list?.linkedRecipes) &&
           j.list.linkedRecipes.some(
-            (r: { recipeId: string }) => r.recipeId === recipeId,
+            (r: { sheetId: string }) => r.sheetId === sheetId,
           ),
       );
     } catch (e) {
@@ -81,7 +80,7 @@ export function AddRecipeToListButton({ recipeId, hasIngredients }: Props) {
   if (!hasIngredients) {
     return (
       <div className="rounded-full bg-cream/60 px-4 py-2 text-center text-xs italic text-ink-soft">
-        Les ingrédients de cette recette ne sont pas encore listés.
+        Les ingrédients de cette fiche ne sont pas encore extraits.
       </div>
     );
   }
@@ -107,9 +106,7 @@ export function AddRecipeToListButton({ recipeId, hasIngredients }: Props) {
         )}
         {linked ? 'Dans ma liste' : 'Ajouter à ma liste'}
       </button>
-      {error && (
-        <p className="mt-1 text-center text-xs text-red-600">{error}</p>
-      )}
+      {error && <p className="mt-1 text-center text-xs text-red-600">{error}</p>}
     </>
   );
 }

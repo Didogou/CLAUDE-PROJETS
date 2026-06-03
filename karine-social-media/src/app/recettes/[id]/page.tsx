@@ -7,7 +7,7 @@ import { Logo } from '@/components/brand/Logo';
 import { TrackView } from '@/components/garde/TrackView';
 import { FavoriteButton } from '@/components/favorites/FavoriteButton';
 import { RecipeDetailView } from '@/components/recettes/RecipeDetailView';
-import { AddRecipeToListButton } from '@/components/courses/AddRecipeToListButton';
+import { SheetCarousel } from '@/components/recettes/SheetCarousel';
 import { getPublishedRecipes, getRecipeBySlug } from '@/lib/recipes';
 import { getVisibleCommentsForRecipe } from '@/lib/comments';
 import { getCurrentUser } from '@/lib/current-user';
@@ -75,12 +75,13 @@ export default async function RecipeDetailPage({
         href={`/recettes/${recipe.id}`}
       />
 
-      {/* CTA Ajouter à ma liste de courses (visible si user connecté). */}
-      {user.isAuthenticated && (
+      {/* Carrousel des fiches détaillées (chaque fiche = une variante de
+          la recette avec son bouton "Ajouter à ma liste" propre). */}
+      {recipe.sheets.length > 0 && (
         <div className="mx-auto w-full max-w-md px-5 print:hidden">
-          <AddRecipeToListButton
-            recipeId={recipe.id}
-            hasIngredients={recipe.ingredients.length > 0}
+          <SheetCarousel
+            sheets={recipe.sheets}
+            isAuthenticated={user.isAuthenticated}
           />
         </div>
       )}

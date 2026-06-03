@@ -55,17 +55,20 @@ export async function getArchivedLists(userId: string): Promise<ShoppingListV2[]
 }
 
 /**
- * Ajoute (ou retire) une recette à la liste active (toggle).
- * Si la recette est déjà liée → on retire ses contributions de chaque item.
+ * Ajoute (ou retire) une fiche détaillée à la liste active (toggle).
+ * Si la sheet est déjà liée → on retire ses contributions de chaque item.
  * Sinon → on ajoute ses ingrédients en additionnant (ou créant) les items.
  *
- * Retourne la liste mise à jour.
+ * L'unité d'ajout est désormais la SHEET, pas la recette mère :
+ * "Poivrons farcis à la viande" et "Poivrons farcis aux courgettes"
+ * sont deux entrées distinctes dans la liste de l'user.
  */
-export async function toggleRecipeOnActiveList(
+export async function toggleSheetOnActiveList(
   userId: string,
-  recipe: {
-    id: string;
-    title: string;
+  sheet: {
+    sheetId: string;
+    recipeSlug: string;
+    sheetTitle: string;
     coverUrl: string | null;
     servings: number;
     ingredients: RecipeIngredient[];
@@ -73,31 +76,31 @@ export async function toggleRecipeOnActiveList(
   householdSize: number,
 ): Promise<ShoppingListV2> {
   const list = await getOrCreateActiveList(userId);
-  const isLinked = list.linkedRecipes.some((r) => r.recipeId === recipe.id);
+  const isLinked = list.linkedRecipes.some((r) => r.sheetId === sheet.sheetId);
 
   let nextItems: ShoppingListV2Item[];
   let nextLinkedRecipes: ShoppingListLinkedRecipe[];
   if (isLinked) {
-    // RETIRE : on filtre les contributions, on retire les items vides
     nextItems = removeContributionsFromSource(list.items, (s) =>
-      s.type === 'recipe' && s.recipeId === recipe.id,
+      s.type === 'sheet' && s.sheetId === sheet.sheetId,
     );
-    nextLinkedRecipes = list.linkedRecipes.filter((r) => r.recipeId !== recipe.id);
+    nextLinkedRecipes = list.linkedRecipes.filter((r) => r.sheetId !== sheet.sheetId);
   } else {
-    // AJOUTE : multiplie par ratio foyer/servings, fusionne avec dédup
-    const ratio = householdSize / Math.max(1, recipe.servings);
+    const ratio = householdSize / Math.max(1, sheet.servings);
     const source: ShoppingItemSource = {
-      type: 'recipe',
-      recipeId: recipe.id,
-      recipeTitle: recipe.title,
+      type: 'sheet',
+      sheetId: sheet.sheetId,
+      recipeSlug: sheet.recipeSlug,
+      sheetTitle: sheet.sheetTitle,
     };
-    nextItems = mergeIngredients(list.items, recipe.ingredients, source, ratio);
+    nextItems = mergeIngredients(list.items, sheet.ingredients, source, ratio);
     nextLinkedRecipes = [
       ...list.linkedRecipes,
       {
-        recipeId: recipe.id,
-        recipeTitle: recipe.title,
-        recipeCoverUrl: recipe.coverUrl,
+        sheetId: sheet.sheetId,
+        recipeSlug: sheet.recipeSlug,
+        sheetTitle: sheet.sheetTitle,
+        sheetCoverUrl: sheet.coverUrl,
         addedAt: new Date().toISOString(),
       },
     ];

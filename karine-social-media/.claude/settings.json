@@ -120,7 +120,9 @@
       "Bash(cp src/app/admin/\\\\\\(panel\\\\\\)/astuces/page.tsx src/app/admin/\\\\\\(panel\\\\\\)/conseils/page.tsx)",
       "Bash(node scripts/optimize-images.mjs)",
       "Bash(grep -rn \"/images/.*\\\\\\\\.png\" src/)",
-      "Bash(grep -n \"sanitizeExt\\\\|file, {\" src/app/api/admin/recipes/route.ts src/app/api/admin/recipes/\\\\[slug\\\\]/asset/route.ts src/app/api/admin/recipes/\\\\[slug\\\\]/route.ts src/app/api/recipes/\\\\[slug\\\\]/comments/route.ts)"
+      "Bash(grep -n \"sanitizeExt\\\\|file, {\" src/app/api/admin/recipes/route.ts src/app/api/admin/recipes/\\\\[slug\\\\]/asset/route.ts src/app/api/admin/recipes/\\\\[slug\\\\]/route.ts src/app/api/recipes/\\\\[slug\\\\]/comments/route.ts)",
+      "Bash(rm src/app/api/shopping-list/toggle-recipe/route.ts)",
+      "Bash(rmdir src/app/api/shopping-list/toggle-recipe)"
     ],
     "additionalDirectories": [
       "\\tmp"
