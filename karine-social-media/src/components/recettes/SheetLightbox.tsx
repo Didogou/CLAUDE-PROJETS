@@ -102,7 +102,7 @@ export function SheetLightbox({
 
   return createPortal(
     <div
-      className={`sheet-lightbox fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm print:bg-white print:backdrop-blur-none ${
+      className={`sheet-lightbox fixed inset-0 z-[100] bg-black/95 backdrop-blur-sm print:bg-white print:backdrop-blur-none ${
         phase === 'exit' ? 'ie-lightbox-out' : 'ie-lightbox-in'
       }`}
       role="dialog"
@@ -134,19 +134,21 @@ export function SheetLightbox({
       {/* Body : image + panneau ingrédients.
           Mobile : empilés verticalement, image flex-1 prend tout l espace
                    restant, panneau cale en bas (max-h-[40vh]).
-          PC : alignés horizontalement, centrés (justify-center), collés
-               (gap-3), tous deux en carré 80vh ou 40rem max. */}
+          PC : alignés horizontalement, centrés (justify-center), marge
+               agréable entre image et panneau (lg:gap-6). */}
       <div
         key={sheet.id}
-        className={`absolute inset-0 flex flex-col gap-3 px-4 pb-24 pt-16 sm:px-8 sm:pt-20 lg:flex-row lg:items-center lg:justify-center lg:gap-3 lg:px-4 ${
+        className={`absolute inset-0 flex flex-col gap-3 px-4 pb-24 pt-16 sm:px-8 sm:pt-20 lg:flex-row lg:items-center lg:justify-center lg:gap-6 lg:px-4 ${
           phase === 'exit' ? 'ie-lightbox-content-out' : 'ie-lightbox-content-in'
         }`}
       >
         {/* Image — pinch-to-zoom + swipe inter-fiche.
             Mobile : flex-1 prend tout l'espace vertical disponible.
-            PC : carré fixe (width + height explicites sinon le container
-            absolute inset-0 de ZoomableImage retombe à 0). */}
-        <div className="relative min-h-0 flex-1 self-stretch lg:flex-none lg:h-[min(80vh,40rem)] lg:w-[min(80vh,40rem)] lg:self-auto">
+            PC : carré fixe via h/w simples (Tailwind peut mal parser
+            min() avec virgule dans arbitrary values). aspect-square +
+            max-h-[85vh] s'assure que l'image reste dans le viewport
+            même sur petits écrans PC. */}
+        <div className="relative min-h-0 flex-1 self-stretch lg:aspect-square lg:flex-none lg:h-[32rem] lg:w-[32rem] lg:max-h-[85vh] lg:max-w-[85vh] lg:self-auto xl:h-[38rem] xl:w-[38rem]">
           <ZoomableImage
             src={sheet.coverImageUrl}
             alt={sheet.title ?? ''}
@@ -158,8 +160,10 @@ export function SheetLightbox({
         </div>
 
         {/* Panneau ingrédients + actions — sous l'image en mobile,
-            collé à droite de l'image en PC. */}
-        <aside className="mx-auto flex max-h-[40vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white/95 p-4 shadow-2xl lg:mx-0 lg:max-h-[min(80vh,40rem)] lg:w-[22rem] lg:p-5 print:hidden">
+            collé à droite de l'image en PC. bg-white/80 + backdrop-blur
+            pour un fond doucement transparent (laisse percevoir l image
+            zoomée derriere). */}
+        <aside className="mx-auto flex max-h-[40vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white/80 p-4 shadow-2xl backdrop-blur-md lg:mx-0 lg:max-h-[85vh] lg:w-[22rem] lg:p-5 print:hidden">
           <IngredientsPanel ingredients={sheet.ingredients} />
 
           {isAuthenticated && (
@@ -173,14 +177,16 @@ export function SheetLightbox({
         </aside>
       </div>
 
-      {/* Flèches latérales — entre l'image et les bords */}
+      {/* Flèches latérales — proches de l'image+panneau (pas aux bords).
+          Sur PC : positionnées à ~10vw du bord (collées au container
+          image+panneau qui fait ~50rem au centre). Mobile : aux bords. */}
       {multi && (
         <>
           <button
             type="button"
             onClick={prev}
             aria-label="Précédente"
-            className="absolute left-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:left-3 sm:h-12 sm:w-12 print:hidden"
+            className="absolute left-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:left-4 sm:h-12 sm:w-12 lg:left-[8vw] xl:left-[12vw] print:hidden"
           >
             <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.5} />
           </button>
@@ -188,7 +194,7 @@ export function SheetLightbox({
             type="button"
             onClick={next}
             aria-label="Suivante"
-            className="absolute right-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:right-3 sm:h-12 sm:w-12 print:hidden"
+            className="absolute right-2 top-1/2 z-20 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full bg-white text-coral shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:right-4 sm:h-12 sm:w-12 lg:right-[8vw] xl:right-[12vw] print:hidden"
           >
             <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.5} />
           </button>
@@ -218,28 +224,48 @@ export function SheetLightbox({
       )}
 
       {/* CSS print : 1 seule page A4 portrait avec image en haut et
-          panneau ingrédients en bas. Tout le reste de la page (header
-          appli, BottomNav, etc.) est masqué. */}
+          panneau ingrédients en bas.
+          On utilise visibility (pas display:none) car createPortal injecte
+          la lightbox comme enfant de body et display:none sur le body
+          casse tout. visibility:hidden sur le body + visible sur la
+          lightbox isole correctement. */}
       <style>{`
         @media print {
           @page { size: A4 portrait; margin: 1cm; }
-          html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
-          body > *:not(:has(.sheet-lightbox)) { display: none !important; }
-          .sheet-lightbox { position: static !important; background: #fff !important; }
+          html, body {
+            background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: hidden !important;
+          }
+          .sheet-lightbox,
+          .sheet-lightbox * {
+            visibility: visible !important;
+          }
+          .sheet-lightbox {
+            position: absolute !important;
+            inset: 0 !important;
+            background: #fff !important;
+            backdrop-filter: none !important;
+          }
+          .sheet-lightbox > .ie-lightbox-content-in,
+          .sheet-lightbox > .ie-lightbox-content-out,
           .sheet-lightbox > div[class*="lightbox-content"] {
             position: static !important;
             display: flex !important;
             flex-direction: column !important;
+            align-items: center !important;
             gap: 0.5cm !important;
             padding: 0 !important;
           }
           .sheet-lightbox img {
             max-width: 100% !important;
-            max-height: 15cm !important;
+            max-height: 14cm !important;
             object-fit: contain !important;
             margin: 0 auto !important;
             display: block !important;
             box-shadow: none !important;
+            border-radius: 0 !important;
           }
           .sheet-lightbox aside {
             background: #fff !important;
@@ -247,6 +273,8 @@ export function SheetLightbox({
             max-height: none !important;
             overflow: visible !important;
             page-break-inside: avoid !important;
+            width: 100% !important;
+            max-width: 100% !important;
           }
         }
       `}</style>
@@ -310,7 +338,8 @@ function ActionButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex items-center gap-1 rounded-full p-3 text-white shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:flex-col sm:gap-1 sm:px-3 sm:py-2 ${
+      title={label}
+      className={`grid h-12 w-12 place-items-center rounded-full text-white shadow-lg ring-2 ring-white/30 transition hover:scale-110 ${
         active ? 'bg-coral' : 'bg-white/20 backdrop-blur-sm hover:bg-white/30'
       }`}
     >
@@ -318,11 +347,6 @@ function ActionButton({
         className={`h-5 w-5 ${active ? 'fill-current' : ''}`}
         strokeWidth={2.2}
       />
-      {/* Texte caché mobile (gain de place, les icones sont auto-explicatives
-          maintenant que les utilisatrices les connaissent). */}
-      <span className="hidden text-[0.65rem] font-semibold uppercase tracking-wider sm:inline">
-        {label}
-      </span>
     </button>
   );
 }

@@ -220,8 +220,9 @@ export function SheetCarousel({
         <IngredientsList ingredients={sheet.ingredients} />
       )}
 
-      {/* Tags + aliments */}
-      {(sheet.tags.length > 0 || sheet.aliments.length > 0) && (
+      {/* Tags uniquement (les aliments sont retires : redondant avec la
+          liste d ingrédients juste au-dessus). */}
+      {sheet.tags.length > 0 && (
         <div className="flex flex-wrap justify-center gap-1.5 pt-2">
           {sheet.tags.map((t) => (
             <span
@@ -229,14 +230,6 @@ export function SheetCarousel({
               className="rounded-full bg-coral-soft/30 px-2.5 py-0.5 text-xs font-semibold text-coral-dark"
             >
               {t}
-            </span>
-          ))}
-          {sheet.aliments.map((a) => (
-            <span
-              key={`al-${a}`}
-              className="rounded-full bg-sage/30 px-2.5 py-0.5 text-xs font-semibold text-ink"
-            >
-              {a}
             </span>
           ))}
         </div>

@@ -17,6 +17,14 @@ type Props = {
  *
  * Non connecté → renvoie 401, on cache simplement (incentive ailleurs).
  */
+/**
+ * Nom de l'event dispatché sur `window` à chaque modification de la
+ * liste de courses (toggle, ajout, suppression). Permet aux autres
+ * instances de AddSheetToListButton (et tout consumer intéressé) de
+ * se synchroniser en re-fetchant la liste.
+ */
+const SHOPPING_LIST_EVENT = 'shopping-list-updated';
+
 export function AddSheetToListButton({ sheetId, hasIngredients }: Props) {
   const [state, setState] = useState<'loading' | 'unauth' | 'ready' | 'busy'>(
     'loading',
@@ -24,32 +32,41 @@ export function AddSheetToListButton({ sheetId, hasIngredients }: Props) {
   const [linked, setLinked] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/shopping-list');
-        if (res.status === 401) {
-          if (!cancelled) setState('unauth');
-          return;
-        }
-        if (!res.ok) throw new Error();
-        const j = await res.json();
-        if (cancelled) return;
-        const inList =
-          Array.isArray(j.list?.linkedRecipes) &&
-          j.list.linkedRecipes.some(
-            (r: { sheetId: string }) => r.sheetId === sheetId,
-          );
-        setLinked(inList);
-        setState('ready');
-      } catch {
-        if (!cancelled) setState('ready');
+  // Hydrate l'état linked depuis la liste courante.
+  async function hydrate(signal?: { cancelled: boolean }) {
+    try {
+      const res = await fetch('/api/shopping-list');
+      if (res.status === 401) {
+        if (!signal?.cancelled) setState('unauth');
+        return;
       }
-    })();
+      if (!res.ok) throw new Error();
+      const j = await res.json();
+      if (signal?.cancelled) return;
+      const inList =
+        Array.isArray(j.list?.linkedRecipes) &&
+        j.list.linkedRecipes.some(
+          (r: { sheetId: string }) => r.sheetId === sheetId,
+        );
+      setLinked(inList);
+      setState('ready');
+    } catch {
+      if (!signal?.cancelled) setState('ready');
+    }
+  }
+
+  useEffect(() => {
+    const signal = { cancelled: false };
+    hydrate(signal);
+    // Sync entre instances : si UNE instance modifie la liste (ex: la
+    // copie dans la lightbox), les AUTRES copies re-fetchent leur état.
+    const onUpdate = () => hydrate();
+    window.addEventListener(SHOPPING_LIST_EVENT, onUpdate);
     return () => {
-      cancelled = true;
+      signal.cancelled = true;
+      window.removeEventListener(SHOPPING_LIST_EVENT, onUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetId]);
 
   async function toggle() {
@@ -69,6 +86,8 @@ export function AddSheetToListButton({ sheetId, hasIngredients }: Props) {
             (r: { sheetId: string }) => r.sheetId === sheetId,
           ),
       );
+      // Notifie les autres instances pour qu'elles se mettent à jour.
+      window.dispatchEvent(new CustomEvent(SHOPPING_LIST_EVENT));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur');
     } finally {

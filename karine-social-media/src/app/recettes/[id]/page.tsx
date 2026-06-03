@@ -74,7 +74,7 @@ export default async function RecipeDetailPage({
           la recette avec son bouton "Ajouter à ma liste" propre).
           Layout : center sur mobile, max-w-3xl sur PC pour image grande. */}
       {recipe.sheets.length > 0 && (
-        <div className="mx-auto w-full max-w-3xl px-4 print:hidden lg:px-6">
+        <div className="mx-auto mb-8 w-full max-w-3xl px-4 print:hidden lg:mb-12 lg:px-6">
           <SheetCarousel
             sheets={recipe.sheets}
             isAuthenticated={user.isAuthenticated}
