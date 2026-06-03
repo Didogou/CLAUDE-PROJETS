@@ -21,6 +21,10 @@ type Props = {
   startIndex: number;
   isAuthenticated: boolean;
   recipeTitle: string;
+  /** État initial des likes par sheet — passé depuis SheetCarousel
+   *  pour que l'utilisateur retrouve son état lorsqu'il ouvre la
+   *  lightbox APRÈS avoir liké dans la vue détail. */
+  initialLikedBySheet?: Record<string, boolean>;
   onClose: () => void;
 };
 
@@ -45,14 +49,17 @@ export function SheetLightbox({
   startIndex,
   isAuthenticated,
   recipeTitle,
+  initialLikedBySheet,
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(startIndex);
   const [shareToast, setShareToast] = useState<string | null>(null);
   /** Like PAR fiche détaillée (chaque sheet est une recette à part
-   *  entière). Indexé par sheet.id. */
-  const [likedBySheet, setLikedBySheet] = useState<Record<string, boolean>>({});
+   *  entière). Indexé par sheet.id. Hydraté depuis SheetCarousel. */
+  const [likedBySheet, setLikedBySheet] = useState<Record<string, boolean>>(
+    () => initialLikedBySheet ?? {},
+  );
   /** Nb de personnes choisi (par sheet, pour s'adapter à la sheet active). */
   const [portionsBySheet, setPortionsBySheet] = useState<Record<string, number>>({});
   const { phase, requestClose } = useLightboxAnim(onClose);

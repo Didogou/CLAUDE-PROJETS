@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -164,8 +164,34 @@ export function SheetCarousel({
     }
   }
 
+  // === Swipe gauche/droite pour naviguer entre fiches (mobile/tablet/touch).
+  // Tolerance Y < 40px pour ne pas voler le scroll vertical. Threshold X
+  // 60px pour ne pas trigger sur un simple tap. Pas de e.preventDefault =>
+  // les boutons interieurs (qty, bouton Mes courses) restent cliquables.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  function onTouchStart(e: React.TouchEvent) {
+    if (total <= 1) return;
+    const t = e.touches[0];
+    swipeStart.current = { x: t.clientX, y: t.clientY };
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (!swipeStart.current || total <= 1) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - swipeStart.current.x;
+    const dy = t.clientY - swipeStart.current.y;
+    swipeStart.current = null;
+    if (Math.abs(dx) < 60) return; // pas un swipe
+    if (Math.abs(dy) > 40) return; // scroll vertical, on ignore
+    if (dx < 0) setActive((i) => (i + 1) % total);
+    else setActive((i) => (i - 1 + total) % total);
+  }
+
   return (
-    <section className="space-y-4 rounded-2xl bg-white/70 p-4 shadow-sm backdrop-blur-sm lg:p-6">
+    <section
+      className="space-y-4 rounded-2xl bg-white/70 p-4 shadow-sm backdrop-blur-sm lg:p-6"
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       {/* En-tête : badge fiche X/N + dots + bouton favoris.
           Le bouton favoris est ici (dans la bande blanche), PAS en
           overlay sur l'image (UX demandée 2026-06-03). */}
@@ -247,13 +273,17 @@ export function SheetCarousel({
       )}
 
       {/* Lightbox plein écran dédiée recettes : image + ingrédients +
-          bouton "Ajouter à ma liste" sur le côté. */}
+          bouton "Ajouter à ma liste" sur le côté.
+          On lui passe likedBySheet pour qu elle parte avec le bon etat
+          de like (sinon elle demarrait a vide et l user voyait Like
+          alors qu il avait deja like dans la vue detail). */}
       {zoomOpen && (
         <SheetLightbox
           sheets={sheets}
           startIndex={active}
           isAuthenticated={isAuthenticated}
           recipeTitle={recipeTitle}
+          initialLikedBySheet={likedBySheet}
           onClose={() => setZoomOpen(false)}
         />
       )}
