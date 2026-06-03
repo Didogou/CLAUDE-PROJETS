@@ -3,11 +3,21 @@ import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { MenusPagerView } from '@/components/menus/MenusPagerView';
 import { getPublishedMenus } from '@/lib/menus';
+import { getCurrentUser } from '@/lib/current-user';
 
 export const dynamic = 'force-dynamic';
 
 export default async function MenusPage() {
-  const menus = await getPublishedMenus(); // déjà triés du + récent au + ancien
+  const [menus, user] = await Promise.all([
+    getPublishedMenus(),
+    getCurrentUser(),
+  ]);
+  // Tuile image de la liste cachée pour les abonnés (la liste passe
+  // par le bouton "Voir la liste" dans la page jour).
+  const isSubscriber =
+    user.effectiveRole === 'patient' ||
+    user.effectiveRole === 'subscriber' ||
+    user.effectiveRole === 'admin';
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
@@ -21,7 +31,7 @@ export default async function MenusPage() {
         <h1 className="mb-3 font-script text-4xl text-coral lg:mb-2 lg:text-3xl print:hidden">
           Mes menus
         </h1>
-        <MenusPagerView menus={menus} />
+        <MenusPagerView menus={menus} hideShoppingListTile={isSubscriber} />
       </main>
       <div className="print:hidden">
         <BottomNav />

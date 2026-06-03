@@ -14,7 +14,15 @@ import { FireworkBurst } from '@/components/recettes/FireworkBurst';
  * - Menu et Liste de courses côte à côte (même taille, centrés)
  * - Barre d'actions : Partager / Like / Imprimer
  */
-export function MenusPagerView({ menus }: { menus: WeeklyMenu[] }) {
+export function MenusPagerView({
+  menus,
+  hideShoppingListTile = false,
+}: {
+  menus: WeeklyMenu[];
+  /** Si true (abonnés), on cache la tuile image de la liste de courses
+   *  sur la home. La liste est accessible via la page jour. */
+  hideShoppingListTile?: boolean;
+}) {
   const [idx, setIdx] = useState(0);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(0);
@@ -153,7 +161,10 @@ export function MenusPagerView({ menus }: { menus: WeeklyMenu[] }) {
 
         {/* Liste de courses : si liste interactive disponible → page dédiée
             (cochage + multiplication par nb de personnes). Sinon, zoom de
-            l'image legacy. Si rien → placeholder. */}
+            l'image legacy. Si rien → placeholder.
+            Pour les abonnés : la tuile est cachée — la liste est
+            accessible via la page jour. */}
+        {!hideShoppingListTile && (
         <div className="flex w-full max-w-sm flex-col items-center gap-1.5">
           <div className="relative w-full overflow-visible">
             <FireworkBurst category="entree" count={8} />
@@ -202,6 +213,7 @@ export function MenusPagerView({ menus }: { menus: WeeklyMenu[] }) {
           </div>
           <p className="text-center font-script text-base text-coral">Liste de courses</p>
         </div>
+        )}
       </div>
 
       <p className="text-center text-xs italic text-ink-soft print:hidden">
