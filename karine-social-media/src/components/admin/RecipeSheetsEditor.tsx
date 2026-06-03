@@ -127,6 +127,7 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
             aliments: sheet.aliments ?? [],
             ingredients: sheet.ingredients ?? [],
             ingredientsText: sheet.ingredients_text,
+            likesCount: typeof sheet.likes_count === 'number' ? sheet.likes_count : 0,
           },
         ].sort((a, b) => a.sheetIndex - b.sheetIndex),
       );

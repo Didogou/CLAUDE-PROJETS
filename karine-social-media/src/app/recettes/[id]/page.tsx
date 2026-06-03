@@ -11,6 +11,7 @@ import { getPublishedRecipes, getRecipeBySlug } from '@/lib/recipes';
 import { getVisibleCommentsForRecipe } from '@/lib/comments';
 import { getCurrentUser } from '@/lib/current-user';
 import { isFavorited } from '@/lib/favorites';
+import { getUserLikedSheetIds } from '@/lib/sheet-likes';
 import { CATEGORY_SLUG } from '@/data/recipes';
 
 export const dynamic = 'force-dynamic';
@@ -27,10 +28,12 @@ export default async function RecipeDetailPage({
   const images = [recipe.coverImage, ...recipe.slides];
 
   const user = await getCurrentUser();
-  const [comments, all, favorited] = await Promise.all([
+  const sheetIds = recipe.sheets.map((s) => s.id);
+  const [comments, all, favorited, likedSheetIds] = await Promise.all([
     getVisibleCommentsForRecipe(recipe.id),
     getPublishedRecipes(),
     user.id ? isFavorited(user.id, 'recipe', recipe.id) : Promise.resolve(false),
+    getUserLikedSheetIds(user.id, sheetIds),
   ]);
   const suggestions = [
     ...all.filter((r) => r.id !== recipe.id && r.category === recipe.category),
@@ -82,6 +85,7 @@ export default async function RecipeDetailPage({
             recipeTitle={recipe.title}
             favoritedInitial={favorited}
             likesCountInitial={recipe.likesCount}
+            initialLikedSheetIds={[...likedSheetIds]}
           />
         </div>
       )}

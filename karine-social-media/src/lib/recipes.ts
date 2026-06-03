@@ -40,6 +40,7 @@ function mapSheetRow(row: any): RecipeSheet {
     ingredients,
     ingredientsText:
       typeof row.ingredients_text === 'string' ? row.ingredients_text : null,
+    likesCount: typeof row.likes_count === 'number' ? row.likes_count : 0,
   };
 }
 

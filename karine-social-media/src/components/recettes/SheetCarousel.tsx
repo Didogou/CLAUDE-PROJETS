@@ -27,8 +27,10 @@ type Props = {
   recipeTitle: string;
   /** Si la recette est déjà en favori (côté server). */
   favoritedInitial?: boolean;
-  /** Nb de likes initiaux. */
+  /** @deprecated remplacé par sheet.likesCount par fiche (hydraté côté server). */
   likesCountInitial?: number;
+  /** Sheet IDs déjà likés par l'utilisateur (hydratation depuis le serveur). */
+  initialLikedSheetIds?: string[];
 };
 
 /**
@@ -50,13 +52,27 @@ export function SheetCarousel({
   recipeId,
   recipeTitle,
   favoritedInitial = false,
-  likesCountInitial = 0,
+  initialLikedSheetIds,
 }: Props) {
   const [active, setActive] = useState(0);
   /** Likes PAR sheet (pas par recette mère) : la fiche n°1 et la fiche
-   *  n°2 sont 2 recettes différentes, chacune avec son propre like. */
-  const [likedBySheet, setLikedBySheet] = useState<Record<string, boolean>>({});
-  const [likesBySheet, setLikesBySheet] = useState<Record<string, number>>({});
+   *  n°2 sont 2 recettes différentes, chacune avec son propre like.
+   *  Hydratation depuis initialLikedSheetIds (server-side fetch). */
+  const [likedBySheet, setLikedBySheet] = useState<Record<string, boolean>>(
+    () => {
+      const out: Record<string, boolean> = {};
+      for (const id of initialLikedSheetIds ?? []) out[id] = true;
+      return out;
+    },
+  );
+  /** Compteurs initialisés depuis sheet.likesCount (déjà sur la DB). */
+  const [likesBySheet, setLikesBySheet] = useState<Record<string, number>>(
+    () => {
+      const out: Record<string, number> = {};
+      for (const s of sheets) out[s.id] = s.likesCount;
+      return out;
+    },
+  );
   const [zoomOpen, setZoomOpen] = useState(false);
   /** Nb de personnes choisi par l'utilisatrice — par défaut le servings
    *  de la sheet active. Override le ratio standard au moment d'ajouter
@@ -70,18 +86,21 @@ export function SheetCarousel({
 
   // Sync inter-instance du like par sheet : si la lightbox toggle la
   // fiche X, on met à jour notre state UNIQUEMENT pour la fiche X.
+  // L'event porte le likesCount serveur pour rester aligné avec la DB.
   useEffect(() => {
     const onSync = (e: Event) => {
-      const detail = (e as CustomEvent<{ sheetId: string; liked: boolean }>).detail;
+      const detail = (
+        e as CustomEvent<{ sheetId: string; liked: boolean; likesCount?: number }>
+      ).detail;
       if (!detail || typeof detail.sheetId !== 'string' || typeof detail.liked !== 'boolean') return;
-      setLikedBySheet((prev) => {
-        if (prev[detail.sheetId] === detail.liked) return prev;
-        setLikesBySheet((c) => ({
-          ...c,
-          [detail.sheetId]: Math.max(0, (c[detail.sheetId] ?? 0) + (detail.liked ? 1 : -1)),
-        }));
-        return { ...prev, [detail.sheetId]: detail.liked };
-      });
+      setLikedBySheet((prev) =>
+        prev[detail.sheetId] === detail.liked
+          ? prev
+          : { ...prev, [detail.sheetId]: detail.liked },
+      );
+      if (typeof detail.likesCount === 'number') {
+        setLikesBySheet((c) => ({ ...c, [detail.sheetId]: detail.likesCount! }));
+      }
     };
     window.addEventListener('sheet-like-toggled', onSync);
     return () => window.removeEventListener('sheet-like-toggled', onSync);
@@ -93,18 +112,43 @@ export function SheetCarousel({
   const liked = !!likedBySheet[sheet.id];
   const likes = likesBySheet[sheet.id] ?? 0;
 
-  function toggleLike() {
-    const next = !liked;
-    setLikedBySheet((prev) => ({ ...prev, [sheet.id]: next }));
-    setLikesBySheet((prev) => ({
-      ...prev,
-      [sheet.id]: Math.max(0, (prev[sheet.id] ?? 0) + (next ? 1 : -1)),
+  async function toggleLike() {
+    // Optimistic update : on change le state immédiatement, on rollback
+    // si l'API échoue.
+    const prevLiked = liked;
+    const prevCount = likes;
+    const optimisticLiked = !prevLiked;
+    setLikedBySheet((s) => ({ ...s, [sheet.id]: optimisticLiked }));
+    setLikesBySheet((c) => ({
+      ...c,
+      [sheet.id]: Math.max(0, (c[sheet.id] ?? 0) + (optimisticLiked ? 1 : -1)),
     }));
-    window.dispatchEvent(
-      new CustomEvent('sheet-like-toggled', {
-        detail: { sheetId: sheet.id, liked: next },
-      }),
-    );
+    try {
+      const res = await fetch(`/api/sheets/${sheet.id}/like`, { method: 'POST' });
+      if (res.status === 401) {
+        // Non connecté : rollback silencieux (le like est réservé aux users).
+        setLikedBySheet((s) => ({ ...s, [sheet.id]: prevLiked }));
+        setLikesBySheet((c) => ({ ...c, [sheet.id]: prevCount }));
+        return;
+      }
+      if (!res.ok) throw new Error();
+      const j = await res.json();
+      // Source de vérité = réponse serveur.
+      setLikedBySheet((s) => ({ ...s, [sheet.id]: !!j.liked }));
+      setLikesBySheet((c) => ({
+        ...c,
+        [sheet.id]: typeof j.likesCount === 'number' ? j.likesCount : c[sheet.id] ?? 0,
+      }));
+      window.dispatchEvent(
+        new CustomEvent('sheet-like-toggled', {
+          detail: { sheetId: sheet.id, liked: !!j.liked, likesCount: j.likesCount },
+        }),
+      );
+    } catch {
+      // Rollback en cas d'erreur réseau.
+      setLikedBySheet((s) => ({ ...s, [sheet.id]: prevLiked }));
+      setLikesBySheet((c) => ({ ...c, [sheet.id]: prevCount }));
+    }
   }
 
   async function handleShare() {

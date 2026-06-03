@@ -60,7 +60,9 @@ export function SheetLightbox({
   // Sync inter-instances : on n'update QUE la sheet ciblée par l'event.
   useEffect(() => {
     const onSync = (e: Event) => {
-      const detail = (e as CustomEvent<{ sheetId: string; liked: boolean }>).detail;
+      const detail = (
+        e as CustomEvent<{ sheetId: string; liked: boolean; likesCount?: number }>
+      ).detail;
       if (!detail || typeof detail.sheetId !== 'string' || typeof detail.liked !== 'boolean') return;
       setLikedBySheet((prev) =>
         prev[detail.sheetId] === detail.liked ? prev : { ...prev, [detail.sheetId]: detail.liked },
@@ -70,13 +72,28 @@ export function SheetLightbox({
     return () => window.removeEventListener(SHEET_LIKE_EVENT, onSync);
   }, []);
 
-  function toggleLike() {
+  async function toggleLike() {
     const sheetId = sheet.id;
-    const next = !likedBySheet[sheetId];
+    const prevLiked = !!likedBySheet[sheetId];
+    const next = !prevLiked;
     setLikedBySheet((prev) => ({ ...prev, [sheetId]: next }));
-    window.dispatchEvent(
-      new CustomEvent(SHEET_LIKE_EVENT, { detail: { sheetId, liked: next } }),
-    );
+    try {
+      const res = await fetch(`/api/sheets/${sheetId}/like`, { method: 'POST' });
+      if (res.status === 401) {
+        setLikedBySheet((prev) => ({ ...prev, [sheetId]: prevLiked }));
+        return;
+      }
+      if (!res.ok) throw new Error();
+      const j = await res.json();
+      setLikedBySheet((prev) => ({ ...prev, [sheetId]: !!j.liked }));
+      window.dispatchEvent(
+        new CustomEvent(SHEET_LIKE_EVENT, {
+          detail: { sheetId, liked: !!j.liked, likesCount: j.likesCount },
+        }),
+      );
+    } catch {
+      setLikedBySheet((prev) => ({ ...prev, [sheetId]: prevLiked }));
+    }
   }
 
   const total = sheets.length;

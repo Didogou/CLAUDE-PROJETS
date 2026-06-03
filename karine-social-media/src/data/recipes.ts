@@ -46,6 +46,8 @@ export type RecipeSheet = {
   ingredients: RecipeIngredient[];
   /** Texte brut éditable (Karine peut le corriger après extraction). */
   ingredientsText: string | null;
+  /** Compteur de likes (dénormalisé sur recipe_sheets.likes_count). */
+  likesCount: number;
 };
 
 export type Recipe = {
