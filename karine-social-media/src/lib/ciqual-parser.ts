@@ -43,21 +43,25 @@ export type CiqualParseResult = {
 };
 
 const COLUMN_HINTS = {
-  alim_code: ['alim_code', 'code aliment', 'code'],
-  name: ['alim_nom_fr', 'nom français', 'nom francais', 'alim_nom', 'nom'],
+  alim_code: ['alim_code', 'code aliment'],
+  name: ['alim_nom_fr', 'nom français', 'nom francais'],
   group: ['alim_grp_nom_fr', 'groupe', 'grp_nom'],
-  subgroup: ['alim_ssgrp_nom_fr', 'sous-groupe', 'sous groupe', 'ssgrp'],
-  kcal: ['énergie', 'energie', 'kcal'],
+  subgroup: ['alim_ssgrp_nom_fr', 'sous-groupe', 'sous groupe', 'ssgrp_nom'],
+  // ATTENTION : Ciqual 2025 a 4 colonnes "Energie ..." (2 kJ + 2 kcal).
+  // On cherche d'abord la version OFFICIELLE Règlement UE 1169 en kcal,
+  // sinon n'importe quelle colonne kcal. Pas "énergie" tout court (matche
+  // les kJ en premier dans l'ordre du fichier).
+  kcal: ['kcal 100 g', '(kcal', 'kcal'],
   proteins: ['protéines', 'proteines'],
   lipids: ['lipides'],
   carbs: ['glucides'],
-  fibers: ['fibres', 'fibre'],
+  fibers: ['fibres alimentaires', 'fibres'],
   sugars: ['sucres'],
-  water: ['eau'],
+  water: ['eau '],
   salt: ['sel chlorure', 'sel '],
   sodium: ['sodium'],
   calcium: ['calcium'],
-  iron: ['fer'],
+  iron: ['fer '],
 };
 
 function normalize(s: string): string {
@@ -130,6 +134,7 @@ function findBestSheet(workbook: XLSX.WorkBook): string | null {
   };
 
   // Priorité 1 : "aliments ... YYYY" avec colonnes valides
+  // (ANSES 2020 / mix 2020+2025 : onglets nommés "aliments Ciqual YYYY")
   let bestYear = -1;
   let bestName: string | null = null;
   for (const name of workbook.SheetNames) {
@@ -152,6 +157,23 @@ function findBestSheet(workbook: XLSX.WorkBook): string | null {
     }
   }
   if (bestName) return bestName;
+
+  // Priorité 1bis : onglet "composition nutritionnelle"
+  // (ANSES 2025 standalone : un seul onglet de données)
+  for (const name of workbook.SheetNames) {
+    const norm = normalize(name);
+    if (!norm.includes('composition') && !norm.includes('nutritionnelle'))
+      continue;
+    const rows = sampleRows(name);
+    if (rows.length === 0) continue;
+    const headers = Object.keys(rows[0]);
+    if (
+      findColumn(headers, COLUMN_HINTS.alim_code) &&
+      findColumn(headers, COLUMN_HINTS.name)
+    ) {
+      return name;
+    }
+  }
 
   // Priorité 2 : scan brut — n'importe quel onglet avec alim_code + nom
   for (const name of workbook.SheetNames) {
