@@ -279,9 +279,10 @@ export function SheetCarousel({
       </div>
 
       {/* Bouton "+ Mes courses" + actions cote a cote (Partager/Like/Print)
-          sur 1 SEULE ligne, mobile comme PC. Le label court permet au
-          bouton de rester compact meme quand le like a un badge. */}
-      <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-center gap-2">
+          sur 1 SEULE ligne, mobile comme PC. items-start aligne tous les
+          boutons en HAUT pour eviter que "Voir mes courses" (lien sous le
+          bouton Mes courses) decale verticalement les autres boutons. */}
+      <div className="mx-auto flex w-full max-w-2xl flex-wrap items-start justify-center gap-2">
         {isAuthenticated && (
           <AddSheetToListButton
             sheetId={sheet.id}
@@ -368,7 +369,7 @@ function ActionIconButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex h-10 items-center gap-1.5 rounded-full px-3 text-xs font-semibold shadow-sm transition hover:scale-105 ${
+      className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold shadow-sm transition hover:scale-105 ${
         active
           ? 'bg-coral text-white'
           : 'bg-white text-coral ring-1 ring-coral-soft/40 hover:bg-coral-soft/30'

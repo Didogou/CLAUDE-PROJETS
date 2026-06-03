@@ -122,34 +122,34 @@ export function AddSheetToListButton({
 
   return (
     <>
+      {/* Bouton compact + lien Voir mes courses en dessous.
+          Hauteur du bouton alignée avec ActionIconButton (h-9). */}
       <div className="flex flex-col items-center gap-1">
         <button
           type="button"
           onClick={toggle}
           disabled={state !== 'ready'}
-          className={`flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold shadow-sm transition disabled:opacity-50 ${
+          className={`flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-bold shadow-sm transition disabled:opacity-50 ${
             linked
               ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-200'
               : 'bg-coral text-white hover:bg-coral-dark'
           }`}
         >
           {state === 'busy' || state === 'loading' ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : linked ? (
-            <Check className="h-4 w-4" />
+            <Check className="h-3.5 w-3.5" />
           ) : (
-            <Plus className="h-4 w-4" strokeWidth={3} />
+            <Plus className="h-3.5 w-3.5" strokeWidth={3} />
           )}
           {linked ? 'Dans mes courses' : 'Mes courses'}
         </button>
         {/* Lien discret sous le bouton : ouvre la liste de courses
-            active en overlay (consultation rapide sans quitter la page).
-            Affiché en permanence si user connecté + a des ingredients :
-            l user peut vouloir consulter sa liste meme avant d ajouter. */}
+            en overlay (consultation rapide sans quitter la page). */}
         <button
           type="button"
           onClick={() => setOverlayOpen(true)}
-          className="text-[0.7rem] font-semibold text-coral-dark underline-offset-2 transition hover:underline"
+          className="text-[0.65rem] font-semibold text-coral-dark underline-offset-2 transition hover:underline"
         >
           Voir mes courses →
         </button>

@@ -1,10 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { requireUserWithHousehold } from '@/lib/user-guard';
-import { toggleItemChecked, removeItem } from '@/lib/shopping-lists';
+import {
+  toggleItemChecked,
+  removeItem,
+  setItemQuantity,
+} from '@/lib/shopping-lists';
 
-/** PATCH /api/shopping-list/items/[itemKey] — toggle l'état coché. */
+/**
+ * PATCH /api/shopping-list/items/[itemKey]
+ *
+ * Deux modes selon le body :
+ *   - body vide ou { action: 'toggle' } → toggle l'état coché
+ *   - body { quantity: number | null } → set la quantité manuellement
+ *     (remplace les contributions par une contribution 'manual').
+ */
 export async function PATCH(
-  _request: NextRequest,
+  request: NextRequest,
   ctx: { params: Promise<{ itemKey: string }> },
 ) {
   const auth = await requireUserWithHousehold();
@@ -12,6 +23,24 @@ export async function PATCH(
   try {
     const { itemKey } = await ctx.params;
     const decoded = decodeURIComponent(itemKey);
+    const body = await request.json().catch(() => null);
+
+    // Si quantity est explicitement présent → set qty
+    if (body && Object.prototype.hasOwnProperty.call(body, 'quantity')) {
+      const q = body.quantity;
+      const nextQty: number | null =
+        q === null
+          ? null
+          : typeof q === 'number' && Number.isFinite(q) && q >= 0
+            ? q
+            : typeof q === 'string' && q.trim() !== '' && Number.isFinite(Number(q))
+              ? Number(q)
+              : null;
+      const list = await setItemQuantity(auth.user.id, decoded, nextQty);
+      return NextResponse.json({ list });
+    }
+
+    // Défaut : toggle checked
     const list = await toggleItemChecked(auth.user.id, decoded);
     return NextResponse.json({ list });
   } catch (e) {

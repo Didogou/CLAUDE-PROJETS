@@ -194,6 +194,32 @@ export async function addManualItem(
   return saveListState(list.id, { items: nextItems });
 }
 
+/**
+ * Modifie manuellement la quantité d'un item.
+ * Comportement : on REMPLACE les contributions par une unique
+ * contribution 'manual' avec la nouvelle qté. La traçabilité multi-recette
+ * est perdue (acceptable : c'est l'utilisatrice qui prend le contrôle).
+ */
+export async function setItemQuantity(
+  userId: string,
+  itemKey: string,
+  newQuantity: number | null,
+): Promise<ShoppingListV2> {
+  const list = await getOrCreateActiveList(userId);
+  const nextItems = list.items.map((it) =>
+    it.key !== itemKey
+      ? it
+      : {
+          ...it,
+          totalQuantity: newQuantity,
+          contributions: [
+            { source: { type: 'manual' as const }, quantity: newQuantity },
+          ],
+        },
+  );
+  return saveListState(list.id, { items: nextItems });
+}
+
 /** Toggle l'état coché d'un item (par sa clé). */
 export async function toggleItemChecked(
   userId: string,
