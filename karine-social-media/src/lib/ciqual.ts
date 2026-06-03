@@ -53,13 +53,22 @@ export type CiqualSearchResult = {
 };
 
 /**
- * Recherche fuzzy par nom (utilisée par le compteur calories
- * pour la résolution "j'ai mangé un yaourt").
+ * Recherche par nom (compteur calories — résolution "j'ai mangé un
+ * yaourt").
  *
- * Pipeline :
- *  1) Trigram similarity (>0.2) — tolérant fautes/pluriels
- *  2) Ordre : similarity desc, kcal connu d'abord
- *  3) Limite 20 résultats
+ * Bug observé 2026-06-03 : ORDER BY name ASC + ilike '%q%' →
+ *   "pomme" → "Aligot (purée de pomme de terre...)" (A < P).
+ *
+ * Fix : on récupère un large pool puis on trie côté JS par
+ * pertinence :
+ *   0 = match exact
+ *   1 = name commence par "q," ou "q "
+ *   2 = name commence par "q"
+ *   3 = mot entier "q" présent dans le name
+ *   4 = q présent en sous-chaîne (fallback)
+ *
+ * Tie-break : longueur du name (court = plus générique), puis
+ * alphabétique FR.
  */
 export async function searchCiqualFoods(
   query: string,
@@ -69,14 +78,40 @@ export async function searchCiqualFoods(
   const q = query.trim();
   if (q.length < 2) return [];
 
-  // ilike partout (rapide grâce à l'index trigram).
+  // Pool large pour le tri côté serveur ; l'index trigram garde
+  // la requête rapide même sans LIMIT serré.
+  const POOL = 60;
   const { data, error } = await (supabase as any)
     .from('ciqual_foods')
     .select('id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g')
     .ilike('name', `%${q}%`)
-    .order('name', { ascending: true })
-    .limit(limit);
+    .limit(POOL);
 
   if (error) return [];
-  return (data ?? []) as CiqualSearchResult[];
+  const rows = (data ?? []) as CiqualSearchResult[];
+
+  const qLower = q.toLowerCase();
+  const wordRe = new RegExp(
+    `\\b${qLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+    'i',
+  );
+
+  const score = (name: string): number => {
+    const n = name.toLowerCase();
+    if (n === qLower) return 0;
+    if (n.startsWith(qLower + ',') || n.startsWith(qLower + ' ')) return 1;
+    if (n.startsWith(qLower)) return 2;
+    if (wordRe.test(name)) return 3;
+    return 4;
+  };
+
+  rows.sort((a, b) => {
+    const sa = score(a.name);
+    const sb = score(b.name);
+    if (sa !== sb) return sa - sb;
+    if (a.name.length !== b.name.length) return a.name.length - b.name.length;
+    return a.name.localeCompare(b.name, 'fr');
+  });
+
+  return rows.slice(0, limit);
 }
