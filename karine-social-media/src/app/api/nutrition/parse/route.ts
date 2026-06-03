@@ -58,12 +58,29 @@ SORTIE OBLIGATOIRE (JSON pur sans markdown) :
 }
 
 Règles strictes :
-- search_query : nom GÉNÉRIQUE FR pour rechercher dans la base ANSES Ciqual. Préfère le nom courant ("pomme" pas "pomme golden bio"). Si l'aliment est composé en plusieurs ingrédients distincts mentionnés, sépare en items distincts.
+- search_query : nom à chercher dans la base ANSES Ciqual (qui contient ~3500 aliments ET plats préparés courants).
+- **NE DÉCOMPOSE PAS LES PLATS COMPOSÉS** en mot unique. Ciqual contient les plats préparés français :
+    "aligot" → search_query="aligot" (PAS "pomme de terre, tomme, ail")
+    "ratatouille" → "ratatouille"
+    "paella" → "paella"
+    "choucroute" → "choucroute"
+    "hachis parmentier" → "hachis parmentier"
+    "lasagnes" → "lasagnes"
+    "tartiflette" → "tartiflette"
+    "couscous" → "couscous"
+    "quiche lorraine" → "quiche lorraine"
+    "tiramisu" → "tiramisu"
+- Décompose UNIQUEMENT si l'utilisatrice liste explicitement plusieurs aliments distincts avec "et" / "puis" / "," :
+    "une pomme et un yaourt" = 2 items
+    "des pâtes et une salade" = 2 items
+- Préfère le nom courant ("pomme" pas "pomme golden bio").
 - portions : nombre de portions standard mentionné (1 yaourt = 1, 2 pommes = 2, "demi sandwich" = 0.5).
-- approx_grams : masse approximative en grammes pour UNE portion (pomme ≈ 150g, yaourt ≈ 125g, tranche de pain ≈ 30g, sandwich ≈ 200g, bol de pâtes cuites ≈ 250g).
-- Si une masse précise est donnée ("500g de pâtes") : portions=1 et approx_grams=500.
-- N'invente pas. Si vague ("un repas", "des trucs"), IGNORE l'item.
-- Maximum 10 items. Toujours répondre en JSON valide même si la phrase est vague (items vide si rien d'identifiable).`;
+- approx_grams : masse en grammes pour UNE portion :
+    pomme≈150, yaourt≈125, tranche pain≈30, sandwich≈200, bol pâtes/riz cuites≈250, assiette plat principal≈300, plat composé (aligot, lasagnes, paella…)≈250.
+- Si masse précise donnée ("500g de pâtes") : portions=1, approx_grams=500.
+- En cas de doute sur un nom unique : RENVOIE-LE TEL QUEL en search_query — Ciqual fera le match ou pas.
+- Si vraiment vague ("un repas", "des trucs", "pas grand chose") : IGNORE l'item.
+- Maximum 10 items. JSON valide obligatoire (items vide si rien d'identifiable).`;
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
