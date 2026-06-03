@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 export type NutritionTarget = {
   dailyKcal: number;
   dailyWaterMl: number;
+  dailyProteinsG: number | null;
+  dailyLipidsG: number | null;
+  dailyCarbsG: number | null;
   updatedAt: string;
 };
 
@@ -33,6 +36,9 @@ export type NutritionDayState = {
 const DEFAULT_TARGET: NutritionTarget = {
   dailyKcal: 2000,
   dailyWaterMl: 1500,
+  dailyProteinsG: null,
+  dailyLipidsG: null,
+  dailyCarbsG: null,
   updatedAt: new Date(0).toISOString(),
 };
 
@@ -41,13 +47,21 @@ export async function getNutritionTarget(userId: string): Promise<NutritionTarge
   const supabase = await createClient();
   const { data, error } = await (supabase as any)
     .from('user_nutrition_targets')
-    .select('daily_kcal, daily_water_ml, updated_at')
+    .select(
+      'daily_kcal, daily_water_ml, daily_proteins_g, daily_lipids_g, daily_carbs_g, updated_at',
+    )
     .eq('user_id', userId)
     .maybeSingle();
   if (error || !data) return { ...DEFAULT_TARGET };
   return {
     dailyKcal: Number(data.daily_kcal) || DEFAULT_TARGET.dailyKcal,
     dailyWaterMl: Number(data.daily_water_ml) || DEFAULT_TARGET.dailyWaterMl,
+    dailyProteinsG:
+      data.daily_proteins_g === null ? null : Number(data.daily_proteins_g),
+    dailyLipidsG:
+      data.daily_lipids_g === null ? null : Number(data.daily_lipids_g),
+    dailyCarbsG:
+      data.daily_carbs_g === null ? null : Number(data.daily_carbs_g),
     updatedAt: data.updated_at,
   };
 }

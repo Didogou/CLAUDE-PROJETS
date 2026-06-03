@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp } from 'lucide-react';
 import { NutritionProfileForm } from './NutritionProfileForm';
+import { MacroStem } from './MacroStem';
 
 type FoodLogEntry = {
   id: string;
@@ -19,7 +20,13 @@ type FoodLogEntry = {
 };
 
 type DayState = {
-  target: { dailyKcal: number; dailyWaterMl: number };
+  target: {
+    dailyKcal: number;
+    dailyWaterMl: number;
+    dailyProteinsG: number | null;
+    dailyLipidsG: number | null;
+    dailyCarbsG: number | null;
+  };
   entries: FoodLogEntry[];
   totals: { kcal: number; proteinsG: number; lipidsG: number; carbsG: number };
 };
@@ -206,7 +213,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-center md:justify-center md:p-4">
-      <div className="flex h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:h-[min(75vh,560px)] md:rounded-3xl">
+      <div className="flex h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:h-[min(85vh,640px)] md:rounded-3xl">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-coral-soft/30 px-4 py-3">
           <div className="flex items-center gap-2">
@@ -250,6 +257,25 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 overshoot > 0 ? 'bg-rose-500' : 'bg-coral'
               }`}
               style={{ width: `${percent}%` }}
+            />
+          </div>
+
+          {/* Jardin macros : 3 tiges/fleurs (Protéines, Glucides, Lipides) */}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <MacroStem
+              kind="protein"
+              current={day?.totals.proteinsG ?? 0}
+              target={day?.target.dailyProteinsG ?? null}
+            />
+            <MacroStem
+              kind="carbs"
+              current={day?.totals.carbsG ?? 0}
+              target={day?.target.dailyCarbsG ?? null}
+            />
+            <MacroStem
+              kind="lipid"
+              current={day?.totals.lipidsG ?? 0}
+              target={day?.target.dailyLipidsG ?? null}
             />
           </div>
 
