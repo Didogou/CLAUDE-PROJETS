@@ -195,6 +195,32 @@ export async function addManualItem(
 }
 
 /**
+ * Renomme un item (label). La key de dédup change donc on doit aussi
+ * la regénérer. Si un autre item existe déjà avec la nouvelle clé,
+ * on échoue silencieusement (le user verra que rien n'a bougé).
+ */
+export async function setItemLabel(
+  userId: string,
+  itemKey: string,
+  newLabel: string,
+): Promise<ShoppingListV2> {
+  const list = await getOrCreateActiveList(userId);
+  const trimmed = newLabel.trim();
+  if (!trimmed) return list;
+  const target = list.items.find((it) => it.key === itemKey);
+  if (!target) return list;
+  const newKey = itemDedupKey(target.category, trimmed);
+  // Si la nouvelle clé existe déjà ET pointe vers un AUTRE item → conflit, on ignore.
+  if (newKey !== itemKey && list.items.some((it) => it.key === newKey)) {
+    return list;
+  }
+  const nextItems = list.items.map((it) =>
+    it.key !== itemKey ? it : { ...it, label: trimmed, key: newKey },
+  );
+  return saveListState(list.id, { items: nextItems });
+}
+
+/**
  * Modifie manuellement la quantité d'un item.
  * Comportement : on REMPLACE les contributions par une unique
  * contribution 'manual' avec la nouvelle qté. La traçabilité multi-recette
@@ -230,6 +256,18 @@ export async function toggleItemChecked(
     it.key === itemKey ? { ...it, checked: !it.checked } : it,
   );
   return saveListState(list.id, { items: nextItems });
+}
+
+/** Vide complètement la liste active (items + recettes liées + menu). */
+export async function clearActiveList(
+  userId: string,
+): Promise<ShoppingListV2> {
+  const list = await getOrCreateActiveList(userId);
+  return saveListState(list.id, {
+    items: [],
+    linkedRecipes: [],
+    linkedMenuId: null,
+  });
 }
 
 /** Supprime un item (toutes contributions confondues) de la liste active. */

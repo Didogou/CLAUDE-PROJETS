@@ -158,17 +158,17 @@ export async function extractRecipeSheetFromImage(
                   label: {
                     type: 'string',
                     description:
-                      'Nom de l\'ingrédient en minuscules sans la quantité ("poivrons jaunes", "thon au naturel", "boulgour cuit", "huile d\'olive").',
+                      'Nom de l\'ingrédient SEUL, en minuscules, SANS la quantité NI l\'unité. Exemples : "poivrons jaunes", "thon au naturel", "boulgour cuit", "huile d\'olive", "tomates cerises". ⚠️ NE JAMAIS commencer le label par une unité ("g", "ml", "cl", "cs", "cc") — l\'unité a sa propre colonne.',
                   },
                   quantity: {
                     type: ['number', 'null'],
                     description:
-                      'Quantité numérique ("2 gros poivrons" = 2, "120 g égoutté" = 120). null si "huile d\'olive", "sel, poivre".',
+                      'Quantité numérique. "2 gros poivrons" = 2. "120 g égoutté" = 120. "250 g de tomates cerises" = 250. null si "huile d\'olive", "sel, poivre".',
                   },
                   unit: {
                     type: ['string', 'null'],
                     description:
-                      'Unité ("g", "ml", "cl", "boite", "c. à soupe" ou "cs", "c. à café" ou "cc"). null si compte en pièces.',
+                      'Unité OBLIGATOIREMENT ici si présente : "g", "kg", "ml", "cl", "l", "boite", "c. à soupe" ou "cs", "c. à café" ou "cc". ⚠️ Si tu vois "250 g de tomates cerises", tu DOIS mettre quantity=250, unit="g", label="tomates cerises". NE PAS faire label="g tomates cerises". null si compte en pièces.',
                   },
                   note: {
                     type: ['string', 'null'],
@@ -212,9 +212,11 @@ export async function extractRecipeSheetFromImage(
 
 Règles :
 - Reste 100% fidèle au texte de l'image. N'invente jamais une quantité ou un ingrédient.
-- Sépare quantité / unité / label proprement.
+- Sépare quantité / unité / label proprement. ⚠️ L'unité ("g", "ml", "cl", "cs", "cc"…) NE DOIT JAMAIS apparaître dans le label.
 - Pour "1/2 oignon" : quantity=0.5, unit=null, label="oignon".
 - Pour "1 c. à soupe d'huile d'olive" : quantity=1, unit="cs", label="huile d'olive".
+- Pour "250 g de tomates cerises" : quantity=250, unit="g", label="tomates cerises". (PAS label="g tomates cerises".)
+- Pour "120 g de poulet haché" : quantity=120, unit="g", label="poulet haché".
 - Si un ingrédient n'a pas de quantité ("sel, poivre", "persil frais"), quantity=null, unit=null.
 - Cherche temps prep + cuisson dans les pictos ⏱️ / ⏲️ ou texte "préparation : X min".
 - Calories : "kcal par portion" est le format standard ; renvoie le nombre.

@@ -36,6 +36,8 @@ export function MyShoppingListOverlay({ onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [shareToast, setShareToast] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -47,11 +49,18 @@ export function MyShoppingListOverlay({ onClose }: Props) {
   }, []);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      // Si la modal de confirmation est ouverte, Esc la ferme ELLE,
+      // pas l'overlay entier. Si pas de modal ouverte, Esc ferme tout.
+      if (confirmClearOpen) {
+        setConfirmClearOpen(false);
+      } else {
+        onClose();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, confirmClearOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +101,24 @@ export function MyShoppingListOverlay({ onClose }: Props) {
       setError(e instanceof Error ? e.message : 'Erreur');
     }
   }
+  async function setLabel(itemKey: string, label: string) {
+    try {
+      const res = await fetch(
+        `/api/shopping-list/items/${encodeURIComponent(itemKey)}`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ label }),
+        },
+      );
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error);
+      setList(j.list);
+      window.dispatchEvent(new CustomEvent('shopping-list-updated'));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur');
+    }
+  }
   async function deleteItem(itemKey: string) {
     try {
       const res = await fetch(
@@ -106,6 +133,22 @@ export function MyShoppingListOverlay({ onClose }: Props) {
       setError(e instanceof Error ? e.message : 'Erreur');
     }
   }
+  async function clearAll() {
+    setClearing(true);
+    try {
+      const res = await fetch('/api/shopping-list/clear', { method: 'POST' });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error);
+      setList(j.list);
+      window.dispatchEvent(new CustomEvent('shopping-list-updated'));
+      setConfirmClearOpen(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setClearing(false);
+    }
+  }
+
   async function addManual(payload: {
     label: string;
     category: string;
@@ -170,7 +213,9 @@ export function MyShoppingListOverlay({ onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label="Ma liste de courses"
-      onClick={onClose}
+      // Click extérieur ferme l'overlay SAUF si la modal de confirmation
+      // est ouverte (volonté Didier : pas de fermeture accidentelle).
+      onClick={confirmClearOpen ? undefined : onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
@@ -185,6 +230,18 @@ export function MyShoppingListOverlay({ onClose }: Props) {
             <h2 className="truncate font-script text-2xl text-coral">
               {list?.name ?? '…'}
             </h2>
+            {/* Lien "Tout supprimer" — discret, ouvre une modal de
+                confirmation non dismissible au click exterieur. */}
+            {list && list.items.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setConfirmClearOpen(true)}
+                className="mt-1 flex items-center gap-1 text-[0.7rem] font-semibold text-red-600 underline-offset-2 hover:underline print:hidden"
+              >
+                <Trash2 className="h-3 w-3" />
+                Tout supprimer
+              </button>
+            )}
           </div>
           <button
             type="button"
@@ -226,6 +283,7 @@ export function MyShoppingListOverlay({ onClose }: Props) {
                         key={it.key}
                         item={it}
                         onSetQty={(q) => setQty(it.key, q)}
+                        onSetLabel={(l) => setLabel(it.key, l)}
                         onDelete={() => deleteItem(it.key)}
                       />
                     ))}
@@ -254,31 +312,22 @@ export function MyShoppingListOverlay({ onClose }: Props) {
         )}
 
         {/* Footer actions :
-            - Lien Voir ma liste complete (gauche)
-            - Bouton + Ajouter (centre) : ouvre le mini-form au-dessus
-            - Partager + Imprimer (droite)
-            Bouton + Ajouter ici plutot qu en bas du body : visible
-            sans scroll (UX demandee Didier 2026-06-03). */}
+            - Lien texte + Ajouter un ingredient (gauche) : ouvre le
+              mini-form au-dessus. Pas un bouton colore (pas explicite),
+              juste un lien clair.
+            - Partager + Imprimer (droite) en boutons ronds.
+            "Voir ma liste complete" retire : redondant (on EST deja
+            dans la liste). */}
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-cream bg-cream/40 px-5 py-3 print:hidden">
-          <a
-            href="/courses"
-            className="text-xs font-semibold text-coral-dark underline-offset-2 hover:underline"
+          <button
+            type="button"
+            onClick={() => setAddOpen((v) => !v)}
+            className="flex items-center gap-1 text-xs font-semibold text-coral-dark underline-offset-2 transition hover:underline"
           >
-            Voir ma liste complète →
-          </a>
+            <Plus className="h-3.5 w-3.5" strokeWidth={3} />
+            {addOpen ? 'Fermer' : 'Ajouter un ingrédient'}
+          </button>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setAddOpen((v) => !v)}
-              className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold shadow-sm transition hover:scale-105 ${
-                addOpen
-                  ? 'bg-cream text-ink-soft'
-                  : 'bg-coral text-white hover:bg-coral-dark'
-              }`}
-            >
-              <Plus className="h-3.5 w-3.5" strokeWidth={3} />
-              {addOpen ? 'Fermer' : 'Ajouter'}
-            </button>
             <button
               type="button"
               onClick={handleShare}
@@ -305,6 +354,49 @@ export function MyShoppingListOverlay({ onClose }: Props) {
             {shareToast}
           </div>
         )}
+
+        {/* Modal de confirmation "Tout supprimer" — NON dismissible au
+            click extérieur (volonté Didier 2026-06-03). Esc ne ferme
+            pas non plus. Seuls Annuler / Confirmer agissent. */}
+        {confirmClearOpen && (
+          <div
+            className="absolute inset-0 z-10 grid place-items-center bg-black/40 p-4"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="clear-modal-title"
+          >
+            <div className="w-full max-w-xs space-y-3 rounded-2xl bg-white p-5 shadow-2xl">
+              <h3
+                id="clear-modal-title"
+                className="text-center font-script text-2xl text-coral"
+              >
+                Vider la liste ?
+              </h3>
+              <p className="text-center text-sm text-ink-soft">
+                Tous les articles, recettes et menus liés seront retirés.
+                Cette action est irréversible.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setConfirmClearOpen(false)}
+                  disabled={clearing}
+                  className="flex-1 rounded-full border border-coral-soft bg-white px-4 py-2 text-sm font-semibold text-coral-dark"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  disabled={clearing}
+                  className="flex-1 rounded-full bg-red-600 px-4 py-2 text-sm font-bold text-white shadow-sm disabled:opacity-60"
+                >
+                  {clearing ? '…' : 'Tout vider'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* CSS print : on cache tout sauf l'overlay et son contenu. */}
@@ -322,18 +414,23 @@ export function MyShoppingListOverlay({ onClose }: Props) {
 
 /**
  * Ligne d'un item de la liste avec :
- *   - case déco (esthétique liste de courses)
- *   - input quantity éditable (commit on blur ou Enter)
- *   - label
- *   - corbeille
+ *   - input quantity éditable (commit on blur ou Enter) si qty != null
+ *   - input label éditable (commit on blur ou Enter)
+ *   - corbeille avec confirm inline
+ *
+ * Raye le label quand qty=0 (visuel : article consommé / à zéro).
+ * Pas de checkbox (la fonctionnalité de cochage est sur la page courses,
+ * pas dans l'overlay rapide).
  */
 function EditableItemRow({
   item,
   onSetQty,
+  onSetLabel,
   onDelete,
 }: {
   item: ShoppingListV2Item;
   onSetQty: (q: number | null) => void;
+  onSetLabel: (label: string) => void;
   onDelete: () => void;
 }) {
   const [qtyDraft, setQtyDraft] = useState<string>(
@@ -341,6 +438,7 @@ function EditableItemRow({
       ? ''
       : String(Math.round(item.totalQuantity * 100) / 100),
   );
+  const [labelDraft, setLabelDraft] = useState<string>(item.label);
   const [confirmDel, setConfirmDel] = useState(false);
 
   // Sync local quand l'item change côté server (après refresh).
@@ -351,11 +449,13 @@ function EditableItemRow({
         : String(Math.round(item.totalQuantity * 100) / 100),
     );
   }, [item.totalQuantity]);
+  useEffect(() => {
+    setLabelDraft(item.label);
+  }, [item.label]);
 
   function commitQty() {
     const parsed = qtyDraft.trim() === '' ? null : Number(qtyDraft);
     const current = item.totalQuantity;
-    // Pas de change → no-op
     if (parsed === current) return;
     if (parsed !== null && (!Number.isFinite(parsed) || parsed < 0)) {
       setQtyDraft(current == null ? '' : String(current));
@@ -363,19 +463,21 @@ function EditableItemRow({
     }
     onSetQty(parsed);
   }
+  function commitLabel() {
+    const trimmed = labelDraft.trim();
+    if (!trimmed) {
+      setLabelDraft(item.label);
+      return;
+    }
+    if (trimmed === item.label) return;
+    onSetLabel(trimmed);
+  }
+
+  // Rayé si l'item est à 0 (épuisé / ignoré) ou coché
+  const struck = item.checked || item.totalQuantity === 0;
 
   return (
     <li className="flex items-center gap-2 py-1.5">
-      <span
-        aria-hidden
-        className={`grid h-4 w-4 shrink-0 place-items-center rounded border-2 ${
-          item.checked
-            ? 'border-coral bg-coral text-white'
-            : 'border-coral-soft bg-white'
-        }`}
-      >
-        {item.checked && <span className="text-[0.5rem] font-bold">✓</span>}
-      </span>
       {/* Input qty seulement si l'item AVAIT une quantité (pas pour
           les pantry sans qty type "huile d'olive"). */}
       {item.totalQuantity != null ? (
@@ -389,21 +491,30 @@ function EditableItemRow({
           onKeyDown={(e) => {
             if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
           }}
-          className="h-7 w-14 rounded-md border border-cream bg-white px-1.5 text-center text-xs focus:border-coral focus:outline-none"
+          aria-label="Quantité"
+          className="h-7 w-14 shrink-0 rounded-md border border-cream bg-white px-1.5 text-center text-xs focus:border-coral focus:outline-none"
         />
       ) : (
         <span aria-hidden className="w-14 shrink-0" />
       )}
-      <span
-        className={`flex-1 text-sm text-ink ${
-          item.checked ? 'line-through opacity-50' : ''
-        }`}
-      >
-        {item.unit ? `${item.unit} ${item.label}` : item.label}
+      <div className="flex flex-1 flex-col">
+        <input
+          type="text"
+          value={labelDraft}
+          onChange={(e) => setLabelDraft(e.target.value)}
+          onBlur={commitLabel}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+          }}
+          aria-label="Nom de l'article"
+          className={`w-full rounded-md border border-transparent bg-transparent px-1.5 py-0.5 text-sm text-ink transition focus:border-cream focus:bg-white focus:outline-none ${
+            struck ? 'text-ink-soft line-through opacity-60' : ''
+          }`}
+        />
         {item.note && (
-          <span className="block text-xs italic text-ink-soft">{item.note}</span>
+          <span className="px-1.5 text-xs italic text-ink-soft">{item.note}</span>
         )}
-      </span>
+      </div>
       {confirmDel ? (
         <div className="flex shrink-0 items-center gap-1">
           <button

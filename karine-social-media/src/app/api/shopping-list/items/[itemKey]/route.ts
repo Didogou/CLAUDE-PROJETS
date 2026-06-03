@@ -4,6 +4,7 @@ import {
   toggleItemChecked,
   removeItem,
   setItemQuantity,
+  setItemLabel,
 } from '@/lib/shopping-lists';
 
 /**
@@ -24,6 +25,12 @@ export async function PATCH(
     const { itemKey } = await ctx.params;
     const decoded = decodeURIComponent(itemKey);
     const body = await request.json().catch(() => null);
+
+    // Si label est explicitement présent → rename
+    if (body && typeof body.label === 'string') {
+      const list = await setItemLabel(auth.user.id, decoded, body.label);
+      return NextResponse.json({ list });
+    }
 
     // Si quantity est explicitement présent → set qty
     if (body && Object.prototype.hasOwnProperty.call(body, 'quantity')) {
