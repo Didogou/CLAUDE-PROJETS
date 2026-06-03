@@ -132,8 +132,8 @@ export function WaterCounterSheet({ onClose, onChanged }: Props) {
 
   if (!state) {
     return createPortal(
-      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 print:hidden">
-        <div className="w-full max-w-md rounded-t-3xl bg-white p-6 text-center text-ink-soft shadow-2xl">
+      <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-end md:justify-end md:p-4">
+        <div className="w-full max-w-md rounded-t-3xl bg-white p-6 text-center text-ink-soft shadow-2xl md:rounded-3xl">
           Chargement…
         </div>
       </div>,
@@ -149,8 +149,8 @@ export function WaterCounterSheet({ onClose, onChanged }: Props) {
   const reached = state.glassesCount >= targetGlasses;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 print:hidden">
-      <div className="flex h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:h-[80vh] md:max-h-[760px]">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-end md:justify-end md:p-4">
+      <div className="flex h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:h-auto md:max-h-[760px] md:rounded-3xl">
         <header className="flex items-center justify-between border-b border-sky-200 px-4 py-3">
           <div className="flex items-center gap-2">
             <GlassWater className="size-5 text-sky-500" />
