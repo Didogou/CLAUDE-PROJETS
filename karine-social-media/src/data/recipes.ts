@@ -20,27 +20,69 @@ export type RecipeIngredient = {
   note: string | null;
 };
 
+/**
+ * Une fiche détaillée d'une recette. Chaque fiche est une recette
+ * complète à part entière (calories, temps, ingrédients propres).
+ *
+ * 1 recette mère = N>=1 fiches détaillées. Si Karine n'upload pas de
+ * fiche détaillée, on en crée automatiquement une à partir de la cover
+ * principale.
+ */
+export type RecipeSheet = {
+  /** UUID de la sheet (différent du slug recipe). */
+  id: string;
+  /** Ordre d'affichage dans la pellicule (0 = par défaut). */
+  sheetIndex: number;
+  /** Titre de cette variante (ex: "Poivrons farcis thon, tomates & feta"). */
+  title: string | null;
+  /** URL de l'image de la fiche détaillée. */
+  coverImageUrl: string;
+  servings: number;
+  calories: number | null;
+  prepTimeMin: number | null;
+  cookTimeMin: number | null;
+  tags: string[];
+  aliments: string[];
+  ingredients: RecipeIngredient[];
+  /** Texte brut éditable (Karine peut le corriger après extraction). */
+  ingredientsText: string | null;
+};
+
 export type Recipe = {
   id: string; // slug, utilisé pour l'URL /recettes/[id]
+  /** UUID interne (bigint en DB), pour FK vers recipe_sheets. */
+  internalId: number;
   title: string;
   category: RecipeCategory;
   coverImage: string;
   slides: string[];
-  tags: string[];
-  calories: number | null;
-  aliments: string[];
   isSeasonal: boolean;
   isFeatured: boolean;
   likesCount: number;
   prepPhotos: string[];
+  /** Fiches détaillées (toujours au moins 1 après création). */
+  sheets: RecipeSheet[];
+
+  // ==========================================================
+  // CHAMPS LEGACY (reflètent sheets[0] pour ne pas casser le
+  // code existant qui lit ces propriétés directement).
+  // À ne PAS modifier directement : modifier la sheet à la place.
+  // ==========================================================
+  /** @deprecated alias de sheets[0].calories */
+  calories: number | null;
+  /** @deprecated alias de sheets[0].prepTimeMin */
   prepTimeMin: number | null;
+  /** @deprecated alias de sheets[0].cookTimeMin */
   cookTimeMin: number | null;
-  /** Nombre de personnes pour lequel les quantités sont écrites (default 4). */
+  /** @deprecated alias de sheets[0].servings */
   servings: number;
-  /** Ingrédients structurés (extraits par Claude au save admin). */
+  /** @deprecated alias de sheets[0].tags */
+  tags: string[];
+  /** @deprecated alias de sheets[0].aliments */
+  aliments: string[];
+  /** @deprecated alias de sheets[0].ingredients */
   ingredients: RecipeIngredient[];
-  /** Texte brut saisi par Karine (source de vérité pour la ré-édition).
-   *  Affiché tel quel dans le formulaire d'édition. null si jamais saisi. */
+  /** @deprecated alias de sheets[0].ingredientsText */
   ingredientsText: string | null;
 };
 

@@ -5,32 +5,19 @@ import {
   type Recipe,
   type RecipeCategory,
   type RecipeIngredient,
+  type RecipeSheet,
 } from '@/data/recipes';
 import type { Database } from '@/types/database';
 
 type RecipeRow = Database['public']['Tables']['recipes']['Row'];
 
-function mapRow(row: RecipeRow): Recipe {
-  // is_seasonal et is_featured ne sont pas encore dans les types générés tant que
-  // les migrations correspondantes ne sont pas reflétées par `supabase gen types`.
-  const r = row as RecipeRow & {
-    is_seasonal?: boolean | null;
-    is_featured?: boolean | null;
-    likes_count?: number | null;
-    prep_photos?: string[] | null;
-    prep_time_min?: number | null;
-    cook_time_min?: number | null;
-    servings?: number | null;
-    ingredients?: unknown;
-    ingredients_text?: string | null;
-  };
-  // ingredients jsonb : on filtre les entrées malformées par sécurité.
-  const rawIngredients = r.ingredients;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+function mapSheetRow(row: any): RecipeSheet {
+  const rawIngredients = row.ingredients;
   const ingredients: RecipeIngredient[] = Array.isArray(rawIngredients)
     ? rawIngredients
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .filter((it: any) => it && typeof it.label === 'string' && typeof it.category === 'string')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .map((it: any) => ({
           category: String(it.category),
           label: String(it.label),
@@ -40,28 +27,92 @@ function mapRow(row: RecipeRow): Recipe {
         }))
     : [];
   return {
+    id: String(row.id),
+    sheetIndex: typeof row.sheet_index === 'number' ? row.sheet_index : 0,
+    title: typeof row.title === 'string' ? row.title : null,
+    coverImageUrl: row.cover_image_url ?? '',
+    servings: typeof row.servings === 'number' ? row.servings : 4,
+    calories: typeof row.calories === 'number' ? row.calories : null,
+    prepTimeMin: typeof row.prep_time_min === 'number' ? row.prep_time_min : null,
+    cookTimeMin: typeof row.cook_time_min === 'number' ? row.cook_time_min : null,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    aliments: Array.isArray(row.aliments) ? row.aliments : [],
+    ingredients,
+    ingredientsText:
+      typeof row.ingredients_text === 'string' ? row.ingredients_text : null,
+  };
+}
+
+/** Construit l'objet Recipe à partir de la row recipe + ses sheets. */
+function buildRecipe(row: RecipeRow, sheetRows: any[]): Recipe {
+  const r = row as RecipeRow & {
+    is_seasonal?: boolean | null;
+    is_featured?: boolean | null;
+    likes_count?: number | null;
+    prep_photos?: string[] | null;
+  };
+  const sheets = sheetRows
+    .map(mapSheetRow)
+    .sort((a, b) => a.sheetIndex - b.sheetIndex);
+  // Champs legacy pointent sur sheets[0] (fallback si pas encore de sheet).
+  const s0: Partial<RecipeSheet> = sheets[0] ?? {};
+  return {
     id: row.slug,
+    internalId: typeof row.id === 'number' ? row.id : Number(row.id),
     title: row.title,
     category: row.category as RecipeCategory,
     coverImage: row.cover_image_url ?? '',
     slides: row.slides ?? [],
-    tags: row.tags ?? [],
-    calories: row.calories,
-    aliments: row.aliments ?? [],
     isSeasonal: r.is_seasonal ?? false,
     isFeatured: r.is_featured ?? false,
     likesCount: r.likes_count ?? 0,
     prepPhotos: r.prep_photos ?? [],
-    prepTimeMin: r.prep_time_min ?? null,
-    cookTimeMin: r.cook_time_min ?? null,
-    servings: typeof r.servings === 'number' ? r.servings : 4,
-    ingredients,
-    ingredientsText: typeof r.ingredients_text === 'string' ? r.ingredients_text : null,
+    sheets,
+    // Legacy
+    calories: s0.calories ?? null,
+    prepTimeMin: s0.prepTimeMin ?? null,
+    cookTimeMin: s0.cookTimeMin ?? null,
+    servings: s0.servings ?? 4,
+    tags: s0.tags ?? [],
+    aliments: s0.aliments ?? [],
+    ingredients: s0.ingredients ?? [],
+    ingredientsText: s0.ingredientsText ?? null,
   };
 }
 
-// NOTE: lecture via service_role pendant la phase sans-auth (connexion à brancher
-// plus tard). On filtre sur status = 'published' côté requête.
+/**
+ * Fetch les sheets pour un set de recipeIds. Retourne un index
+ * recipeId → sheet[].
+ */
+async function fetchSheetsFor(
+  supabase: ReturnType<typeof createServiceClient>,
+  recipeIds: number[],
+): Promise<Map<number, any[]>> {
+  const map = new Map<number, any[]>();
+  if (recipeIds.length === 0) return map;
+  const { data, error } = await (supabase as any)
+    .from('recipe_sheets')
+    .select('*')
+    .in('recipe_id', recipeIds)
+    .order('sheet_index', { ascending: true });
+  if (error) {
+    // Si la table n'existe pas encore (migration pas tournée), on continue
+    // avec des recettes sans sheets — fallback sur les champs legacy DB.
+    if ((error as any).code === '42P01') return map;
+    throw error;
+  }
+  for (const row of data ?? []) {
+    const rid = Number((row as any).recipe_id);
+    if (!map.has(rid)) map.set(rid, []);
+    map.get(rid)!.push(row);
+  }
+  return map;
+}
+
+// =============================================================
+// Reads publics
+// =============================================================
+
 export async function getPublishedRecipes(): Promise<Recipe[]> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -70,19 +121,29 @@ export async function getPublishedRecipes(): Promise<Recipe[]> {
     .eq('status', 'published')
     .order('published_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map(mapRow);
+  const rows = data ?? [];
+  const sheets = await fetchSheetsFor(
+    supabase,
+    rows.map((r) => Number(r.id)),
+  );
+  return rows.map((r) => buildRecipe(r, sheets.get(Number(r.id)) ?? []));
 }
 
 export async function getRecipeBySlug(slug: string): Promise<Recipe | null> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase.from('recipes').select('*').eq('slug', slug).maybeSingle();
+  const { data, error } = await supabase
+    .from('recipes')
+    .select('*')
+    .eq('slug', slug)
+    .maybeSingle();
   if (error) throw error;
-  return data ? mapRow(data) : null;
+  if (!data) return null;
+  const sheets = await fetchSheetsFor(supabase, [Number(data.id)]);
+  return buildRecipe(data, sheets.get(Number(data.id)) ?? []);
 }
 
 // Pour chaque catégorie : la recette épinglée la plus récente (ou la dernière publiée
 // à défaut) + les N suivantes par date pour former la pile derrière.
-// Renvoie aussi le total publié par catégorie (pour le compteur).
 export type CategoryDeckData = {
   featured: Recipe | null;
   stack: Recipe[];
@@ -99,13 +160,13 @@ export async function getCategoryDecks(
     .eq('status', 'published')
     .order('published_at', { ascending: false });
   if (error) throw error;
-
-  const all = (data ?? []).map(mapRow);
+  const rows = data ?? [];
+  const sheetMap = await fetchSheetsFor(supabase, rows.map((r) => Number(r.id)));
+  const all = rows.map((r) => buildRecipe(r, sheetMap.get(Number(r.id)) ?? []));
 
   const out = {} as Record<RecipeCategory, CategoryDeckData>;
   for (const cat of CATEGORY_ORDER) {
     const inCat = all.filter((r) => r.category === cat);
-    // featured = la épinglée la plus récente, sinon la plus récente tout court
     const pinned = inCat.find((r) => r.isFeatured);
     const featured = pinned ?? inCat[0] ?? null;
     const stack = featured
@@ -125,10 +186,15 @@ export async function getRecipesByCategory(category: RecipeCategory): Promise<Re
     .eq('category', category)
     .order('published_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map(mapRow);
+  const rows = data ?? [];
+  const sheets = await fetchSheetsFor(supabase, rows.map((r) => Number(r.id)));
+  return rows.map((r) => buildRecipe(r, sheets.get(Number(r.id)) ?? []));
 }
 
-// Admin : toutes les recettes, tous statuts
+// =============================================================
+// Reads admin
+// =============================================================
+
 export async function getAllRecipesAdmin(): Promise<(Recipe & { status: string })[]> {
   const supabase = createServiceClient();
   const { data, error } = await supabase
@@ -136,10 +202,14 @@ export async function getAllRecipesAdmin(): Promise<(Recipe & { status: string }
     .select('*')
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return (data ?? []).map((r) => ({ ...mapRow(r), status: r.status }));
+  const rows = data ?? [];
+  const sheets = await fetchSheetsFor(supabase, rows.map((r) => Number(r.id)));
+  return rows.map((r) => ({
+    ...buildRecipe(r, sheets.get(Number(r.id)) ?? []),
+    status: r.status,
+  }));
 }
 
-// Admin : récupère une recette par slug (avec status), tous statuts
 export async function getRecipeAdminBySlug(
   slug: string,
 ): Promise<(Recipe & { status: string }) | null> {
@@ -150,5 +220,36 @@ export async function getRecipeAdminBySlug(
     .eq('slug', slug)
     .maybeSingle();
   if (error) throw error;
-  return data ? { ...mapRow(data), status: data.status } : null;
+  if (!data) return null;
+  const sheets = await fetchSheetsFor(supabase, [Number(data.id)]);
+  return {
+    ...buildRecipe(data, sheets.get(Number(data.id)) ?? []),
+    status: data.status,
+  };
+}
+
+/**
+ * Récupère UNE sheet précise via son id. Sert au toggle dans la
+ * liste de courses (on doit pouvoir résoudre l'id stable pour
+ * retrieve l'ingrédients à ajouter).
+ */
+export async function getSheetById(sheetId: string): Promise<{
+  recipeSlug: string;
+  sheet: RecipeSheet;
+} | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await (supabase as any)
+    .from('recipe_sheets')
+    .select('*, recipes(slug)')
+    .eq('id', sheetId)
+    .maybeSingle();
+  if (error) {
+    if ((error as any).code === '42P01') return null;
+    throw error;
+  }
+  if (!data) return null;
+  return {
+    recipeSlug: (data as any).recipes?.slug ?? '',
+    sheet: mapSheetRow(data),
+  };
 }
