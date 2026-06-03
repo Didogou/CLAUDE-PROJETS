@@ -150,7 +150,7 @@ export function WaterCounterSheet({ onClose, onChanged }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 print:hidden">
-      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:max-h-[700px]">
+      <div className="flex h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:h-[80vh] md:max-h-[760px]">
         <header className="flex items-center justify-between border-b border-sky-200 px-4 py-3">
           <div className="flex items-center gap-2">
             <GlassWater className="size-5 text-sky-500" />
@@ -276,7 +276,13 @@ export function WaterCounterSheet({ onClose, onChanged }: Props) {
           )}
         </section>
 
-        <section className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <section
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(56, 189, 248, 0.5) transparent',
+          }}
+        >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">
             Aujourd&apos;hui ({state.entries.length})
           </p>

@@ -10,16 +10,17 @@ export const maxDuration = 30;
  * POST /api/nutrition/parse
  * Body : { text: string }
  *
- * Pipeline 2 étapes :
- *  1) Mistral extrait les aliments {search_query, portions, approx_grams}.
+ * Pipeline 3 étapes :
+ *  0) Mistral CORRIGE l'orthographe de la phrase (fautes courantes,
+ *     accents, ligatures œ/æ). On utilise ensuite la version corrigée.
+ *  1) Mistral extrait les aliments {search_queries[], portions, grams}.
  *  2) Pour chaque item :
- *     a. searchCiqualFoods(query, 15) → pool de candidats classés.
- *     b. Si 0 candidat → match=null (free entry).
- *     c. Si 1 seul ou score parfait du top1 → top1.
- *     d. Sinon → 2e appel Mistral pour CHOISIR parmi les 15 candidats
- *        en tenant compte de la phrase originale ("contexte").
- *  3) Calcule kcal pour 1 portion = kcal_per_100g × approx_grams/100.
- *  4) Retourne preview pour confirmation UI (PAS d'insert).
+ *     a. Cascade des search_queries jusqu'à candidats Ciqual.
+ *     b. Si 0 → match=null + fallbackCandidates si trouvés.
+ *     c. Si match évident (startsWith) → on garde top1.
+ *     d. Sinon → Mistral choisit parmi les candidats (contexte).
+ *  3) Calcule kcal/macros pour 1 portion.
+ *  4) Retourne preview + correctedText pour transparence UI.
  */
 
 type MistralItem = {
@@ -57,6 +58,19 @@ type ParsedItem = {
   // de choisir manuellement.
   fallbackCandidates?: CiqualCandidatePublic[];
 };
+
+const CORRECT_PROMPT = `Tu corriges l'orthographe d'une phrase française qui décrit un repas.
+
+SORTIE OBLIGATOIRE (JSON pur sans markdown) :
+{ "corrected": "phrase corrigée en français" }
+
+Règles :
+- Conserve le SENS exact (pas de paraphrase, pas d'ajout).
+- Corrige les fautes courantes : conjugaisons (manger/mangé), accents (é/è/ê), pluriels.
+- Normalise les ligatures : oeuf → œuf, boeuf → bœuf, soeur → sœur.
+- Corrige les noms d'aliments mal orthographiés : "tartiflète" → "tartiflette", "raviolli" → "ravioli", "yogourt" → "yaourt".
+- Si la phrase est déjà correcte : renvoie-la telle quelle.
+- Réponds TOUJOURS en JSON valide.`;
 
 const SYSTEM_PROMPT = `Tu es un assistant nutritionnel français. L'utilisatrice décrit en français ce qu'elle a mangé. Extrais les aliments mentionnés.
 
@@ -124,9 +138,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Étape 0 : correction orthographique. Si Mistral plante, on
+  // retombe sur le texte brut.
+  const correctedText = await correctSpelling(text);
+
   let parsed: { items?: MistralItem[] };
   try {
-    const result = await callMistralJson(SYSTEM_PROMPT, text, { maxTokens: 800 });
+    const result = await callMistralJson(SYSTEM_PROMPT, correctedText, {
+      maxTokens: 800,
+    });
     parsed = JSON.parse(result.content) as { items?: MistralItem[] };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erreur Mistral';
@@ -135,7 +155,10 @@ export async function POST(request: NextRequest) {
 
   const items = Array.isArray(parsed.items) ? parsed.items.slice(0, 10) : [];
   if (items.length === 0) {
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({
+      items: [],
+      correctedText: correctedText !== text ? correctedText : undefined,
+    });
   }
 
   const out: ParsedItem[] = [];
@@ -231,7 +254,34 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ items: out });
+  return NextResponse.json({
+    items: out,
+    correctedText: correctedText !== text ? correctedText : undefined,
+  });
+}
+
+/**
+ * Étape 0 : correction orthographique de la phrase via Mistral.
+ * Retourne le texte corrigé, ou le texte original si l'appel
+ * échoue (graceful fallback, on ne bloque pas le pipeline).
+ */
+async function correctSpelling(input: string): Promise<string> {
+  try {
+    const result = await callMistralJson(CORRECT_PROMPT, input, {
+      maxTokens: 250,
+      timeoutMs: 10_000,
+    });
+    const parsed = JSON.parse(result.content) as { corrected?: string };
+    if (
+      typeof parsed.corrected === 'string' &&
+      parsed.corrected.trim().length > 0
+    ) {
+      return parsed.corrected.trim();
+    }
+  } catch {
+    // Silencieux : on retombe sur l'input brut.
+  }
+  return input;
 }
 
 function round1(n: number): number {

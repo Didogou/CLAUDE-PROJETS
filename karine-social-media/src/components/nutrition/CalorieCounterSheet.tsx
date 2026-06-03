@@ -83,6 +83,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [naturalText, setNaturalText] = useState('');
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState<ParsedItem[] | null>(null);
+  const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
   const [editingTarget, setEditingTarget] = useState(false);
   const [draftKcalTarget, setDraftKcalTarget] = useState<string>('');
@@ -130,6 +131,9 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         alertError(data?.error || 'Analyse impossible');
         return;
       }
+      setCorrectedText(
+        typeof data.correctedText === 'string' ? data.correctedText : null,
+      );
       if (Array.isArray(data.items) && data.items.length > 0) {
         setPreview(data.items);
       } else {
@@ -167,6 +171,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       });
       if (res.ok) {
         setPreview(null);
+        setCorrectedText(null);
         setNaturalText('');
         await refresh();
         onChanged();
@@ -211,7 +216,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 print:hidden">
-      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:max-h-[700px]">
+      <div className="flex h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:h-[80vh] md:max-h-[760px]">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-coral-soft/30 px-4 py-3">
           <div className="flex items-center gap-2">
@@ -296,6 +301,12 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         <section className="border-b border-coral-soft/20 px-4 py-3">
           {preview ? (
             <div className="space-y-2">
+              {correctedText && (
+                <p className="rounded bg-coral-soft/20 px-2 py-1 text-xs italic text-coral-dark">
+                  Compris :{' '}
+                  <span className="font-semibold">«&nbsp;{correctedText}&nbsp;»</span>
+                </p>
+              )}
               <p className="text-xs font-semibold text-ink-soft">
                 Détecté ({preview.length}) — vérifie puis confirme
               </p>
@@ -331,7 +342,10 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               <div className="flex gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setPreview(null)}
+                  onClick={() => {
+                    setPreview(null);
+                    setCorrectedText(null);
+                  }}
                   className="rounded-full border border-coral-soft px-3 py-1.5 text-xs font-semibold text-coral"
                 >
                   Annuler
@@ -387,7 +401,13 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         </section>
 
         {/* Liste du jour */}
-        <section className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        <section
+          className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
+          }}
+        >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">
             Aujourd&apos;hui ({day?.entries.length ?? 0})
           </p>
