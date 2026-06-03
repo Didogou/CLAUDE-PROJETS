@@ -35,6 +35,7 @@ export function MyShoppingListOverlay({ onClose }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [shareToast, setShareToast] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => setMounted(true), []);
   useEffect(() => {
@@ -234,17 +235,31 @@ export function MyShoppingListOverlay({ onClose }: Props) {
             </div>
           )}
 
-          {/* Bouton ajouter ingrédient — toujours dispo, même liste vide */}
-          {!loading && !error && (
-            <AddIngredientInline
-              defaultCategory={grouped[0]?.[0] ?? 'Divers'}
-              onAdd={addManual}
-            />
-          )}
         </div>
 
-        {/* Footer actions */}
-        <footer className="flex items-center justify-between gap-2 border-t border-cream bg-cream/40 px-5 py-3 print:hidden">
+        {/* Form "ajouter un ingrédient" — apparait AU-DESSUS du footer
+            quand l user clique sur le bouton + dans le footer.
+            Visible immediatement sans scroll. */}
+        {!loading && !error && addOpen && (
+          <div className="border-t border-cream bg-white px-5 pb-3 pt-2 print:hidden">
+            <AddIngredientForm
+              defaultCategory={grouped[0]?.[0] ?? 'Divers'}
+              onAdd={async (p) => {
+                await addManual(p);
+                setAddOpen(false);
+              }}
+              onCancel={() => setAddOpen(false)}
+            />
+          </div>
+        )}
+
+        {/* Footer actions :
+            - Lien Voir ma liste complete (gauche)
+            - Bouton + Ajouter (centre) : ouvre le mini-form au-dessus
+            - Partager + Imprimer (droite)
+            Bouton + Ajouter ici plutot qu en bas du body : visible
+            sans scroll (UX demandee Didier 2026-06-03). */}
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-cream bg-cream/40 px-5 py-3 print:hidden">
           <a
             href="/courses"
             className="text-xs font-semibold text-coral-dark underline-offset-2 hover:underline"
@@ -252,6 +267,18 @@ export function MyShoppingListOverlay({ onClose }: Props) {
             Voir ma liste complète →
           </a>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAddOpen((v) => !v)}
+              className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold shadow-sm transition hover:scale-105 ${
+                addOpen
+                  ? 'bg-cream text-ink-soft'
+                  : 'bg-coral text-white hover:bg-coral-dark'
+              }`}
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={3} />
+              {addOpen ? 'Fermer' : 'Ajouter'}
+            </button>
             <button
               type="button"
               onClick={handleShare}
@@ -412,10 +439,12 @@ function EditableItemRow({
   );
 }
 
-/** Mini-form inline pour ajouter un ingrédient manuellement. */
-function AddIngredientInline({
+/** Mini-form pour ajouter un ingrédient. Le bouton qui l'ouvre vit
+ *  dans le footer ; ce composant rend juste le form lui-même. */
+function AddIngredientForm({
   defaultCategory,
   onAdd,
+  onCancel,
 }: {
   defaultCategory: string;
   onAdd: (payload: {
@@ -424,8 +453,8 @@ function AddIngredientInline({
     quantity: number | null;
     unit: string | null;
   }) => Promise<void> | void;
+  onCancel: () => void;
 }) {
-  const [open, setOpen] = useState(false);
   const [label, setLabel] = useState('');
   const [qty, setQty] = useState('');
   const [unit, setUnit] = useState('');
@@ -445,27 +474,13 @@ function AddIngredientInline({
       setLabel('');
       setQty('');
       setUnit('');
-      setOpen(false);
     } finally {
       setBusy(false);
     }
   }
 
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-coral-soft/60 bg-cream/40 px-4 py-2.5 text-xs font-semibold text-coral-dark transition hover:bg-cream/70"
-      >
-        <Plus className="h-3.5 w-3.5" />
-        Ajouter un ingrédient
-      </button>
-    );
-  }
-
   return (
-    <div className="mt-4 rounded-xl border border-coral-soft/60 bg-white p-3 shadow-sm">
+    <div className="rounded-xl border border-coral-soft/60 bg-white p-3 shadow-sm">
       <div className="grid grid-cols-[3rem_3rem_1fr] gap-1.5">
         <input
           type="number"
@@ -505,7 +520,7 @@ function AddIngredientInline({
       <div className="mt-2 flex justify-end gap-1.5">
         <button
           type="button"
-          onClick={() => setOpen(false)}
+          onClick={onCancel}
           disabled={busy}
           className="rounded-full border border-cream bg-white px-3 py-1 text-[0.7rem] font-semibold text-ink-soft"
         >
