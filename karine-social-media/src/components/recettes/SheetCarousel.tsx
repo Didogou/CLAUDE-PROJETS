@@ -10,11 +10,12 @@ import {
   Printer,
   Share2,
   Users,
+  ZoomIn,
 } from 'lucide-react';
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
 import { FavoriteButton } from '@/components/favorites/FavoriteButton';
-import { SaviezVousLightbox } from '@/components/garde/SaviezVousLightbox';
+import { SheetLightbox } from './SheetLightbox';
 
 type Props = {
   sheets: RecipeSheet[];
@@ -60,13 +61,6 @@ export function SheetCarousel({
   const sheet = sheets[active];
   const total = sheets.length;
 
-  // Items pour la lightbox plein écran (réutilise SaviezVousLightbox).
-  const lightboxItems = sheets.map((s) => ({
-    id: s.id,
-    imageUrl: s.coverImageUrl,
-    caption: s.title,
-  }));
-
   function toggleLike() {
     setLiked((prev) => {
       const next = !prev;
@@ -89,7 +83,7 @@ export function SheetCarousel({
   }
 
   return (
-    <section className="space-y-4 rounded-2xl bg-white/95 p-4 shadow-sm lg:p-6">
+    <section className="space-y-4 rounded-2xl bg-white/70 p-4 shadow-sm backdrop-blur-sm lg:p-6">
       {/* En-tête : badge fiche X/N + dots + bouton favoris.
           Le bouton favoris est ici (dans la bande blanche), PAS en
           overlay sur l'image (UX demandée 2026-06-03). */}
@@ -146,13 +140,22 @@ export function SheetCarousel({
             type="button"
             onClick={() => setZoomOpen(true)}
             aria-label="Agrandir la fiche"
-            className="relative block w-full max-w-md transition hover:-translate-y-0.5 sm:max-w-[min(36rem,55vh)]"
+            className="group relative block w-full max-w-md cursor-zoom-in transition hover:-translate-y-0.5 sm:max-w-[min(36rem,55vh)]"
           >
             <img
               src={sheet.coverImageUrl}
               alt={sheet.title ?? ''}
-              className="aspect-square w-full rounded-2xl object-cover shadow-md"
+              className="aspect-square w-full rounded-2xl object-cover shadow-md transition group-hover:brightness-95"
             />
+            {/* Overlay loupe au hover — signale clairement le clic */}
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl opacity-0 transition group-hover:opacity-100"
+            >
+              <span className="grid h-14 w-14 place-items-center rounded-full bg-white/90 shadow-lg ring-2 ring-white/50">
+                <ZoomIn className="h-6 w-6 text-coral" strokeWidth={2.2} />
+              </span>
+            </span>
           </button>
 
           {total > 1 ? (
@@ -170,14 +173,15 @@ export function SheetCarousel({
         </div>
       )}
 
-      {/* Lightbox plein écran (réutilise SaviezVousLightbox).
-          Le startIndex synchronise sur l'active sheet. */}
+      {/* Lightbox plein écran dédiée recettes : image + ingrédients +
+          bouton "Ajouter à ma liste" sur le côté. */}
       {zoomOpen && (
-        <SaviezVousLightbox
-          items={lightboxItems}
+        <SheetLightbox
+          sheets={sheets}
           startIndex={active}
-          onClose={() => setZoomOpen(false)}
           isAuthenticated={isAuthenticated}
+          recipeTitle={recipeTitle}
+          onClose={() => setZoomOpen(false)}
         />
       )}
 
