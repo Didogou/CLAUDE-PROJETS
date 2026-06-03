@@ -25,11 +25,13 @@ export default async function CoursesPage() {
   const currentMenu = menus[0] ?? null;
 
   return (
-    <div className="relative flex min-h-screen flex-col">
-      <FloralBackground />
-      <AppHeader />
-      <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl">
-        <div className="mb-4 flex items-center justify-between gap-2">
+    <div className="relative flex min-h-screen flex-col print:bg-white">
+      <div className="print:hidden">
+        <FloralBackground />
+        <AppHeader />
+      </div>
+      <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl print:max-w-none print:px-0 print:pb-0">
+        <div className="mb-4 flex items-center justify-between gap-2 print:hidden">
           <h1 className="font-script text-4xl text-coral lg:text-5xl">
             🛒 Mes courses
           </h1>
@@ -43,7 +45,15 @@ export default async function CoursesPage() {
 
         <ShoppingListPage initialList={list} currentMenu={currentMenu} />
       </main>
-      <BottomNav />
+      <div className="print:hidden">
+        <BottomNav />
+      </div>
+      <style>{`
+        @media print {
+          @page { margin: 1.2cm; }
+          html, body { background: #fff !important; }
+        }
+      `}</style>
     </div>
   );
 }

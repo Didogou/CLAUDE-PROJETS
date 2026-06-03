@@ -399,12 +399,60 @@ export function MyShoppingListOverlay({ onClose }: Props) {
         )}
       </div>
 
-      {/* CSS print : on cache tout sauf l'overlay et son contenu. */}
+      {/* CSS print :
+          - visibility:hidden sur body, visible sur la liste seule
+            (pattern fiable, plus de :has() qui posait probleme).
+          - overflow:visible partout (sinon le contenu long etait
+            clippe et ne sortait pas sur plusieurs pages).
+          - max-height: none pour permettre l etalement sur plusieurs
+            pages.
+          - page-break-inside: avoid sur chaque categorie pour eviter
+            les coupures au milieu d une liste d ingredients. */}
       <style>{`
         @media print {
-          @page { margin: 1cm; }
-          body > *:not(:has(.my-shopping-list)) { display: none !important; }
-          .my-shopping-list { position: static !important; max-height: none !important; }
+          @page { margin: 1.2cm; }
+          html, body {
+            background: #fff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            visibility: hidden !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .my-shopping-list,
+          .my-shopping-list * {
+            visibility: visible !important;
+          }
+          .my-shopping-list {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            max-height: none !important;
+            height: auto !important;
+            overflow: visible !important;
+            background: #fff !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            display: block !important;
+          }
+          .my-shopping-list > div {
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+          }
+          .my-shopping-list ul {
+            page-break-inside: avoid !important;
+          }
+          .my-shopping-list input {
+            border: 0 !important;
+            background: transparent !important;
+            -webkit-appearance: none !important;
+            -moz-appearance: textfield !important;
+            padding: 0 !important;
+          }
         }
       `}</style>
     </div>,

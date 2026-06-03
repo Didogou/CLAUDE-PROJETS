@@ -258,30 +258,10 @@ export function SheetCarousel({
         />
       )}
 
-      {/* Titre variante */}
-      {sheet.title && (
-        <h2 className="text-center font-script text-3xl text-coral-dark lg:text-4xl">
-          {sheet.title}
-        </h2>
-      )}
-
-      {/* Stats rapides. Pers est éditable (stepper +/-) — au toggle
-          "Ajouter à ma liste", on multiplie les ingrédients pour atteindre
-          ce nombre. */}
-      <div className="mx-auto grid max-w-2xl grid-cols-4 gap-2">
-        <PortionsStepper
-          value={customPortions}
-          onChange={setCustomPortions}
-        />
-        <Stat icon={Flame} label="kcal" value={sheet.calories} suffix="/pers" />
-        <Stat icon={Clock} label="Prep" value={sheet.prepTimeMin} suffix="min" />
-        <Stat icon={Clock} label="Cuis" value={sheet.cookTimeMin} suffix="min" />
-      </div>
-
-      {/* Bouton "+ Mes courses" + actions cote a cote (Partager/Like/Print)
-          sur 1 SEULE ligne, mobile comme PC. items-start aligne tous les
-          boutons en HAUT pour eviter que "Voir mes courses" (lien sous le
-          bouton Mes courses) decale verticalement les autres boutons. */}
+      {/* Actions DIRECTEMENT sous l'image (UX mobile demandee Didier 2026-
+          06-03 : footer remonte en tete pour eviter le scroll). Layout
+          compact : items-start aligne en haut pour que "Voir mes courses"
+          (lien sous Mes courses) ne decale pas les autres boutons. */}
       <div className="mx-auto flex w-full max-w-2xl flex-wrap items-start justify-center gap-2">
         {isAuthenticated && (
           <AddSheetToListButton
@@ -303,6 +283,26 @@ export function SheetCarousel({
           label="Imprimer"
           onClick={() => window.print()}
         />
+      </div>
+
+      {/* Titre variante */}
+      {sheet.title && (
+        <h2 className="text-center font-script text-2xl text-coral-dark sm:text-3xl lg:text-4xl">
+          {sheet.title}
+        </h2>
+      )}
+
+      {/* Stats rapides. Pers est éditable (stepper +/-) — au toggle
+          "Mes courses", on multiplie les ingrédients pour atteindre
+          ce nombre. */}
+      <div className="mx-auto grid max-w-2xl grid-cols-4 gap-2">
+        <PortionsStepper
+          value={customPortions}
+          onChange={setCustomPortions}
+        />
+        <Stat icon={Flame} label="kcal" value={sheet.calories} suffix="/pers" />
+        <Stat icon={Clock} label="Prep" value={sheet.prepTimeMin} suffix="min" />
+        <Stat icon={Clock} label="Cuis" value={sheet.cookTimeMin} suffix="min" />
       </div>
 
       {/* Ingrédients groupés */}
@@ -340,10 +340,12 @@ function Stat({
   suffix?: string;
 }) {
   return (
-    <div className="rounded-lg bg-cream/40 p-2 text-center">
-      <Icon className="mx-auto h-4 w-4 text-coral" />
-      <p className="mt-0.5 text-base font-bold text-coral-dark">{value ?? '—'}</p>
-      <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-ink-soft">
+    <div className="rounded-lg bg-cream/40 p-1 text-center sm:p-2">
+      <Icon className="mx-auto h-3 w-3 text-coral sm:h-4 sm:w-4" />
+      <p className="mt-0.5 text-sm font-bold text-coral-dark sm:text-base">
+        {value ?? '—'}
+      </p>
+      <p className="text-[0.55rem] font-semibold uppercase tracking-wider text-ink-soft sm:text-[0.6rem]">
         {label}
         {suffix && ` ${suffix}`}
       </p>
@@ -369,7 +371,7 @@ function ActionIconButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold shadow-sm transition hover:scale-105 ${
+      className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold shadow-sm transition hover:scale-105 sm:h-9 sm:px-3 ${
         active
           ? 'bg-coral text-white'
           : 'bg-white text-coral ring-1 ring-coral-soft/40 hover:bg-coral-soft/30'

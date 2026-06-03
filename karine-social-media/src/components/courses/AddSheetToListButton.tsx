@@ -129,7 +129,7 @@ export function AddSheetToListButton({
           type="button"
           onClick={toggle}
           disabled={state !== 'ready'}
-          className={`flex h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-3 text-xs font-bold shadow-sm transition disabled:opacity-50 ${
+          className={`flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-xs font-bold shadow-sm transition disabled:opacity-50 sm:h-9 sm:px-3 ${
             linked
               ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-200'
               : 'bg-coral text-white hover:bg-coral-dark'

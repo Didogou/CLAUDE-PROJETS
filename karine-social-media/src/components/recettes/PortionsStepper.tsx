@@ -32,11 +32,13 @@ export function PortionsStepper({
           label: 'text-xs',
         }
       : {
-          wrap: 'p-1.5',
-          btn: 'h-7 w-7',
-          icon: 'h-3 w-3',
-          value: 'text-base',
-          label: 'text-[0.6rem]',
+          // sm compact pour mobile : padding reduit, boutons plus petits,
+          // valeur lisible mais sans surcharger.
+          wrap: 'p-1',
+          btn: 'h-6 w-6',
+          icon: 'h-2.5 w-2.5',
+          value: 'text-sm',
+          label: 'text-[0.55rem]',
         };
 
   function update(next: number) {
