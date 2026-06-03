@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from 'lucide-react';
 import { getRecipeAdminBySlug } from '@/lib/recipes';
 import { EditRecipeForm } from '@/components/admin/EditRecipeForm';
+import { RecipeSheetsEditor } from '@/components/admin/RecipeSheetsEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,6 +33,8 @@ export default async function AdminEditRecipePage({
       </div>
 
       <EditRecipeForm recipe={recipe} />
+
+      <RecipeSheetsEditor recipeSlug={recipe.id} initialSheets={recipe.sheets} />
     </div>
   );
 }
