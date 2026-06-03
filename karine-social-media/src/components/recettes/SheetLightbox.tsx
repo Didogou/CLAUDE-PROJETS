@@ -129,15 +129,18 @@ export function SheetLightbox({
         </button>
       </header>
 
-      {/* Body : image (gauche/haut) + panneau ingrédients (droite/bas) */}
+      {/* Body : image + panneau ingrédients.
+          Sur PC : centrés ensemble (justify-center) et collés (gap-3).
+          Sur mobile : empilés verticalement. */}
       <div
         key={sheet.id}
-        className={`absolute inset-0 flex flex-col gap-3 px-4 pb-24 pt-16 sm:gap-4 sm:px-8 sm:pt-20 lg:flex-row lg:gap-6 lg:px-12 ${
+        className={`absolute inset-0 flex flex-col items-center gap-3 px-4 pb-24 pt-16 sm:px-8 sm:pt-20 lg:flex-row lg:justify-center lg:gap-3 lg:px-4 ${
           phase === 'exit' ? 'ie-lightbox-content-out' : 'ie-lightbox-content-in'
         }`}
       >
-        {/* Image — pinch-to-zoom + swipe inter-fiche */}
-        <div className="relative min-h-0 flex-1 lg:flex-[1.4]">
+        {/* Image — pinch-to-zoom + swipe inter-fiche.
+            lg:max-h-[80vh] pour rester dans le viewport sans dominer. */}
+        <div className="relative min-h-0 w-full flex-1 lg:h-[min(80vh,40rem)] lg:w-auto lg:flex-none lg:max-w-[min(80vh,40rem)]">
           <ZoomableImage
             src={sheet.coverImageUrl}
             alt={sheet.title ?? ''}
@@ -148,8 +151,9 @@ export function SheetLightbox({
           />
         </div>
 
-        {/* Panneau ingrédients + actions */}
-        <aside className="flex max-h-[40vh] flex-col gap-3 overflow-y-auto rounded-2xl bg-white/95 p-4 shadow-2xl lg:max-h-none lg:w-[22rem] lg:p-5 print:hidden">
+        {/* Panneau ingrédients + actions — collé à l'image, hauteur
+            alignée sur l'image en PC. */}
+        <aside className="flex max-h-[40vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white/95 p-4 shadow-2xl lg:max-h-[min(80vh,40rem)] lg:w-[22rem] lg:p-5 print:hidden">
           <IngredientsPanel ingredients={sheet.ingredients} />
 
           {isAuthenticated && (
