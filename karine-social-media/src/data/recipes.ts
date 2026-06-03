@@ -10,6 +10,16 @@ export type RecipeCategory =
   | 'aperitif'
   | 'repas_fete';
 
+/** Structure d'un ingrédient (réutilise la même shape que les items de
+ *  liste de courses pour pouvoir agréger sans conversion). */
+export type RecipeIngredient = {
+  category: string;
+  label: string;
+  quantity: number | null;
+  unit: string | null;
+  note: string | null;
+};
+
 export type Recipe = {
   id: string; // slug, utilisé pour l'URL /recettes/[id]
   title: string;
@@ -25,6 +35,10 @@ export type Recipe = {
   prepPhotos: string[];
   prepTimeMin: number | null;
   cookTimeMin: number | null;
+  /** Nombre de personnes pour lequel les quantités sont écrites (default 4). */
+  servings: number;
+  /** Ingrédients structurés (extraits par Claude au save admin). */
+  ingredients: RecipeIngredient[];
 };
 
 export const CATEGORY_LABELS: Record<RecipeCategory, string> = {

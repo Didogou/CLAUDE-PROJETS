@@ -1,6 +1,11 @@
 import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
-import { CATEGORY_ORDER, type Recipe, type RecipeCategory } from '@/data/recipes';
+import {
+  CATEGORY_ORDER,
+  type Recipe,
+  type RecipeCategory,
+  type RecipeIngredient,
+} from '@/data/recipes';
 import type { Database } from '@/types/database';
 
 type RecipeRow = Database['public']['Tables']['recipes']['Row'];
@@ -15,7 +20,24 @@ function mapRow(row: RecipeRow): Recipe {
     prep_photos?: string[] | null;
     prep_time_min?: number | null;
     cook_time_min?: number | null;
+    servings?: number | null;
+    ingredients?: unknown;
   };
+  // ingredients jsonb : on filtre les entrées malformées par sécurité.
+  const rawIngredients = r.ingredients;
+  const ingredients: RecipeIngredient[] = Array.isArray(rawIngredients)
+    ? rawIngredients
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter((it: any) => it && typeof it.label === 'string' && typeof it.category === 'string')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .map((it: any) => ({
+          category: String(it.category),
+          label: String(it.label),
+          quantity: typeof it.quantity === 'number' ? it.quantity : null,
+          unit: typeof it.unit === 'string' ? it.unit : null,
+          note: typeof it.note === 'string' ? it.note : null,
+        }))
+    : [];
   return {
     id: row.slug,
     title: row.title,
@@ -31,6 +53,8 @@ function mapRow(row: RecipeRow): Recipe {
     prepPhotos: r.prep_photos ?? [],
     prepTimeMin: r.prep_time_min ?? null,
     cookTimeMin: r.cook_time_min ?? null,
+    servings: typeof r.servings === 'number' ? r.servings : 4,
+    ingredients,
   };
 }
 
