@@ -170,7 +170,12 @@ export async function getMenuAdminById(id: string): Promise<WeeklyMenu | null> {
     .select('*')
     .eq('menu_id', (menu as unknown as { id: string }).id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return mapMenu(menu, (days ?? []) as any[]);
+  const result = mapMenu(menu, (days ?? []) as any[]);
+  // Hydrate les meal sheets (admin a besoin pour l'éditeur)
+  const sheetsMap = await getMenuMealSheets(result.id);
+  const sheetsObj: Record<number, { lunch: MenuMealSheet | null; dinner: MenuMealSheet | null }> = {};
+  for (const [k, v] of sheetsMap) sheetsObj[k] = v;
+  return { ...result, mealSheets: sheetsObj };
 }
 
 // =============================================================

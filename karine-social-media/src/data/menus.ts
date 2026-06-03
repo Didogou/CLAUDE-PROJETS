@@ -72,6 +72,9 @@ export type WeeklyMenu = {
   status: 'draft' | 'published';
   publishedAt: string | null;
   days: WeeklyMenuDay[];
+  /** Fiches recettes par jour × repas, extraites par Vision.
+   *  Indexé par dayIndex (0-6) → { lunch, dinner }. */
+  mealSheets?: Record<number, { lunch: MenuMealSheet | null; dinner: MenuMealSheet | null }>;
 };
 
 // Formate la date du lundi en lisible : "Semaine du 26 mai 2026"

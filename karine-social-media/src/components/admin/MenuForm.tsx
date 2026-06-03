@@ -12,6 +12,7 @@ import {
 import { Trash2, X } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import { ShoppingListEditor } from './ShoppingListEditor';
+import { MealSheetEditor } from './MealSheetEditor';
 import { compressImage } from '@/lib/compress-image';
 import type { WeeklyMenu, ShoppingListItem } from '@/data/menus';
 import { DAYS_LABELS } from '@/data/menus';
@@ -413,6 +414,31 @@ export function MenuForm({ menu, recipeOptions }: Props) {
                 onDelete={isEdit ? () => handleDelete('day_dinner', { dayIndex: i }) : undefined}
                 recipeOptions={recipeOptions}
               />
+
+              {/* Fiches Vision : upload image fiche déjeuner et fiche
+                  dîner → Vision Haiku 4.5 extrait titre + ingredients
+                  + calories + temps. Visible en édition uniquement
+                  (besoin de menuId pour appeler l API). */}
+              {isEdit && menu && (
+                <div className="space-y-2 rounded-xl border border-admin-border bg-admin-soft/30 p-3">
+                  <p className="text-[0.65rem] font-bold uppercase tracking-wider text-admin-primary-dark">
+                    🍽 Fiches recettes (Vision)
+                  </p>
+                  <MealSheetEditor
+                    menuId={menu.id}
+                    dayIndex={i}
+                    mealKind="lunch"
+                    initial={menu.mealSheets?.[i]?.lunch ?? null}
+                  />
+                  <MealSheetEditor
+                    menuId={menu.id}
+                    dayIndex={i}
+                    mealKind="dinner"
+                    initial={menu.mealSheets?.[i]?.dinner ?? null}
+                  />
+                </div>
+              )}
+
               <PrepPhotosRow
                 idx={i}
                 existing={initial?.prepPhotos ?? []}
