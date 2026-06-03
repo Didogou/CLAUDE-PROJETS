@@ -178,7 +178,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 print:hidden">
-      <div className="flex h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl">
+      <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:max-h-[700px]">
         {/* Header */}
         <header className="flex items-center justify-between border-b border-coral-soft/30 px-4 py-3">
           <div className="flex items-center gap-2">
@@ -342,7 +342,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         </section>
 
         {/* Liste du jour */}
-        <section className="flex-1 overflow-y-auto px-4 py-3">
+        <section className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">
             Aujourd&apos;hui ({day?.entries.length ?? 0})
           </p>
