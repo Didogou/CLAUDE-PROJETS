@@ -259,10 +259,13 @@ export function SheetLightbox({
             pour un fond doucement transparent (laisse percevoir l image
             zoomée derriere). */}
         <aside className="mx-auto flex max-h-[40vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white/80 p-4 shadow-2xl backdrop-blur-md lg:mx-0 lg:max-h-[85vh] lg:w-[22rem] lg:p-5 print:hidden">
-          <IngredientsPanel ingredients={sheet.ingredients} />
-
+          {/* Bloc Portions + bouton "Mes courses" PLACE EN HAUT du panneau
+              (au-dessus des ingredients) pour etre visible immediatement
+              sans scroller (UX demandee 2026-06-03) — sinon l user ne sait
+              pas qu il peut ajouter la fiche a sa liste de courses.
+              Sticky pour rester visible meme quand on scroll les ingredients. */}
           {isAuthenticated && (
-            <div className="flex items-end gap-3 border-t border-cream pt-3">
+            <div className="sticky -top-4 -mx-4 -mt-4 flex items-end gap-3 border-b border-cream bg-white/95 px-4 pb-3 pt-4 backdrop-blur-md lg:-top-5 lg:-mx-5 lg:-mt-5 lg:px-5 lg:pt-5">
               <PortionsStepper
                 value={portionsBySheet[sheet.id] ?? sheet.servings}
                 onChange={(v) =>
@@ -280,6 +283,8 @@ export function SheetLightbox({
               </div>
             </div>
           )}
+
+          <IngredientsPanel ingredients={sheet.ingredients} />
         </aside>
       </div>
 
