@@ -43,21 +43,23 @@ export default async function RecipeDetailPage({
         <FloralBackground />
       </div>
 
-      {/* Header simplifié : retour + logo. Le bouton "Ajouter aux favoris"
-          est désormais en overlay top-right de l'image de la fiche dans
-          SheetCarousel (UX demandée par Didier 2026-06-03). */}
-      <header className="relative flex items-center justify-between px-5 py-6 lg:py-8 print:hidden">
+      {/* Header simplifié : retour + logo + spacer. Le Logo est en flow
+          normal (pas absolute) pour éviter tout clipping du titre par
+          overflow ou hauteur insuffisante du header. Le bouton "Ajouter
+          aux favoris" est désormais en overlay sur l'image de la fiche
+          (SheetCarousel). */}
+      <header className="flex items-center justify-between gap-4 px-5 py-6 lg:py-8 print:hidden">
         <Link
           href={`/recettes/${CATEGORY_SLUG[recipe.category]}`}
           aria-label={`Retour aux ${recipe.category}`}
-          className="z-10 grid h-10 w-10 place-items-center rounded-full bg-white/70 text-ink transition hover:bg-white"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/70 text-ink transition hover:bg-white"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+        <div className="min-w-0 flex-1">
           <Logo />
         </div>
-        <span aria-hidden className="h-10 w-10" />
+        <span aria-hidden className="h-10 w-10 shrink-0" />
       </header>
 
       <TrackView

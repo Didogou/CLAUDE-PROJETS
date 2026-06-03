@@ -103,13 +103,16 @@ export function SheetCarousel({
         )}
       </header>
 
-      {/* Image principale de la fiche + flèches + bouton favoris overlay */}
+      {/* Image principale de la fiche + flèches + bouton favoris overlay.
+          Les fiches Karine sont carrées (illustrations recette pleine) →
+          aspect-square pour ne PAS rogner l'image. max-w-2xl pour ne pas
+          écraser le reste sur grand écran. */}
       {sheet.coverImageUrl && (
-        <div className="relative mx-auto w-full max-w-3xl">
+        <div className="relative mx-auto w-full max-w-2xl">
           <img
             src={sheet.coverImageUrl}
             alt={sheet.title ?? ''}
-            className="aspect-[4/3] w-full rounded-2xl object-cover shadow-md lg:aspect-[5/4]"
+            className="aspect-square w-full rounded-2xl object-cover shadow-md"
           />
 
           {/* Bouton "Ajouter aux favoris" en overlay top-right */}
