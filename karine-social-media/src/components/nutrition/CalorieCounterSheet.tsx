@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Trash2, Send, Loader2, Settings, Flame } from 'lucide-react';
+import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp } from 'lucide-react';
+import { NutritionProfileForm } from './NutritionProfileForm';
 
 type FoodLogEntry = {
   id: string;
@@ -86,7 +87,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
   const [editingTarget, setEditingTarget] = useState(false);
-  const [draftKcalTarget, setDraftKcalTarget] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
 
   // Auto-clear erreurs après 4s
@@ -196,27 +196,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
     }
   }
 
-  async function handleSaveTarget() {
-    const n = parseInt(draftKcalTarget, 10);
-    if (!Number.isFinite(n) || n < 800 || n > 6000) {
-      alertError('Objectif entre 800 et 6000 kcal');
-      return;
-    }
-    const res = await fetch('/api/nutrition/target', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dailyKcal: n }),
-    });
-    if (res.ok) {
-      setEditingTarget(false);
-      await refresh();
-      onChanged();
-    } else {
-      const j = await res.json();
-      alertError(j?.error || 'Mise à jour impossible');
-    }
-  }
-
   if (typeof document === 'undefined') return null;
 
   const totals = day?.totals.kcal ?? 0;
@@ -264,17 +243,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                   : `Reste ${Math.round(remaining)} kcal`}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setEditingTarget((v) => !v);
-                setDraftKcalTarget(String(target));
-              }}
-              aria-label="Régler l'objectif"
-              className="rounded-full p-1.5 hover:bg-coral-soft/30"
-            >
-              <Settings className="size-4 text-ink-soft" />
-            </button>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-coral-soft/30">
             <div
@@ -285,25 +253,28 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
             />
           </div>
 
+          <button
+            type="button"
+            onClick={() => setEditingTarget((v) => !v)}
+            className="mt-2 flex w-full items-center justify-between rounded-lg border border-coral-soft/40 bg-white px-3 py-1.5 text-left text-xs font-semibold text-coral-dark transition-colors hover:bg-coral-soft/20"
+          >
+            <span>Renseigne tes besoins en calorie</span>
+            {editingTarget ? (
+              <ChevronUp className="size-3.5" />
+            ) : (
+              <ChevronDown className="size-3.5" />
+            )}
+          </button>
+
           {editingTarget && (
-            <div className="mt-3 flex items-center gap-2">
-              <input
-                type="number"
-                min={800}
-                max={6000}
-                step={50}
-                value={draftKcalTarget}
-                onChange={(e) => setDraftKcalTarget(e.target.value)}
-                className="w-24 rounded-lg border border-coral-soft px-2 py-1 text-sm"
+            <div className="mt-2">
+              <NutritionProfileForm
+                onSaved={() => {
+                  setEditingTarget(false);
+                  refresh();
+                }}
+                onError={alertError}
               />
-              <span className="text-xs text-ink-soft">kcal/jour</span>
-              <button
-                type="button"
-                onClick={handleSaveTarget}
-                className="ml-auto rounded-full bg-coral px-3 py-1 text-xs font-semibold text-white"
-              >
-                Enregistrer
-              </button>
             </div>
           )}
         </section>
