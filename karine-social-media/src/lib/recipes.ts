@@ -22,6 +22,7 @@ function mapRow(row: RecipeRow): Recipe {
     cook_time_min?: number | null;
     servings?: number | null;
     ingredients?: unknown;
+    ingredients_text?: string | null;
   };
   // ingredients jsonb : on filtre les entrées malformées par sécurité.
   const rawIngredients = r.ingredients;
@@ -55,6 +56,7 @@ function mapRow(row: RecipeRow): Recipe {
     cookTimeMin: r.cook_time_min ?? null,
     servings: typeof r.servings === 'number' ? r.servings : 4,
     ingredients,
+    ingredientsText: typeof r.ingredients_text === 'string' ? r.ingredients_text : null,
   };
 }
 

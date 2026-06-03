@@ -45,10 +45,15 @@ alter table public.recipes
 alter table public.recipes
   add column if not exists ingredients jsonb not null default '[]'::jsonb;
 
+alter table public.recipes
+  add column if not exists ingredients_text text;
+
 comment on column public.recipes.servings is
   'Nombre de personnes pour lequel les quantités sont écrites';
 comment on column public.recipes.ingredients is
   'Liste structurée [{ category, label, quantity, unit, note }] extraite à l upload';
+comment on column public.recipes.ingredients_text is
+  'Texte brut saisi par Karine, source de vérité pour la ré-édition (re-extrait au save)';
 
 -- 3. Table shopping_lists
 create table if not exists public.shopping_lists (

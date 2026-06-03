@@ -171,7 +171,7 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
         />
       </Field>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Préparation (min)">
           <input
             name="prepTimeMin"
@@ -192,7 +192,31 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
             className="input"
           />
         </Field>
+        <Field label="Pour X personnes">
+          <input
+            name="servings"
+            type="number"
+            min="1"
+            max="20"
+            defaultValue={recipe.servings ?? 4}
+            className="input"
+          />
+        </Field>
       </div>
+
+      <Field label="Ingrédients (un par ligne — Claude extrait automatiquement au save)">
+        <textarea
+          name="ingredientsText"
+          rows={8}
+          defaultValue={recipe.ingredientsText ?? ''}
+          placeholder={`Exemple :\n200 g de feta\n3 tomates mûres\n1 oignon\nHuile d'olive\nSel, poivre`}
+          className="input min-h-[10rem] resize-y font-mono text-sm"
+        />
+        <p className="mt-1 text-xs text-ink-soft">
+          ✨ Si tu modifies ce texte, Claude relit et met à jour la liste
+          structurée. Sinon les ingrédients structurés restent intacts.
+        </p>
+      </Field>
 
       <Field label="Tags (séparés par des virgules)">
         <input name="tags" defaultValue={recipe.tags.join(', ')} className="input" />

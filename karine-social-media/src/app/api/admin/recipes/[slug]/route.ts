@@ -2,6 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { optimizeUploadToWebp } from '@/lib/optimize-upload';
+import { extractIngredientsFromText } from '@/lib/claude-recipe-ingredients';
+
+export const maxDuration = 60;
 
 // Cf. POST /recipes : cast d'appoint jusqu'à la regénération des types Supabase.
 
@@ -61,6 +64,8 @@ export async function PATCH(
     const isFeatured = form.get('isFeatured') === 'on' || form.get('isFeatured') === 'true';
     const prepTimeRaw = String(form.get('prepTimeMin') || '').trim();
     const cookTimeRaw = String(form.get('cookTimeMin') || '').trim();
+    const servingsRaw = String(form.get('servings') || '').trim();
+    const ingredientsText = String(form.get('ingredientsText') || '').trim();
 
     if (!title) return NextResponse.json({ error: 'Titre requis' }, { status: 400 });
     if (!['petit_dejeuner', 'entree', 'salade', 'plat', 'sauce', 'gouter', 'dessert', 'boisson', 'aperitif', 'repas_fete'].includes(category))
@@ -130,6 +135,33 @@ export async function PATCH(
       .maybeSingle();
     if (!current) return NextResponse.json({ error: 'Recette introuvable' }, { status: 404 });
 
+    // Re-extraction Claude SI le texte des ingrédients a changé. On lit la
+    // version actuelle pour comparer ; si identique, on ne fait pas l'appel
+    // Claude (gain de temps + de tokens).
+    let updatedIngredients: unknown[] | undefined;
+    let ingredientsTextChanged = false;
+    if (ingredientsText !== '') {
+      const { data: currIng } = await supabase
+        .from('recipes')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .select('ingredients_text' as any)
+        .eq('slug', slug)
+        .maybeSingle();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prev = (currIng as any)?.ingredients_text ?? '';
+      ingredientsTextChanged = prev !== ingredientsText;
+      if (ingredientsTextChanged) {
+        try {
+          updatedIngredients = await extractIngredientsFromText(ingredientsText);
+        } catch (extractErr) {
+          console.warn(
+            '[admin/recipes PATCH] extraction ingredients failed (non-blocking):',
+            extractErr,
+          );
+        }
+      }
+    }
+
     type RecipeUpdate = {
       title: string;
       category: string;
@@ -143,6 +175,10 @@ export async function PATCH(
       prep_photos: string[];
       prep_time_min: number | null;
       cook_time_min: number | null;
+      servings: number;
+      ingredients_text?: string | null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ingredients?: any[];
       cover_image_url?: string;
       published_at?: string | null;
     };
@@ -160,7 +196,14 @@ export async function PATCH(
       prep_photos: finalPrepPhotos,
       prep_time_min: prepTimeRaw ? Number(prepTimeRaw) : null,
       cook_time_min: cookTimeRaw ? Number(cookTimeRaw) : null,
+      servings: servingsRaw ? Math.max(1, Math.min(20, Number(servingsRaw))) : 4,
     };
+    // On met à jour le texte uniquement s'il est fourni dans le form.
+    // Si vide, on ne touche pas (édition partielle possible).
+    if (ingredientsText !== '') {
+      update.ingredients_text = ingredientsText;
+      if (updatedIngredients !== undefined) update.ingredients = updatedIngredients;
+    }
     if (coverUrl) update.cover_image_url = coverUrl;
     if (status === 'published' && current.status !== 'published') {
       update.published_at = new Date().toISOString();

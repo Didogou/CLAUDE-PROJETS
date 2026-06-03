@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { optimizeUploadToWebp } from '@/lib/optimize-upload';
+import { extractIngredientsFromText } from '@/lib/claude-recipe-ingredients';
+
+// L'extraction Claude peut prendre 2-5s. On laisse 60s par sécurité.
+export const maxDuration = 60;
 
 // Note : la colonne `is_seasonal` (migration 20260530180000_recipes_is_seasonal.sql)
 // n'est pas encore dans les types Supabase générés (`src/types/database.ts`).
@@ -78,6 +82,8 @@ export async function POST(request: NextRequest) {
     const isFeatured = form.get('isFeatured') === 'on' || form.get('isFeatured') === 'true';
     const prepTimeRaw = String(form.get('prepTimeMin') || '').trim();
     const cookTimeRaw = String(form.get('cookTimeMin') || '').trim();
+    const servingsRaw = String(form.get('servings') || '').trim();
+    const ingredientsText = String(form.get('ingredientsText') || '').trim();
     const cover = form.get('cover') as File | null;
     // Plus de slides/prepPhotos ici → uploadés en PUT incrémental après création
     // pour éviter le 413 (Vercel limite chaque requête à ~4,5 MB).
@@ -97,6 +103,22 @@ export async function POST(request: NextRequest) {
 
     const coverUrl = await uploadImage(supabase, slug, 'cover', cover);
 
+    // Extraction Claude des ingrédients structurés.
+    // On la fait UNE FOIS au create. Si extraction échoue (réseau, modèle),
+    // on log mais on ne bloque pas la création — Karine pourra réessayer
+    // en éditant.
+    let ingredients: unknown[] = [];
+    if (ingredientsText) {
+      try {
+        ingredients = await extractIngredientsFromText(ingredientsText);
+      } catch (extractErr) {
+        console.warn(
+          '[admin/recipes POST] extraction ingredients failed (non-blocking):',
+          extractErr,
+        );
+      }
+    }
+
     const insertPayload = {
       slug,
       title,
@@ -111,6 +133,9 @@ export async function POST(request: NextRequest) {
       prep_photos: [],
       prep_time_min: prepTimeRaw ? Number(prepTimeRaw) : null,
       cook_time_min: cookTimeRaw ? Number(cookTimeRaw) : null,
+      servings: servingsRaw ? Math.max(1, Math.min(20, Number(servingsRaw))) : 4,
+      ingredients_text: ingredientsText || null,
+      ingredients,
       status,
       published_at: status === 'published' ? new Date().toISOString() : null,
     };

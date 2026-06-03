@@ -198,14 +198,38 @@ export function RecipeForm() {
         <input name="calories" type="number" min="0" placeholder="ex. 180" className="input" />
       </Field>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-3">
         <Field label="Préparation (min)">
           <input name="prepTimeMin" type="number" min="0" placeholder="ex. 15" className="input" />
         </Field>
         <Field label="Cuisson (min)">
           <input name="cookTimeMin" type="number" min="0" placeholder="ex. 30" className="input" />
         </Field>
+        <Field label="Pour X personnes">
+          <input
+            name="servings"
+            type="number"
+            min="1"
+            max="20"
+            defaultValue="4"
+            className="input"
+          />
+        </Field>
       </div>
+
+      <Field label="Ingrédients (un par ligne — Claude extrait automatiquement)">
+        <textarea
+          name="ingredientsText"
+          rows={8}
+          placeholder={`Exemple :\n200 g de feta\n3 tomates mûres\n1 oignon\nHuile d'olive\nSel, poivre`}
+          className="input min-h-[10rem] resize-y font-mono text-sm"
+        />
+        <p className="mt-1 text-xs text-ink-soft">
+          ✨ Au save, Claude lit ce texte et le transforme en liste structurée
+          (catégorie / qté / unité). Permet aux utilisateurs d&apos;ajouter
+          cette recette à leur liste de courses.
+        </p>
+      </Field>
 
       <Field label="Tags (séparés par des virgules)">
         <input name="tags" placeholder="healthy, chocolat, sans beurre" className="input" />

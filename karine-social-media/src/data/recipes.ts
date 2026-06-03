@@ -39,6 +39,9 @@ export type Recipe = {
   servings: number;
   /** Ingrédients structurés (extraits par Claude au save admin). */
   ingredients: RecipeIngredient[];
+  /** Texte brut saisi par Karine (source de vérité pour la ré-édition).
+   *  Affiché tel quel dans le formulaire d'édition. null si jamais saisi. */
+  ingredientsText: string | null;
 };
 
 export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
