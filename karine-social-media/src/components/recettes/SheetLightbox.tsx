@@ -34,6 +34,10 @@ type Props = {
  * Inspiré de SaviezVousLightbox (createPortal + useLightboxAnim) mais
  * avec un panneau d'infos exploitable plutôt que juste un caption.
  */
+/** Event window dispatché par toute instance qui toggle le like
+ *  recette, pour que les autres instances (SheetCarousel) se synchronisent. */
+const RECIPE_LIKE_EVENT = 'recipe-like-toggled';
+
 export function SheetLightbox({
   sheets,
   startIndex,
@@ -44,8 +48,31 @@ export function SheetLightbox({
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(startIndex);
   const [shareToast, setShareToast] = useState<string | null>(null);
-  const [liked, setLiked] = useState<Record<string, boolean>>({});
+  /** Like de la recette mère (booléen unique, pas par sheet — c'est la
+   *  recette entière qu'on like, pas une fiche détaillée). */
+  const [liked, setLiked] = useState(false);
   const { phase, requestClose } = useLightboxAnim(onClose);
+
+  // Synchronisation inter-instances : si SheetCarousel toggle le like,
+  // la lightbox suit. Au toggle dans la lightbox, on dispatche pareil.
+  useEffect(() => {
+    const onSync = (e: Event) => {
+      const detail = (e as CustomEvent<{ liked: boolean }>).detail;
+      if (detail && typeof detail.liked === 'boolean') setLiked(detail.liked);
+    };
+    window.addEventListener(RECIPE_LIKE_EVENT, onSync);
+    return () => window.removeEventListener(RECIPE_LIKE_EVENT, onSync);
+  }, []);
+
+  function toggleLike() {
+    setLiked((prev) => {
+      const next = !prev;
+      window.dispatchEvent(
+        new CustomEvent(RECIPE_LIKE_EVENT, { detail: { liked: next } }),
+      );
+      return next;
+    });
+  }
 
   const total = sheets.length;
   const sheet = sheets[index];
@@ -74,6 +101,52 @@ export function SheetLightbox({
   }
   function prev() {
     if (multi) setIndex((i) => (i - 1 + total) % total);
+  }
+
+  /**
+   * Imprime la fiche : ouvre une nouvelle fenêtre avec un HTML dédié
+   * (image + ingrédients) et lance la print dès que l'image est chargée.
+   * Plus fiable que window.print sur la lightbox actuelle (problèmes
+   * de display/visibility quand on est dans un portail react).
+   */
+  function handlePrintCurrent() {
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) return;
+    const ingredientsHtml = renderIngredientsHtml(sheet.ingredients);
+    const title = (sheet.title ?? recipeTitle).replace(/[<>]/g, '');
+    w.document.write(`<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="utf-8" />
+<title>${title}</title>
+<style>
+  @page { size: A4 portrait; margin: 1.2cm; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2937; margin: 0; padding: 0; }
+  h1 { font-size: 1.5rem; text-align: center; margin: 0 0 0.6cm; color: #b91c1c; }
+  .img-wrap { text-align: center; margin-bottom: 0.6cm; }
+  .img-wrap img { max-width: 100%; max-height: 12cm; object-fit: contain; border-radius: 0.4cm; }
+  h2 { font-size: 1.1rem; color: #b91c1c; margin: 0.4cm 0 0.2cm; }
+  .cat { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #b91c1c; margin: 0.3cm 0 0.1cm; }
+  ul { margin: 0; padding-left: 1.2em; }
+  li { font-size: 0.95rem; line-height: 1.5; }
+  .empty { font-style: italic; color: #6b7280; }
+</style>
+</head><body>
+  <h1>${title}</h1>
+  <div class="img-wrap"><img src="${sheet.coverImageUrl}" alt="" /></div>
+  <h2>Ingrédients</h2>
+  ${ingredientsHtml}
+</body></html>`);
+    w.document.close();
+    w.focus();
+    // Attendre que l'image soit chargée avant d'imprimer (sinon page blanche)
+    const img = w.document.querySelector('img');
+    if (img && !img.complete) {
+      img.addEventListener('load', () => w.print(), { once: true });
+      img.addEventListener('error', () => w.print(), { once: true });
+    } else {
+      // Image déjà cachée / instantanée
+      setTimeout(() => w.print(), 100);
+    }
   }
 
   async function handleShare() {
@@ -207,13 +280,13 @@ export function SheetLightbox({
         <ActionButton
           icon={Printer}
           label="Imprimer"
-          onClick={() => window.print()}
+          onClick={handlePrintCurrent}
         />
         <ActionButton
           icon={Heart}
-          label={liked[sheet.id] ? 'Liké' : 'J’aime'}
-          onClick={() => setLiked((m) => ({ ...m, [sheet.id]: !m[sheet.id] }))}
-          active={!!liked[sheet.id]}
+          label={liked ? 'Liké' : 'J’aime'}
+          onClick={toggleLike}
+          active={liked}
         />
       </footer>
 
@@ -349,6 +422,35 @@ function ActionButton({
       />
     </button>
   );
+}
+
+/** Génère le HTML de la liste d'ingrédients pour la fenêtre d'impression. */
+function renderIngredientsHtml(ingredients: RecipeIngredient[]): string {
+  if (ingredients.length === 0) {
+    return '<p class="empty">Ingrédients non extraits pour cette fiche.</p>';
+  }
+  const map = new Map<string, RecipeIngredient[]>();
+  for (const it of ingredients) {
+    if (!map.has(it.category)) map.set(it.category, []);
+    map.get(it.category)!.push(it);
+  }
+  const parts: string[] = [];
+  for (const [cat, items] of map) {
+    parts.push(`<p class="cat">${escapeHtml(cat)}</p><ul>`);
+    for (const it of items) {
+      parts.push(`<li>${escapeHtml(formatIngredient(it))}</li>`);
+    }
+    parts.push('</ul>');
+  }
+  return parts.join('');
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function formatIngredient(it: RecipeIngredient): string {

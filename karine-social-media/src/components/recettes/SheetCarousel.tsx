@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -56,6 +56,21 @@ export function SheetCarousel({
   const [likes, setLikes] = useState(likesCountInitial);
   const [zoomOpen, setZoomOpen] = useState(false);
 
+  // Sync inter-instance du like recette : si la lightbox toggle, on suit.
+  useEffect(() => {
+    const onSync = (e: Event) => {
+      const detail = (e as CustomEvent<{ liked: boolean }>).detail;
+      if (!detail || typeof detail.liked !== 'boolean') return;
+      setLiked((prev) => {
+        if (prev === detail.liked) return prev;
+        setLikes((c) => Math.max(0, c + (detail.liked ? 1 : -1)));
+        return detail.liked;
+      });
+    };
+    window.addEventListener('recipe-like-toggled', onSync);
+    return () => window.removeEventListener('recipe-like-toggled', onSync);
+  }, []);
+
   if (sheets.length === 0) return null;
   const sheet = sheets[active];
   const total = sheets.length;
@@ -64,6 +79,10 @@ export function SheetCarousel({
     setLiked((prev) => {
       const next = !prev;
       setLikes((c) => Math.max(0, c + (next ? 1 : -1)));
+      // Dispatch pour que la lightbox suive.
+      window.dispatchEvent(
+        new CustomEvent('recipe-like-toggled', { detail: { liked: next } }),
+      );
       return next;
     });
   }
