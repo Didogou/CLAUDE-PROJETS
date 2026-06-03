@@ -81,8 +81,10 @@ export function SheetCarousel({
 
   return (
     <section className="space-y-4 rounded-2xl bg-white/95 p-4 shadow-sm lg:p-6">
-      {/* En-tête : badge fiche X/N */}
-      <header className="flex items-center justify-center gap-2">
+      {/* En-tête : badge fiche X/N + dots + bouton favoris.
+          Le bouton favoris est ici (dans la bande blanche), PAS en
+          overlay sur l'image (UX demandée 2026-06-03). */}
+      <header className="flex items-center justify-between gap-2">
         <span className="rounded-full bg-coral-soft/40 px-3 py-1 text-xs font-bold uppercase tracking-wider text-coral-dark">
           Fiche {active + 1}/{total}
         </span>
@@ -101,31 +103,28 @@ export function SheetCarousel({
             ))}
           </div>
         )}
+        <FavoriteButton
+          targetType="recipe"
+          targetId={recipeId}
+          initialFavorited={favoritedInitial}
+          isAuthenticated={isAuthenticated}
+          size="sm"
+          showLabel
+        />
       </header>
 
-      {/* Image principale de la fiche + flèches + bouton favoris overlay.
+      {/* Image principale de la fiche + flèches.
           Les fiches Karine sont carrées (illustrations recette pleine) →
-          aspect-square pour ne PAS rogner l'image. max-w-2xl pour ne pas
-          écraser le reste sur grand écran. */}
+          aspect-square pour ne PAS rogner l'image.
+          max-w-[min(36rem,55vh)] → l'image carrée tient toujours dans
+          55% de la hauteur du viewport, donc visible sans scroll sur PC. */}
       {sheet.coverImageUrl && (
-        <div className="relative mx-auto w-full max-w-2xl">
+        <div className="relative mx-auto w-full max-w-md sm:max-w-[min(36rem,55vh)]">
           <img
             src={sheet.coverImageUrl}
             alt={sheet.title ?? ''}
             className="aspect-square w-full rounded-2xl object-cover shadow-md"
           />
-
-          {/* Bouton "Ajouter aux favoris" en overlay top-right */}
-          <div className="absolute right-3 top-3 z-10">
-            <FavoriteButton
-              targetType="recipe"
-              targetId={recipeId}
-              initialFavorited={favoritedInitial}
-              isAuthenticated={isAuthenticated}
-              size="sm"
-              showLabel
-            />
-          </div>
 
           {/* Flèches de navigation GRANDES (visibles si >= 2 sheets) */}
           {total > 1 && (
