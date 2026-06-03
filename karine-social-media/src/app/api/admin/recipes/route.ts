@@ -2,9 +2,9 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { optimizeUploadToWebp } from '@/lib/optimize-upload';
-import { extractIngredientsFromText } from '@/lib/claude-recipe-ingredients';
+import { extractRecipeSheetFromImage } from '@/lib/claude-recipe-vision';
 
-// L'extraction Claude peut prendre 2-5s. On laisse 60s par sécurité.
+// L'extraction Vision peut prendre 5-15s. On laisse 60s par sécurité.
 export const maxDuration = 60;
 
 // Note : la colonne `is_seasonal` (migration 20260530180000_recipes_is_seasonal.sql)
@@ -67,28 +67,34 @@ async function uploadImage(
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
+/**
+ * POST /api/admin/recipes
+ *
+ * Création simplifiée d'une recette (nouveau modèle) :
+ *  - Karine choisit la catégorie + status + upload la cover principale
+ *  - Vision Haiku 4.5 lit la cover et extrait TOUT (titre + calories +
+ *    temps + servings + tags + aliments + ingrédients)
+ *  - Si l'extraction contient au moins 1 ingrédient → on crée recipe
+ *    + 1 sheet auto à partir des données extraites (cas "Karine ne
+ *    charge pas de fiche détaillée → la cover est sa fiche")
+ *  - Sinon → on crée juste la recipe avec le titre extrait, 0 sheet
+ *    (cas couverture de groupe "6 Recettes de Poivrons Farcis")
+ *
+ * Karine ajoute ensuite manuellement les fiches détaillées via
+ * /sheets/preview puis /sheets.
+ */
 export async function POST(request: NextRequest) {
   const denied = await requireAdmin();
   if (denied) return denied;
   try {
     const form = await request.formData();
-    const title = String(form.get('title') || '').trim();
     const category = String(form.get('category') || '');
     const status = String(form.get('status') || 'draft');
-    const caloriesRaw = String(form.get('calories') || '').trim();
-    const tags = splitList(form.get('tags') as string | null);
-    const aliments = splitList(form.get('aliments') as string | null);
     const isSeasonal = form.get('isSeasonal') === 'on' || form.get('isSeasonal') === 'true';
     const isFeatured = form.get('isFeatured') === 'on' || form.get('isFeatured') === 'true';
-    const prepTimeRaw = String(form.get('prepTimeMin') || '').trim();
-    const cookTimeRaw = String(form.get('cookTimeMin') || '').trim();
-    const servingsRaw = String(form.get('servings') || '').trim();
-    const ingredientsText = String(form.get('ingredientsText') || '').trim();
+    const titleOverride = String(form.get('title') || '').trim();
     const cover = form.get('cover') as File | null;
-    // Plus de slides/prepPhotos ici → uploadés en PUT incrémental après création
-    // pour éviter le 413 (Vercel limite chaque requête à ~4,5 MB).
 
-    if (!title) return NextResponse.json({ error: 'Titre requis' }, { status: 400 });
     if (!['petit_dejeuner', 'entree', 'salade', 'plat', 'sauce', 'gouter', 'dessert', 'boisson', 'aperitif', 'repas_fete'].includes(category))
       return NextResponse.json({ error: 'Catégorie invalide' }, { status: 400 });
     if (!cover || cover.size === 0)
@@ -96,55 +102,94 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // slug unique
-    let slug = slugify(title) || `recette-${Date.now().toString(36)}`;
-    const { data: existing } = await supabase.from('recipes').select('slug').eq('slug', slug).maybeSingle();
-    if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
-
-    const coverUrl = await uploadImage(supabase, slug, 'cover', cover);
-
-    // Extraction Claude des ingrédients structurés.
-    // On la fait UNE FOIS au create. Si extraction échoue (réseau, modèle),
-    // on log mais on ne bloque pas la création — Karine pourra réessayer
-    // en éditant.
-    let ingredients: unknown[] = [];
-    if (ingredientsText) {
-      try {
-        ingredients = await extractIngredientsFromText(ingredientsText);
-      } catch (extractErr) {
-        console.warn(
-          '[admin/recipes POST] extraction ingredients failed (non-blocking):',
-          extractErr,
-        );
-      }
+    // === 1. Optimisation + Vision sur la cover (avant Storage) ===
+    const { buffer, contentType } = await optimizeUploadToWebp(cover);
+    let extracted: Awaited<ReturnType<typeof extractRecipeSheetFromImage>> | null = null;
+    try {
+      extracted = await extractRecipeSheetFromImage(buffer, 'image/webp');
+    } catch (visionErr) {
+      console.warn('[admin/recipes POST] Vision extract failed (non-blocking):', visionErr);
     }
 
+    const titleFromVision = extracted?.title?.trim() || '';
+    const finalTitle = titleOverride || titleFromVision || 'Recette sans titre';
+
+    // === 2. slug unique + upload Storage ===
+    let slug = slugify(finalTitle) || `recette-${Date.now().toString(36)}`;
+    const { data: existing } = await supabase
+      .from('recipes')
+      .select('slug')
+      .eq('slug', slug)
+      .maybeSingle();
+    if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+
+    const coverPath = `recipes/${slug}/cover.webp`;
+    const { error: upErr } = await supabase.storage
+      .from(BUCKET)
+      .upload(coverPath, buffer, { upsert: true, contentType });
+    if (upErr) throw upErr;
+    const coverUrl = supabase.storage.from(BUCKET).getPublicUrl(coverPath).data.publicUrl;
+
+    // === 3. Insert recipe (sans les valeurs de fiche détaillée — elles
+    //        vivent désormais sur recipe_sheets) ===
     const insertPayload = {
       slug,
-      title,
+      title: finalTitle,
       category,
       cover_image_url: coverUrl,
       slides: [],
-      tags,
-      aliments,
-      calories: caloriesRaw ? Number(caloriesRaw) : null,
+      tags: [],
+      aliments: [],
       is_seasonal: isSeasonal,
       is_featured: isFeatured,
       prep_photos: [],
-      prep_time_min: prepTimeRaw ? Number(prepTimeRaw) : null,
-      cook_time_min: cookTimeRaw ? Number(cookTimeRaw) : null,
-      servings: servingsRaw ? Math.max(1, Math.min(20, Number(servingsRaw))) : 4,
-      ingredients_text: ingredientsText || null,
-      ingredients,
       status,
       published_at: status === 'published' ? new Date().toISOString() : null,
     };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabase.from('recipes').insert(insertPayload as any);
+    const { data: inserted, error } = await supabase
+      .from('recipes')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert(insertPayload as any)
+      .select('id, slug')
+      .single();
     if (error) throw error;
+    const recipeId = Number((inserted as { id: number | string }).id);
 
-    return NextResponse.json({ ok: true, slug });
+    // === 4. Si Vision a extrait des ingrédients → créer la sheet 0
+    //        à partir de ces données (cas "la cover est elle-même
+    //        une fiche détaillée complète") ===
+    let createdSheet = false;
+    if (extracted && extracted.ingredients.length > 0) {
+      const sheetPayload = {
+        recipe_id: recipeId,
+        sheet_index: 0,
+        title: extracted.title,
+        cover_image_url: coverUrl,
+        servings: extracted.servings ?? 4,
+        calories: extracted.calories,
+        prep_time_min: extracted.prepTimeMin,
+        cook_time_min: extracted.cookTimeMin,
+        tags: extracted.tags,
+        aliments: extracted.aliments,
+        ingredients: extracted.ingredients,
+        ingredients_text: null,
+      };
+      const { error: shErr } = await (supabase as any)
+        .from('recipe_sheets')
+        .insert(sheetPayload);
+      if (shErr) {
+        console.warn('[admin/recipes POST] insert sheet 0 failed (non-blocking):', shErr);
+      } else {
+        createdSheet = true;
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      slug,
+      titleFromVision,
+      createdAutoSheet: createdSheet,
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Erreur inconnue';
     return NextResponse.json({ error: message }, { status: 500 });
