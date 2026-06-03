@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { RecipeForm } from '@/components/admin/RecipeForm';
+import { RecipeFormUnified } from '@/components/admin/RecipeFormUnified';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +17,7 @@ export default function NewRecipePage() {
         </Link>
         <h1 className="font-script text-3xl text-coral">Nouvelle recette</h1>
       </div>
-      <RecipeForm />
+      <RecipeFormUnified />
     </main>
   );
 }

@@ -1,140 +1,134 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
-import { optimizeUploadToWebp } from '@/lib/optimize-upload';
-import { extractRecipeSheetFromImage } from '@/lib/claude-recipe-vision';
-
-// L'extraction Vision peut prendre 5-15s. On laisse 60s par sécurité.
-export const maxDuration = 60;
-
-// Note : la colonne `is_seasonal` (migration 20260530180000_recipes_is_seasonal.sql)
-// n'est pas encore dans les types Supabase générés (`src/types/database.ts`).
-// Tant que `supabase gen types` n'a pas regénéré le fichier, on cast l'objet pour
-// que TS n'éjecte pas la propriété (RejectExcessProperties).
+import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
+export const maxDuration = 60;
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 function slugify(input: string): string {
   return input
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // accents
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '')
     .slice(0, 60);
 }
 
-function splitList(value: string | null): string[] {
-  if (!value) return [];
-  return value
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
+const CATEGORIES = new Set([
+  'petit_dejeuner',
+  'entree',
+  'salade',
+  'plat',
+  'sauce',
+  'gouter',
+  'dessert',
+  'boisson',
+  'aperitif',
+  'repas_fete',
+]);
 
-/**
- * Sanitise une extension : ne garde que [a-z0-9], max 5 caractères.
- * Supabase Storage refuse les paths avec caractères unicode / espaces.
- */
-function sanitizeExt(ext: string, fallback = 'jpg'): string {
-  const cleaned = ext.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 5);
-  return cleaned || fallback;
-}
-
-async function uploadImage(
-  supabase: ReturnType<typeof createServiceClient>,
-  slug: string,
-  name: string,
-  file: File,
-): Promise<string> {
-  // Conversion WebP (qualité 85) systématique avant upload Storage
-  const { buffer, ext, contentType } = await optimizeUploadToWebp(file);
-  const safeName = name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-  const path = `recipes/${slug}/${safeName}.${ext}`;
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, buffer, { upsert: true, contentType });
-  if (error) {
-    console.error('[uploadImage] Storage error for file:', {
-      originalName: file.name,
-      size: file.size,
-      type: file.type,
-      path,
-      error,
-    });
-    throw error;
-  }
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
-}
+type SheetPayload = {
+  tempPath?: string;
+  title?: string | null;
+  servings?: number | null;
+  calories?: number | null;
+  prepTimeMin?: number | null;
+  cookTimeMin?: number | null;
+  tags?: string[];
+  aliments?: string[];
+  ingredients?: RecipeIngredient[];
+};
 
 /**
  * POST /api/admin/recipes
  *
- * Création simplifiée d'une recette (nouveau modèle) :
- *  - Karine choisit la catégorie + status + upload la cover principale
- *  - Vision Haiku 4.5 lit la cover et extrait TOUT (titre + calories +
- *    temps + servings + tags + aliments + ingrédients)
- *  - Si l'extraction contient au moins 1 ingrédient → on crée recipe
- *    + 1 sheet auto à partir des données extraites (cas "Karine ne
- *    charge pas de fiche détaillée → la cover est sa fiche")
- *  - Sinon → on crée juste la recipe avec le titre extrait, 0 sheet
- *    (cas couverture de groupe "6 Recettes de Poivrons Farcis")
+ * Création unifiée d'une recette en UN SEUL appel. Le client a déjà :
+ *   1. Appelé /preview-main pour uploader la cover en temp + extraire
+ *   2. Appelé /sheets-preview-bulk pour les fiches détaillées
+ *   3. Laissé Karine corriger les données extraites
  *
- * Karine ajoute ensuite manuellement les fiches détaillées via
- * /sheets/preview puis /sheets.
+ * Maintenant on assemble tout :
+ *   - Move la cover temp → recipes/{slug}/cover.webp
+ *   - Crée la row recipes (titre, category, cover, status, etc.)
+ *   - Pour chaque sheet : move temp + insert recipe_sheets
+ *   - Si aucune sheet uploadée MAIS la cover a été lue comme fiche
+ *     complète (mainAsSheet fourni) → crée sheet 0 avec cover URL
+ *
+ * Body JSON :
+ * {
+ *   title?: string,             // titre final, sinon = mainExtractedTitle
+ *   category: RecipeCategory,
+ *   status: 'draft' | 'published',
+ *   isSeasonal: boolean,
+ *   isFeatured: boolean,
+ *   mainTempPath: string,       // chemin temp de la cover
+ *   mainAsSheet?: SheetPayload, // si la cover est elle-même une fiche
+ *   sheets: SheetPayload[]      // fiches détaillées (optional, can be empty)
+ * }
  */
 export async function POST(request: NextRequest) {
   const denied = await requireAdmin();
   if (denied) return denied;
   try {
-    const form = await request.formData();
-    const category = String(form.get('category') || '');
-    const status = String(form.get('status') || 'draft');
-    const isSeasonal = form.get('isSeasonal') === 'on' || form.get('isSeasonal') === 'true';
-    const isFeatured = form.get('isFeatured') === 'on' || form.get('isFeatured') === 'true';
-    const titleOverride = String(form.get('title') || '').trim();
-    const cover = form.get('cover') as File | null;
+    const body = await request.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Corps JSON invalide.' }, { status: 400 });
+    }
 
-    if (!['petit_dejeuner', 'entree', 'salade', 'plat', 'sauce', 'gouter', 'dessert', 'boisson', 'aperitif', 'repas_fete'].includes(category))
-      return NextResponse.json({ error: 'Catégorie invalide' }, { status: 400 });
-    if (!cover || cover.size === 0)
-      return NextResponse.json({ error: 'Image principale requise' }, { status: 400 });
+    const title = typeof body.title === 'string' ? body.title.trim() : '';
+    const category = typeof body.category === 'string' ? body.category : '';
+    const status = body.status === 'published' ? 'published' : 'draft';
+    const isSeasonal = body.isSeasonal === true;
+    const isFeatured = body.isFeatured === true;
+    const mainTempPath =
+      typeof body.mainTempPath === 'string' ? body.mainTempPath.trim() : '';
+    const mainAsSheet =
+      body.mainAsSheet && typeof body.mainAsSheet === 'object'
+        ? (body.mainAsSheet as SheetPayload)
+        : null;
+    const sheetsRaw: SheetPayload[] = Array.isArray(body.sheets) ? body.sheets : [];
+
+    if (!CATEGORIES.has(category)) {
+      return NextResponse.json({ error: 'Catégorie invalide.' }, { status: 400 });
+    }
+    if (!mainTempPath || !mainTempPath.startsWith('temp-recipe-main/')) {
+      return NextResponse.json(
+        { error: 'mainTempPath invalide.' },
+        { status: 400 },
+      );
+    }
+    if (!title) {
+      return NextResponse.json({ error: 'Titre requis.' }, { status: 400 });
+    }
 
     const supabase = createServiceClient();
 
-    // === 1. Optimisation + Vision sur la cover (avant Storage) ===
-    const { buffer, contentType } = await optimizeUploadToWebp(cover);
-    let extracted: Awaited<ReturnType<typeof extractRecipeSheetFromImage>> | null = null;
-    try {
-      extracted = await extractRecipeSheetFromImage(buffer, 'image/webp');
-    } catch (visionErr) {
-      console.warn('[admin/recipes POST] Vision extract failed (non-blocking):', visionErr);
-    }
-
-    const titleFromVision = extracted?.title?.trim() || '';
-    const finalTitle = titleOverride || titleFromVision || 'Recette sans titre';
-
-    // === 2. slug unique + upload Storage ===
-    let slug = slugify(finalTitle) || `recette-${Date.now().toString(36)}`;
-    const { data: existing } = await supabase
+    // 1. Génère slug unique
+    let slug = slugify(title) || `recette-${Date.now().toString(36)}`;
+    const { data: exists } = await supabase
       .from('recipes')
       .select('slug')
       .eq('slug', slug)
       .maybeSingle();
-    if (existing) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+    if (exists) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
 
-    const coverPath = `recipes/${slug}/cover.webp`;
-    const { error: upErr } = await supabase.storage
+    // 2. Move la cover principale temp → final
+    const coverFinal = `recipes/${slug}/cover.webp`;
+    const { error: mvErr } = await supabase.storage
       .from(BUCKET)
-      .upload(coverPath, buffer, { upsert: true, contentType });
-    if (upErr) throw upErr;
-    const coverUrl = supabase.storage.from(BUCKET).getPublicUrl(coverPath).data.publicUrl;
+      .move(mainTempPath, coverFinal);
+    if (mvErr) throw mvErr;
+    const coverUrl = supabase.storage.from(BUCKET).getPublicUrl(coverFinal).data
+      .publicUrl;
 
-    // === 3. Insert recipe (sans les valeurs de fiche détaillée — elles
-    //        vivent désormais sur recipe_sheets) ===
+    // 3. Insert recipe (sans valeurs de fiche détaillée — elles vivent sur recipe_sheets)
     const insertPayload = {
       slug,
-      title: finalTitle,
+      title,
       category,
       cover_image_url: coverUrl,
       slides: [],
@@ -146,52 +140,128 @@ export async function POST(request: NextRequest) {
       status,
       published_at: status === 'published' ? new Date().toISOString() : null,
     };
-    const { data: inserted, error } = await supabase
+    const { data: recipeRow, error: insErr } = await supabase
       .from('recipes')
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .insert(insertPayload as any)
       .select('id, slug')
       .single();
-    if (error) throw error;
-    const recipeId = Number((inserted as { id: number | string }).id);
+    if (insErr) throw insErr;
+    const recipeId = Number((recipeRow as { id: number | string }).id);
 
-    // === 4. Si Vision a extrait des ingrédients → créer la sheet 0
-    //        à partir de ces données (cas "la cover est elle-même
-    //        une fiche détaillée complète") ===
-    let createdSheet = false;
-    if (extracted && extracted.ingredients.length > 0) {
+    // 4. Crée les sheets
+    //   - Si des sheets sont uploadées : on les utilise (move temp → final)
+    //   - Sinon, si mainAsSheet a des ingrédients : crée sheet 0 à partir
+    //     de la cover (la cover EST la fiche)
+    let sheetsToInsert: Array<{
+      payload: SheetPayload;
+      coverUrl: string;
+    }> = [];
+
+    if (sheetsRaw.length > 0) {
+      // Move chaque sheet temp → final
+      for (let i = 0; i < sheetsRaw.length; i++) {
+        const s = sheetsRaw[i];
+        const tempPath = typeof s.tempPath === 'string' ? s.tempPath.trim() : '';
+        if (!tempPath || !tempPath.startsWith('temp-recipe-sheets/')) {
+          console.warn(`[recipes POST] sheet ${i} skipped : tempPath invalide`);
+          continue;
+        }
+        const finalPath = `recipes/${slug}/sheet-${i}-${Date.now()
+          .toString(36)
+          .slice(-4)}.webp`;
+        const { error: mvShErr } = await supabase.storage
+          .from(BUCKET)
+          .move(tempPath, finalPath);
+        if (mvShErr) {
+          console.warn(`[recipes POST] move sheet ${i} failed:`, mvShErr);
+          continue;
+        }
+        const sheetUrl = supabase.storage.from(BUCKET).getPublicUrl(finalPath).data
+          .publicUrl;
+        sheetsToInsert.push({ payload: s, coverUrl: sheetUrl });
+      }
+    } else if (mainAsSheet && Array.isArray(mainAsSheet.ingredients) && mainAsSheet.ingredients.length > 0) {
+      // La cover EST elle-même une fiche détaillée : on crée sheet 0
+      sheetsToInsert.push({ payload: mainAsSheet, coverUrl });
+    }
+
+    // Insert chaque sheet
+    for (let i = 0; i < sheetsToInsert.length; i++) {
+      const { payload, coverUrl: shCover } = sheetsToInsert[i];
       const sheetPayload = {
         recipe_id: recipeId,
-        sheet_index: 0,
-        title: extracted.title,
-        cover_image_url: coverUrl,
-        servings: extracted.servings ?? 4,
-        calories: extracted.calories,
-        prep_time_min: extracted.prepTimeMin,
-        cook_time_min: extracted.cookTimeMin,
-        tags: extracted.tags,
-        aliments: extracted.aliments,
-        ingredients: extracted.ingredients,
-        ingredients_text: null,
+        sheet_index: i,
+        title:
+          typeof payload.title === 'string' ? payload.title.trim() || null : null,
+        cover_image_url: shCover,
+        servings: clampInt(payload.servings, 4, 1, 20),
+        calories: nullableInt(payload.calories),
+        prep_time_min: nullableInt(payload.prepTimeMin),
+        cook_time_min: nullableInt(payload.cookTimeMin),
+        tags: stringArray(payload.tags),
+        aliments: stringArray(payload.aliments),
+        ingredients: sanitizeIngredients(payload.ingredients),
       };
       const { error: shErr } = await (supabase as any)
         .from('recipe_sheets')
         .insert(sheetPayload);
       if (shErr) {
-        console.warn('[admin/recipes POST] insert sheet 0 failed (non-blocking):', shErr);
-      } else {
-        createdSheet = true;
+        console.warn(`[recipes POST] insert sheet ${i} failed:`, shErr);
       }
     }
 
     return NextResponse.json({
       ok: true,
       slug,
-      titleFromVision,
-      createdAutoSheet: createdSheet,
+      sheetsCreated: sheetsToInsert.length,
     });
   } catch (e) {
+    console.error('[admin/recipes POST] error:', e);
     const message = e instanceof Error ? e.message : 'Erreur inconnue';
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function clampInt(v: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function nullableInt(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+function stringArray(v: unknown): string[] {
+  if (!Array.isArray(v)) return [];
+  return v
+    .filter((s): s is string => typeof s === 'string')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function sanitizeIngredients(v: unknown): RecipeIngredient[] {
+  if (!Array.isArray(v)) return [];
+  const out: RecipeIngredient[] = [];
+  for (const it of v) {
+    if (!it || typeof it !== 'object') continue;
+    const obj = it as Record<string, unknown>;
+    const category = typeof obj.category === 'string' ? obj.category.trim() : '';
+    const label = typeof obj.label === 'string' ? obj.label.trim() : '';
+    if (!category || !label) continue;
+    out.push({
+      category,
+      label,
+      quantity: typeof obj.quantity === 'number' ? obj.quantity : null,
+      unit: typeof obj.unit === 'string' ? obj.unit.trim() || null : null,
+      note: typeof obj.note === 'string' ? obj.note.trim() || null : null,
+    });
+  }
+  return out;
 }
