@@ -234,36 +234,30 @@ export function SheetCarousel({
         <Stat icon={Clock} label="Cuis" value={sheet.cookTimeMin} suffix="min" />
       </div>
 
-      {/* Bouton principal "Ajouter à ma liste" + actions (Partager/Like/Print).
-          Mobile : bouton en pleine largeur sur une ligne, actions en
-          dessous en rang. Evite le wrap du label "Ajouter à ma liste"
-          (qui s'écrivait sur 2 lignes quand le like avait un badge).
-          PC : tout sur une seule ligne. */}
-      <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-2 sm:flex-row sm:flex-wrap sm:justify-center">
+      {/* Bouton "+ Mes courses" + actions cote a cote (Partager/Like/Print)
+          sur 1 SEULE ligne, mobile comme PC. Le label court permet au
+          bouton de rester compact meme quand le like a un badge. */}
+      <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-center gap-2">
         {isAuthenticated && (
-          <div className="w-full sm:flex-1 sm:max-w-none">
-            <AddSheetToListButton
-              sheetId={sheet.id}
-              hasIngredients={sheet.ingredients.length > 0}
-              portionsOverride={customPortions}
-            />
-          </div>
+          <AddSheetToListButton
+            sheetId={sheet.id}
+            hasIngredients={sheet.ingredients.length > 0}
+            portionsOverride={customPortions}
+          />
         )}
-        <div className="flex items-center justify-center gap-2">
-          <ActionIconButton icon={Share2} label="Partager" onClick={handleShare} />
-          <ActionIconButton
-            icon={Heart}
-            label={liked ? 'Liké' : 'J\'aime'}
-            onClick={toggleLike}
-            active={liked}
-            badge={likes > 0 ? String(likes) : undefined}
-          />
-          <ActionIconButton
-            icon={Printer}
-            label="Imprimer"
-            onClick={() => window.print()}
-          />
-        </div>
+        <ActionIconButton icon={Share2} label="Partager" onClick={handleShare} />
+        <ActionIconButton
+          icon={Heart}
+          label={liked ? 'Liké' : 'J\'aime'}
+          onClick={toggleLike}
+          active={liked}
+          badge={likes > 0 ? String(likes) : undefined}
+        />
+        <ActionIconButton
+          icon={Printer}
+          label="Imprimer"
+          onClick={() => window.print()}
+        />
       </div>
 
       {/* Ingrédients groupés */}

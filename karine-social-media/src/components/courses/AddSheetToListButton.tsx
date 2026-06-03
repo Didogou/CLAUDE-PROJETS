@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Loader2, ShoppingCart } from 'lucide-react';
+import { Check, Loader2, Plus } from 'lucide-react';
 
 type Props = {
   sheetId: string;
@@ -124,7 +124,7 @@ export function AddSheetToListButton({
         type="button"
         onClick={toggle}
         disabled={state !== 'ready'}
-        className={`flex w-full items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold shadow-sm transition disabled:opacity-50 ${
+        className={`flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-4 py-2.5 text-sm font-bold shadow-sm transition disabled:opacity-50 ${
           linked
             ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-200'
             : 'bg-coral text-white hover:bg-coral-dark'
@@ -135,9 +135,9 @@ export function AddSheetToListButton({
         ) : linked ? (
           <Check className="h-4 w-4" />
         ) : (
-          <ShoppingCart className="h-4 w-4" />
+          <Plus className="h-4 w-4" strokeWidth={3} />
         )}
-        {linked ? 'Dans ma liste' : 'Ajouter à ma liste'}
+        {linked ? 'Dans mes courses' : 'Mes courses'}
       </button>
       {error && <p className="mt-1 text-center text-xs text-red-600">{error}</p>}
     </>
