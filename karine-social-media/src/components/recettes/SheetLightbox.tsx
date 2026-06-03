@@ -132,17 +132,21 @@ export function SheetLightbox({
       </header>
 
       {/* Body : image + panneau ingrédients.
-          Sur PC : centrés ensemble (justify-center) et collés (gap-3).
-          Sur mobile : empilés verticalement. */}
+          Mobile : empilés verticalement, image flex-1 prend tout l espace
+                   restant, panneau cale en bas (max-h-[40vh]).
+          PC : alignés horizontalement, centrés (justify-center), collés
+               (gap-3), tous deux en carré 80vh ou 40rem max. */}
       <div
         key={sheet.id}
-        className={`absolute inset-0 flex flex-col items-center gap-3 px-4 pb-24 pt-16 sm:px-8 sm:pt-20 lg:flex-row lg:justify-center lg:gap-3 lg:px-4 ${
+        className={`absolute inset-0 flex flex-col gap-3 px-4 pb-24 pt-16 sm:px-8 sm:pt-20 lg:flex-row lg:items-center lg:justify-center lg:gap-3 lg:px-4 ${
           phase === 'exit' ? 'ie-lightbox-content-out' : 'ie-lightbox-content-in'
         }`}
       >
         {/* Image — pinch-to-zoom + swipe inter-fiche.
-            lg:max-h-[80vh] pour rester dans le viewport sans dominer. */}
-        <div className="relative min-h-0 w-full flex-1 lg:h-[min(80vh,40rem)] lg:w-auto lg:flex-none lg:max-w-[min(80vh,40rem)]">
+            Mobile : flex-1 prend tout l'espace vertical disponible.
+            PC : carré fixe (width + height explicites sinon le container
+            absolute inset-0 de ZoomableImage retombe à 0). */}
+        <div className="relative min-h-0 flex-1 self-stretch lg:flex-none lg:h-[min(80vh,40rem)] lg:w-[min(80vh,40rem)] lg:self-auto">
           <ZoomableImage
             src={sheet.coverImageUrl}
             alt={sheet.title ?? ''}
@@ -153,9 +157,9 @@ export function SheetLightbox({
           />
         </div>
 
-        {/* Panneau ingrédients + actions — collé à l'image, hauteur
-            alignée sur l'image en PC. */}
-        <aside className="flex max-h-[40vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white/95 p-4 shadow-2xl lg:max-h-[min(80vh,40rem)] lg:w-[22rem] lg:p-5 print:hidden">
+        {/* Panneau ingrédients + actions — sous l'image en mobile,
+            collé à droite de l'image en PC. */}
+        <aside className="mx-auto flex max-h-[40vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white/95 p-4 shadow-2xl lg:mx-0 lg:max-h-[min(80vh,40rem)] lg:w-[22rem] lg:p-5 print:hidden">
           <IngredientsPanel ingredients={sheet.ingredients} />
 
           {isAuthenticated && (
