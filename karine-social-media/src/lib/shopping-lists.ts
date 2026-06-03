@@ -265,8 +265,58 @@ export function defaultListName(now: Date): string {
 }
 
 /**
+ * Détecte les "consommables de placard" : ingrédients que l'utilisatrice
+ * achète à la bouteille / au pot / au paquet, et dont la quantité dans
+ * une recette n'a pas de sens pour la liste de courses.
+ *
+ * Règle (approche A, validée 2026-06-03) :
+ *   - Si l'unité est une PETITE mesure (cs, cc, cuillère à soupe/café,
+ *     pincée) → c'est un condiment, donc pantry.
+ *   - Si le label contient un mot-clé de consommable (huile, sel, sucre,
+ *     épices, herbes, etc.) → pantry.
+ *
+ * Pour ces items, on force `quantity = null` au merge dans la liste de
+ * courses : "Huile d'olive" plutôt que "2 cs d'huile d'olive".
+ */
+function isPantryItem(ing: RecipeIngredient): boolean {
+  if (ing.unit) {
+    const u = ing.unit
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim();
+    if (
+      /^cs\b/.test(u) ||
+      /^cc\b/.test(u) ||
+      /^c\.?\s*a\.?\s*[sc]/.test(u) || // c.à.s / c. a c
+      /^cuiller/.test(u) ||
+      /^pinc/.test(u)
+    ) {
+      return true;
+    }
+  }
+  const l = ing.label
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+  const PANTRY_KEYWORDS = [
+    'huile', 'vinaigre', 'sel', 'poivre', 'moutarde',
+    'herbe', 'epice', 'paprika', 'curry', 'cumin', 'cannelle',
+    'muscade', 'gingembre', 'curcuma', 'thym', 'romarin',
+    'basilic', 'origan', 'persil', 'aneth', 'estragon',
+    'farine', 'sucre', 'levure', 'bicarbonate',
+    'miel', 'sirop', 'ketchup', 'sauce soja', 'sauce tomate',
+  ];
+  return PANTRY_KEYWORDS.some((k) => l.includes(k));
+}
+
+/**
  * Fusionne `incoming` ingrédients dans `existing` items, avec dédup et
  * addition des quantités. Multiplie chaque qty par `ratio` avant addition.
+ *
+ * Les "consommables de placard" (huile, sel, épices…) ont leur quantité
+ * forcée à null pour s'aligner sur la réalité courses : on achète une
+ * bouteille d'huile, pas 2 cuillerées.
  */
 function mergeIngredients(
   existing: ShoppingListV2Item[],
@@ -281,8 +331,10 @@ function mergeIngredients(
 
   for (const ing of incoming) {
     const key = itemDedupKey(ing.category, ing.label);
-    const scaledQty =
-      typeof ing.quantity === 'number' && Number.isFinite(ing.quantity)
+    const pantry = isPantryItem(ing);
+    const scaledQty = pantry
+      ? null
+      : typeof ing.quantity === 'number' && Number.isFinite(ing.quantity)
         ? ing.quantity * ratio
         : null;
     const existingItem = byKey.get(key);
@@ -301,12 +353,13 @@ function mergeIngredients(
       existingItem.contributions.push(newContribution);
       existingItem.totalQuantity = sumContributions(existingItem.contributions);
     } else {
-      // Item nouveau
+      // Item nouveau. Pour les pantry on retire aussi l'unité (sinon
+      // on aurait "Huile d'olive (cs)" sans qty, ça n'a pas de sens).
       const newItem: ShoppingListV2Item = {
         key,
         category: ing.category,
         label: ing.label,
-        unit: ing.unit,
+        unit: pantry ? null : ing.unit,
         note: ing.note,
         totalQuantity: scaledQty,
         checked: false,
