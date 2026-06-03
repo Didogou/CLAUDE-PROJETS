@@ -16,6 +16,7 @@ import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton'
 import { FavoriteButton } from '@/components/favorites/FavoriteButton';
 import { SheetLightbox } from './SheetLightbox';
 import { PortionsStepper } from './PortionsStepper';
+import { HeartBurst, useHeartBurst } from '@/components/ui/HeartBurst';
 
 type Props = {
   sheets: RecipeSheet[];
@@ -112,12 +113,17 @@ export function SheetCarousel({
   const liked = !!likedBySheet[sheet.id];
   const likes = likesBySheet[sheet.id] ?? 0;
 
+  // Explosion de cœurs déclenchée à chaque like (UX feedback)
+  const [likeBursts, fireLikeBurst] = useHeartBurst();
+
   async function toggleLike() {
     // Optimistic update : on change le state immédiatement, on rollback
     // si l'API échoue.
     const prevLiked = liked;
     const prevCount = likes;
     const optimisticLiked = !prevLiked;
+    // Explosion de cœurs UNIQUEMENT quand on AJOUTE un like (pas au retrait).
+    if (optimisticLiked) fireLikeBurst();
     setLikedBySheet((s) => ({ ...s, [sheet.id]: optimisticLiked }));
     setLikesBySheet((c) => ({
       ...c,
