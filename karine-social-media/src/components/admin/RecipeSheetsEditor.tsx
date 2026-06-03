@@ -12,11 +12,11 @@ import {
   ChevronUp,
   Loader2,
   Plus,
-  Sparkles,
   Trash2,
   Upload,
 } from 'lucide-react';
 import type { RecipeIngredient, RecipeSheet } from '@/data/recipes';
+import { IngredientsChecklist } from './IngredientsChecklist';
 
 type PreviewData = {
   tempPath: string;
@@ -465,45 +465,11 @@ function SheetEditableForm({
         </div>
       </div>
 
-      {/* Ingrédients : grouped par catégorie */}
-      <div className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-wider text-admin-primary-dark">
-          Ingrédients ({data.ingredients.length})
-        </p>
-        {categories.length === 0 ? (
-          <p className="rounded-lg bg-admin-soft/30 px-3 py-2 text-xs italic text-admin-ink-soft">
-            Aucun ingrédient extrait. Vision n&apos;a peut-être pas trouvé de
-            liste sur l&apos;image.
-          </p>
-        ) : (
-          categories.map((cat) => (
-            <div key={cat} className="rounded-lg border border-admin-border bg-admin-surface/40 p-2">
-              <p className="mb-1 text-[0.65rem] font-bold uppercase tracking-wider text-admin-primary-dark">
-                {cat}
-              </p>
-              {data.ingredients
-                .map((ing, absIdx) => ({ ing, absIdx }))
-                .filter(({ ing }) => ing.category === cat)
-                .map(({ ing, absIdx }) => (
-                  <IngredientRow
-                    key={absIdx}
-                    ing={ing}
-                    onUpdate={(p) => {
-                      const next = data.ingredients.map((it, i) =>
-                        i === absIdx ? { ...it, ...p } : it,
-                      );
-                      onChange({ ingredients: next });
-                    }}
-                    onRemove={() => {
-                      const next = data.ingredients.filter((_, i) => i !== absIdx);
-                      onChange({ ingredients: next });
-                    }}
-                  />
-                ))}
-            </div>
-          ))
-        )}
-      </div>
+      {/* Ingrédients : liste style "à cocher" groupée par catégorie */}
+      <IngredientsChecklist
+        ingredients={data.ingredients}
+        onChange={(next) => onChange({ ingredients: next })}
+      />
 
       {!hideSave && (
         <div className="flex items-center justify-end gap-2">
@@ -597,50 +563,6 @@ function CsvField({
   );
 }
 
-function IngredientRow({
-  ing,
-  onUpdate,
-  onRemove,
-}: {
-  ing: RecipeIngredient;
-  onUpdate: (patch: Partial<RecipeIngredient>) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="grid grid-cols-[3rem_3rem_1fr_auto] items-center gap-1 py-0.5">
-      <input
-        type="number"
-        step="0.5"
-        value={ing.quantity ?? ''}
-        onChange={(e) =>
-          onUpdate({
-            quantity: e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0),
-          })
-        }
-        placeholder="—"
-        className="input h-7 px-1 text-center text-xs"
-      />
-      <input
-        type="text"
-        value={ing.unit ?? ''}
-        onChange={(e) => onUpdate({ unit: e.target.value || null })}
-        placeholder="g"
-        className="input h-7 px-1 text-center text-xs"
-      />
-      <input
-        type="text"
-        value={ing.label}
-        onChange={(e) => onUpdate({ label: e.target.value })}
-        className="input h-7 px-2 text-xs"
-      />
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label="Supprimer"
-        className="grid h-7 w-7 place-items-center rounded-full text-admin-ink-soft hover:bg-red-50 hover:text-red-600"
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
-    </div>
-  );
-}
+// IngredientsChecklist + IngredientChecklistRow ont été extraits dans
+// le fichier dédié IngredientsChecklist.tsx pour partage avec
+// RecipeFormUnified.

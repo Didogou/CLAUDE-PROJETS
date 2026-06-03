@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
@@ -13,11 +12,11 @@ import {
   Loader2,
   Plus,
   Sparkles,
-  Trash2,
   Upload,
   X,
 } from 'lucide-react';
 import type { RecipeIngredient } from '@/data/recipes';
+import { IngredientsChecklist } from './IngredientsChecklist';
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -539,18 +538,6 @@ function SheetEditableForm({
   data: ExtractedData;
   onChange: (p: Partial<ExtractedData>) => void;
 }) {
-  const categories = useMemo(() => {
-    const seen = new Set<string>();
-    const out: string[] = [];
-    for (const it of data.ingredients) {
-      if (!seen.has(it.category)) {
-        seen.add(it.category);
-        out.push(it.category);
-      }
-    }
-    return out;
-  }, [data.ingredients]);
-
   return (
     <div className="space-y-3">
       <input
@@ -568,43 +555,10 @@ function SheetEditableForm({
       </div>
       <CsvField label="Tags" values={data.tags} onChange={(v) => onChange({ tags: v })} />
       <CsvField label="Aliments" values={data.aliments} onChange={(v) => onChange({ aliments: v })} />
-      <div>
-        <p className="mb-1 text-xs font-bold uppercase tracking-wider text-admin-primary-dark">
-          Ingrédients ({data.ingredients.length})
-        </p>
-        {categories.length === 0 ? (
-          <p className="rounded bg-admin-soft/30 px-2 py-1 text-xs italic text-admin-ink-soft">
-            Aucun ingrédient extrait.
-          </p>
-        ) : (
-          categories.map((cat) => (
-            <div key={cat} className="mb-2 rounded border border-admin-border bg-admin-surface/40 p-2">
-              <p className="mb-1 text-[0.65rem] font-bold uppercase tracking-wider text-admin-primary-dark">
-                {cat}
-              </p>
-              {data.ingredients
-                .map((ing, absIdx) => ({ ing, absIdx }))
-                .filter(({ ing }) => ing.category === cat)
-                .map(({ ing, absIdx }) => (
-                  <IngredientRow
-                    key={absIdx}
-                    ing={ing}
-                    onUpdate={(p) => {
-                      const next = data.ingredients.map((it, i) =>
-                        i === absIdx ? { ...it, ...p } : it,
-                      );
-                      onChange({ ingredients: next });
-                    }}
-                    onRemove={() => {
-                      const next = data.ingredients.filter((_, i) => i !== absIdx);
-                      onChange({ ingredients: next });
-                    }}
-                  />
-                ))}
-            </div>
-          ))
-        )}
-      </div>
+      <IngredientsChecklist
+        ingredients={data.ingredients}
+        onChange={(next) => onChange({ ingredients: next })}
+      />
     </div>
   );
 }
@@ -667,54 +621,6 @@ function CsvField({
         className="input h-8 w-full px-2 text-xs"
       />
     </label>
-  );
-}
-
-function IngredientRow({
-  ing,
-  onUpdate,
-  onRemove,
-}: {
-  ing: RecipeIngredient;
-  onUpdate: (p: Partial<RecipeIngredient>) => void;
-  onRemove: () => void;
-}) {
-  return (
-    <div className="grid grid-cols-[3rem_3rem_1fr_auto] items-center gap-1 py-0.5">
-      <input
-        type="number"
-        step="0.5"
-        value={ing.quantity ?? ''}
-        onChange={(e) =>
-          onUpdate({
-            quantity: e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0),
-          })
-        }
-        placeholder="—"
-        className="input h-7 px-1 text-center text-xs"
-      />
-      <input
-        type="text"
-        value={ing.unit ?? ''}
-        onChange={(e) => onUpdate({ unit: e.target.value || null })}
-        placeholder="g"
-        className="input h-7 px-1 text-center text-xs"
-      />
-      <input
-        type="text"
-        value={ing.label}
-        onChange={(e) => onUpdate({ label: e.target.value })}
-        className="input h-7 px-2 text-xs"
-      />
-      <button
-        type="button"
-        onClick={onRemove}
-        aria-label="Supprimer"
-        className="grid h-7 w-7 place-items-center rounded-full text-admin-ink-soft hover:bg-red-50 hover:text-red-600"
-      >
-        <Trash2 className="h-3 w-3" />
-      </button>
-    </div>
   );
 }
 

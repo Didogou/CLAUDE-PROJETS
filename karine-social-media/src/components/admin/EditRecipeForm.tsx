@@ -161,70 +161,11 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
         </select>
       </Field>
 
-      <Field label="Calories (par portion)">
-        <input
-          name="calories"
-          type="number"
-          min="0"
-          defaultValue={recipe.calories ?? ''}
-          className="input"
-        />
-      </Field>
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <Field label="Préparation (min)">
-          <input
-            name="prepTimeMin"
-            type="number"
-            min="0"
-            defaultValue={recipe.prepTimeMin ?? ''}
-            placeholder="ex. 15"
-            className="input"
-          />
-        </Field>
-        <Field label="Cuisson (min)">
-          <input
-            name="cookTimeMin"
-            type="number"
-            min="0"
-            defaultValue={recipe.cookTimeMin ?? ''}
-            placeholder="ex. 30"
-            className="input"
-          />
-        </Field>
-        <Field label="Pour X personnes">
-          <input
-            name="servings"
-            type="number"
-            min="1"
-            max="20"
-            defaultValue={recipe.servings ?? 4}
-            className="input"
-          />
-        </Field>
+      <div className="rounded-xl border border-coral-soft/50 bg-coral-soft/10 p-3 text-xs text-admin-ink-soft">
+        💡 <strong>Calories, temps, ingrédients, tags et aliments</strong>{' '}
+        sont désormais gérés <strong>par fiche détaillée</strong> dans la section
+        ci-dessous (chaque variante a ses propres valeurs).
       </div>
-
-      <Field label="Ingrédients (un par ligne — Claude extrait automatiquement au save)">
-        <textarea
-          name="ingredientsText"
-          rows={8}
-          defaultValue={recipe.ingredientsText ?? ''}
-          placeholder={`Exemple :\n200 g de feta\n3 tomates mûres\n1 oignon\nHuile d'olive\nSel, poivre`}
-          className="input min-h-[10rem] resize-y font-mono text-sm"
-        />
-        <p className="mt-1 text-xs text-ink-soft">
-          ✨ Si tu modifies ce texte, Claude relit et met à jour la liste
-          structurée. Sinon les ingrédients structurés restent intacts.
-        </p>
-      </Field>
-
-      <Field label="Tags (séparés par des virgules)">
-        <input name="tags" defaultValue={recipe.tags.join(', ')} className="input" />
-      </Field>
-
-      <Field label="Aliments principaux (séparés par des virgules)">
-        <input name="aliments" defaultValue={recipe.aliments.join(', ')} className="input" />
-      </Field>
 
       <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-sage/40 bg-sage/10 p-3">
         <input
