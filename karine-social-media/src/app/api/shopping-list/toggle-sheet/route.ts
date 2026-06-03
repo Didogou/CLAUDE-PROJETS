@@ -28,6 +28,13 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
+    const portionsOverrideRaw = body?.portionsOverride;
+    const portionsOverride =
+      typeof portionsOverrideRaw === 'number' &&
+      Number.isFinite(portionsOverrideRaw) &&
+      portionsOverrideRaw > 0
+        ? Math.round(portionsOverrideRaw)
+        : undefined;
     const list = await toggleSheetOnActiveList(
       auth.user.id,
       {
@@ -39,6 +46,7 @@ export async function POST(request: NextRequest) {
         ingredients: found.sheet.ingredients,
       },
       auth.user.householdSize,
+      portionsOverride,
     );
     return NextResponse.json({ list });
   } catch (e) {

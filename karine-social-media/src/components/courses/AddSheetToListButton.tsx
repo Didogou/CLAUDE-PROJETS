@@ -7,6 +7,10 @@ type Props = {
   sheetId: string;
   /** true si la sheet a des ingrédients structurés. Sinon bouton désactivé. */
   hasIngredients: boolean;
+  /** Si défini, override le nb de personnes du foyer (household_size) au
+   *  moment du toggle. Permet à l'utilisatrice d'adapter la liste à un
+   *  invité ou un évènement. */
+  portionsOverride?: number;
 };
 
 /**
@@ -25,7 +29,11 @@ type Props = {
  */
 const SHOPPING_LIST_EVENT = 'shopping-list-updated';
 
-export function AddSheetToListButton({ sheetId, hasIngredients }: Props) {
+export function AddSheetToListButton({
+  sheetId,
+  hasIngredients,
+  portionsOverride,
+}: Props) {
   const [state, setState] = useState<'loading' | 'unauth' | 'ready' | 'busy'>(
     'loading',
   );
@@ -76,7 +84,13 @@ export function AddSheetToListButton({ sheetId, hasIngredients }: Props) {
       const res = await fetch('/api/shopping-list/toggle-sheet', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ sheetId }),
+        body: JSON.stringify({
+          sheetId,
+          portionsOverride:
+            typeof portionsOverride === 'number' && portionsOverride > 0
+              ? portionsOverride
+              : undefined,
+        }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Erreur');

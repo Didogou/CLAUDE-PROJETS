@@ -13,6 +13,7 @@ import {
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { useLightboxAnim } from '@/lib/use-lightbox-anim';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
+import { PortionsStepper } from './PortionsStepper';
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
 
 type Props = {
@@ -34,9 +35,10 @@ type Props = {
  * Inspiré de SaviezVousLightbox (createPortal + useLightboxAnim) mais
  * avec un panneau d'infos exploitable plutôt que juste un caption.
  */
-/** Event window dispatché par toute instance qui toggle le like
- *  recette, pour que les autres instances (SheetCarousel) se synchronisent. */
-const RECIPE_LIKE_EVENT = 'recipe-like-toggled';
+/** Event dispatché par toute instance qui toggle le like d'UNE fiche
+ *  précise. detail = { sheetId, liked }. Les autres instances (Sheet
+ *  Carousel) ne mettent à jour QUE cette fiche-là. */
+const SHEET_LIKE_EVENT = 'sheet-like-toggled';
 
 export function SheetLightbox({
   sheets,
@@ -48,30 +50,33 @@ export function SheetLightbox({
   const [mounted, setMounted] = useState(false);
   const [index, setIndex] = useState(startIndex);
   const [shareToast, setShareToast] = useState<string | null>(null);
-  /** Like de la recette mère (booléen unique, pas par sheet — c'est la
-   *  recette entière qu'on like, pas une fiche détaillée). */
-  const [liked, setLiked] = useState(false);
+  /** Like PAR fiche détaillée (chaque sheet est une recette à part
+   *  entière). Indexé par sheet.id. */
+  const [likedBySheet, setLikedBySheet] = useState<Record<string, boolean>>({});
+  /** Nb de personnes choisi (par sheet, pour s'adapter à la sheet active). */
+  const [portionsBySheet, setPortionsBySheet] = useState<Record<string, number>>({});
   const { phase, requestClose } = useLightboxAnim(onClose);
 
-  // Synchronisation inter-instances : si SheetCarousel toggle le like,
-  // la lightbox suit. Au toggle dans la lightbox, on dispatche pareil.
+  // Sync inter-instances : on n'update QUE la sheet ciblée par l'event.
   useEffect(() => {
     const onSync = (e: Event) => {
-      const detail = (e as CustomEvent<{ liked: boolean }>).detail;
-      if (detail && typeof detail.liked === 'boolean') setLiked(detail.liked);
+      const detail = (e as CustomEvent<{ sheetId: string; liked: boolean }>).detail;
+      if (!detail || typeof detail.sheetId !== 'string' || typeof detail.liked !== 'boolean') return;
+      setLikedBySheet((prev) =>
+        prev[detail.sheetId] === detail.liked ? prev : { ...prev, [detail.sheetId]: detail.liked },
+      );
     };
-    window.addEventListener(RECIPE_LIKE_EVENT, onSync);
-    return () => window.removeEventListener(RECIPE_LIKE_EVENT, onSync);
+    window.addEventListener(SHEET_LIKE_EVENT, onSync);
+    return () => window.removeEventListener(SHEET_LIKE_EVENT, onSync);
   }, []);
 
   function toggleLike() {
-    setLiked((prev) => {
-      const next = !prev;
-      window.dispatchEvent(
-        new CustomEvent(RECIPE_LIKE_EVENT, { detail: { liked: next } }),
-      );
-      return next;
-    });
+    const sheetId = sheet.id;
+    const next = !likedBySheet[sheetId];
+    setLikedBySheet((prev) => ({ ...prev, [sheetId]: next }));
+    window.dispatchEvent(
+      new CustomEvent(SHEET_LIKE_EVENT, { detail: { sheetId, liked: next } }),
+    );
   }
 
   const total = sheets.length;
@@ -240,11 +245,22 @@ export function SheetLightbox({
           <IngredientsPanel ingredients={sheet.ingredients} />
 
           {isAuthenticated && (
-            <div className="border-t border-cream pt-3">
-              <AddSheetToListButton
-                sheetId={sheet.id}
-                hasIngredients={sheet.ingredients.length > 0}
+            <div className="flex items-end gap-3 border-t border-cream pt-3">
+              <PortionsStepper
+                value={portionsBySheet[sheet.id] ?? sheet.servings}
+                onChange={(v) =>
+                  setPortionsBySheet((prev) => ({ ...prev, [sheet.id]: v }))
+                }
               />
+              <div className="min-w-0 flex-1">
+                <AddSheetToListButton
+                  sheetId={sheet.id}
+                  hasIngredients={sheet.ingredients.length > 0}
+                  portionsOverride={
+                    portionsBySheet[sheet.id] ?? sheet.servings
+                  }
+                />
+              </div>
             </div>
           )}
         </aside>
@@ -284,9 +300,9 @@ export function SheetLightbox({
         />
         <ActionButton
           icon={Heart}
-          label={liked ? 'Liké' : 'J’aime'}
+          label={likedBySheet[sheet.id] ? 'Liké' : 'J’aime'}
           onClick={toggleLike}
-          active={liked}
+          active={!!likedBySheet[sheet.id]}
         />
       </footer>
 

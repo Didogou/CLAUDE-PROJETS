@@ -15,6 +15,7 @@ import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
 import { FavoriteButton } from '@/components/favorites/FavoriteButton';
 import { SheetLightbox } from './SheetLightbox';
+import { PortionsStepper } from './PortionsStepper';
 
 type Props = {
   sheets: RecipeSheet[];
@@ -52,39 +53,58 @@ export function SheetCarousel({
   likesCountInitial = 0,
 }: Props) {
   const [active, setActive] = useState(0);
-  const [liked, setLiked] = useState(false);
-  const [likes, setLikes] = useState(likesCountInitial);
+  /** Likes PAR sheet (pas par recette mère) : la fiche n°1 et la fiche
+   *  n°2 sont 2 recettes différentes, chacune avec son propre like. */
+  const [likedBySheet, setLikedBySheet] = useState<Record<string, boolean>>({});
+  const [likesBySheet, setLikesBySheet] = useState<Record<string, number>>({});
   const [zoomOpen, setZoomOpen] = useState(false);
+  /** Nb de personnes choisi par l'utilisatrice — par défaut le servings
+   *  de la sheet active. Override le ratio standard au moment d'ajouter
+   *  à la liste. */
+  const [customPortions, setCustomPortions] = useState(sheets[0]?.servings ?? 4);
 
-  // Sync inter-instance du like recette : si la lightbox toggle, on suit.
+  // Sync portions quand on change de fiche (chaque sheet a son servings).
+  useEffect(() => {
+    if (sheets[active]) setCustomPortions(sheets[active].servings);
+  }, [active, sheets]);
+
+  // Sync inter-instance du like par sheet : si la lightbox toggle la
+  // fiche X, on met à jour notre state UNIQUEMENT pour la fiche X.
   useEffect(() => {
     const onSync = (e: Event) => {
-      const detail = (e as CustomEvent<{ liked: boolean }>).detail;
-      if (!detail || typeof detail.liked !== 'boolean') return;
-      setLiked((prev) => {
-        if (prev === detail.liked) return prev;
-        setLikes((c) => Math.max(0, c + (detail.liked ? 1 : -1)));
-        return detail.liked;
+      const detail = (e as CustomEvent<{ sheetId: string; liked: boolean }>).detail;
+      if (!detail || typeof detail.sheetId !== 'string' || typeof detail.liked !== 'boolean') return;
+      setLikedBySheet((prev) => {
+        if (prev[detail.sheetId] === detail.liked) return prev;
+        setLikesBySheet((c) => ({
+          ...c,
+          [detail.sheetId]: Math.max(0, (c[detail.sheetId] ?? 0) + (detail.liked ? 1 : -1)),
+        }));
+        return { ...prev, [detail.sheetId]: detail.liked };
       });
     };
-    window.addEventListener('recipe-like-toggled', onSync);
-    return () => window.removeEventListener('recipe-like-toggled', onSync);
+    window.addEventListener('sheet-like-toggled', onSync);
+    return () => window.removeEventListener('sheet-like-toggled', onSync);
   }, []);
 
   if (sheets.length === 0) return null;
   const sheet = sheets[active];
   const total = sheets.length;
+  const liked = !!likedBySheet[sheet.id];
+  const likes = likesBySheet[sheet.id] ?? 0;
 
   function toggleLike() {
-    setLiked((prev) => {
-      const next = !prev;
-      setLikes((c) => Math.max(0, c + (next ? 1 : -1)));
-      // Dispatch pour que la lightbox suive.
-      window.dispatchEvent(
-        new CustomEvent('recipe-like-toggled', { detail: { liked: next } }),
-      );
-      return next;
-    });
+    const next = !liked;
+    setLikedBySheet((prev) => ({ ...prev, [sheet.id]: next }));
+    setLikesBySheet((prev) => ({
+      ...prev,
+      [sheet.id]: Math.max(0, (prev[sheet.id] ?? 0) + (next ? 1 : -1)),
+    }));
+    window.dispatchEvent(
+      new CustomEvent('sheet-like-toggled', {
+        detail: { sheetId: sheet.id, liked: next },
+      }),
+    );
   }
 
   async function handleShare() {
@@ -201,9 +221,14 @@ export function SheetCarousel({
         </h2>
       )}
 
-      {/* Stats rapides */}
+      {/* Stats rapides. Pers est éditable (stepper +/-) — au toggle
+          "Ajouter à ma liste", on multiplie les ingrédients pour atteindre
+          ce nombre. */}
       <div className="mx-auto grid max-w-2xl grid-cols-4 gap-2">
-        <Stat icon={Users} label="Pers" value={sheet.servings} />
+        <PortionsStepper
+          value={customPortions}
+          onChange={setCustomPortions}
+        />
         <Stat icon={Flame} label="kcal" value={sheet.calories} suffix="/pers" />
         <Stat icon={Clock} label="Prep" value={sheet.prepTimeMin} suffix="min" />
         <Stat icon={Clock} label="Cuis" value={sheet.cookTimeMin} suffix="min" />
@@ -216,6 +241,7 @@ export function SheetCarousel({
             <AddSheetToListButton
               sheetId={sheet.id}
               hasIngredients={sheet.ingredients.length > 0}
+              portionsOverride={customPortions}
             />
           </div>
         )}

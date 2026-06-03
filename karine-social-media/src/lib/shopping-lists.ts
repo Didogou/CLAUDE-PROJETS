@@ -74,6 +74,10 @@ export async function toggleSheetOnActiveList(
     ingredients: RecipeIngredient[];
   },
   householdSize: number,
+  /** Si l'utilisatrice a modifié le nb de portions sur la fiche AVANT
+   *  d'ajouter à sa liste, on utilise CE nombre comme cible. Sinon
+   *  on retombe sur householdSize (taille du foyer). */
+  portionsOverride?: number,
 ): Promise<ShoppingListV2> {
   const list = await getOrCreateActiveList(userId);
   const isLinked = list.linkedRecipes.some((r) => r.sheetId === sheet.sheetId);
@@ -86,7 +90,13 @@ export async function toggleSheetOnActiveList(
     );
     nextLinkedRecipes = list.linkedRecipes.filter((r) => r.sheetId !== sheet.sheetId);
   } else {
-    const ratio = householdSize / Math.max(1, sheet.servings);
+    const targetPortions =
+      typeof portionsOverride === 'number' &&
+      Number.isFinite(portionsOverride) &&
+      portionsOverride > 0
+        ? portionsOverride
+        : householdSize;
+    const ratio = targetPortions / Math.max(1, sheet.servings);
     const source: ShoppingItemSource = {
       type: 'sheet',
       sheetId: sheet.sheetId,
