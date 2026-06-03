@@ -4,6 +4,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import NextTopLoader from 'nextjs-toploader';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { DebugConsole } from '@/components/debug/DebugConsole';
+import { SubscriberFloatingTools } from '@/components/nutrition/SubscriberFloatingTools';
 import './globals.css';
 
 const nunito = Nunito({
@@ -46,6 +47,7 @@ export default function RootLayout({
         <ServiceWorkerRegister />
         <DebugConsole />
         {children}
+        <SubscriberFloatingTools />
         <SpeedInsights />
       </body>
     </html>

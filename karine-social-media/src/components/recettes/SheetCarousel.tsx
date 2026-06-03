@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
+import { AddCaloriesButton } from '@/components/nutrition/AddCaloriesButton';
 import { FavoriteButton } from '@/components/favorites/FavoriteButton';
 import { SheetLightbox } from './SheetLightbox';
 import { PortionsStepper } from './PortionsStepper';
@@ -304,6 +305,14 @@ export function SheetCarousel({
             sheetId={sheet.id}
             hasIngredients={sheet.ingredients.length > 0}
             portionsOverride={customPortions}
+          />
+        )}
+        {isAuthenticated && (
+          <AddCaloriesButton
+            source="recipe"
+            sourceRefId={sheet.id}
+            label={sheet.title || recipeTitle || 'Recette'}
+            kcal={sheet.calories}
           />
         )}
         <ActionIconButton icon={Share2} label="Partager" onClick={handleShare} />

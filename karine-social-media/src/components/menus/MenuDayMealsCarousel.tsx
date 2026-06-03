@@ -16,6 +16,7 @@ import {
 import { createPortal } from 'react-dom';
 import type { MenuMealSheet } from '@/data/menus';
 import { DAYS_LABELS, formatWeekTitle } from '@/data/menus';
+import { AddCaloriesButton } from '@/components/nutrition/AddCaloriesButton';
 
 type Props = {
   menuId: string;
@@ -241,10 +242,19 @@ function MealCard({
           {label}
         </span>
         {isAuthenticated && (
-          <AddMealSheetButton
-            sheetId={sheet.id}
-            hasIngredients={sheet.ingredients.length > 0}
-          />
+          <div className="flex items-center gap-1.5">
+            <AddCaloriesButton
+              source="menu"
+              sourceRefId={sheet.id}
+              label={sheet.title || `${label} (menu)`}
+              kcal={sheet.calories}
+              compact
+            />
+            <AddMealSheetButton
+              sheetId={sheet.id}
+              hasIngredients={sheet.ingredients.length > 0}
+            />
+          </div>
         )}
       </header>
 
