@@ -23,7 +23,10 @@ export const maxDuration = 30;
  */
 
 type MistralItem = {
+  /** @deprecated v1, garde la rétrocompat */
   search_query?: string;
+  /** v2 : plusieurs variantes essayées en cascade. */
+  search_queries?: string[];
   portions?: number;
   approx_grams?: number;
 };
@@ -60,33 +63,41 @@ const SYSTEM_PROMPT = `Tu es un assistant nutritionnel français. L'utilisatrice
 SORTIE OBLIGATOIRE (JSON pur sans markdown) :
 {
   "items": [
-    { "search_query": "yaourt nature", "portions": 1, "approx_grams": 125 }
+    { "search_queries": ["yaourt nature", "yaourt"], "portions": 1, "approx_grams": 125 }
   ]
 }
 
 Règles strictes :
-- search_query : nom à chercher dans la base ANSES Ciqual (qui contient ~3500 aliments ET plats préparés courants).
-- **NE DÉCOMPOSE PAS LES PLATS COMPOSÉS** en mot unique. Ciqual contient les plats préparés français :
-    "aligot" → search_query="aligot" (PAS "pomme de terre, tomme, ail")
-    "ratatouille" → "ratatouille"
-    "paella" → "paella"
-    "choucroute" → "choucroute"
-    "hachis parmentier" → "hachis parmentier"
-    "lasagnes" → "lasagnes"
-    "tartiflette" → "tartiflette"
-    "couscous" → "couscous"
-    "quiche lorraine" → "quiche lorraine"
-    "tiramisu" → "tiramisu"
-- Décompose UNIQUEMENT si l'utilisatrice liste explicitement plusieurs aliments distincts avec "et" / "puis" / "," :
+- search_queries : LISTE de 1 à 4 termes à essayer en cascade dans la base ANSES Ciqual. On essaie la 1ère, si zéro résultat on passe à la 2ème, etc. Mets toujours en 1er le terme le plus précis, puis dégrade vers du plus générique.
+
+Exemples :
+  "j'ai mangé une côte de bœuf crue"
+    → ["côte de bœuf cru", "faux-filet bœuf", "entrecôte bœuf", "bœuf cru"]
+  "j'ai mangé du saumon fumé"
+    → ["saumon fumé", "saumon"]
+  "j'ai mangé de l'aligot"
+    → ["aligot"]
+  "j'ai mangé une pomme"
+    → ["pomme crue", "pomme"]
+  "j'ai mangé des lasagnes"
+    → ["lasagnes", "lasagne bolognaise"]
+
+- **NE DÉCOMPOSE PAS LES PLATS COMPOSÉS** en mot unique. Ciqual contient les plats préparés français (aligot, ratatouille, paella, choucroute, hachis parmentier, lasagnes, tartiflette, couscous, quiche lorraine, tiramisu…). Mets le plat tel quel comme 1ère search_query.
+
+- Décompose en plusieurs items UNIQUEMENT si l'utilisatrice liste explicitement plusieurs aliments distincts avec "et" / "puis" / "," :
     "une pomme et un yaourt" = 2 items
     "des pâtes et une salade" = 2 items
-- Préfère le nom courant ("pomme" pas "pomme golden bio").
-- portions : nombre de portions standard mentionné (1 yaourt = 1, 2 pommes = 2, "demi sandwich" = 0.5).
+
+- Pour les viandes, fournis toujours 2-3 variantes (la coupe précise + un nom de coupe Ciqual + le nom de l'animal). Ciqual liste les coupes officielles (faux-filet, entrecôte, paleron, jarret, rumsteck…), pas les appellations bouchères ("côte de bœuf").
+
+- Pour les poissons, fournis 1-2 variantes (poisson + préparation).
+
+- portions : nombre mentionné (1 yaourt=1, 2 pommes=2, "demi"=0.5).
 - approx_grams : masse en grammes pour UNE portion :
-    pomme≈150, yaourt≈125, tranche pain≈30, sandwich≈200, bol pâtes/riz cuites≈250, assiette plat principal≈300, plat composé (aligot, lasagnes, paella…)≈250.
+    pomme≈150, yaourt≈125, tranche pain≈30, sandwich≈200, bol pâtes/riz cuites≈250, assiette plat principal≈300, plat composé≈250, viande crue/cuite≈150, poisson≈130.
 - Si masse précise donnée ("500g de pâtes") : portions=1, approx_grams=500.
-- En cas de doute sur un nom unique : RENVOIE-LE TEL QUEL en search_query — Ciqual fera le match ou pas.
-- Si vraiment vague ("un repas", "des trucs", "pas grand chose") : IGNORE l'item.
+
+- Si vraiment vague ("un repas", "des trucs") : IGNORE.
 - Maximum 10 items. JSON valide obligatoire (items vide si rien d'identifiable).`;
 
 export async function POST(request: NextRequest) {
@@ -129,9 +140,18 @@ export async function POST(request: NextRequest) {
 
   const out: ParsedItem[] = [];
   for (const it of items) {
-    const query =
-      typeof it.search_query === 'string' ? it.search_query.trim() : '';
-    if (!query) continue;
+    // Build cascade : V2 search_queries[] sinon fallback V1 search_query.
+    const cascade: string[] = [];
+    if (Array.isArray(it.search_queries)) {
+      for (const q of it.search_queries) {
+        if (typeof q === 'string' && q.trim()) cascade.push(q.trim());
+      }
+    } else if (typeof it.search_query === 'string') {
+      const q = it.search_query.trim();
+      if (q) cascade.push(q);
+    }
+    if (cascade.length === 0) continue;
+
     const portions =
       typeof it.portions === 'number' && Number.isFinite(it.portions) && it.portions > 0
         ? it.portions
@@ -143,22 +163,32 @@ export async function POST(request: NextRequest) {
         ? it.approx_grams
         : 100;
 
-    // Étape 2a : large pool de candidats Ciqual
-    const candidates = await searchCiqualFoods(query, 15);
+    // Étape 2a : essayer chaque variante jusqu'à trouver des candidats
+    let candidates: Awaited<ReturnType<typeof searchCiqualFoods>> = [];
+    let usedQuery = cascade[0];
+    for (const variant of cascade) {
+      const found = await searchCiqualFoods(variant, 15);
+      if (found.length > 0) {
+        candidates = found;
+        usedQuery = variant;
+        break;
+      }
+    }
+
     type Picked = (typeof candidates)[number] | null;
     let picked: Picked = candidates[0] ?? null;
 
     // Étape 2d : si plusieurs candidats et pas de match évident, on
     // demande à Mistral de choisir avec le contexte de la phrase.
-    if (candidates.length > 1 && !isObviousMatch(query, candidates[0].name)) {
-      const better = await pickBestCandidate(text, query, candidates);
+    if (candidates.length > 1 && !isObviousMatch(usedQuery, candidates[0].name)) {
+      const better = await pickBestCandidate(text, usedQuery, candidates);
       if (better) {
         picked = better;
       } else {
-        // Mistral dit "aucun pertinent" → on traite comme free entry.
         picked = null;
       }
     }
+    const query = usedQuery;
 
     const factor = grams / 100;
     const kcalPerPortion =

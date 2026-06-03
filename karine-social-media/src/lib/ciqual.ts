@@ -53,30 +53,33 @@ export type CiqualSearchResult = {
 };
 
 /**
- * Recherche par nom (compteur calories — résolution "j'ai mangé un
- * yaourt").
+ * Recherche par nom (compteur calories).
  *
- * 3 niveaux de tolérance :
- *  1) Multi-mots : "pomme frite" → split + ILIKE '%pomme%' AND
- *     ILIKE '%frite%'. Matche "Frites de pommes de terre" sans
- *     dépendre de l'ordre. Mots <= 2 chars ignorés (de/à/la/le).
- *  2) Pluriels : ILIKE est substring-based, donc "frite" matche
- *     "frites" naturellement. Mais "pommes" ne matche pas "pomme"
- *     direct → on STRIP le 's' final côté token avant la requête
- *     (token >= 4 chars).
- *  3) Scoring de pertinence côté JS : on récupère un pool large
- *     puis on trie pour mettre le résultat le plus probable en 1er.
- *
- * Score (plus bas = mieux) :
- *   0 = match exact
- *   1 = name commence par "q," ou "q "
- *   2 = name commence par "q"
- *   3 = mot entier "q" présent (regex \bq\b)
- *   4 = tous tokens présents en sous-chaîne (fallback multi-mots)
- *   5 = sous-chaîne simple (mono-mot fallback)
- *
- * Tie-break : longueur du name (court = générique), alphabétique FR.
+ * Pipeline V3 :
+ *  1) Tokenisation : split + drop mots <= 2 chars (de/à/la) + strip
+ *     's' final pour les mots >= 5 (pommes → pomme).
+ *  2) Appel RPC `search_ciqual_foods` côté Postgres :
+ *     - normalise tokens via unaccent + lower
+ *     - matche chaque token (AND) dans name OR group_name OR
+ *       subgroup_name
+ *     - retourne un pool large (60).
+ *     → résout "boeuf" qui matche "Bœuf" et "cote" qui matche "côte".
+ *     → résout "boeuf cru" qui matche via subgroup "viandes de bœuf"
+ *       même si "cru" n'est pas exactement dans le name.
+ *  3) Scoring de pertinence côté JS (avec normalisation accents) :
+ *     0 = exact, 1 = "q,"/q ", 2 = startsWith, 3 = mot entier,
+ *     4 = tokens présents (multi), 5 = sous-chaîne (mono).
+ *  4) Tie-break : longueur (court = générique), alphabétique FR.
  */
+function normalize(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/œ/g, 'oe')
+    .replace(/æ/g, 'ae');
+}
+
 export async function searchCiqualFoods(
   query: string,
   limit = 20,
@@ -85,41 +88,43 @@ export async function searchCiqualFoods(
   const q = query.trim();
   if (q.length < 2) return [];
 
-  // Split + nettoyage des tokens.
   const tokens = q
     .toLowerCase()
     .split(/\s+/)
     .filter((t) => t.length > 2)
     .map((t) => (t.length >= 5 && t.endsWith('s') ? t.slice(0, -1) : t));
 
-  // Si rien d'utile après nettoyage, fallback sur la query brute.
   const searchTokens = tokens.length > 0 ? tokens : [q.toLowerCase()];
-
   const POOL = 60;
-  let builder = (supabase as any)
-    .from('ciqual_foods')
-    .select('id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g');
 
-  for (const t of searchTokens) {
-    builder = builder.ilike('name', `%${t}%`);
-  }
-  builder = builder.limit(POOL);
-
-  const { data, error } = await builder;
+  const { data, error } = await (supabase as any).rpc('search_ciqual_foods', {
+    query_tokens: searchTokens,
+    limit_n: POOL,
+  });
   if (error) return [];
-  const rows = (data ?? []) as CiqualSearchResult[];
+  const rows = ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    id: Number(r.id),
+    alim_code: Number(r.alim_code),
+    name: String(r.name),
+    group_name: (r.group_name as string | null) ?? null,
+    kcal_per_100g:
+      r.kcal_per_100g === null ? null : Number(r.kcal_per_100g),
+    proteins_g: r.proteins_g === null ? null : Number(r.proteins_g),
+    lipids_g: r.lipids_g === null ? null : Number(r.lipids_g),
+    carbs_g: r.carbs_g === null ? null : Number(r.carbs_g),
+  })) as CiqualSearchResult[];
 
-  const qLower = q.toLowerCase();
+  const qNorm = normalize(q);
   const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const wordRe = new RegExp(`\\b${escape(qLower)}\\b`, 'i');
+  const wordRe = new RegExp(`\\b${escape(qNorm)}\\b`, 'i');
 
   const score = (name: string): number => {
-    const n = name.toLowerCase();
-    if (n === qLower) return 0;
-    if (n.startsWith(qLower + ',') || n.startsWith(qLower + ' ')) return 1;
-    if (n.startsWith(qLower)) return 2;
-    if (wordRe.test(name)) return 3;
-    if (searchTokens.length > 1) return 4; // tous tokens présents (WHERE le garantit)
+    const n = normalize(name);
+    if (n === qNorm) return 0;
+    if (n.startsWith(qNorm + ',') || n.startsWith(qNorm + ' ')) return 1;
+    if (n.startsWith(qNorm)) return 2;
+    if (wordRe.test(n)) return 3;
+    if (searchTokens.length > 1) return 4;
     return 5;
   };
 
