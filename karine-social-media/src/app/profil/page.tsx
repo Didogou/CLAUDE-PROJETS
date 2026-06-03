@@ -12,6 +12,7 @@ import { getUserSubscription } from '@/lib/subscriptions';
 import { PatientRequestStatusBlock } from '@/components/profil/PatientRequestStatusBlock';
 import { MyPlanCard } from '@/components/profil/MyPlanCard';
 import { AvatarUploader } from '@/components/profil/AvatarUploader';
+import { HouseholdSizeCard } from '@/components/profil/HouseholdSizeCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,7 +35,7 @@ export default async function ProfilPage() {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const { data } = await (supabase as any)
               .from('profiles')
-              .select('role, patient_access_expires_at, avatar_url, full_name')
+              .select('role, patient_access_expires_at, avatar_url, full_name, household_size')
               .eq('id', user.id)
               .maybeSingle();
             return data as {
@@ -42,6 +43,7 @@ export default async function ProfilPage() {
               patient_access_expires_at?: string | null;
               avatar_url?: string | null;
               full_name?: string | null;
+              household_size?: number | null;
             } | null;
           })()
         : Promise.resolve(null),
@@ -90,6 +92,8 @@ export default async function ProfilPage() {
                 </button>
               </form>
             </div>
+
+            <HouseholdSizeCard initialSize={profileExtra?.household_size ?? 4} />
 
             <MyPlanCard
               role={profileExtra?.role ?? 'visitor'}

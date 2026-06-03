@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Bell, HeartHandshake, Sparkles } from 'lucide-react';
+import { Bell, HeartHandshake, Sparkles, User } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { MainDrawer } from './MainDrawer';
 import { IdeasFloatingButton } from '@/components/ideas/IdeasFloatingButton';
@@ -42,22 +42,33 @@ export async function AppHeader({
         )}
 
         {user.isAuthenticated ? (
-          <Link
-            href="/notifications"
-            aria-label={
-              unreadCount > 0
-                ? `Notifications (${unreadCount} non lues)`
-                : 'Notifications'
-            }
-            className="relative grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink backdrop-blur transition hover:bg-white/80"
-          >
-            <Bell className="h-6 w-6" strokeWidth={2} />
-            {unreadCount > 0 && (
-              <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-coral px-1 text-[0.6rem] font-bold text-white ring-2 ring-white/80">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
-          </Link>
+          <>
+            <Link
+              href="/notifications"
+              aria-label={
+                unreadCount > 0
+                  ? `Notifications (${unreadCount} non lues)`
+                  : 'Notifications'
+              }
+              className="relative grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink backdrop-blur transition hover:bg-white/80"
+            >
+              <Bell className="h-6 w-6" strokeWidth={2} />
+              {unreadCount > 0 && (
+                <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-coral px-1 text-[0.6rem] font-bold text-white ring-2 ring-white/80">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Link>
+            {/* Profil — déplacé depuis BottomNav (qui héberge maintenant
+                Courses à la place de Profil). */}
+            <Link
+              href="/profil"
+              aria-label="Mon profil"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink backdrop-blur transition hover:bg-white/80"
+            >
+              <User className="h-5 w-5" strokeWidth={2} />
+            </Link>
+          </>
         ) : (
           <Link
             href="/login"

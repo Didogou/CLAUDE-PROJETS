@@ -2,17 +2,25 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Heart, Home, User, UtensilsCrossed, type LucideIcon } from 'lucide-react';
+import {
+  CalendarDays,
+  Heart,
+  Home,
+  ShoppingCart,
+  UtensilsCrossed,
+  type LucideIcon,
+} from 'lucide-react';
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
-// V1 espace user : 4 items confortables sur mobile.
-// Conseils, Mes menus et Astuces restent accessibles via tuiles home + burger.
+// 5 items : Accueil / Courses / Recettes / Menu / Favoris.
+// Profil et notifications sont accessibles en haut à droite via AppHeader.
 const ITEMS: NavItem[] = [
   { href: '/', label: 'Accueil', icon: Home },
+  { href: '/courses', label: 'Courses', icon: ShoppingCart },
   { href: '/recettes', label: 'Recettes', icon: UtensilsCrossed },
+  { href: '/menus', label: 'Menu', icon: CalendarDays },
   { href: '/favoris', label: 'Favoris', icon: Heart },
-  { href: '/profil', label: 'Profil', icon: User },
 ];
 
 export function BottomNav() {
