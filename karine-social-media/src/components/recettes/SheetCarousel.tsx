@@ -10,7 +10,6 @@ import {
   Printer,
   Share2,
   Users,
-  ZoomIn,
 } from 'lucide-react';
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
@@ -147,15 +146,6 @@ export function SheetCarousel({
               alt={sheet.title ?? ''}
               className="aspect-square w-full rounded-2xl object-cover shadow-md transition group-hover:brightness-95"
             />
-            {/* Overlay loupe au hover — signale clairement le clic */}
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-2xl opacity-0 transition group-hover:opacity-100"
-            >
-              <span className="grid h-14 w-14 place-items-center rounded-full bg-white/90 shadow-lg ring-2 ring-white/50">
-                <ZoomIn className="h-6 w-6 text-coral" strokeWidth={2.2} />
-              </span>
-            </span>
           </button>
 
           {total > 1 ? (

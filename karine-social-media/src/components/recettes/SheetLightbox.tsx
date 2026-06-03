@@ -102,16 +102,18 @@ export function SheetLightbox({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm print:bg-white print:backdrop-blur-none ${
+      className={`sheet-lightbox fixed inset-0 z-[100] bg-black/85 backdrop-blur-sm print:bg-white print:backdrop-blur-none ${
         phase === 'exit' ? 'ie-lightbox-out' : 'ie-lightbox-in'
       }`}
       role="dialog"
       aria-modal="true"
       aria-label={sheet.title ?? 'Fiche recette agrandie'}
     >
-      {/* Header : titre fiche + compteur + bouton fermer */}
+      {/* Header : titre fiche + compteur + bouton fermer.
+          Titre autorisé à passer sur 2 lignes en mobile pour ne pas être
+          tronqué (UX demandée 2026-06-03). */}
       <header className="absolute inset-x-0 top-0 z-20 flex items-start gap-3 bg-gradient-to-b from-black/55 to-transparent px-4 py-3 sm:px-6 sm:py-4 print:hidden">
-        <p className="flex-1 truncate font-script text-2xl text-white sm:text-3xl">
+        <p className="line-clamp-2 flex-1 font-script text-xl leading-tight text-white sm:text-3xl">
           {sheet.title ?? recipeTitle}
         </p>
         {multi && (
@@ -210,6 +212,40 @@ export function SheetLightbox({
           {shareToast}
         </div>
       )}
+
+      {/* CSS print : 1 seule page A4 portrait avec image en haut et
+          panneau ingrédients en bas. Tout le reste de la page (header
+          appli, BottomNav, etc.) est masqué. */}
+      <style>{`
+        @media print {
+          @page { size: A4 portrait; margin: 1cm; }
+          html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+          body > *:not(:has(.sheet-lightbox)) { display: none !important; }
+          .sheet-lightbox { position: static !important; background: #fff !important; }
+          .sheet-lightbox > div[class*="lightbox-content"] {
+            position: static !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 0.5cm !important;
+            padding: 0 !important;
+          }
+          .sheet-lightbox img {
+            max-width: 100% !important;
+            max-height: 15cm !important;
+            object-fit: contain !important;
+            margin: 0 auto !important;
+            display: block !important;
+            box-shadow: none !important;
+          }
+          .sheet-lightbox aside {
+            background: #fff !important;
+            box-shadow: none !important;
+            max-height: none !important;
+            overflow: visible !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `}</style>
     </div>,
     document.body,
   );
@@ -270,7 +306,7 @@ function ActionButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex flex-col items-center gap-1 rounded-full px-3 py-2 text-white shadow-lg ring-2 ring-white/30 transition hover:scale-105 ${
+      className={`flex items-center gap-1 rounded-full p-3 text-white shadow-lg ring-2 ring-white/30 transition hover:scale-105 sm:flex-col sm:gap-1 sm:px-3 sm:py-2 ${
         active ? 'bg-coral' : 'bg-white/20 backdrop-blur-sm hover:bg-white/30'
       }`}
     >
@@ -278,7 +314,9 @@ function ActionButton({
         className={`h-5 w-5 ${active ? 'fill-current' : ''}`}
         strokeWidth={2.2}
       />
-      <span className="text-[0.65rem] font-semibold uppercase tracking-wider">
+      {/* Texte caché mobile (gain de place, les icones sont auto-explicatives
+          maintenant que les utilisatrices les connaissent). */}
+      <span className="hidden text-[0.65rem] font-semibold uppercase tracking-wider sm:inline">
         {label}
       </span>
     </button>
