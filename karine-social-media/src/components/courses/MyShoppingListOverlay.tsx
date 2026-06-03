@@ -133,6 +133,46 @@ export function MyShoppingListOverlay({ onClose }: Props) {
       setError(e instanceof Error ? e.message : 'Erreur');
     }
   }
+  /**
+   * Impression "user friendly" : ouvre une nouvelle fenêtre avec un
+   * HTML minimaliste (juste qty + label par catégorie). Pagination
+   * native du navigateur — pas de gestion CSS print de l'app.
+   * Pattern déjà éprouvé sur SheetLightbox.
+   */
+  function handlePrint() {
+    if (!list) return;
+    const w = window.open('', '_blank', 'width=900,height=1200');
+    if (!w) return;
+    const title = list.name.replace(/[<>]/g, '');
+    const sectionsHtml = renderListHtml(list);
+    w.document.write(`<!DOCTYPE html>
+<html lang="fr"><head>
+<meta charset="utf-8" />
+<title>${title}</title>
+<style>
+  @page { size: A4 portrait; margin: 1.2cm; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1f2937; margin: 0; padding: 0; font-size: 11pt; }
+  h1 { font-size: 1.4rem; text-align: center; margin: 0 0 0.5cm; color: #b91c1c; font-weight: 600; }
+  .meta { text-align: center; font-size: 0.75rem; color: #9ca3af; margin-bottom: 0.6cm; }
+  h2 { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #b91c1c; margin: 0.5cm 0 0.15cm; border-bottom: 1px solid #fde68a; padding-bottom: 0.1cm; }
+  ul { margin: 0; padding: 0; list-style: none; }
+  li { display: flex; align-items: baseline; gap: 0.4cm; padding: 0.12cm 0; border-bottom: 1px dashed #f3f4f6; page-break-inside: avoid; }
+  .qty { min-width: 1.5cm; font-weight: 600; color: #1f2937; }
+  .qty.empty { color: transparent; }
+  .label { flex: 1; }
+  .note { display: block; font-style: italic; color: #6b7280; font-size: 0.7rem; }
+  section { page-break-inside: avoid; }
+</style>
+</head><body>
+  <h1>🛒 ${title}</h1>
+  <p class="meta">Imprimé le ${new Date().toLocaleDateString('fr-FR')}</p>
+  ${sectionsHtml}
+</body></html>`);
+    w.document.close();
+    w.focus();
+    setTimeout(() => w.print(), 100);
+  }
+
   async function clearAll() {
     setClearing(true);
     try {
@@ -339,7 +379,7 @@ export function MyShoppingListOverlay({ onClose }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => window.print()}
+              onClick={handlePrint}
               disabled={!list || list.items.length === 0}
               aria-label="Imprimer"
               className="grid h-9 w-9 place-items-center rounded-full bg-white text-coral shadow-sm transition hover:scale-110 disabled:opacity-40"
@@ -399,67 +439,10 @@ export function MyShoppingListOverlay({ onClose }: Props) {
         )}
       </div>
 
-      {/* CSS print multi-page :
-          - On masque le body entier puis on rend SEULE la liste de
-            courses au flow normal (position: static), ce qui permet
-            au moteur d impression de paginer naturellement.
-          - position:absolute etait le bug precedent : le contenu
-            n avait pas de hauteur de flow donc pas de page 2. */}
-      <style>{`
-        @media print {
-          @page { margin: 1.2cm; }
-          html, body {
-            background: #fff !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            height: auto !important;
-            overflow: visible !important;
-          }
-          /* Cache tous les enfants directs du body (overlay backdrop
-             inclus), puis on re-affiche UNIQUEMENT la liste. */
-          body > * {
-            display: none !important;
-          }
-          body > div:has(.my-shopping-list),
-          .my-shopping-list,
-          .my-shopping-list * {
-            display: block !important;
-            visibility: visible !important;
-          }
-          /* La liste : position static, flow normal, sans contraintes
-             qui empechent le multi-page. */
-          .my-shopping-list {
-            position: static !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            max-height: none !important;
-            height: auto !important;
-            overflow: visible !important;
-            background: #fff !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
-          }
-          .my-shopping-list > div,
-          .my-shopping-list > div > div {
-            overflow: visible !important;
-            max-height: none !important;
-            height: auto !important;
-            display: block !important;
-          }
-          .my-shopping-list ul,
-          .my-shopping-list li {
-            page-break-inside: avoid !important;
-          }
-          .my-shopping-list input {
-            border: 0 !important;
-            background: transparent !important;
-            -webkit-appearance: none !important;
-            -moz-appearance: textfield !important;
-            padding: 0 !important;
-            display: inline !important;
-          }
-        }
-      `}</style>
+      {/* Plus de CSS @media print : on a abandonne l approche surcharger
+          le DOM existant (trop fragile avec portal + flex + overflow).
+          On utilise handlePrint qui ouvre une nouvelle fenetre HTML
+          minimaliste -> pagination native parfaite, vue propre. */}
     </div>,
     document.body,
   );
@@ -701,6 +684,58 @@ function AddIngredientForm({
       </div>
     </div>
   );
+}
+
+/**
+ * Génère le HTML d'impression de la liste : 1 section par catégorie,
+ * chaque ligne = quantité (+ unité) + label. Rien d'autre (pas de
+ * poubelle, pas de checkbox, pas de bouton).
+ */
+function renderListHtml(list: ShoppingListV2): string {
+  const map = new Map<string, ShoppingListV2Item[]>();
+  for (const it of list.items) {
+    if (!map.has(it.category)) map.set(it.category, []);
+    map.get(it.category)!.push(it);
+  }
+  if (map.size === 0) {
+    return '<p style="text-align:center;font-style:italic;color:#9ca3af;">Liste vide</p>';
+  }
+  const parts: string[] = [];
+  for (const [cat, items] of map) {
+    parts.push(`<section><h2>${escapeHtml(cat)}</h2><ul>`);
+    for (const it of items) {
+      const qty = it.totalQuantity;
+      const qtyStr =
+        qty == null
+          ? '<span class="qty empty">—</span>'
+          : `<span class="qty">${formatQty(qty)}${
+              it.unit ? ` ${escapeHtml(it.unit)}` : ''
+            }</span>`;
+      const noteHtml = it.note
+        ? `<span class="note">${escapeHtml(it.note)}</span>`
+        : '';
+      parts.push(
+        `<li>${qtyStr}<span class="label">${escapeHtml(
+          it.label,
+        )}${noteHtml}</span></li>`,
+      );
+    }
+    parts.push('</ul></section>');
+  }
+  return parts.join('');
+}
+
+function formatQty(n: number): string {
+  if (n < 10) return String(Math.round(n * 2) / 2);
+  return String(Math.round(n));
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function formatItem(it: ShoppingListV2Item): string {
