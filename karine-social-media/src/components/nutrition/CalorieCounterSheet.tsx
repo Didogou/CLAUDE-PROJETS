@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp } from 'lucide-react';
 import { NutritionProfileForm } from './NutritionProfileForm';
-import { MacroStem } from './MacroStem';
+import { MacroRing } from './MacroRing';
 
 type FoodLogEntry = {
   id: string;
@@ -238,7 +238,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 
         {/* Objectif vs consommé */}
         <section className="border-b border-coral-soft/20 bg-cream/40 px-4 py-3">
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-center justify-between gap-2">
             <div>
               <p className="text-3xl font-bold text-coral">
                 {Math.round(totals)}
@@ -250,6 +250,25 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                   : `Reste ${Math.round(remaining)} kcal`}
               </p>
             </div>
+
+            {/* 3 anneaux macros à droite du compteur kcal */}
+            <div className="flex items-center gap-1.5">
+              <MacroRing
+                kind="protein"
+                current={day?.totals.proteinsG ?? 0}
+                target={day?.target.dailyProteinsG ?? null}
+              />
+              <MacroRing
+                kind="carbs"
+                current={day?.totals.carbsG ?? 0}
+                target={day?.target.dailyCarbsG ?? null}
+              />
+              <MacroRing
+                kind="lipid"
+                current={day?.totals.lipidsG ?? 0}
+                target={day?.target.dailyLipidsG ?? null}
+              />
+            </div>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-coral-soft/30">
             <div
@@ -257,25 +276,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 overshoot > 0 ? 'bg-rose-500' : 'bg-coral'
               }`}
               style={{ width: `${percent}%` }}
-            />
-          </div>
-
-          {/* Jardin macros : 3 tiges/fleurs (Protéines, Glucides, Lipides) */}
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <MacroStem
-              kind="protein"
-              current={day?.totals.proteinsG ?? 0}
-              target={day?.target.dailyProteinsG ?? null}
-            />
-            <MacroStem
-              kind="carbs"
-              current={day?.totals.carbsG ?? 0}
-              target={day?.target.dailyCarbsG ?? null}
-            />
-            <MacroStem
-              kind="lipid"
-              current={day?.totals.lipidsG ?? 0}
-              target={day?.target.dailyLipidsG ?? null}
             />
           </div>
 
