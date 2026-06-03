@@ -74,15 +74,28 @@ export default async function RecipeDetailPage({
       />
 
       {/* Carrousel des fiches détaillées + aside commentaires en colonne
-          GAUCHE sur PC. Le bloc fiche est centré au milieu du viewport
-          via un grid 3 colonnes équilibré [20rem | 1fr | 20rem] où la
-          3e colonne est un spacer vide : la fiche occupe la colonne
-          centrale et reste centrée par rapport à la largeur totale.
-          Mobile : SheetCarousel centre, les commentaires sont rendus
-                   en bas par RecipeDetailView ci-dessous (flux normal). */}
+          DROITE sur PC. Grid 3 cols équilibré [20rem | 1fr | 20rem] :
+          - Colonne gauche : spacer vide (symétrie pour centrer la fiche)
+          - Colonne centre : SheetCarousel (vraiment centré viewport)
+          - Colonne droite : aside commentaires (sticky)
+          Mobile : SheetCarousel centre, commentaires rendus en bas
+                   par RecipeDetailView ci-dessous (flux normal). */}
       {recipe.sheets.length > 0 && (
         <div className="mx-auto mb-8 w-full max-w-3xl px-4 print:hidden lg:mb-12 lg:max-w-7xl lg:grid lg:grid-cols-[20rem_minmax(0,1fr)_20rem] lg:gap-6 lg:px-6">
-          {/* Aside commentaires PC uniquement (colonne gauche) */}
+          {/* Spacer gauche vide (symétrie visuelle pour centrer la fiche) */}
+          <div aria-hidden className="hidden lg:block" />
+
+          <SheetCarousel
+            sheets={recipe.sheets}
+            isAuthenticated={user.isAuthenticated}
+            recipeId={recipe.id}
+            recipeTitle={recipe.title}
+            favoritedInitial={favorited}
+            likesCountInitial={recipe.likesCount}
+            initialLikedSheetIds={[...likedSheetIds]}
+          />
+
+          {/* Aside commentaires PC uniquement (colonne droite) */}
           <div className="hidden lg:block">
             <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
               <RecipeDetailView
@@ -109,20 +122,6 @@ export default async function RecipeDetailPage({
               />
             </div>
           </div>
-
-          <SheetCarousel
-            sheets={recipe.sheets}
-            isAuthenticated={user.isAuthenticated}
-            recipeId={recipe.id}
-            recipeTitle={recipe.title}
-            favoritedInitial={favorited}
-            likesCountInitial={recipe.likesCount}
-            initialLikedSheetIds={[...likedSheetIds]}
-          />
-
-          {/* Spacer droite (vide) pour garder la fiche centrée
-              dans le viewport — symétrique à l'aside commentaires gauche. */}
-          <div aria-hidden className="hidden lg:block" />
         </div>
       )}
 
