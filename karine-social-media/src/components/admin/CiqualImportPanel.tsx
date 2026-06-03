@@ -11,6 +11,8 @@ type ImportResult = {
   skippedRows: number;
   errors: string[];
   detectedColumns: Record<string, string>;
+  sheetUsed: string | null;
+  allSheets: string[];
 };
 
 type Props = { initialStats: CiqualStats };
@@ -41,13 +43,15 @@ export function CiqualImportPanel({ initialStats }: Props) {
       const json = await res.json();
       if (!res.ok) {
         setError(json?.error || `Erreur ${res.status}`);
-        if (json?.detectedColumns) {
+        if (json?.detectedColumns || json?.allSheets) {
           setResult({
             totalRows: 0,
             importedRows: 0,
             skippedRows: 0,
             errors: [json.error || ''],
-            detectedColumns: json.detectedColumns,
+            detectedColumns: json.detectedColumns ?? {},
+            sheetUsed: json.sheetUsed ?? null,
+            allSheets: json.allSheets ?? [],
           });
         }
       } else {
@@ -190,6 +194,22 @@ export function CiqualImportPanel({ initialStats }: Props) {
               </p>
             </div>
           </div>
+
+          {(result.sheetUsed || result.allSheets.length > 0) && (
+            <div className="rounded-lg border border-admin-border bg-white p-3 text-xs">
+              <p>
+                <strong>Onglet utilisé :</strong>{' '}
+                <span className="font-mono text-admin-primary">
+                  {result.sheetUsed ?? '— aucun —'}
+                </span>
+              </p>
+              {result.allSheets.length > 1 && (
+                <p className="mt-1 text-admin-ink-soft">
+                  Onglets disponibles : {result.allSheets.join(', ')}
+                </p>
+              )}
+            </div>
+          )}
 
           <details className="rounded-lg border border-admin-border bg-white p-3 text-xs">
             <summary className="cursor-pointer font-semibold text-admin-primary">

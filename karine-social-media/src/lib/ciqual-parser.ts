@@ -38,6 +38,8 @@ export type CiqualParseResult = {
   skippedRows: number;
   errors: string[];
   detectedColumns: Record<string, string>;
+  sheetUsed: string | null;
+  allSheets: string[];
 };
 
 const COLUMN_HINTS = {
@@ -107,19 +109,87 @@ function parseText(value: unknown): string | null {
   return t.length > 0 ? t : null;
 }
 
+/**
+ * Sélectionne le bon onglet :
+ *  - Priorité 1 : onglet "aliments Ciqual YYYY" → on prend l'année max
+ *    (le fichier ANSES embarque 2020 + 2025 ; on veut 2025).
+ *  - Priorité 2 : n'importe quel onglet qui a alim_code + alim_nom_fr.
+ *  - On exclut explicitement "READ ME", "évolution…" et tout onglet
+ *    qui ne ressemble pas à une table d'aliments.
+ *
+ * Retourne le nom de l'onglet retenu, ou null si aucun ne matche.
+ */
+function findBestSheet(workbook: XLSX.WorkBook): string | null {
+  const sampleRows = (name: string) => {
+    const sheet = workbook.Sheets[name];
+    const sample = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
+      defval: null,
+      raw: true,
+    });
+    return sample;
+  };
+
+  // Priorité 1 : "aliments ... YYYY" avec colonnes valides
+  let bestYear = -1;
+  let bestName: string | null = null;
+  for (const name of workbook.SheetNames) {
+    const norm = normalize(name);
+    if (norm.includes('read me') || norm.includes('evolution')) continue;
+    if (!norm.includes('aliments') && !norm.includes('ciqual')) continue;
+    const rows = sampleRows(name);
+    if (rows.length === 0) continue;
+    const headers = Object.keys(rows[0]);
+    if (
+      !findColumn(headers, COLUMN_HINTS.alim_code) ||
+      !findColumn(headers, COLUMN_HINTS.name)
+    )
+      continue;
+    const m = name.match(/(\d{4})/);
+    const year = m ? parseInt(m[1], 10) : 0;
+    if (year > bestYear) {
+      bestYear = year;
+      bestName = name;
+    }
+  }
+  if (bestName) return bestName;
+
+  // Priorité 2 : scan brut — n'importe quel onglet avec alim_code + nom
+  for (const name of workbook.SheetNames) {
+    const norm = normalize(name);
+    if (norm.includes('read me') || norm.includes('evolution')) continue;
+    const rows = sampleRows(name);
+    if (rows.length === 0) continue;
+    const headers = Object.keys(rows[0]);
+    if (
+      findColumn(headers, COLUMN_HINTS.alim_code) &&
+      findColumn(headers, COLUMN_HINTS.name)
+    ) {
+      return name;
+    }
+  }
+  return null;
+}
+
 export function parseCiqualXlsx(buffer: Buffer): CiqualParseResult {
   const workbook = XLSX.read(buffer, { type: 'buffer' });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) {
+  const allSheets = workbook.SheetNames;
+  const chosenSheet = findBestSheet(workbook);
+
+  if (!chosenSheet) {
     return {
       rows: [],
       totalRows: 0,
       skippedRows: 0,
-      errors: ['Fichier XLSX vide (pas de feuille)'],
+      errors: [
+        `Aucun onglet exploitable trouvé (cherché : "aliments Ciqual YYYY" avec colonnes alim_code + nom). Onglets présents : ${allSheets.join(', ')}`,
+      ],
       detectedColumns: {},
+      sheetUsed: null,
+      allSheets,
     };
   }
-  const sheet = workbook.Sheets[firstSheetName];
+
+  const sheet = workbook.Sheets[chosenSheet];
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, {
     defval: null,
     raw: true,
@@ -130,8 +200,10 @@ export function parseCiqualXlsx(buffer: Buffer): CiqualParseResult {
       rows: [],
       totalRows: 0,
       skippedRows: 0,
-      errors: ['Aucune ligne trouvée dans la feuille'],
+      errors: [`Onglet "${chosenSheet}" vide`],
       detectedColumns: {},
+      sheetUsed: chosenSheet,
+      allSheets,
     };
   }
 
@@ -166,6 +238,8 @@ export function parseCiqualXlsx(buffer: Buffer): CiqualParseResult {
       detectedColumns: Object.fromEntries(
         Object.entries(cols).map(([k, v]) => [k, v ?? '— manquant —']),
       ),
+      sheetUsed: chosenSheet,
+      allSheets,
     };
   }
 
@@ -206,5 +280,7 @@ export function parseCiqualXlsx(buffer: Buffer): CiqualParseResult {
     detectedColumns: Object.fromEntries(
       Object.entries(cols).map(([k, v]) => [k, v ?? '— manquant —']),
     ),
+    sheetUsed: chosenSheet,
+    allSheets,
   };
 }

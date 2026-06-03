@@ -64,6 +64,8 @@ export async function POST(request: NextRequest) {
       {
         error: parsed.errors.join(' ; '),
         detectedColumns: parsed.detectedColumns,
+        sheetUsed: parsed.sheetUsed,
+        allSheets: parsed.allSheets,
       },
       { status: 422 },
     );
@@ -117,6 +119,8 @@ export async function POST(request: NextRequest) {
     skippedRows: parsed.skippedRows,
     errors: batchErrors,
     detectedColumns: parsed.detectedColumns,
+    sheetUsed: parsed.sheetUsed,
+    allSheets: parsed.allSheets,
   });
 }
 
