@@ -307,13 +307,16 @@ export function SheetCarousel({
           />
         )}
         <ActionIconButton icon={Share2} label="Partager" onClick={handleShare} />
-        <ActionIconButton
-          icon={Heart}
-          label={liked ? 'Liké' : 'J\'aime'}
-          onClick={toggleLike}
-          active={liked}
-          badge={likes > 0 ? String(likes) : undefined}
-        />
+        <span className="relative">
+          <HeartBurst bursts={likeBursts} />
+          <ActionIconButton
+            icon={Heart}
+            label={liked ? 'Liké' : 'J\'aime'}
+            onClick={toggleLike}
+            active={liked}
+            badge={likes > 0 ? String(likes) : undefined}
+          />
+        </span>
         <ActionIconButton
           icon={Printer}
           label="Imprimer"

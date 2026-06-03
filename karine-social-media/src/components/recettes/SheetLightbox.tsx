@@ -13,6 +13,7 @@ import {
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { useLightboxAnim } from '@/lib/use-lightbox-anim';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
+import { HeartBurst, useHeartBurst } from '@/components/ui/HeartBurst';
 import { PortionsStepper } from './PortionsStepper';
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
 
@@ -79,10 +80,14 @@ export function SheetLightbox({
     return () => window.removeEventListener(SHEET_LIKE_EVENT, onSync);
   }, []);
 
+  // Explosion de coeurs au like (feedback visuel)
+  const [likeBursts, fireLikeBurst] = useHeartBurst();
+
   async function toggleLike() {
     const sheetId = sheet.id;
     const prevLiked = !!likedBySheet[sheetId];
     const next = !prevLiked;
+    if (next) fireLikeBurst();
     setLikedBySheet((prev) => ({ ...prev, [sheetId]: next }));
     try {
       const res = await fetch(`/api/sheets/${sheetId}/like`, { method: 'POST' });
@@ -327,12 +332,15 @@ export function SheetLightbox({
           label="Imprimer"
           onClick={handlePrintCurrent}
         />
-        <ActionButton
-          icon={Heart}
-          label={likedBySheet[sheet.id] ? 'Liké' : 'J’aime'}
-          onClick={toggleLike}
-          active={!!likedBySheet[sheet.id]}
-        />
+        <span className="relative">
+          <HeartBurst bursts={likeBursts} />
+          <ActionButton
+            icon={Heart}
+            label={likedBySheet[sheet.id] ? 'Liké' : 'J’aime'}
+            onClick={toggleLike}
+            active={!!likedBySheet[sheet.id]}
+          />
+        </span>
       </footer>
 
       {shareToast && (
