@@ -23,6 +23,7 @@ import {
   Shield,
   ShieldAlert,
   SlidersHorizontal,
+  Apple,
 } from 'lucide-react';
 
 type Section = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -41,6 +42,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/abonnes', label: 'Abonnés', icon: Users },
   { href: '/admin/permissions', label: 'Permissions', icon: Shield },
   { href: '/admin/informations-legales', label: 'Infos légales & banque', icon: FileText },
+  { href: '/admin/ciqual', label: 'Base Ciqual', icon: Apple },
   { href: '/admin/parametres', label: 'Paramètres', icon: SlidersHorizontal },
   { href: '/admin/compte', label: 'Compte', icon: Settings },
 ];
