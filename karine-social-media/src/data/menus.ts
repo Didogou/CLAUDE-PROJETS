@@ -38,6 +38,27 @@ export type ShoppingListItem = {
   note?: string | null;
 };
 
+/** Repas (lunch/dinner) au sein d'un menu hebdomadaire. */
+export type MenuMealSheet = {
+  id: string;
+  menuId: string;
+  dayIndex: number; // 0 = lundi, 6 = dimanche
+  mealKind: MealKind;
+  title: string | null;
+  coverImageUrl: string;
+  servings: number;
+  calories: number | null;
+  prepTimeMin: number | null;
+  cookTimeMin: number | null;
+  tags: string[];
+  aliments: string[];
+  /** Réutilise le type ShoppingListItem (~ RecipeIngredient) pour
+   *  pouvoir agréger directement dans la liste de courses sans
+   *  conversion. */
+  ingredients: ShoppingListItem[];
+  likesCount: number;
+};
+
 export type WeeklyMenu = {
   id: string;
   weekStart: string; // YYYY-MM-DD (lundi)

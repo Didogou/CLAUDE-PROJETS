@@ -1,6 +1,12 @@
 import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
-import type { WeeklyMenu, WeeklyMenuDay, ShoppingListItem } from '@/data/menus';
+import type {
+  WeeklyMenu,
+  WeeklyMenuDay,
+  ShoppingListItem,
+  MenuMealSheet,
+  MealKind,
+} from '@/data/menus';
 
 function isMissingTable(err: unknown): boolean {
   return (
@@ -166,3 +172,95 @@ export async function getMenuAdminById(id: string): Promise<WeeklyMenu | null> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return mapMenu(menu, (days ?? []) as any[]);
 }
+
+// =============================================================
+// Meal sheets (déjeuner / dîner) du menu
+// =============================================================
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+function mapMealSheet(row: any): MenuMealSheet {
+  const rawIngredients = row.ingredients;
+  const ingredients: ShoppingListItem[] = Array.isArray(rawIngredients)
+    ? rawIngredients
+        .filter((it: any) => it && typeof it.label === 'string' && typeof it.category === 'string')
+        .map((it: any) => ({
+          category: String(it.category),
+          label: String(it.label),
+          quantity: typeof it.quantity === 'number' ? it.quantity : null,
+          unit: typeof it.unit === 'string' ? it.unit : null,
+          note: typeof it.note === 'string' ? it.note : null,
+        }))
+    : [];
+  return {
+    id: String(row.id),
+    menuId: String(row.menu_id),
+    dayIndex: typeof row.day_index === 'number' ? row.day_index : 0,
+    mealKind: row.meal_kind === 'dinner' ? 'dinner' : 'lunch',
+    title: typeof row.title === 'string' ? row.title : null,
+    coverImageUrl: row.cover_image_url ?? '',
+    servings: typeof row.servings === 'number' ? row.servings : 4,
+    calories: typeof row.calories === 'number' ? row.calories : null,
+    prepTimeMin: typeof row.prep_time_min === 'number' ? row.prep_time_min : null,
+    cookTimeMin: typeof row.cook_time_min === 'number' ? row.cook_time_min : null,
+    tags: Array.isArray(row.tags) ? row.tags : [],
+    aliments: Array.isArray(row.aliments) ? row.aliments : [],
+    ingredients,
+    likesCount: typeof row.likes_count === 'number' ? row.likes_count : 0,
+  };
+}
+
+/**
+ * Charge les meal sheets d'un menu. Renvoyé indexé par dayIndex
+ * → { lunch, dinner } pour permettre un accès direct dans la page jour.
+ *
+ * Fallback gracieux si la table n'existe pas encore (migration 140000
+ * pas tournée) → renvoie une map vide.
+ */
+export async function getMenuMealSheets(
+  menuId: string,
+): Promise<Map<number, { lunch: MenuMealSheet | null; dinner: MenuMealSheet | null }>> {
+  const supabase = createServiceClient();
+  const { data, error } = await (supabase as any)
+    .from('menu_meal_sheets')
+    .select('*')
+    .eq('menu_id', menuId)
+    .order('day_index', { ascending: true });
+  const map = new Map<number, { lunch: MenuMealSheet | null; dinner: MenuMealSheet | null }>();
+  if (error) {
+    if (isMissingTable(error)) return map;
+    throw error;
+  }
+  for (let i = 0; i < 7; i++) {
+    map.set(i, { lunch: null, dinner: null });
+  }
+  for (const row of data ?? []) {
+    const sheet = mapMealSheet(row);
+    const slot = map.get(sheet.dayIndex) ?? { lunch: null, dinner: null };
+    if (sheet.mealKind === 'lunch') slot.lunch = sheet;
+    else slot.dinner = sheet;
+    map.set(sheet.dayIndex, slot);
+  }
+  return map;
+}
+
+/** Résout une meal sheet par son id (pour l'API toggle-meal). */
+export async function getMealSheetById(
+  sheetId: string,
+): Promise<MenuMealSheet | null> {
+  const supabase = createServiceClient();
+  const { data, error } = await (supabase as any)
+    .from('menu_meal_sheets')
+    .select('*')
+    .eq('id', sheetId)
+    .maybeSingle();
+  if (error) {
+    if (isMissingTable(error)) return null;
+    throw error;
+  }
+  if (!data) return null;
+  return mapMealSheet(data);
+}
+
+/** Mute la signature inutilisée. */
+export type _MealKindForward = MealKind;
