@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Send, Loader2, Settings, Flame } from 'lucide-react';
+import { WaterSettingsBlock } from './WaterSettingsBlock';
 
 type FoodLogEntry = {
   id: string;
@@ -258,6 +259,8 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
             </div>
           )}
         </section>
+
+        <WaterSettingsBlock onError={alertError} />
 
         {/* Saisie naturelle / Preview */}
         <section className="border-b border-coral-soft/20 px-4 py-3">
