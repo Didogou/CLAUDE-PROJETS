@@ -73,11 +73,42 @@ export default async function RecipeDetailPage({
         href={`/recettes/${recipe.id}`}
       />
 
-      {/* Carrousel des fiches détaillées (chaque fiche = une variante de
-          la recette avec son bouton "Ajouter à ma liste" propre).
-          Layout : center sur mobile, max-w-3xl sur PC pour image grande. */}
+      {/* Carrousel des fiches détaillées + aside commentaires en colonne
+          gauche sur PC.
+          Mobile : SheetCarousel centre, les commentaires sont rendus en
+                    bas par RecipeDetailView ci-dessous (flux normal).
+          PC : grid 2 cols [commentaires-aside 22rem | SheetCarousel main].
+               Aside commentaires sticky pour rester visible en scrollant. */}
       {recipe.sheets.length > 0 && (
-        <div className="mx-auto mb-8 w-full max-w-3xl px-4 print:hidden lg:mb-12 lg:px-6">
+        <div className="mx-auto mb-8 w-full max-w-3xl px-4 print:hidden lg:mb-12 lg:max-w-6xl lg:grid lg:grid-cols-[20rem_1fr] lg:gap-6 lg:px-6">
+          {/* Aside commentaires PC uniquement */}
+          <div className="hidden lg:block">
+            <div className="sticky top-4 max-h-[calc(100vh-2rem)] overflow-y-auto">
+              <RecipeDetailView
+                slug={recipe.id}
+                title={recipe.title}
+                category={recipe.category}
+                images={images}
+                prepPhotos={recipe.prepPhotos}
+                suggestions={suggestions}
+                isSeasonal={recipe.isSeasonal}
+                prepTimeMin={recipe.prepTimeMin}
+                cookTimeMin={recipe.cookTimeMin}
+                initialLikes={recipe.likesCount}
+                initialComments={comments.map((c) => ({
+                  id: c.id,
+                  author: c.authorName,
+                  text: c.body,
+                  photos: c.photos,
+                  likesCount: c.likesCount,
+                  parentId: c.parentId,
+                  parentAuthor: c.parentAuthor,
+                }))}
+                asideCommentsOnly
+              />
+            </div>
+          </div>
+
           <SheetCarousel
             sheets={recipe.sheets}
             isAuthenticated={user.isAuthenticated}

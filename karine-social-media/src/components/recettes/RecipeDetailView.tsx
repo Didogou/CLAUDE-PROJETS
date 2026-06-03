@@ -33,6 +33,7 @@ export function RecipeDetailView({
   initialLikes,
   initialComments,
   hideMainBlock = false,
+  asideCommentsOnly = false,
 }: {
   slug: string;
   title: string;
@@ -51,6 +52,10 @@ export function RecipeDetailView({
    *  uniquement la pellicule "En vrai dans la cuisine" + suggestions
    *  mobile + commentaires mobile. */
   hideMainBlock?: boolean;
+  /** Mode "aside commentaires uniquement" : utilisé sur la page recette
+   *  en PC pour afficher les commentaires en colonne gauche à côté du
+   *  SheetCarousel. Rend uniquement la section commentaires, rien d'autre. */
+  asideCommentsOnly?: boolean;
 }) {
   const [index, setIndex] = useState(0);
   const [zoom, setZoom] = useState(false);
@@ -335,6 +340,16 @@ export function RecipeDetailView({
       />
     </>
   );
+
+  // Mode aside commentaires uniquement (utilise sur la page recette en
+  // PC pour afficher les commentaires en colonne gauche).
+  if (asideCommentsOnly) {
+    return (
+      <aside className="flex w-full flex-col rounded-[var(--radius-card)] border border-coral-soft/40 bg-white/85 p-4 shadow-sm backdrop-blur print:hidden">
+        {commentsContent}
+      </aside>
+    );
+  }
 
   return (
     <>
