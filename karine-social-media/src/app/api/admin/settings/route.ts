@@ -50,6 +50,26 @@ export async function PATCH(request: NextRequest) {
       update.show_calories_in_counter = json.show_calories_in_counter;
     }
 
+    if (json.calorie_tracker_enabled !== undefined) {
+      if (typeof json.calorie_tracker_enabled !== 'boolean') {
+        return NextResponse.json(
+          { error: 'calorie_tracker_enabled doit être boolean' },
+          { status: 400 },
+        );
+      }
+      update.calorie_tracker_enabled = json.calorie_tracker_enabled;
+    }
+
+    if (json.water_tracker_enabled !== undefined) {
+      if (typeof json.water_tracker_enabled !== 'boolean') {
+        return NextResponse.json(
+          { error: 'water_tracker_enabled doit être boolean' },
+          { status: 400 },
+        );
+      }
+      update.water_tracker_enabled = json.water_tracker_enabled;
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
         { error: 'Aucun paramètre à mettre à jour' },

@@ -128,18 +128,31 @@ export async function POST() {
   const serviceSupabase = createServiceClient();
   const { data: recipeRows } = await (serviceSupabase as any)
     .from('recipes')
-    .select('title, calories')
+    .select('slug, title, calories, cover_image_url')
     .eq('status', 'published')
     .eq('category', 'plat')
     .not('calories', 'is', null)
     .order('calories', { ascending: true })
     .limit(30);
-  const recipes: Array<{ title: string; calories: number }> = Array.isArray(
-    recipeRows,
-  )
+  const recipes: Array<{
+    slug: string;
+    title: string;
+    calories: number;
+    cover_image_url: string | null;
+  }> = Array.isArray(recipeRows)
     ? recipeRows
-        .filter((r) => typeof r.title === 'string' && typeof r.calories === 'number')
-        .map((r) => ({ title: r.title, calories: r.calories }))
+        .filter(
+          (r) =>
+            typeof r.slug === 'string' &&
+            typeof r.title === 'string' &&
+            typeof r.calories === 'number',
+        )
+        .map((r) => ({
+          slug: r.slug,
+          title: r.title,
+          calories: r.calories,
+          cover_image_url: (r.cover_image_url as string | null) ?? null,
+        }))
     : [];
 
   // Reste à consommer pour atteindre l'objectif sans dépasser
@@ -192,7 +205,12 @@ STYLE KARINE — EMOJIS ENCOURAGEANTS :
 Ajoute 1 à 3 petits émojis chaleureux pour ponctuer ton conseil (cœurs, fleurs, soleil, plantes…). Bannis tout émoji froid, sarcastique ou alimentaire (👍 ❌ 🍔 🍰). Privilégie cette palette : 🌸 🌷 🌺 🌻 🌹 🌼 💐 🌿 🌱 🌳 ❤️ 💛 💚 💖 💕 ✨ ☀️ 💪. Place-les en fin de phrase ou en respiration, jamais en début de phrase. Pas de surcharge : maximum 3 émojis sur tout le message.
 
 RÉPONDS UNIQUEMENT EN JSON :
-{ "tip": "le conseil ici 🌸" }`;
+{
+  "tip": "le conseil ici 🌸",
+  "recipe_title": "Titre exact de la recette citée OU null si tu n'en cites aucune"
+}
+
+Important : si tu mentionnes une recette par son titre dans le tip, recopie ce titre EXACTEMENT tel qu'il apparaît dans la liste fournie ci-dessous (mêmes accents, mêmes majuscules, mêmes mots) dans le champ recipe_title. Sinon, recipe_title doit valoir null.`;
 
   const user_prompt = `CONTEXTE ABONNÉE :
 - Sexe : ${prof?.sex ?? 'inconnu'}
@@ -232,16 +250,23 @@ ${
 }`;
 
   let tip: string;
+  let recipeTitleRaw: string | null = null;
   try {
     const result = await callMistralJson(system, user_prompt, {
-      maxTokens: 200,
+      maxTokens: 250,
       timeoutMs: 15_000,
     });
-    const parsed = JSON.parse(result.content) as { tip?: string };
+    const parsed = JSON.parse(result.content) as {
+      tip?: string;
+      recipe_title?: string | null;
+    };
     tip = typeof parsed.tip === 'string' ? parsed.tip.trim() : '';
     if (!tip) throw new Error('Tip vide');
-    // Garde-fou : longueur raisonnable
     if (tip.length > 300) tip = tip.slice(0, 300).trim();
+    recipeTitleRaw =
+      typeof parsed.recipe_title === 'string' && parsed.recipe_title.trim()
+        ? parsed.recipe_title.trim()
+        : null;
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Mistral indisponible' },
@@ -249,13 +274,41 @@ ${
     );
   }
 
-  // 4) Persiste dans daily_metrics
+  // Résolution sûre : on n'expose une recette que si Mistral a cité
+  // un titre qui matche EXACTEMENT (case-insensitive, accents
+  // normalisés) un de ceux qu'on lui a fournis. Sinon, on ignore
+  // pour éviter une hallucination de titre.
+  function normalize(s: string): string {
+    return s
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .trim();
+  }
+  let recipe:
+    | { slug: string; title: string; calories: number; coverImageUrl: string | null }
+    | null = null;
+  if (recipeTitleRaw) {
+    const needle = normalize(recipeTitleRaw);
+    const found = recipes.find((r) => normalize(r.title) === needle);
+    if (found) {
+      recipe = {
+        slug: found.slug,
+        title: found.title,
+        calories: found.calories,
+        coverImageUrl: found.cover_image_url,
+      };
+    }
+  }
+
+  // 4) Persiste dans daily_metrics (slug recette si applicable)
   const { error } = await (supabase as any).from('daily_metrics').upsert(
     {
       user_id: user.id,
       date: dateStr,
       karine_tip: tip,
       karine_tip_at: new Date().toISOString(),
+      karine_tip_recipe_slug: recipe?.slug ?? null,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'user_id,date' },
@@ -264,5 +317,5 @@ ${
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ tip });
+  return NextResponse.json({ tip, recipe });
 }

@@ -3,7 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BellRing, ChevronRight, Flame, ImagePlus, Save } from 'lucide-react';
+import { BellRing, ChevronRight, Droplets, Flame, ImagePlus, Save } from 'lucide-react';
 import type { AppSettings } from '@/data/app-settings';
 
 export function ParametresView({ initial }: { initial: AppSettings }) {
@@ -13,6 +13,12 @@ export function ParametresView({ initial }: { initial: AppSettings }) {
   );
   const [showCalories, setShowCalories] = useState<boolean>(
     initial.showCaloriesInCounter,
+  );
+  const [calorieEnabled, setCalorieEnabled] = useState<boolean>(
+    initial.calorieTrackerEnabled,
+  );
+  const [waterEnabled, setWaterEnabled] = useState<boolean>(
+    initial.waterTrackerEnabled,
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +36,8 @@ export function ParametresView({ initial }: { initial: AppSettings }) {
         body: JSON.stringify({
           patient_relance_cooldown_days: cooldown,
           show_calories_in_counter: showCalories,
+          calorie_tracker_enabled: calorieEnabled,
+          water_tracker_enabled: waterEnabled,
         }),
       });
       if (!res.ok) {
@@ -131,6 +139,72 @@ export function ParametresView({ initial }: { initial: AppSettings }) {
           />
           <span className="text-sm font-semibold text-admin-ink">
             {showCalories ? 'Activé' : 'Désactivé'}
+          </span>
+        </label>
+      </section>
+
+      {/* === Section : Activation du compteur Calorie === */}
+      <section className="rounded-2xl bg-admin-surface p-5 shadow-sm">
+        <header className="mb-3 flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-coral-soft/40 text-coral-dark">
+            <Flame className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-bold text-admin-ink">
+              Activer le compteur Calorie
+            </h3>
+            <p className="mt-0.5 text-xs text-admin-ink-soft">
+              Active le bouton flottant <b>Mes calories</b> pour toutes
+              les abonnées. Quand <b>désactivé</b>, le bouton est masqué
+              côté abonné. <b>Les admins gardent toujours l&apos;accès</b>
+              pour tester.
+            </p>
+          </div>
+        </header>
+
+        <label className="flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={calorieEnabled}
+            onChange={(e) => setCalorieEnabled(e.target.checked)}
+            disabled={busy}
+            className="h-5 w-5 rounded border-admin-border text-admin-primary focus:ring-admin-primary"
+          />
+          <span className="text-sm font-semibold text-admin-ink">
+            {calorieEnabled ? 'Activé' : 'Désactivé'}
+          </span>
+        </label>
+      </section>
+
+      {/* === Section : Activation du compteur Eau === */}
+      <section className="rounded-2xl bg-admin-surface p-5 shadow-sm">
+        <header className="mb-3 flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-coral-soft/40 text-coral-dark">
+            <Droplets className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-bold text-admin-ink">
+              Activer le compteur Eau
+            </h3>
+            <p className="mt-0.5 text-xs text-admin-ink-soft">
+              Active le bouton flottant <b>Mon eau</b> pour toutes les
+              abonnées. Quand <b>désactivé</b>, le bouton est masqué
+              côté abonné. <b>Les admins gardent toujours l&apos;accès</b>
+              pour tester.
+            </p>
+          </div>
+        </header>
+
+        <label className="flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={waterEnabled}
+            onChange={(e) => setWaterEnabled(e.target.checked)}
+            disabled={busy}
+            className="h-5 w-5 rounded border-admin-border text-admin-primary focus:ring-admin-primary"
+          />
+          <span className="text-sm font-semibold text-admin-ink">
+            {waterEnabled ? 'Activé' : 'Désactivé'}
           </span>
         </label>
       </section>

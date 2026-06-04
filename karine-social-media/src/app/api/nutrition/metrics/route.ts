@@ -21,10 +21,38 @@ export async function GET() {
 
   const { data } = await (supabase as any)
     .from('daily_metrics')
-    .select('kcal_burned, weight_kg, karine_tip, karine_tip_at')
+    .select(
+      'kcal_burned, weight_kg, karine_tip, karine_tip_at, karine_tip_recipe_slug',
+    )
     .eq('user_id', user.id)
     .eq('date', dateStr)
     .maybeSingle();
+
+  // Si un slug est attaché au conseil, on résout title + cover via
+  // service-role (mêmes raisons que dans /karine-tip : la RLS exige
+  // un abonnement actif sinon).
+  let recipe:
+    | { slug: string; title: string; calories: number | null; coverImageUrl: string | null }
+    | null = null;
+  const slug = data?.karine_tip_recipe_slug as string | null | undefined;
+  if (slug) {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const svc = createServiceClient();
+    const { data: r } = await (svc as any)
+      .from('recipes')
+      .select('slug, title, calories, cover_image_url')
+      .eq('slug', slug)
+      .eq('status', 'published')
+      .maybeSingle();
+    if (r && r.title) {
+      recipe = {
+        slug: r.slug,
+        title: r.title,
+        calories: r.calories !== null ? Number(r.calories) : null,
+        coverImageUrl: (r.cover_image_url as string | null) ?? null,
+      };
+    }
+  }
 
   return NextResponse.json({
     metrics: {
@@ -34,6 +62,7 @@ export async function GET() {
         : null,
       karineTip: data?.karine_tip ?? null,
       karineTipAt: data?.karine_tip_at ?? null,
+      karineTipRecipe: recipe,
     },
   });
 }

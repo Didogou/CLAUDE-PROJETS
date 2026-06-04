@@ -17,7 +17,9 @@ export async function getAppSettings(): Promise<AppSettings> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from('app_settings')
-      .select('patient_relance_cooldown_days, show_calories_in_counter')
+      .select(
+        'patient_relance_cooldown_days, show_calories_in_counter, calorie_tracker_enabled, water_tracker_enabled',
+      )
       .eq('id', 1)
       .maybeSingle();
     if (error || !data) return DEFAULT_APP_SETTINGS;
@@ -30,6 +32,14 @@ export async function getAppSettings(): Promise<AppSettings> {
         typeof data.show_calories_in_counter === 'boolean'
           ? data.show_calories_in_counter
           : DEFAULT_APP_SETTINGS.showCaloriesInCounter,
+      calorieTrackerEnabled:
+        typeof data.calorie_tracker_enabled === 'boolean'
+          ? data.calorie_tracker_enabled
+          : DEFAULT_APP_SETTINGS.calorieTrackerEnabled,
+      waterTrackerEnabled:
+        typeof data.water_tracker_enabled === 'boolean'
+          ? data.water_tracker_enabled
+          : DEFAULT_APP_SETTINGS.waterTrackerEnabled,
     };
   } catch {
     return DEFAULT_APP_SETTINGS;

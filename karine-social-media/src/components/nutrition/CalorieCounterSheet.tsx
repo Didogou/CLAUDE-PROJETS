@@ -173,6 +173,12 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [metrics, setMetrics] = useState<{
     kcalBurned: number;
     karineTip: string | null;
+    karineTipRecipe: {
+      slug: string;
+      title: string;
+      calories: number | null;
+      coverImageUrl: string | null;
+    } | null;
   } | null>(null);
   const [showCalories, setShowCalories] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -200,6 +206,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           setMetrics({
             kcalBurned: Number(j.metrics?.kcalBurned ?? 0),
             karineTip: j.metrics?.karineTip ?? null,
+            karineTipRecipe: j.metrics?.karineTipRecipe ?? null,
           });
         }
       } catch {
@@ -392,7 +399,13 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           .then((data) => {
             if (data?.tip) {
               setMetrics((m) =>
-                m ? { ...m, karineTip: data.tip } : { kcalBurned: 0, karineTip: data.tip },
+                m
+                  ? { ...m, karineTip: data.tip, karineTipRecipe: data.recipe ?? null }
+                  : {
+                      kcalBurned: 0,
+                      karineTip: data.tip,
+                      karineTipRecipe: data.recipe ?? null,
+                    },
               );
             }
           })
@@ -496,9 +509,36 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
             <p className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
               Le conseil de Karine
             </p>
-            <p className="mt-0.5 text-sm italic leading-snug text-ink">
-              « {metrics.karineTip} »
-            </p>
+            <div className="mt-0.5 flex items-start gap-2.5">
+              <p className="flex-1 text-sm italic leading-snug text-ink">
+                « {metrics.karineTip} »
+              </p>
+              {metrics.karineTipRecipe && (
+                <a
+                  href={`/recettes/${metrics.karineTipRecipe.slug}`}
+                  className="group flex shrink-0 flex-col items-center gap-0.5"
+                  aria-label={`Voir la recette ${metrics.karineTipRecipe.title}`}
+                >
+                  {metrics.karineTipRecipe.coverImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={metrics.karineTipRecipe.coverImageUrl}
+                      alt={metrics.karineTipRecipe.title}
+                      className="size-14 rounded-lg object-cover ring-2 ring-coral-soft transition group-hover:ring-coral"
+                    />
+                  ) : (
+                    <div className="flex size-14 items-center justify-center rounded-lg bg-coral-soft/40 text-xs font-semibold text-coral-dark ring-2 ring-coral-soft">
+                      Recette
+                    </div>
+                  )}
+                  {metrics.karineTipRecipe.calories !== null && (
+                    <span className="text-[0.6rem] font-semibold text-coral-dark">
+                      ≈ {metrics.karineTipRecipe.calories} kcal
+                    </span>
+                  )}
+                </a>
+              )}
+            </div>
           </div>
         )}
 
@@ -521,7 +561,9 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               value={metrics?.kcalBurned ?? 0}
               onSaved={(n) => {
                 setMetrics((m) =>
-                  m ? { ...m, kcalBurned: n } : { kcalBurned: n, karineTip: null },
+                  m
+                    ? { ...m, kcalBurned: n }
+                    : { kcalBurned: n, karineTip: null, karineTipRecipe: null },
                 );
               }}
             />
