@@ -202,6 +202,10 @@ export async function toggleMenuOnActiveList(
     items: ShoppingListItem[];
   },
   householdSize: number,
+  /** Si fourni (depuis le PortionsStepper côté UI), remplace le
+   *  household_size par défaut. Permet à l'abonnée d'adapter la
+   *  quantité de la liste à un événement ou des invités. */
+  portionsOverride?: number,
 ): Promise<ShoppingListV2> {
   const list = await getOrCreateActiveList(userId);
   const isLinked = list.linkedMenuId === menu.id;
@@ -214,7 +218,11 @@ export async function toggleMenuOnActiveList(
     );
     nextLinkedMenuId = null;
   } else {
-    const ratio = householdSize / Math.max(1, menu.portions);
+    const targetPortions =
+      typeof portionsOverride === 'number' && portionsOverride > 0
+        ? portionsOverride
+        : householdSize;
+    const ratio = targetPortions / Math.max(1, menu.portions);
     const source: ShoppingItemSource = {
       type: 'menu',
       menuId: menu.id,

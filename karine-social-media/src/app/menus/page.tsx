@@ -27,11 +27,14 @@ export default async function MenusPage() {
       <div className="print:hidden">
         <AppHeader />
       </div>
-      <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-md xl:max-w-lg print:m-0 print:max-w-none print:p-0">
+      <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-8 print:m-0 print:max-w-none print:p-0">
         <h1 className="mb-3 font-script text-4xl text-coral lg:mb-2 lg:text-3xl print:hidden">
           Mes menus
         </h1>
-        <MenusPagerView menus={menus} hideShoppingListTile={isSubscriber} />
+        <MenusPagerView
+          menus={menus}
+          isSubscriber={isSubscriber}
+        />
       </main>
       <div className="print:hidden">
         <BottomNav />

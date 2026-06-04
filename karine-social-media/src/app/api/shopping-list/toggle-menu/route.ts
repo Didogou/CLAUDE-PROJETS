@@ -5,11 +5,12 @@ import { getPublishedMenuById } from '@/lib/menus';
 
 /**
  * POST /api/shopping-list/toggle-menu
- * Body : { menuId }
+ * Body : { menuId, portionsOverride? }
  *
  * Toggle : ajoute/retire le menu hebdo à la liste. On utilise les items
  * de la shopping_list_items du menu (calibrée portions du menu), ratio
- * appliqué au household_size de l'user.
+ * appliqué au household_size de l'user — ou à portionsOverride si
+ * fourni (PortionsStepper côté UI).
  */
 export async function POST(request: NextRequest) {
   const auth = await requireUserWithHousehold();
@@ -31,6 +32,15 @@ export async function POST(request: NextRequest) {
         { status: 409 },
       );
     }
+
+    const portionsOverrideRaw = body?.portionsOverride;
+    const portionsOverride =
+      typeof portionsOverrideRaw === 'number' &&
+      Number.isFinite(portionsOverrideRaw) &&
+      portionsOverrideRaw > 0
+        ? Math.round(portionsOverrideRaw)
+        : undefined;
+
     const list = await toggleMenuOnActiveList(
       auth.user.id,
       {
@@ -40,6 +50,7 @@ export async function POST(request: NextRequest) {
         items,
       },
       auth.user.householdSize,
+      portionsOverride,
     );
     return NextResponse.json({ list });
   } catch (e) {

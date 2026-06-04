@@ -5,7 +5,6 @@ import Link from 'next/link';
 import {
   ChevronLeft,
   ChevronRight,
-  Image as ImageIcon,
   Lock,
   Printer,
   Share2,
@@ -21,7 +20,6 @@ import { PortionsStepper } from '@/components/recettes/PortionsStepper';
 import { scaleIngredients } from '@/lib/recipe-portions';
 
 type Props = {
-  menuId: string;
   menuTitle: string | null;
   weekStart: string;
   defaultDayIndex: number;
@@ -29,8 +27,6 @@ type Props = {
     number,
     { lunch: MenuMealSheet | null; dinner: MenuMealSheet | null }
   >;
-  shoppingListImageUrl: string;
-  shoppingListItemsCount: number;
   isSubscriber: boolean;
   isAuthenticated: boolean;
 };
@@ -39,36 +35,29 @@ type Props = {
  * Carousel des fiches recettes (lunch + dinner) du jour courant d'un
  * menu hebdomadaire.
  *
- * UX :
+ * UX (Karine 2026-06-04) :
  *  - Navigation jour-par-jour via chevrons gauche/droite (cyclique).
- *  - 2 fiches affichées en flux (lunch puis dinner) chacune avec
- *    image, titre, stats (servings/kcal/prep/cuis), ingrédients,
- *    bouton "+ Mes courses" individuel.
- *  - Bouton "Ajouter tout à mes courses" en haut → toggleMenu API.
- *  - Bouton "Voir liste d'ingrédients" → lightbox sur l'image
- *    originale (plus de tuile permanente sur la home, demande
- *    Didier 2026-06-04).
+ *  - 2 fiches affichées en flux (lunch puis dinner) — chaque MealCard
+ *    a son propre PortionsStepper + "Mes courses" + +kcal + Share +
+ *    Print + liste d'ingrédients scalée.
+ *  - Plus de bandeau "Ajouter tout à mes courses" / "Voir la liste"
+ *    en haut : ces actions se font depuis la page main /menus avec
+ *    le PortionsStepper global.
  *
  * Accès :
  *  - Abonné : tout le carousel + boutons d'action.
- *  - Visiteur : message d'incitation à s'abonner pour voir les
- *    recettes détaillées.
+ *  - Visiteur : message d'incitation à s'abonner.
  */
 export function MenuDayMealsCarousel({
-  menuId,
   menuTitle,
   weekStart,
   defaultDayIndex,
   mealSheetsByDay,
-  shoppingListImageUrl,
-  shoppingListItemsCount,
   isSubscriber,
   isAuthenticated,
 }: Props) {
   const [dayIndex, setDayIndex] = useState(defaultDayIndex);
-  const [globalListOpen, setGlobalListOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast] = useState<string | null>(null);
 
   const day = mealSheetsByDay[dayIndex] ?? { lunch: null, dinner: null };
   const meals = useMemo(
@@ -81,29 +70,6 @@ export function MenuDayMealsCarousel({
 
   function nav(direction: -1 | 1) {
     setDayIndex((i) => (i + direction + 7) % 7);
-  }
-
-  async function addAllToList() {
-    if (!isAuthenticated) return;
-    setBusy(true);
-    setToast(null);
-    try {
-      const res = await fetch('/api/shopping-list/toggle-menu', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ menuId }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(j?.error || 'Erreur');
-      setToast('Liste de courses du menu ajoutée ! 🛒');
-      window.dispatchEvent(new CustomEvent('shopping-list-updated'));
-      window.setTimeout(() => setToast(null), 2500);
-    } catch (e) {
-      setToast(e instanceof Error ? e.message : 'Erreur');
-      window.setTimeout(() => setToast(null), 2500);
-    } finally {
-      setBusy(false);
-    }
   }
 
   // === Visiteur non abonné ===
@@ -131,28 +97,10 @@ export function MenuDayMealsCarousel({
 
   return (
     <section className="space-y-4">
-      {/* Actions globales du menu : ajouter tout + voir liste */}
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <button
-          type="button"
-          onClick={addAllToList}
-          disabled={busy || shoppingListItemsCount === 0}
-          className="flex items-center gap-2 rounded-full bg-coral px-4 py-2 text-sm font-bold text-white shadow-sm transition hover:bg-coral-dark disabled:opacity-50"
-        >
-          <ShoppingCart className="h-4 w-4" />
-          Ajouter tout à mes courses ({shoppingListItemsCount})
-        </button>
-        {shoppingListImageUrl && (
-          <button
-            type="button"
-            onClick={() => setGlobalListOpen(true)}
-            className="flex items-center gap-1.5 rounded-full bg-white px-3 py-2 text-xs font-semibold text-coral-dark shadow-sm ring-1 ring-coral-soft/40 transition hover:bg-coral-soft/30"
-          >
-            <ImageIcon className="h-3.5 w-3.5" />
-            Voir la liste
-          </button>
-        )}
-      </div>
+      {/* Décision Karine 2026-06-04 : on retire le bandeau "Ajouter
+          tout à mes courses" + "Voir la liste". L'ajout massif est
+          désormais accessible depuis la page main /menus avec le
+          PortionsStepper. Ici on se concentre sur le jour. */}
 
       {toast && (
         <div className="rounded-full bg-coral-soft/40 px-3 py-1.5 text-center text-xs font-semibold text-coral-dark">
@@ -200,13 +148,6 @@ export function MenuDayMealsCarousel({
         ))}
       </div>
 
-      {/* Lightbox liste de courses globale */}
-      {globalListOpen && shoppingListImageUrl && (
-        <ShoppingListImageLightbox
-          imageUrl={shoppingListImageUrl}
-          onClose={() => setGlobalListOpen(false)}
-        />
-      )}
     </section>
   );
 }
@@ -566,40 +507,3 @@ function MealImageLightbox({
   );
 }
 
-// ============================================================
-// Lightbox liste globale (image originale du menu)
-// ============================================================
-
-function ShoppingListImageLightbox({
-  imageUrl,
-  onClose,
-}: {
-  imageUrl: string;
-  onClose: () => void;
-}) {
-  if (typeof window === 'undefined') return null;
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[100] grid place-items-center bg-black/85 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-    >
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Fermer"
-        className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white text-ink shadow-lg ring-2 ring-white/30"
-      >
-        <X className="h-5 w-5" />
-      </button>
-      <img
-        src={imageUrl}
-        alt="Liste de courses du menu"
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] max-w-full rounded-2xl shadow-2xl"
-      />
-    </div>,
-    document.body,
-  );
-}

@@ -80,17 +80,15 @@ export default async function MenuDayPage({
           {menu.title || formatWeekTitle(menu.weekStart)}
         </h1>
 
-        {/* Carrousel des fiches recettes du jour (lunch + dinner) +
-            actions liste de courses globale du menu. Réservé aux
-            abonnés. Pour les visiteurs : message d'incitation. */}
+        {/* Carrousel des fiches recettes du jour (lunch + dinner).
+            Réservé aux abonnés. Pour les visiteurs : message
+            d'incitation. Actions sur la liste de courses globale
+            désormais sur la page main /menus. */}
         <MenuDayMealsCarousel
-          menuId={menu.id}
           menuTitle={menu.title}
           weekStart={menu.weekStart}
           defaultDayIndex={today}
           mealSheetsByDay={mealSheetsByDay}
-          shoppingListImageUrl={menu.shoppingListImageUrl}
-          shoppingListItemsCount={menu.shoppingListItems?.length ?? 0}
           isSubscriber={isSubscriber}
           isAuthenticated={user.isAuthenticated}
         />
