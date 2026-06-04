@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check, Camera } from 'lucide-react';
 import { NutritionProfileForm } from './NutritionProfileForm';
 
 type FoodLogEntry = {
@@ -121,6 +121,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [previewStep, setPreviewStep] = useState(0);
   const [followups, setFollowups] = useState<Followup[]>([]);
   const [answeredFollowups, setAnsweredFollowups] = useState<Set<number>>(new Set());
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
   const [editingTarget, setEditingTarget] = useState(false);
@@ -198,6 +199,34 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       await refresh();
       onChanged();
       window.dispatchEvent(new CustomEvent('nutrition-log-updated'));
+    }
+  }
+
+  async function handlePhoto(file: File) {
+    if (!file || photoUploading) return;
+    setPhotoUploading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      const res = await fetch('/api/nutrition/describe-meal', {
+        method: 'POST',
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || 'Analyse photo impossible');
+        return;
+      }
+      if (typeof data.description === 'string' && data.description.trim()) {
+        // Injecte la description dans la textarea pour que l'abonnée
+        // puisse l'ajuster avant de lancer le parse.
+        setNaturalText(data.description.trim());
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur photo');
+    } finally {
+      setPhotoUploading(false);
     }
   }
 
@@ -642,19 +671,48 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                   maxLength={500}
                   className="flex-1 resize-none rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
                 />
-                <button
-                  type="button"
-                  onClick={handleParse}
-                  disabled={parsing || naturalText.trim().length < 3}
-                  aria-label="Analyser"
-                  className="self-end rounded-full bg-coral p-2 text-white disabled:opacity-50"
-                >
-                  {parsing ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
-                </button>
+                <div className="flex flex-col gap-1.5 self-end">
+                  {/* Bouton caméra : ouvre l'app caméra sur mobile via
+                      capture="environment", file picker sur desktop. */}
+                  <label
+                    className={`flex size-9 cursor-pointer items-center justify-center rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
+                      photoUploading ? 'cursor-wait opacity-50' : ''
+                    }`}
+                    title="Prendre une photo du plat"
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      disabled={photoUploading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handlePhoto(f);
+                        // Reset value pour pouvoir re-uploader la même photo
+                        e.target.value = '';
+                      }}
+                      className="sr-only"
+                    />
+                    {photoUploading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Camera className="size-4" />
+                    )}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleParse}
+                    disabled={parsing || naturalText.trim().length < 3}
+                    aria-label="Analyser"
+                    className="flex size-9 items-center justify-center rounded-full bg-coral text-white disabled:opacity-50"
+                  >
+                    {parsing ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Send className="size-4" />
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           )}
