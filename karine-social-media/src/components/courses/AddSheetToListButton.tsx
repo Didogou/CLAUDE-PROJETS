@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Loader2, Plus } from 'lucide-react';
+import { Check, Loader2, ShoppingCart } from 'lucide-react';
 import { MyShoppingListOverlay } from './MyShoppingListOverlay';
 
 type Props = {
@@ -122,34 +122,36 @@ export function AddSheetToListButton({
 
   return (
     <>
-      {/* Bouton compact + lien Voir mes courses en dessous.
-          Hauteur du bouton alignée avec ActionIconButton (h-9). */}
-      <div className="flex flex-col items-center gap-1">
+      {/* Bouton icône compact. Le lien "Voir mes courses" est
+          positionné en absolu sous le bouton pour ne pas décaler
+          la ligne d'actions. */}
+      <div className="relative">
         <button
           type="button"
           onClick={toggle}
           disabled={state !== 'ready'}
-          className={`flex h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2.5 text-xs font-bold shadow-sm transition disabled:opacity-50 sm:h-9 sm:px-3 ${
+          aria-label={linked ? 'Retirer de mes courses' : 'Ajouter à mes courses'}
+          title={linked ? 'Dans mes courses' : 'Ajouter à mes courses'}
+          className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition disabled:opacity-50 ${
             linked
               ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-200'
               : 'bg-coral text-white hover:bg-coral-dark'
           }`}
         >
           {state === 'busy' || state === 'loading' ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : linked ? (
-            <Check className="h-3.5 w-3.5" />
+            <Check className="h-4 w-4" strokeWidth={3} />
           ) : (
-            <Plus className="h-3.5 w-3.5" strokeWidth={3} />
+            <ShoppingCart className="h-4 w-4" strokeWidth={2.4} />
           )}
-          {linked ? 'Dans mes courses' : 'Mes courses'}
         </button>
-        {/* Lien discret sous le bouton : ouvre la liste de courses
-            en overlay (consultation rapide sans quitter la page). */}
+        {/* Lien discret en absolute sous le bouton — ouvre la liste
+            de courses en overlay sans pousser la ligne. */}
         <button
           type="button"
           onClick={() => setOverlayOpen(true)}
-          className="text-[0.65rem] font-semibold text-coral-dark underline-offset-2 transition hover:underline"
+          className="absolute left-1/2 top-full mt-1 -translate-x-1/2 whitespace-nowrap text-[0.6rem] font-semibold text-coral-dark underline-offset-2 transition hover:underline"
         >
           Voir mes courses →
         </button>

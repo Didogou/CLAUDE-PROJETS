@@ -300,7 +300,7 @@ export function SheetCarousel({
           06-03 : footer remonte en tete pour eviter le scroll). Layout
           compact : items-start aligne en haut pour que "Voir mes courses"
           (lien sous Mes courses) ne decale pas les autres boutons. */}
-      <div className="mx-auto flex w-full max-w-2xl flex-wrap items-start justify-center gap-2">
+      <div className="mx-auto flex w-full max-w-2xl items-center justify-center gap-2">
         {isAuthenticated && (
           <AddSheetToListButton
             sheetId={sheet.id}
@@ -419,12 +419,16 @@ function ActionIconButton({
   active?: boolean;
   badge?: string;
 }) {
+  // Icône seule, taille fixe h-9 w-9 (cohérence avec les autres
+  // boutons de la barre actions). Le badge éventuel se rend en
+  // petit pastille en haut-droite.
   return (
     <button
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold shadow-sm transition hover:scale-105 sm:h-9 sm:px-3 ${
+      title={label}
+      className={`relative flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition hover:scale-105 ${
         active
           ? 'bg-coral text-white'
           : 'bg-white text-coral ring-1 ring-coral-soft/40 hover:bg-coral-soft/30'
@@ -434,8 +438,13 @@ function ActionIconButton({
         className={`h-4 w-4 ${active ? 'fill-current' : ''}`}
         strokeWidth={2.2}
       />
-      <span className="hidden sm:inline">{label}</span>
-      {badge && <span className="text-xs font-bold">{badge}</span>}
+      {badge && (
+        <span
+          className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[0.55rem] font-bold text-white"
+        >
+          {badge}
+        </span>
+      )}
     </button>
   );
 }

@@ -48,6 +48,9 @@ export type MenuMealSheet = {
   coverImageUrl: string;
   servings: number;
   calories: number | null;
+  proteinsG: number | null;
+  lipidsG: number | null;
+  carbsG: number | null;
   prepTimeMin: number | null;
   cookTimeMin: number | null;
   tags: string[];

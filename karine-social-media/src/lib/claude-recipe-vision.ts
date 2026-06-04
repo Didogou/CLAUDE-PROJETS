@@ -25,6 +25,9 @@ export type ExtractedRecipeSheet = {
   title: string | null;
   servings: number | null;
   calories: number | null;
+  proteinsG: number | null;
+  lipidsG: number | null;
+  carbsG: number | null;
   prepTimeMin: number | null;
   cookTimeMin: number | null;
   tags: string[];
@@ -121,6 +124,21 @@ export async function extractRecipeSheetFromImage(
               description:
                 'Calories par portion (kcal). Cherche "370 kcal par portion", "calories : 250", etc. null si non mentionné.',
             },
+            proteinsG: {
+              type: ['number', 'null'],
+              description:
+                'Protéines par portion en grammes. Cherche "Protéines : 25 g", "P : 30g", icônes nutritionnelles. null si non mentionné.',
+            },
+            lipidsG: {
+              type: ['number', 'null'],
+              description:
+                'Lipides par portion en grammes. Cherche "Lipides : 12 g", "L : 12g", "matières grasses". null si non mentionné.',
+            },
+            carbsG: {
+              type: ['number', 'null'],
+              description:
+                'Glucides par portion en grammes. Cherche "Glucides : 40 g", "G : 40g". null si non mentionné.',
+            },
             prepTimeMin: {
               type: ['integer', 'null'],
               description:
@@ -184,6 +202,9 @@ export async function extractRecipeSheetFromImage(
             'title',
             'servings',
             'calories',
+            'proteinsG',
+            'lipidsG',
+            'carbsG',
             'prepTimeMin',
             'cookTimeMin',
             'tags',
@@ -220,6 +241,7 @@ Règles :
 - Si un ingrédient n'a pas de quantité ("sel, poivre", "persil frais"), quantity=null, unit=null.
 - Cherche temps prep + cuisson dans les pictos ⏱️ / ⏲️ ou texte "préparation : X min".
 - Calories : "kcal par portion" est le format standard ; renvoie le nombre.
+- Macros : si tu vois "Protéines : 25 g", "Lipides : 12 g", "Glucides : 40 g" (par portion), renseigne proteinsG/lipidsG/carbsG. Cherche aussi des icônes nutritionnelles (camembert macros) ou pavé "Pour 1 portion : 25g P / 12g L / 40g G". null si non visible.
 - Tags : "riche en protéines", "saine", "équilibrée", "gourmande", etc.
 
 Appelle save_recipe_sheet.`,
@@ -259,6 +281,18 @@ Appelle save_recipe_sheet.`,
     calories:
       typeof input.calories === 'number' && Number.isFinite(input.calories)
         ? Math.round(input.calories)
+        : null,
+    proteinsG:
+      typeof input.proteinsG === 'number' && Number.isFinite(input.proteinsG)
+        ? Math.round(input.proteinsG * 10) / 10
+        : null,
+    lipidsG:
+      typeof input.lipidsG === 'number' && Number.isFinite(input.lipidsG)
+        ? Math.round(input.lipidsG * 10) / 10
+        : null,
+    carbsG:
+      typeof input.carbsG === 'number' && Number.isFinite(input.carbsG)
+        ? Math.round(input.carbsG * 10) / 10
         : null,
     prepTimeMin:
       typeof input.prepTimeMin === 'number' && Number.isFinite(input.prepTimeMin)

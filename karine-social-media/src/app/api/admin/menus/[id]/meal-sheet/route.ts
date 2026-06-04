@@ -89,6 +89,9 @@ export async function POST(
       cover_image_url: coverImageUrl,
       servings: clampInt(body.servings, 4, 1, 20),
       calories: nullableInt(body.calories),
+      proteins_g: nullableNum(body.proteinsG),
+      lipids_g: nullableNum(body.lipidsG),
+      carbs_g: nullableNum(body.carbsG),
       prep_time_min: nullableInt(body.prepTimeMin),
       cook_time_min: nullableInt(body.cookTimeMin),
       tags: stringArray(body.tags),
@@ -182,6 +185,12 @@ function nullableInt(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null;
   const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
   return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+function nullableNum(v: unknown): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : NaN;
+  return Number.isFinite(n) ? Math.round(n * 10) / 10 : null;
 }
 
 function stringArray(v: unknown): string[] {

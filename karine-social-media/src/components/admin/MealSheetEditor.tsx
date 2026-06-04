@@ -27,6 +27,9 @@ type PreviewData = {
   title: string | null;
   servings: number | null;
   calories: number | null;
+  proteinsG: number | null;
+  lipidsG: number | null;
+  carbsG: number | null;
   prepTimeMin: number | null;
   cookTimeMin: number | null;
   tags: string[];
@@ -83,6 +86,9 @@ export function MealSheetEditor({
         title: j.title,
         servings: j.servings,
         calories: j.calories,
+        proteinsG: j.proteinsG ?? null,
+        lipidsG: j.lipidsG ?? null,
+        carbsG: j.carbsG ?? null,
         prepTimeMin: j.prepTimeMin,
         cookTimeMin: j.cookTimeMin,
         tags: j.tags ?? [],
@@ -112,6 +118,9 @@ export function MealSheetEditor({
           title: preview.title,
           servings: preview.servings ?? 4,
           calories: preview.calories,
+          proteinsG: preview.proteinsG,
+          lipidsG: preview.lipidsG,
+          carbsG: preview.carbsG,
           prepTimeMin: preview.prepTimeMin,
           cookTimeMin: preview.cookTimeMin,
           tags: preview.tags,
@@ -131,6 +140,9 @@ export function MealSheetEditor({
         coverImageUrl: s.cover_image_url,
         servings: s.servings,
         calories: s.calories,
+        proteinsG: s.proteins_g === null || s.proteins_g === undefined ? null : Number(s.proteins_g),
+        lipidsG: s.lipids_g === null || s.lipids_g === undefined ? null : Number(s.lipids_g),
+        carbsG: s.carbs_g === null || s.carbs_g === undefined ? null : Number(s.carbs_g),
         prepTimeMin: s.prep_time_min,
         cookTimeMin: s.cook_time_min,
         tags: s.tags ?? [],
@@ -252,6 +264,9 @@ export function MealSheetEditor({
                 title: persisted.title,
                 servings: persisted.servings,
                 calories: persisted.calories,
+                proteinsG: persisted.proteinsG,
+                lipidsG: persisted.lipidsG,
+                carbsG: persisted.carbsG,
                 prepTimeMin: persisted.prepTimeMin,
                 cookTimeMin: persisted.cookTimeMin,
                 tags: persisted.tags,
@@ -401,6 +416,33 @@ function PreviewForm({
               readOnly={readOnly}
             />
           </div>
+          {/* Macros : Protéines / Lipides / Glucides */}
+          <div className="grid grid-cols-3 gap-1.5">
+            <Stat
+              label="Prot"
+              suffix="g"
+              value={data.proteinsG}
+              onChange={(v) => onChange({ proteinsG: v })}
+              readOnly={readOnly}
+              allowDecimal
+            />
+            <Stat
+              label="Lip"
+              suffix="g"
+              value={data.lipidsG}
+              onChange={(v) => onChange({ lipidsG: v })}
+              readOnly={readOnly}
+              allowDecimal
+            />
+            <Stat
+              label="Gluc"
+              suffix="g"
+              value={data.carbsG}
+              onChange={(v) => onChange({ carbsG: v })}
+              readOnly={readOnly}
+              allowDecimal
+            />
+          </div>
           <CsvField
             label="Tags"
             values={data.tags}
@@ -445,12 +487,14 @@ function Stat({
   onChange,
   suffix,
   readOnly,
+  allowDecimal,
 }: {
   label: string;
   value: number | null;
   onChange: (v: number | null) => void;
   suffix?: string;
   readOnly?: boolean;
+  allowDecimal?: boolean;
 }) {
   return (
     <label className="block">
@@ -461,10 +505,16 @@ function Stat({
       <input
         type="number"
         min="0"
+        step={allowDecimal ? 0.1 : 1}
         value={value ?? ''}
-        onChange={(e) =>
-          onChange(e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0))
-        }
+        onChange={(e) => {
+          if (e.target.value === '') return onChange(null);
+          const n = Number(e.target.value);
+          if (!Number.isFinite(n)) return onChange(null);
+          onChange(
+            Math.max(0, allowDecimal ? Math.round(n * 10) / 10 : Math.round(n)),
+          );
+        }}
         readOnly={readOnly}
         className="input h-7 w-full px-1 text-center text-xs"
       />

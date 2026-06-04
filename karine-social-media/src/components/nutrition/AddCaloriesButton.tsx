@@ -75,8 +75,12 @@ export function AddCaloriesButton({
   }
 
   const base =
-    'inline-flex items-center gap-1 rounded-full border border-coral/30 bg-white text-coral transition-colors hover:bg-coral hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-coral';
-  const sizing = compact ? 'px-1.5 py-1 text-xs' : 'px-2.5 py-1 text-xs font-semibold';
+    'inline-flex items-center justify-center gap-1 rounded-full border border-coral/30 bg-white text-coral transition-colors hover:bg-coral hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-coral';
+  // compact = h-7 w-7 (icone seule)
+  // default = h-9 (cohérent avec les autres boutons d'action recette)
+  const sizing = compact
+    ? 'h-7 w-7 text-xs'
+    : 'h-9 px-2.5 text-[0.7rem] font-semibold';
 
   return (
     <button
