@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { NutritionProfileForm } from './NutritionProfileForm';
 import { MacroRing } from './MacroRing';
 
@@ -29,6 +29,7 @@ type DayState = {
   };
   entries: FoodLogEntry[];
   totals: { kcal: number; proteinsG: number; lipidsG: number; carbsG: number };
+  profileComplete: boolean;
 };
 
 type CiqualCandidate = {
@@ -51,7 +52,8 @@ type ParsedItem = {
   proteinsPerPortion: number | null;
   lipidsPerPortion: number | null;
   carbsPerPortion: number | null;
-  fallbackCandidates?: CiqualCandidate[];
+  /** Top 7 candidats Ciqual (toujours quand on en a trouvé) */
+  topCandidates?: CiqualCandidate[];
 };
 
 function round1(n: number): number {
@@ -94,6 +96,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
   const [editingTarget, setEditingTarget] = useState(false);
+  const [todayOpen, setTodayOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Auto-clear erreurs après 4s
@@ -282,9 +285,20 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           <button
             type="button"
             onClick={() => setEditingTarget((v) => !v)}
-            className="mt-2 flex w-full items-center justify-between rounded-lg border border-coral-soft/40 bg-white px-3 py-1.5 text-left text-xs font-semibold text-coral-dark transition-colors hover:bg-coral-soft/20"
+            className={`mt-2 flex w-full items-center justify-between rounded-lg border px-3 py-1.5 text-left text-xs font-semibold transition-colors ${
+              day?.profileComplete
+                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                : 'border-coral-soft/40 bg-white text-coral-dark hover:bg-coral-soft/20'
+            }`}
           >
-            <span>Renseigne tes besoins en calorie</span>
+            <span className="flex items-center gap-1.5">
+              {day?.profileComplete && (
+                <Check className="size-3.5" strokeWidth={3} />
+              )}
+              {day?.profileComplete
+                ? 'Tes informations sont à jour'
+                : 'Renseigne tes besoins en calorie'}
+            </span>
             {editingTarget ? (
               <ChevronUp className="size-3.5" />
             ) : (
@@ -316,7 +330,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 </p>
               )}
               <p className="text-xs font-semibold text-ink-soft">
-                Détecté ({preview.length}) — vérifie puis confirme
+                Voici ce que j&apos;ai trouvé, tu confirmes&nbsp;?
               </p>
               <ul className="space-y-1.5">
                 {preview.map((p, i) => (
@@ -336,7 +350,14 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                         label: c.name,
                         match: c,
                         ...recomputed,
-                        fallbackCandidates: undefined,
+                        // Si on choisit un candidat qui n'est pas
+                        // dans topCandidates (recherche libre), on
+                        // l'ajoute en tête de liste.
+                        topCandidates: p.topCandidates?.some(
+                          (x) => x.alimCode === c.alimCode,
+                        )
+                          ? p.topCandidates
+                          : [c, ...(p.topCandidates ?? [])].slice(0, 7),
                       };
                       setPreview(next);
                     }}
@@ -418,12 +439,23 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
             WebkitOverflowScrolling: 'touch',
           }}
         >
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-ink-soft">
-            Aujourd&apos;hui ({day?.entries.length ?? 0})
-          </p>
-          {day && day.entries.length === 0 ? (
+          <button
+            type="button"
+            onClick={() => setTodayOpen((v) => !v)}
+            className="mb-2 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-ink-soft transition-colors hover:text-coral-dark"
+          >
+            <span>
+              Aujourd&apos;hui, tu as mangé&nbsp;: {day?.entries.length ?? 0}
+            </span>
+            {todayOpen ? (
+              <ChevronUp className="size-3.5" />
+            ) : (
+              <ChevronDown className="size-3.5" />
+            )}
+          </button>
+          {todayOpen && day && day.entries.length === 0 ? (
             <p className="text-sm text-ink-soft">Aucune entrée pour le moment.</p>
-          ) : (
+          ) : todayOpen ? (
             <ul className="space-y-1.5">
               {day?.entries.map((e) => (
                 <li
@@ -451,7 +483,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 </li>
               ))}
             </ul>
-          )}
+          ) : null}
         </section>
       </div>
     </div>,
@@ -476,21 +508,16 @@ function PreviewRow({
       ? Math.round(item.kcalPerPortion * item.portions)
       : null;
 
-  const isFallback = !item.match && (item.fallbackCandidates?.length ?? 0) > 0;
-  const isNotFound = !item.match && (!item.fallbackCandidates || item.fallbackCandidates.length === 0);
+  const candidates = item.topCandidates ?? [];
+  const hasCandidates = candidates.length > 0;
 
   return (
     <li className="space-y-1.5 rounded-lg border border-coral-soft/30 bg-cream/40 px-2 py-1.5">
+      {/* Header : nom sélectionné + kcal + stepper portions + supprimer */}
       <div className="flex items-center gap-2">
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-ink">{item.label}</p>
           <p className="text-xs text-ink-soft">
-            {item.match
-              ? '✓ Ciqual'
-              : isFallback
-                ? '⚠ Aucun choix sûr — sélectionne ci-dessous'
-                : '⚠ Pas trouvé'}
-            {' — '}
             {total !== null ? `${total} kcal` : 'kcal inconnues'}
             {' · '}
             {item.approxGrams}g/portion
@@ -518,26 +545,49 @@ function PreviewRow({
         </button>
       </div>
 
-      {/* Liste de candidats si match incertain */}
-      {isFallback && (
+      {/* Liste des candidats (radio-like) — toujours visible quand on
+          en a. Le candidat sélectionné a la coche verte rempli, les
+          autres une coche grise éteinte (cliquable). */}
+      {hasCandidates && (
         <ul className="space-y-0.5 rounded-md bg-white p-1.5">
-          <li className="px-1 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
-            Choix possibles :
-          </li>
-          {item.fallbackCandidates!.map((c) => (
-            <li key={c.alimCode}>
-              <button
-                type="button"
-                onClick={() => onPickCandidate(c)}
-                className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-coral-soft/30"
-              >
-                <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                <span className="shrink-0 font-semibold text-coral">
-                  {c.kcalPer100g !== null ? `${Math.round(c.kcalPer100g)} kcal/100g` : '—'}
-                </span>
-              </button>
-            </li>
-          ))}
+          {candidates.map((c) => {
+            const selected = item.match?.alimCode === c.alimCode;
+            return (
+              <li key={c.alimCode}>
+                <button
+                  type="button"
+                  onClick={() => !selected && onPickCandidate(c)}
+                  disabled={selected}
+                  className={`flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs transition-colors ${
+                    selected
+                      ? 'bg-emerald-50 text-emerald-900'
+                      : 'text-ink hover:bg-coral-soft/30'
+                  }`}
+                >
+                  <span
+                    aria-hidden
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                      selected
+                        ? 'border-emerald-500 bg-emerald-500 text-white'
+                        : 'border-coral-soft/60 bg-white'
+                    }`}
+                  >
+                    {selected && <Check className="size-3" strokeWidth={3} />}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                  <span
+                    className={`shrink-0 font-semibold ${
+                      selected ? 'text-emerald-700' : 'text-coral'
+                    }`}
+                  >
+                    {c.kcalPer100g !== null
+                      ? `${Math.round(c.kcalPer100g)} kcal/100g`
+                      : '—'}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
           <li>
             <button
               type="button"
@@ -550,8 +600,8 @@ function PreviewRow({
         </ul>
       )}
 
-      {/* Bouton "Chercher autre chose" même si rien trouvé */}
-      {isNotFound && (
+      {/* Aucun candidat — proposer recherche libre direct */}
+      {!hasCandidates && (
         <button
           type="button"
           onClick={() => setShowPicker((v) => !v)}
@@ -562,10 +612,12 @@ function PreviewRow({
       )}
 
       {showPicker && (
-        <FreeSearchPicker onPick={(c) => {
-          onPickCandidate(c);
-          setShowPicker(false);
-        }} />
+        <FreeSearchPicker
+          onPick={(c) => {
+            onPickCandidate(c);
+            setShowPicker(false);
+          }}
+        />
       )}
     </li>
   );
