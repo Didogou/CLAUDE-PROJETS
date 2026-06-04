@@ -161,8 +161,12 @@ function Row({
   onUpdate: (patch: Partial<RecipeIngredient>) => void;
   onRemove: () => void;
 }) {
+  // Layout aligné sur ShoppingListEditor : grid 5 colonnes avec
+  // largeurs fixes pour quantity/unit + label flexible + note (visible
+  // dès sm) + delete. Avant on était en flex+w-12 et le label
+  // collapsait dans certains parents (tableau de relecture étroit).
   return (
-    <li className="flex items-center gap-2 px-2.5 py-1.5">
+    <li className="grid grid-cols-[1.5rem_3rem_3rem_1fr_auto] items-center gap-1.5 px-2.5 py-1.5 sm:grid-cols-[1.5rem_4rem_4rem_1fr_2fr_auto]">
       {/* Case carrée déco — esthétique liste de courses */}
       <span
         aria-hidden
@@ -171,6 +175,7 @@ function Row({
       <input
         type="number"
         step="0.5"
+        min="0"
         value={ing.quantity ?? ''}
         onChange={(e) =>
           onUpdate({
@@ -179,29 +184,36 @@ function Row({
           })
         }
         placeholder="—"
-        className="input h-7 w-12 px-1 text-center text-xs"
+        className="input h-8 px-1.5 text-center text-sm"
       />
       <input
         type="text"
         value={ing.unit ?? ''}
         onChange={(e) => onUpdate({ unit: e.target.value || null })}
-        placeholder="g"
-        className="input h-7 w-12 px-1 text-center text-xs"
+        placeholder="g/cl"
+        className="input h-8 px-1.5 text-center text-sm"
       />
       <input
         type="text"
         value={ing.label}
         onChange={(e) => onUpdate({ label: e.target.value })}
         placeholder="ingrédient"
-        className="input h-7 flex-1 px-2 text-xs"
+        className="input h-8 px-2 text-sm"
+      />
+      <input
+        type="text"
+        value={ing.note ?? ''}
+        onChange={(e) => onUpdate({ note: e.target.value || null })}
+        placeholder="note (optionnel)"
+        className="input hidden h-8 px-2 text-xs italic text-admin-ink-soft sm:block"
       />
       <button
         type="button"
         onClick={onRemove}
         aria-label="Supprimer cette ligne"
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-admin-ink-soft transition hover:bg-red-50 hover:text-red-600"
+        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-admin-ink-soft transition hover:bg-red-50 hover:text-red-600"
       >
-        <Trash2 className="h-3 w-3" />
+        <Trash2 className="h-3.5 w-3.5" />
       </button>
     </li>
   );
