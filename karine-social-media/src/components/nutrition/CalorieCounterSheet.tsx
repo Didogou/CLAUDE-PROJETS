@@ -41,11 +41,26 @@ type CiqualCandidate = {
   carbsG?: number | null;
 };
 
+type SizeBucket = 'small' | 'medium' | 'large';
+
+const SIZE_MULTIPLIERS: Record<SizeBucket, number> = {
+  small: 0.7,
+  medium: 1.0,
+  large: 1.4,
+};
+
+const SIZE_LABELS: Record<SizeBucket, string> = {
+  small: 'Petit',
+  medium: 'Moyen',
+  large: 'Grand',
+};
+
 type ParsedItem = {
   label: string;
   searchQuery: string;
   portions: number;
   approxGrams: number;
+  baseGramsBeforeSizeHint?: number;
   match: CiqualCandidate | null;
   kcalPerPortion: number | null;
   proteinsPerPortion: number | null;
@@ -53,6 +68,17 @@ type ParsedItem = {
   carbsPerPortion: number | null;
   /** Top 7 candidats Ciqual (toujours quand on en a trouvé) */
   topCandidates?: CiqualCandidate[];
+  foodKeyword?: string;
+  sizeVariability?: 'low' | 'medium' | 'high';
+  sizeHint?: SizeBucket | null;
+};
+
+type Followup = {
+  itemIndex: number;
+  triggerKeyword: string;
+  question: string;
+  suggestedFood: string;
+  defaultG: number;
 };
 
 function round1(n: number): number {
@@ -93,6 +119,8 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState<ParsedItem[] | null>(null);
   const [previewStep, setPreviewStep] = useState(0);
+  const [followups, setFollowups] = useState<Followup[]>([]);
+  const [answeredFollowups, setAnsweredFollowups] = useState<Set<number>>(new Set());
   const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
   const [editingTarget, setEditingTarget] = useState(false);
@@ -194,6 +222,8 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       if (Array.isArray(data.items) && data.items.length > 0) {
         setPreview(data.items);
         setPreviewStep(0);
+        setFollowups(Array.isArray(data.followups) ? data.followups : []);
+        setAnsweredFollowups(new Set());
       } else {
         alertError('Aucun aliment détecté');
       }
@@ -231,6 +261,8 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         setPreview(null);
         setCorrectedText(null);
         setPreviewStep(0);
+        setFollowups([]);
+        setAnsweredFollowups(new Set());
         setNaturalText('');
         await refresh();
         onChanged();
@@ -434,13 +466,112 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                           setPreview(null);
                           setCorrectedText(null);
                           setPreviewStep(0);
+                          setFollowups([]);
+                          setAnsweredFollowups(new Set());
                         } else {
                           setPreview(next);
                           // Si on a retire le dernier, recule
                           setPreviewStep((s) => Math.min(s, next.length - 1));
                         }
                       }}
+                      onSizeChange={(bucket) => {
+                        const base = p.baseGramsBeforeSizeHint ?? p.approxGrams;
+                        const newGrams = Math.round(base * SIZE_MULTIPLIERS[bucket]);
+                        const factor = newGrams / 100;
+                        const next = [...preview];
+                        next[i] = {
+                          ...p,
+                          approxGrams: newGrams,
+                          sizeHint: bucket,
+                          kcalPerPortion:
+                            p.match?.kcalPer100g != null
+                              ? round1(p.match.kcalPer100g * factor)
+                              : p.kcalPerPortion,
+                          proteinsPerPortion:
+                            p.match?.proteinsG != null
+                              ? round1(p.match.proteinsG * factor)
+                              : p.proteinsPerPortion,
+                          lipidsPerPortion:
+                            p.match?.lipidsG != null
+                              ? round1(p.match.lipidsG * factor)
+                              : p.lipidsPerPortion,
+                          carbsPerPortion:
+                            p.match?.carbsG != null
+                              ? round1(p.match.carbsG * factor)
+                              : p.carbsPerPortion,
+                        };
+                        setPreview(next);
+                      }}
                     />
+                  );
+                })()}
+
+                {/* Carte followup : si un followup cible l'item courant
+                    ET pas encore répondu, on affiche les boutons Oui/Non.
+                    Si Oui, on insère un nouvel item juste après dans le
+                    preview pour qu'il devienne le step suivant. */}
+                {(() => {
+                  const i = Math.min(previewStep, preview.length - 1);
+                  const followup = followups.find(
+                    (f) =>
+                      f.itemIndex === i &&
+                      !answeredFollowups.has(f.itemIndex),
+                  );
+                  if (!followup) return null;
+                  return (
+                    <li className="rounded-lg border border-amber-300 bg-amber-50/70 p-2.5">
+                      <p className="text-xs font-semibold text-amber-900">
+                        💡 {followup.question}
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAnsweredFollowups((s) => {
+                              const next = new Set(s);
+                              next.add(followup.itemIndex);
+                              return next;
+                            });
+                          }}
+                          className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                        >
+                          Non
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Insère un nouvel item avec l'aliment suggéré
+                            // juste après l'item courant.
+                            const newItem: ParsedItem = {
+                              label: followup.suggestedFood,
+                              searchQuery: followup.suggestedFood,
+                              portions: 1,
+                              approxGrams: followup.defaultG,
+                              baseGramsBeforeSizeHint: followup.defaultG,
+                              match: null,
+                              kcalPerPortion: null,
+                              proteinsPerPortion: null,
+                              lipidsPerPortion: null,
+                              carbsPerPortion: null,
+                              topCandidates: undefined,
+                              sizeVariability: 'low',
+                              sizeHint: null,
+                            };
+                            const next = [...preview];
+                            next.splice(i + 1, 0, newItem);
+                            setPreview(next);
+                            setAnsweredFollowups((s) => {
+                              const out = new Set(s);
+                              out.add(followup.itemIndex);
+                              return out;
+                            });
+                          }}
+                          className="ml-auto rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-amber-600"
+                        >
+                          Oui, ajouter
+                        </button>
+                      </div>
+                    </li>
                   );
                 })()}
               </ul>
@@ -451,6 +582,8 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                     setPreview(null);
                     setCorrectedText(null);
                     setPreviewStep(0);
+                    setFollowups([]);
+                    setAnsweredFollowups(new Set());
                   }}
                   className="rounded-full border border-coral-soft px-3 py-1.5 text-xs font-semibold text-coral"
                 >
@@ -595,12 +728,14 @@ function PreviewRow({
   onPortionsChange,
   onPickCandidate,
   onRemove,
+  onSizeChange,
 }: {
   item: ParsedItem;
   showCalories: boolean;
   onPortionsChange: (n: number) => void;
   onPickCandidate: (c: CiqualCandidate) => void;
   onRemove: () => void;
+  onSizeChange: (bucket: SizeBucket) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
   const total =
@@ -610,6 +745,14 @@ function PreviewRow({
 
   const candidates = item.topCandidates ?? [];
   const hasCandidates = candidates.length > 0;
+
+  // Affichage des chips P/M/G : si l'aliment a une variability !=
+  // 'low' ET qu'aucun adjectif explicite (sizeHint=null), on
+  // propose les 3 chips pour que l'abonnée valide.
+  const showSizeChips =
+    item.sizeVariability === 'high' ||
+    (item.sizeVariability === 'medium' && item.sizeHint === null);
+  const currentBucket: SizeBucket = item.sizeHint ?? 'medium';
 
   return (
     <li className="space-y-1.5 rounded-lg border border-coral-soft/30 bg-cream/40 px-2 py-1.5">
@@ -648,6 +791,34 @@ function PreviewRow({
           <X className="size-3.5" />
         </button>
       </div>
+
+      {/* Chips Petit / Moyen / Grand — affichés si l'aliment a une
+          variabilité non triviale ET aucun adjectif n'a été détecté.
+          Sinon l'item garde son approxGrams initial. */}
+      {showSizeChips && (
+        <div className="flex items-center gap-1.5 rounded-md bg-white p-1.5">
+          <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
+            Taille :
+          </span>
+          {(['small', 'medium', 'large'] as const).map((b) => {
+            const active = b === currentBucket;
+            return (
+              <button
+                key={b}
+                type="button"
+                onClick={() => onSizeChange(b)}
+                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? 'bg-coral text-white shadow'
+                    : 'bg-coral-soft/30 text-coral hover:bg-coral-soft/50'
+                }`}
+              >
+                {SIZE_LABELS[b]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* Liste des candidats (radio-like) — toujours visible quand on
           en a. Le candidat sélectionné a la coche verte rempli, les
