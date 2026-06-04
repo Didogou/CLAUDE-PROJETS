@@ -5,6 +5,7 @@ import NextTopLoader from 'nextjs-toploader';
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { DebugConsole } from '@/components/debug/DebugConsole';
 import { SubscriberFloatingTools } from '@/components/nutrition/SubscriberFloatingTools';
+import { ToastHost } from '@/components/ui/ToastHost';
 import './globals.css';
 
 const nunito = Nunito({
@@ -48,6 +49,7 @@ export default function RootLayout({
         <DebugConsole />
         {children}
         <SubscriberFloatingTools />
+        <ToastHost />
         <SpeedInsights />
       </body>
     </html>

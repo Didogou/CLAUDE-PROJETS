@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Plus } from 'lucide-react';
 import { MyShoppingListOverlay } from './MyShoppingListOverlay';
+import { showToast } from '@/lib/toast';
 
 type Props = {
   sheetId: string;
@@ -41,6 +42,12 @@ export function AddSheetToListButton({
   const [linked, setLinked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [overlayOpen, setOverlayOpen] = useState(false);
+  // Dernieres portions synchronisees avec le serveur. Permet de
+  // detecter quand le stepper PERS a bouge ET que la recette est
+  // deja liee → on doit re-sync la liste avec les nouvelles
+  // quantites.
+  const lastSyncedPortionsRef = useRef<number | null>(null);
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Hydrate l'état linked depuis la liste courante.
   async function hydrate(signal?: { cancelled: boolean }) {
@@ -59,6 +66,13 @@ export function AddSheetToListButton({
           (r: { sheetId: string }) => r.sheetId === sheetId,
         );
       setLinked(inList);
+      // Si la fiche est déjà liée, on suppose que les contribs
+      // actuelles correspondent aux portionsOverride courantes (ou à
+      // l'absence d'override). Le watcher detectera tout changement
+      // futur du stepper.
+      lastSyncedPortionsRef.current = inList
+        ? portionsOverride ?? null
+        : null;
       setState('ready');
     } catch {
       if (!signal?.cancelled) setState('ready');
@@ -96,12 +110,16 @@ export function AddSheetToListButton({
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(j?.error || 'Erreur');
-      setLinked(
+      const nowLinked =
         Array.isArray(j.list?.linkedRecipes) &&
-          j.list.linkedRecipes.some(
-            (r: { sheetId: string }) => r.sheetId === sheetId,
-          ),
-      );
+        j.list.linkedRecipes.some(
+          (r: { sheetId: string }) => r.sheetId === sheetId,
+        );
+      setLinked(nowLinked);
+      // Mémorise les portions courantes pour le watcher de sync.
+      lastSyncedPortionsRef.current = nowLinked
+        ? portionsOverride ?? null
+        : null;
       // Notifie les autres instances pour qu'elles se mettent à jour.
       window.dispatchEvent(new CustomEvent(SHOPPING_LIST_EVENT));
     } catch (e) {
@@ -110,6 +128,35 @@ export function AddSheetToListButton({
       setState('ready');
     }
   }
+
+  // Watcher : si la recette est deja liee ET que le stepper PERS a
+  // bouge, on synchronise la liste avec les nouvelles quantites
+  // (debounce 500ms pour eviter le spam si l user clique +1 plusieurs
+  // fois rapidement).
+  useEffect(() => {
+    if (state !== 'ready' || !linked) return;
+    if (typeof portionsOverride !== 'number' || portionsOverride <= 0) return;
+    if (lastSyncedPortionsRef.current === portionsOverride) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/shopping-list/sync-sheet', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ sheetId, portionsOverride }),
+        });
+        if (!res.ok) return;
+        lastSyncedPortionsRef.current = portionsOverride;
+        showToast('Ta liste de courses a été mise à jour', 'success');
+        window.dispatchEvent(new CustomEvent(SHOPPING_LIST_EVENT));
+      } catch {
+        // silencieux : si le sync échoue, on garde l ancien état UI
+      }
+    }, 500);
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, [portionsOverride, linked, state, sheetId]);
 
   if (state === 'unauth') return null;
   if (!hasIngredients) {

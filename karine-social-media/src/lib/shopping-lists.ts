@@ -119,6 +119,77 @@ export async function toggleSheetOnActiveList(
 }
 
 /**
+ * Synchronise une sheet sur la liste avec un nouveau nb de portions.
+ * - Si pas encore liée : ajoute (comme toggleSheetOnActiveList).
+ * - Si déjà liée : retire ses contribs puis re-merge avec le nouveau
+ *   ratio. Préserve les autres items (autres recettes, manuels) et
+ *   le statut "coché".
+ *
+ * Utilisé quand l'utilisatrice change le stepper PERS sur une fiche
+ * qui est déjà dans sa liste — on met à jour les quantités sans
+ * supprimer la recette de la liste.
+ */
+export async function syncSheetOnActiveList(
+  userId: string,
+  sheet: {
+    sheetId: string;
+    recipeSlug: string;
+    sheetTitle: string;
+    coverUrl: string | null;
+    servings: number;
+    ingredients: RecipeIngredient[];
+  },
+  householdSize: number,
+  portionsOverride?: number,
+): Promise<{ list: ShoppingListV2; action: 'added' | 'updated' }> {
+  const list = await getOrCreateActiveList(userId);
+  const isLinked = list.linkedRecipes.some((r) => r.sheetId === sheet.sheetId);
+
+  const targetPortions =
+    typeof portionsOverride === 'number' &&
+    Number.isFinite(portionsOverride) &&
+    portionsOverride > 0
+      ? portionsOverride
+      : householdSize;
+  const ratio = targetPortions / Math.max(1, sheet.servings);
+  const source: ShoppingItemSource = {
+    type: 'sheet',
+    sheetId: sheet.sheetId,
+    recipeSlug: sheet.recipeSlug,
+    sheetTitle: sheet.sheetTitle,
+  };
+
+  let baseItems = list.items;
+  let nextLinkedRecipes = list.linkedRecipes;
+  if (isLinked) {
+    // Retire les anciennes contribs de cette sheet — les autres
+    // sources et les items manuels restent intacts.
+    baseItems = removeContributionsFromSource(
+      list.items,
+      (s) => s.type === 'sheet' && s.sheetId === sheet.sheetId,
+    );
+  } else {
+    nextLinkedRecipes = [
+      ...list.linkedRecipes,
+      {
+        sheetId: sheet.sheetId,
+        recipeSlug: sheet.recipeSlug,
+        sheetTitle: sheet.sheetTitle,
+        sheetCoverUrl: sheet.coverUrl,
+        addedAt: new Date().toISOString(),
+      },
+    ];
+  }
+
+  const nextItems = mergeIngredients(baseItems, sheet.ingredients, source, ratio);
+  const next = await saveListState(list.id, {
+    items: nextItems,
+    linkedRecipes: nextLinkedRecipes,
+  });
+  return { list: next, action: isLinked ? 'updated' : 'added' };
+}
+
+/**
  * Ajoute (ou retire) un menu hebdomadaire à la liste active (toggle).
  * Idem que pour les recettes mais source = 'menu'.
  */
