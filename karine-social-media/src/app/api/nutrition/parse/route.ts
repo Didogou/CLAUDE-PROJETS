@@ -208,11 +208,24 @@ EXEMPLES COMPLETS :
 
 "un poivron farci à la viande" (PLAT COMPOSÉ ABSENT DE CIQUAL → DÉCOMPOSE)
   → item 1 : search_queries=["poivron cru","poivron"], food_keyword="poivron", portions=1, approx_grams=120, size_hint=null
-  → item 2 : search_queries=["viande hachée bœuf cuite","viande hachée"], food_keyword="viande hachée", portions=1, approx_grams=80, size_hint=null
+  → item 2 : search_queries=["bœuf haché cuit","bœuf haché","bœuf"], food_keyword="bœuf haché", portions=1, approx_grams=80, size_hint=null
 
 "des tomates farcies" (DÉCOMPOSE)
   → item 1 : search_queries=["tomate crue","tomate"], food_keyword="tomate", portions=2, approx_grams=150
-  → item 2 : search_queries=["viande hachée bœuf cuite","viande hachée"], food_keyword="viande hachée", portions=1, approx_grams=100
+  → item 2 : search_queries=["bœuf haché cuit","bœuf haché","bœuf"], food_keyword="bœuf haché", portions=1, approx_grams=100
+
+⚠️ MAPPINGS GÉNÉRIQUES → ESPÈCE EXACTE (la base Ciqual ne contient PAS les mots "viande" ni "poisson blanc" — il faut donner l'espèce animale précise pour qu'on trouve quelque chose) :
+
+- "viande hachée" / "viande" / "viande rouge" → search_queries=["bœuf haché cuit","bœuf haché","bœuf"], food_keyword="bœuf haché"
+- "steak" / "steak haché" → search_queries=["bœuf haché cuit","steak haché bœuf","bœuf"], food_keyword="steak haché"
+- "viande blanche" → search_queries=["poulet cuit","poulet"], food_keyword="poulet"
+- "poisson" / "poisson blanc" → search_queries=["cabillaud cuit","cabillaud","lieu noir","poisson"], food_keyword="poisson"
+- "poisson rouge" / "poisson gras" → search_queries=["saumon cuit","saumon"], food_keyword="saumon"
+- "céréales" / "muesli" → search_queries=["muesli","céréales petit déjeuner"], food_keyword="céréales"
+- "fromage" (sans précision) → search_queries=["emmental","fromage"], food_keyword="fromage"
+- "yaourt" / "yogourt" → search_queries=["yaourt nature","yaourt"], food_keyword="yaourt"
+
+Règle générale : la base ANSES Ciqual parle par ESPÈCE animale et par NOM précis d'aliment. Si l'abonnée dit un terme générique ("viande", "poisson", "céréales"), tu DOIS le traduire en au moins une espèce / nom précis dans search_queries. Sinon Ciqual ne trouvera rien.
 
 RÈGLES IMPORTANTES :
 
