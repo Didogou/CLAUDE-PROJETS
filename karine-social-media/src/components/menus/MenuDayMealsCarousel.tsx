@@ -1,22 +1,24 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronLeft,
   ChevronRight,
-  Clock,
-  Flame,
   Image as ImageIcon,
   Lock,
+  Printer,
+  Share2,
   ShoppingCart,
-  Users,
   X,
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import type { MenuMealSheet } from '@/data/menus';
+import type { RecipeIngredient } from '@/data/recipes';
 import { DAYS_LABELS, formatWeekTitle } from '@/data/menus';
 import { AddCaloriesButton } from '@/components/nutrition/AddCaloriesButton';
+import { PortionsStepper } from '@/components/recettes/PortionsStepper';
+import { scaleIngredients } from '@/lib/recipe-portions';
 
 type Props = {
   menuId: string;
@@ -211,6 +213,18 @@ export function MenuDayMealsCarousel({
 
 // ============================================================
 // MealCard : une fiche repas (lunch ou dinner)
+//
+// Layout aligné sur SheetCarousel (recette détail) :
+//  - Image centrée, object-contain pour rester ENTIÈRE sur PC
+//  - Click image → lightbox plein écran
+//  - Titre
+//  - Bandeau d'actions : PortionsStepper | Mes courses | +kcal | Share | Print
+//  - Liste d'ingrédients groupés par catégorie, scalés selon
+//    customPortions (défaut = servings de la fiche)
+//  - Tags en chips
+//
+// Pas de stats kcal/prep/cuis dans cet écran (décision Karine).
+// Le compteur kcal reste accessible via AddCaloriesButton.
 // ============================================================
 
 function MealCard({
@@ -222,6 +236,17 @@ function MealCard({
   sheet: MenuMealSheet | null;
   isAuthenticated: boolean;
 }) {
+  // Hooks d'abord (avant le early return null) — règle React.
+  const [customPortions, setCustomPortions] = useState<number>(
+    sheet?.servings ?? 4,
+  );
+  const [zoomOpen, setZoomOpen] = useState(false);
+
+  // Si servings change (refresh / autre sheet), on resync.
+  useEffect(() => {
+    if (sheet) setCustomPortions(sheet.servings);
+  }, [sheet]);
+
   if (!sheet) {
     return (
       <div className="rounded-2xl border-2 border-dashed border-coral-soft/40 bg-white/40 px-4 py-6 text-center">
@@ -235,96 +260,141 @@ function MealCard({
     );
   }
 
+  async function handleShare() {
+    if (!sheet) return;
+    const url = typeof window !== 'undefined' ? window.location.href : '';
+    const title = sheet.title || `${label} — menu`;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.share) {
+        await navigator.share({ title, url });
+      } else if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch {
+      /* user annulé */
+    }
+  }
+
   return (
-    <article className="overflow-hidden rounded-2xl bg-white/85 shadow-sm backdrop-blur-sm">
-      <header className="flex items-center justify-between gap-2 border-b border-cream px-3 py-1.5">
-        <span className="rounded-full bg-coral-soft/40 px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
+    <article className="space-y-4 rounded-2xl bg-white/85 p-4 shadow-sm backdrop-blur-sm lg:p-6">
+      <header className="flex items-center justify-center">
+        <span className="rounded-full bg-coral-soft/40 px-3 py-1 text-xs font-bold uppercase tracking-wider text-coral-dark">
           {label}
         </span>
-        {isAuthenticated && (
-          <div className="flex items-center gap-1.5">
-            <AddCaloriesButton
-              source="menu"
-              sourceRefId={sheet.id}
-              label={sheet.title || `${label} (menu)`}
-              kcal={sheet.calories}
-              compact
-            />
-            <AddMealSheetButton
-              sheetId={sheet.id}
-              hasIngredients={sheet.ingredients.length > 0}
-            />
-          </div>
-        )}
       </header>
 
+      {/* Image entière (object-contain) centrée. Hauteur cappée pour
+          rester visible d'un coup sur PC sans scroll. Click → zoom. */}
       {sheet.coverImageUrl && (
-        <img
-          src={sheet.coverImageUrl}
-          alt={sheet.title ?? ''}
-          className="aspect-[4/3] w-full object-cover"
+        <button
+          type="button"
+          onClick={() => setZoomOpen(true)}
+          aria-label="Agrandir la fiche"
+          className="group mx-auto block w-full max-w-md cursor-zoom-in"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={sheet.coverImageUrl}
+            alt={sheet.title ?? ''}
+            className="mx-auto block max-h-[70vh] w-auto max-w-full rounded-2xl object-contain shadow-md transition group-hover:-translate-y-0.5 group-hover:shadow-lg"
+          />
+        </button>
+      )}
+
+      {sheet.title && (
+        <h3 className="text-center font-script text-2xl text-coral-dark sm:text-3xl">
+          {sheet.title}
+        </h3>
+      )}
+
+      {/* Bandeau d'actions : portions stepper + mes courses + kcal +
+          share + print. PortionsStepper à gauche de "Ajouter au menu"
+          comme demandé. */}
+      <div className="mx-auto flex w-full max-w-2xl flex-wrap items-center justify-center gap-2">
+        <PortionsStepper
+          value={customPortions}
+          onChange={setCustomPortions}
+        />
+        {isAuthenticated && (
+          <AddMealSheetButton
+            sheetId={sheet.id}
+            hasIngredients={sheet.ingredients.length > 0}
+            portionsOverride={customPortions}
+          />
+        )}
+        {isAuthenticated && (
+          <AddCaloriesButton
+            source="menu"
+            sourceRefId={sheet.id}
+            label={sheet.title || `${label} (menu)`}
+            kcal={sheet.calories}
+          />
+        )}
+        <ActionIconButton icon={Share2} label="Partager" onClick={handleShare} />
+        <ActionIconButton
+          icon={Printer}
+          label="Imprimer"
+          onClick={() => window.print()}
+        />
+      </div>
+
+      {/* Ingrédients groupés par catégorie, scalés selon customPortions.
+          On normalise `note` (optionnel sur ShoppingListItem → toujours
+          présent sur RecipeIngredient) pour réutiliser le helper. */}
+      {sheet.ingredients.length > 0 && (
+        <IngredientsList
+          ingredients={sheet.ingredients.map((it) => ({
+            category: it.category,
+            label: it.label,
+            quantity: it.quantity,
+            unit: it.unit,
+            note: it.note ?? null,
+          }))}
+          baseServings={sheet.servings}
+          customPortions={customPortions}
         />
       )}
 
-      <div className="space-y-2 p-3">
-        {sheet.title && (
-          <h3 className="font-script text-xl text-coral-dark">
-            {sheet.title}
-          </h3>
-        )}
-
-        <div className="grid grid-cols-4 gap-1.5">
-          <Stat icon={Users} label="Pers" value={sheet.servings} />
-          <Stat icon={Flame} label="kcal" value={sheet.calories} />
-          <Stat icon={Clock} label="Prep" value={sheet.prepTimeMin} suffix="min" />
-          <Stat icon={Clock} label="Cuis" value={sheet.cookTimeMin} suffix="min" />
+      {/* Tags chips */}
+      {sheet.tags.length > 0 && (
+        <div className="flex flex-wrap justify-center gap-1.5 pt-1">
+          {sheet.tags.map((t) => (
+            <span
+              key={`t-${t}`}
+              className="rounded-full bg-coral-soft/30 px-2.5 py-0.5 text-xs font-semibold text-coral-dark"
+            >
+              {t}
+            </span>
+          ))}
         </div>
+      )}
 
-        {sheet.ingredients.length > 0 && (
-          <details className="rounded-lg bg-cream/40 px-2.5 py-1.5">
-            <summary className="cursor-pointer text-xs font-semibold text-coral-dark">
-              Ingrédients ({sheet.ingredients.length})
-            </summary>
-            <ul className="mt-1 space-y-0.5 text-[0.75rem] text-ink">
-              {sheet.ingredients.map((ing, idx) => (
-                <li key={idx}>
-                  • {ing.quantity ?? ''}
-                  {ing.unit ? ` ${ing.unit}` : ''} {ing.label}
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-
-        {(sheet.tags.length > 0 || sheet.aliments.length > 0) && (
-          <div className="flex flex-wrap gap-1">
-            {sheet.tags.map((t) => (
-              <span
-                key={`t-${t}`}
-                className="rounded-full bg-coral-soft/30 px-2 py-0.5 text-[0.65rem] font-semibold text-coral-dark"
-              >
-                {t}
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
+      {/* Lightbox plein écran sur clic image */}
+      {zoomOpen && sheet.coverImageUrl && (
+        <MealImageLightbox
+          imageUrl={sheet.coverImageUrl}
+          alt={sheet.title ?? ''}
+          onClose={() => setZoomOpen(false)}
+        />
+      )}
     </article>
   );
 }
 
 // ============================================================
-// Bouton + Mes courses (utilise l'API toggle-sheet — la même que pour
-// recipe_sheets — mais pour une menu_meal_sheet : il faut un endpoint
-// dédié vu la table source différente).
+// Bouton + Mes courses (utilise l'API toggle-meal-sheet dédiée
+// menu_meal_sheets). Accepte un portionsOverride pour scale la
+// liste selon le nb de personnes choisi dans le PortionsStepper.
 // ============================================================
 
 function AddMealSheetButton({
   sheetId,
   hasIngredients,
+  portionsOverride,
 }: {
   sheetId: string;
   hasIngredients: boolean;
+  portionsOverride?: number;
 }) {
   const [busy, setBusy] = useState(false);
   const [added, setAdded] = useState(false);
@@ -336,7 +406,10 @@ function AddMealSheetButton({
       const res = await fetch('/api/shopping-list/toggle-meal-sheet', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ mealSheetId: sheetId }),
+        body: JSON.stringify({
+          mealSheetId: sheetId,
+          portionsOverride: portionsOverride,
+        }),
       });
       if (!res.ok) throw new Error();
       setAdded(true);
@@ -354,38 +427,142 @@ function AddMealSheetButton({
       type="button"
       onClick={add}
       disabled={busy || !hasIngredients}
-      className="flex items-center gap-1 rounded-full bg-coral px-2.5 py-1 text-[0.65rem] font-bold text-white shadow-sm transition hover:bg-coral-dark disabled:opacity-40"
+      className="flex items-center gap-1.5 rounded-full bg-coral px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-coral-dark disabled:opacity-40"
     >
-      <ShoppingCart className="h-3 w-3" />
+      <ShoppingCart className="h-3.5 w-3.5" />
       {added ? '✓ ajouté' : 'Mes courses'}
     </button>
   );
 }
 
 // ============================================================
-// Stat compact
+// ActionIconButton : icône ronde réutilisée pour share / print
+// (même style que SheetCarousel — cohérence visuelle).
 // ============================================================
 
-function Stat({
+function ActionIconButton({
   icon: Icon,
   label,
-  value,
-  suffix,
+  onClick,
 }: {
-  icon: typeof Users;
+  icon: typeof Share2;
   label: string;
-  value: number | null;
-  suffix?: string;
+  onClick: () => void;
 }) {
   return (
-    <div className="rounded-lg bg-cream/30 p-1 text-center">
-      <Icon className="mx-auto h-3 w-3 text-coral" />
-      <p className="mt-0.5 text-xs font-bold text-coral-dark">{value ?? '—'}</p>
-      <p className="text-[0.5rem] font-semibold uppercase tracking-wider text-ink-soft">
-        {label}
-        {suffix && ` ${suffix}`}
-      </p>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-coral shadow-sm ring-1 ring-coral-soft/40 transition hover:scale-105 hover:bg-coral-soft/30"
+    >
+      <Icon className="h-4 w-4" strokeWidth={2.2} />
+    </button>
+  );
+}
+
+// ============================================================
+// IngredientsList : liste des ingrédients groupés par catégorie
+// (alignée sur le rendu de SheetCarousel). Scale les quantités via
+// scaleIngredients selon customPortions / baseServings.
+// ============================================================
+
+function IngredientsList({
+  ingredients,
+  baseServings,
+  customPortions,
+}: {
+  ingredients: RecipeIngredient[];
+  baseServings: number;
+  customPortions: number;
+}) {
+  const factor =
+    baseServings > 0 && customPortions > 0 ? customPortions / baseServings : 1;
+  const grouped = useMemo(() => {
+    const scaled = scaleIngredients(ingredients, factor);
+    const map = new Map<string, RecipeIngredient[]>();
+    for (const it of scaled) {
+      if (!map.has(it.category)) map.set(it.category, []);
+      map.get(it.category)!.push(it);
+    }
+    return [...map.entries()];
+  }, [ingredients, factor]);
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-2 pt-2">
+      <h4 className="font-script text-xl text-coral">Ingrédients</h4>
+      {grouped.map(([cat, items]) => (
+        <div key={cat}>
+          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
+            {cat}
+          </p>
+          <ul className="text-sm text-ink">
+            {items.map((it, idx) => (
+              <li key={idx}>• {formatIngredient(it)}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
+  );
+}
+
+function formatIngredient(it: RecipeIngredient): string {
+  if (it.quantity == null) return capitalize(it.label);
+  if (it.unit) {
+    if (/^(boule|sachet|tranche|gousse)/i.test(it.unit)) {
+      return `${it.quantity} ${it.unit}${it.quantity > 1 ? 's' : ''} de ${it.label}`;
+    }
+    return `${it.quantity} ${it.unit} de ${it.label}`;
+  }
+  return `${it.quantity} ${it.label}`;
+}
+
+function capitalize(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// ============================================================
+// Lightbox plein écran de l'image d'une fiche repas (cliquable
+// pour zoom). Réutilise le pattern de ShoppingListImageLightbox.
+// ============================================================
+
+function MealImageLightbox({
+  imageUrl,
+  alt,
+  onClose,
+}: {
+  imageUrl: string;
+  alt: string;
+  onClose: () => void;
+}) {
+  if (typeof window === 'undefined') return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] grid place-items-center bg-black/85 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Fermer"
+        className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-full bg-white text-ink shadow-lg ring-2 ring-white/30"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={imageUrl}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        className="max-h-[90vh] max-w-full rounded-2xl object-contain shadow-2xl"
+      />
+    </div>,
+    document.body,
   );
 }
 
