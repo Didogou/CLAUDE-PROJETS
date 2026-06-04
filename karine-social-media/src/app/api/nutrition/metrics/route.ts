@@ -21,7 +21,7 @@ export async function GET() {
 
   const { data } = await (supabase as any)
     .from('daily_metrics')
-    .select('kcal_burned, weight_kg, summary_text, summary_generated_at')
+    .select('kcal_burned, weight_kg, karine_tip, karine_tip_at')
     .eq('user_id', user.id)
     .eq('date', dateStr)
     .maybeSingle();
@@ -32,8 +32,8 @@ export async function GET() {
       weightKg: data?.weight_kg !== null && data?.weight_kg !== undefined
         ? Number(data.weight_kg)
         : null,
-      summaryText: data?.summary_text ?? null,
-      summaryGeneratedAt: data?.summary_generated_at ?? null,
+      karineTip: data?.karine_tip ?? null,
+      karineTipAt: data?.karine_tip_at ?? null,
     },
   });
 }

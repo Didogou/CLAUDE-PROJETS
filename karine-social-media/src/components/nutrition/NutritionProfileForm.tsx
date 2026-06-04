@@ -4,10 +4,8 @@ import { useState, useEffect } from 'react';
 import { Loader2, Calculator } from 'lucide-react';
 import {
   ACTIVITY_LABELS,
-  GOAL_LABELS,
   type Sex,
   type ActivityLevel,
-  type Goal,
 } from '@/lib/nutrition-calc';
 
 type Profile = {
@@ -16,9 +14,8 @@ type Profile = {
   weightKg: number | null;
   heightCm: number | null;
   activityLevel: ActivityLevel | null;
-  goal: Goal | null;
-  /** Heure d'envoi du bilan quotidien (19-22h). Default 21h. */
-  summaryHour: number | null;
+  /** Objectif de perte sur 3 mois (1-9 kg). Null = maintenance. */
+  weightLossKg: number | null;
 };
 
 type Targets = {
@@ -49,8 +46,7 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
     weightKg: null,
     heightCm: null,
     activityLevel: null,
-    goal: null,
-    summaryHour: 21,
+    weightLossKg: null,
   });
 
   useEffect(() => {
@@ -59,7 +55,22 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
         const res = await fetch('/api/nutrition/profile', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
-          const p = data.profile as Profile;
+          const raw = data.profile as {
+            sex: Sex | null;
+            ageYears: number | null;
+            weightKg: number | null;
+            heightCm: number | null;
+            activityLevel: ActivityLevel | null;
+            weightLossKg: number | null;
+          };
+          const p: Profile = {
+            sex: raw.sex,
+            ageYears: raw.ageYears,
+            weightKg: raw.weightKg,
+            heightCm: raw.heightCm,
+            activityLevel: raw.activityLevel,
+            weightLossKg: raw.weightLossKg,
+          };
           // Si pas de sexe enregistré mais OAuth en suggère un, on
           // pré-remplit (l'abonnée peut toujours changer).
           if (!p.sex && data.suggestedSex) {
@@ -89,7 +100,6 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
     if (!profile.heightCm || profile.heightCm <= 0)
       return onError('Taille requise (1 à 300 cm)');
     if (!profile.activityLevel) return onError("Niveau d'activité requis");
-    if (!profile.goal) return onError('Objectif requis');
 
     setSaving(true);
     try {
@@ -204,44 +214,30 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
         </select>
       </div>
 
-      {/* Objectif */}
+      {/* Objectif de perte de poids — sur 3 mois fixes. Si "Maintenir"
+          (null), la formule de besoin reste = TDEE sans déficit. */}
       <div>
         <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
-          Objectif
+          Objectif sur 3 mois
         </p>
         <select
-          value={profile.goal ?? ''}
-          onChange={(e) => set('goal', e.target.value as Goal)}
+          value={profile.weightLossKg ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            set('weightLossKg', v === '' ? null : parseInt(v, 10));
+          }}
           className="w-full rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
         >
-          <option value="">— Choisis —</option>
-          {(Object.keys(GOAL_LABELS) as Goal[]).map((k) => (
+          <option value="">Maintenir mon poids</option>
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
             <option key={k} value={k}>
-              {GOAL_LABELS[k]}
+              Perdre {k} kg en 3 mois
             </option>
           ))}
         </select>
-      </div>
-
-      {/* Heure du bilan quotidien (Mistral analyse et envoie un mot
-          bienveillant). 19h-22h. */}
-      <div>
-        <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
-          Heure du bilan du soir
+        <p className="mt-1 text-[0.65rem] italic text-ink-soft">
+          Le déficit calorique nécessaire est calculé automatiquement.
         </p>
-        <select
-          value={profile.summaryHour ?? 21}
-          onChange={(e) =>
-            set('summaryHour', parseInt(e.target.value, 10))
-          }
-          className="w-full rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
-        >
-          {[19, 20, 21, 22].map((h) => (
-            <option key={h} value={h}>
-              {h}h00
-            </option>
-          ))}
-        </select>
       </div>
 
       <button

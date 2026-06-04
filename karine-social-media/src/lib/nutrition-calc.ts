@@ -21,7 +21,11 @@ export type ActivityLevel =
   | 'moderate'
   | 'active'
   | 'very_active';
+/** Legacy. On utilise weightLossKg pour le calcul désormais. */
 export type Goal = 'lose' | 'maintain' | 'gain';
+
+/** Objectif de perte sur 3 mois fixes. 1-9 kg ou null = maintenance. */
+export type WeightLossKg = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
 export type NutritionProfile = {
   sex: Sex;
@@ -29,7 +33,10 @@ export type NutritionProfile = {
   weightKg: number;
   heightCm: number;
   activityLevel: ActivityLevel;
+  /** Legacy — toujours présent mais ignoré au calcul si weightLossKg est posé. */
   goal: Goal;
+  /** Objectif de perte sur 3 mois (1-9 kg). Null = maintenance. */
+  weightLossKg?: WeightLossKg | null;
 };
 
 export type NutritionTargets = {
@@ -84,7 +91,26 @@ const PROTEIN_PER_KG: Record<ActivityLevel, number> = {
 };
 
 /**
+ * Constante diététique : 1 kg de tissu adipeux ≈ 7700 kcal.
+ * Source : ANSES, EFSA, NIH — moyenne consensuelle pour estimer le
+ * déficit calorique nécessaire à une perte de poids.
+ */
+const KCAL_PER_KG_FAT = 7700;
+/** Période fixe (en jours) sur laquelle on cible la perte. */
+const WEIGHT_LOSS_WINDOW_DAYS = 90;
+/** Déficit maximal autorisé (sécurité diététique : pas de famine). */
+const MAX_DAILY_DEFICIT_KCAL = 800;
+/** Plancher kcal absolu (en dessous, danger métabolique). */
+const FLOOR_DAILY_KCAL = 1200;
+
+/**
  * Calcule les besoins nutritionnels complets à partir du profil.
+ *
+ * Si profile.weightLossKg est posé (1-9), le déficit kcal/jour est
+ * calculé silencieusement : kg × 7700 / 90 jours, capé à 800 kcal/j
+ * et borné à un plancher de 1200 kcal/j (sécurité).
+ *
+ * Sinon (legacy), on retombe sur l'ajustement % par goal.
  */
 export function calculateNutritionTargets(
   profile: NutritionProfile,
@@ -96,7 +122,16 @@ export function calculateNutritionTargets(
   const bmr = Math.round(profile.sex === 'male' ? baseBmr + 5 : baseBmr - 161);
 
   const tdee = Math.round(bmr * ACTIVITY_FACTORS[profile.activityLevel]);
-  const dailyKcal = Math.round(tdee * (1 + GOAL_ADJUSTMENT[profile.goal]));
+
+  let dailyKcal: number;
+  if (typeof profile.weightLossKg === 'number' && profile.weightLossKg > 0) {
+    const rawDeficit =
+      (profile.weightLossKg * KCAL_PER_KG_FAT) / WEIGHT_LOSS_WINDOW_DAYS;
+    const cappedDeficit = Math.min(rawDeficit, MAX_DAILY_DEFICIT_KCAL);
+    dailyKcal = Math.max(FLOOR_DAILY_KCAL, Math.round(tdee - cappedDeficit));
+  } else {
+    dailyKcal = Math.round(tdee * (1 + GOAL_ADJUSTMENT[profile.goal]));
+  }
 
   // Protéines : multiplicateur selon activité
   const proteinsG = Math.round(
@@ -117,6 +152,9 @@ export function calculateNutritionTargets(
 
 /**
  * Vérifie si le profil est complet (tous les champs requis).
+ *
+ * Note : goal est legacy, on accepte 'lose' par défaut si
+ * weightLossKg est posé pour rester rétro-compatible avec l'API.
  */
 export function isProfileComplete(
   p: Partial<NutritionProfile>,

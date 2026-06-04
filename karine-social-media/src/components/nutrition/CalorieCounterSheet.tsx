@@ -172,7 +172,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [todayOpen, setTodayOpen] = useState(false);
   const [metrics, setMetrics] = useState<{
     kcalBurned: number;
-    summaryText: string | null;
+    karineTip: string | null;
   } | null>(null);
   const [showCalories, setShowCalories] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -199,7 +199,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           const j = await res.json();
           setMetrics({
             kcalBurned: Number(j.metrics?.kcalBurned ?? 0),
-            summaryText: j.metrics?.summaryText ?? null,
+            karineTip: j.metrics?.karineTip ?? null,
           });
         }
       } catch {
@@ -384,6 +384,22 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         await refresh();
         onChanged();
         window.dispatchEvent(new CustomEvent('nutrition-log-updated'));
+        // Déclenche la génération du conseil Karine en arrière-plan.
+        // Pas de await : si Mistral met 2s, l'UI reste réactive et le
+        // bandeau apparaît dès que la réponse arrive.
+        fetch('/api/nutrition/karine-tip', { method: 'POST' })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((data) => {
+            if (data?.tip) {
+              setMetrics((m) =>
+                m ? { ...m, karineTip: data.tip } : { kcalBurned: 0, karineTip: data.tip },
+              );
+            }
+          })
+          .catch(() => {
+            // silencieux : si Mistral plante, on n'a juste pas de
+            // conseil ce coup-ci.
+          });
       } else {
         const j = await res.json();
         alertError(j?.error || 'Enregistrement impossible');
@@ -473,13 +489,15 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           </div>
         )}
 
-        {metrics?.summaryText && (
+        {/* Conseil Karine du jour. Régénéré par Mistral après chaque
+            ajout de repas, persisté dans daily_metrics.karine_tip. */}
+        {metrics?.karineTip && (
           <div className="border-b border-coral-soft/30 bg-gradient-to-r from-coral-soft/30 to-amber-50/60 px-4 py-2.5">
             <p className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
-              Ton bilan ce soir
+              Le conseil de Karine
             </p>
-            <p className="mt-0.5 text-sm leading-snug text-ink">
-              {metrics.summaryText}
+            <p className="mt-0.5 text-sm italic leading-snug text-ink">
+              « {metrics.karineTip} »
             </p>
           </div>
         )}
@@ -503,7 +521,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               value={metrics?.kcalBurned ?? 0}
               onSaved={(n) => {
                 setMetrics((m) =>
-                  m ? { ...m, kcalBurned: n } : { kcalBurned: n, summaryText: null },
+                  m ? { ...m, kcalBurned: n } : { kcalBurned: n, karineTip: null },
                 );
               }}
             />
@@ -1134,21 +1152,41 @@ function MacroRow({
       }
     | null;
 }) {
-  const items: Array<{ label: string; consumed: number; target: number | null }> = [
+  const items: Array<{
+    label: string;
+    consumed: number;
+    target: number | null;
+    bg: string;
+    border: string;
+    accent: string;
+    label_color: string;
+  }> = [
     {
       label: 'Glucides',
       consumed: consumed.carbsG,
       target: target?.dailyCarbsG ?? null,
+      bg: 'bg-rose-50',
+      border: 'border-rose-200',
+      accent: 'text-rose-700',
+      label_color: 'text-rose-800/80',
     },
     {
       label: 'Protéines',
       consumed: consumed.proteinsG,
       target: target?.dailyProteinsG ?? null,
+      bg: 'bg-sky-50',
+      border: 'border-sky-200',
+      accent: 'text-sky-700',
+      label_color: 'text-sky-800/80',
     },
     {
       label: 'Lipides',
       consumed: consumed.lipidsG,
       target: target?.dailyLipidsG ?? null,
+      bg: 'bg-amber-50',
+      border: 'border-amber-200',
+      accent: 'text-amber-700',
+      label_color: 'text-amber-800/80',
     },
   ];
   return (
@@ -1156,12 +1194,14 @@ function MacroRow({
       {items.map((it) => (
         <div
           key={it.label}
-          className="rounded-xl border border-coral-soft/40 bg-coral-soft/20 px-2.5 py-1.5"
+          className={`rounded-xl border ${it.border} ${it.bg} px-2.5 py-1.5`}
         >
-          <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-coral-dark/80">
+          <p
+            className={`text-[0.6rem] font-semibold uppercase tracking-wider ${it.label_color}`}
+          >
             {it.label}
           </p>
-          <p className="text-sm font-bold text-coral">
+          <p className={`text-sm font-bold ${it.accent}`}>
             {Math.round(it.consumed)}
             <span className="text-xs font-normal text-ink-soft">
               {it.target !== null ? `/${Math.round(it.target)}` : ''}g
