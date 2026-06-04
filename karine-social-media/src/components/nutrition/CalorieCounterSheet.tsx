@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, Fragment } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check, Camera } from 'lucide-react';
 import { NutritionProfileForm } from './NutritionProfileForm';
+import { MyInfoModal } from './MyInfoModal';
 
 type FoodLogEntry = {
   id: string;
@@ -124,7 +125,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [photoUploading, setPhotoUploading] = useState(false);
   const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
-  const [editingTarget, setEditingTarget] = useState(false);
+  const [myInfoOpen, setMyInfoOpen] = useState(false);
   const [todayOpen, setTodayOpen] = useState(false);
   const [metrics, setMetrics] = useState<{
     kcalBurned: number;
@@ -245,9 +246,12 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         alertError(data?.error || 'Analyse impossible');
         return;
       }
-      setCorrectedText(
-        typeof data.correctedText === 'string' ? data.correctedText : null,
-      );
+      const corrected =
+        typeof data.correctedText === 'string' ? data.correctedText : null;
+      setCorrectedText(corrected);
+      // La saisie reflète maintenant la phrase corrigée (silencieux).
+      // L'abonnée peut re-modifier puis relancer Enter si nécessaire.
+      if (corrected) setNaturalText(corrected);
       if (Array.isArray(data.items) && data.items.length > 0) {
         setPreview(data.items);
         setPreviewStep(0);
@@ -319,21 +323,37 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-center md:justify-center md:p-4">
-      <div className="flex h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:h-[min(85vh,640px)] md:rounded-3xl">
+      <div className="flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(90vh,720px)] md:rounded-3xl">
         {/* Header */}
-        <header className="flex items-center justify-between border-b border-coral-soft/30 px-4 py-3">
+        <header className="flex items-center justify-between gap-2 border-b border-coral-soft/30 px-4 py-3">
           <div className="flex items-center gap-2">
             <Flame className="size-5 text-coral" />
             <h2 className="font-script text-2xl text-coral">Mes calories</h2>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Fermer"
-            className="rounded-full p-1.5 hover:bg-coral-soft/30"
-          >
-            <X className="size-5 text-ink-soft" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setMyInfoOpen(true)}
+              className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                day?.profileComplete
+                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                  : 'bg-coral-soft/30 text-coral-dark hover:bg-coral-soft/50'
+              }`}
+            >
+              {day?.profileComplete && (
+                <Check className="size-3" strokeWidth={3} />
+              )}
+              Mes infos
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Fermer"
+              className="rounded-full p-1.5 hover:bg-coral-soft/30"
+            >
+              <X className="size-5 text-ink-soft" />
+            </button>
+          </div>
         </header>
 
         {error && (
@@ -389,66 +409,102 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
             />
           </div>
 
-          <button
-            type="button"
-            onClick={() => setEditingTarget((v) => !v)}
-            className={`mt-2 flex w-full items-center justify-between rounded-lg border px-3 py-1.5 text-left text-xs font-semibold transition-colors ${
-              day?.profileComplete
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                : 'border-coral-soft/40 bg-white text-coral-dark hover:bg-coral-soft/20'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              {day?.profileComplete && (
-                <Check className="size-3.5" strokeWidth={3} />
-              )}
-              {day?.profileComplete
-                ? 'Tes informations sont à jour'
-                : 'Renseigne tes besoins en calorie'}
-            </span>
-            {editingTarget ? (
-              <ChevronUp className="size-3.5" />
-            ) : (
-              <ChevronDown className="size-3.5" />
-            )}
-          </button>
-
-          {editingTarget && (
-            <div className="mt-2">
-              <NutritionProfileForm
-                onSaved={() => {
-                  setEditingTarget(false);
-                  refresh();
-                }}
-                onError={alertError}
-              />
-            </div>
-          )}
         </section>
 
-        {/* Saisie naturelle / Preview */}
+        {/* Saisie naturelle (toujours visible) */}
         <section className="border-b border-coral-soft/20 px-4 py-3">
-          {preview ? (
-            <div className="space-y-2">
-              {correctedText && (
-                <p className="rounded bg-coral-soft/20 px-2 py-1 text-xs italic text-coral-dark">
-                  Compris :{' '}
-                  <span className="font-semibold">«&nbsp;{correctedText}&nbsp;»</span>
-                </p>
+          <div className="space-y-2">
+            <label className="block text-xs font-semibold text-ink-soft">
+              Qu&apos;as-tu mang&eacute; ?
+            </label>
+            <div className="flex gap-2">
+              {naturalText.length > 80 ? (
+                <textarea
+                  value={naturalText}
+                  onChange={(e) => setNaturalText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      handleParse();
+                    }
+                  }}
+                  rows={2}
+                  maxLength={500}
+                  className="flex-1 resize-none rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
+                  placeholder="ex. un yaourt nature et une pomme"
+                />
+              ) : (
+                <input
+                  type="text"
+                  value={naturalText}
+                  onChange={(e) => setNaturalText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleParse();
+                    }
+                  }}
+                  maxLength={500}
+                  className="flex-1 rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
+                  placeholder="ex. un yaourt nature et une pomme"
+                />
               )}
+              <label
+                className={`flex size-9 cursor-pointer items-center justify-center self-end rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
+                  photoUploading ? 'cursor-wait opacity-50' : ''
+                }`}
+                title="Prendre une photo du plat"
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  disabled={photoUploading}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handlePhoto(f);
+                    e.target.value = '';
+                  }}
+                  className="sr-only"
+                />
+                {photoUploading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Camera className="size-4" />
+                )}
+              </label>
+              <button
+                type="button"
+                onClick={handleParse}
+                disabled={parsing || naturalText.trim().length < 3}
+                aria-label="Analyser"
+                className="flex size-9 items-center justify-center self-end rounded-full bg-coral text-white disabled:opacity-50"
+              >
+                {parsing ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Send className="size-4" />
+                )}
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {/* Propositions du parse (tous items visibles) */}
+        {preview && preview.length > 0 && (
+          <section className="border-b border-coral-soft/20 px-4 py-3">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-semibold text-ink-soft">
                   Voici ce que j&apos;ai trouvé, tu confirmes&nbsp;?
                 </p>
                 {preview.length > 1 && (
                   <span className="rounded-full bg-coral-soft/40 px-2 py-0.5 text-[0.65rem] font-bold text-coral-dark">
-                    {previewStep + 1} / {preview.length}
+                    {preview.length} aliments
                   </span>
                 )}
               </div>
-              {/* Affichage 1 item a la fois (stepper) — l aliment courant
-                  est dans une section scrollable pour que la liste des
-                  candidats reste visible meme si elle deborde. */}
+              {/* Tous les items affichés ensemble (plus de stepper). */}
               <ul
                 className="max-h-[40vh] space-y-1.5 overflow-y-auto pr-1"
                 style={{
@@ -457,12 +513,9 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                   overscrollBehavior: 'contain',
                 }}
               >
-                {(() => {
-                  const i = Math.min(previewStep, preview.length - 1);
-                  const p = preview[i];
-                  return (
+                {preview.map((p, i) => (
+                  <Fragment key={i}>
                     <PreviewRow
-                      key={i}
                       item={p}
                       showCalories={showCalories}
                       onPortionsChange={(n) => {
@@ -499,8 +552,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                           setAnsweredFollowups(new Set());
                         } else {
                           setPreview(next);
-                          // Si on a retire le dernier, recule
-                          setPreviewStep((s) => Math.min(s, next.length - 1));
                         }
                       }}
                       onSizeChange={(bucket) => {
@@ -532,77 +583,70 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                         setPreview(next);
                       }}
                     />
-                  );
-                })()}
-
-                {/* Carte followup : si un followup cible l'item courant
-                    ET pas encore répondu, on affiche les boutons Oui/Non.
-                    Si Oui, on insère un nouvel item juste après dans le
-                    preview pour qu'il devienne le step suivant. */}
-                {(() => {
-                  const i = Math.min(previewStep, preview.length - 1);
-                  const followup = followups.find(
-                    (f) =>
-                      f.itemIndex === i &&
-                      !answeredFollowups.has(f.itemIndex),
-                  );
-                  if (!followup) return null;
-                  return (
-                    <li className="rounded-lg border border-amber-300 bg-amber-50/70 p-2.5">
-                      <p className="text-xs font-semibold text-amber-900">
-                        💡 {followup.question}
-                      </p>
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAnsweredFollowups((s) => {
-                              const next = new Set(s);
-                              next.add(followup.itemIndex);
-                              return next;
-                            });
-                          }}
-                          className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                        >
-                          Non
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            // Insère un nouvel item avec l'aliment suggéré
-                            // juste après l'item courant.
-                            const newItem: ParsedItem = {
-                              label: followup.suggestedFood,
-                              searchQuery: followup.suggestedFood,
-                              portions: 1,
-                              approxGrams: followup.defaultG,
-                              baseGramsBeforeSizeHint: followup.defaultG,
-                              match: null,
-                              kcalPerPortion: null,
-                              proteinsPerPortion: null,
-                              lipidsPerPortion: null,
-                              carbsPerPortion: null,
-                              topCandidates: undefined,
-                              sizeVariability: 'low',
-                              sizeHint: null,
-                            };
-                            const next = [...preview];
-                            next.splice(i + 1, 0, newItem);
-                            setPreview(next);
-                            setAnsweredFollowups((s) => {
-                              const out = new Set(s);
-                              out.add(followup.itemIndex);
-                              return out;
-                            });
-                          }}
-                          className="ml-auto rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-amber-600"
-                        >
-                          Oui, ajouter
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })()}
+                    {/* Carte followup juste après cet item (si applicable) */}
+                    {(() => {
+                      const followup = followups.find(
+                        (f) =>
+                          f.itemIndex === i &&
+                          !answeredFollowups.has(f.itemIndex),
+                      );
+                      if (!followup) return null;
+                      return (
+                        <li className="rounded-lg border border-amber-300 bg-amber-50/70 p-2.5">
+                          <p className="text-xs font-semibold text-amber-900">
+                            💡 {followup.question}
+                          </p>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAnsweredFollowups((s) => {
+                                  const next = new Set(s);
+                                  next.add(followup.itemIndex);
+                                  return next;
+                                });
+                              }}
+                              className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
+                            >
+                              Non
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newItem: ParsedItem = {
+                                  label: followup.suggestedFood,
+                                  searchQuery: followup.suggestedFood,
+                                  portions: 1,
+                                  approxGrams: followup.defaultG,
+                                  baseGramsBeforeSizeHint: followup.defaultG,
+                                  match: null,
+                                  kcalPerPortion: null,
+                                  proteinsPerPortion: null,
+                                  lipidsPerPortion: null,
+                                  carbsPerPortion: null,
+                                  topCandidates: undefined,
+                                  sizeVariability: 'low',
+                                  sizeHint: null,
+                                };
+                                const next = [...preview];
+                                next.splice(i + 1, 0, newItem);
+                                setPreview(next);
+                                setAnsweredFollowups((s) => {
+                                  const out = new Set(s);
+                                  out.add(followup.itemIndex);
+                                  return out;
+                                });
+                              }}
+                              className="ml-auto rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-amber-600"
+                            >
+                              Oui, ajouter
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })()}
+                  </Fragment>
+                ))}
               </ul>
               <div className="flex gap-2 pt-1">
                 <button
@@ -618,105 +662,21 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 >
                   Annuler
                 </button>
-                {previewStep > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setPreviewStep((s) => Math.max(0, s - 1))}
-                    className="rounded-full border border-coral-soft px-3 py-1.5 text-xs font-semibold text-coral"
-                  >
-                    ← Précédent
-                  </button>
-                )}
-                {previewStep < preview.length - 1 ? (
-                  <button
-                    type="button"
-                    onClick={() => setPreviewStep((s) => s + 1)}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white"
-                  >
-                    Valider et suivant →
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleConfirmPreview}
-                    disabled={logging}
-                    className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                  >
-                    {logging ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : null}
-                    Ajouter
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleConfirmPreview}
+                  disabled={logging}
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  {logging ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : null}
+                  Ajouter
+                </button>
               </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <label className="block text-xs font-semibold text-ink-soft">
-                Qu&apos;as-tu mang&eacute; ?
-              </label>
-              <div className="flex gap-2">
-                <textarea
-                  value={naturalText}
-                  onChange={(e) => setNaturalText(e.target.value)}
-                  onKeyDown={(e) => {
-                    // Enter = analyser, Shift+Enter = nouvelle ligne.
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleParse();
-                    }
-                  }}
-                  placeholder="ex. un yaourt nature et une pomme"
-                  rows={2}
-                  maxLength={500}
-                  className="flex-1 resize-none rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
-                />
-                <div className="flex flex-col gap-1.5 self-end">
-                  {/* Bouton caméra : ouvre l'app caméra sur mobile via
-                      capture="environment", file picker sur desktop. */}
-                  <label
-                    className={`flex size-9 cursor-pointer items-center justify-center rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
-                      photoUploading ? 'cursor-wait opacity-50' : ''
-                    }`}
-                    title="Prendre une photo du plat"
-                  >
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      disabled={photoUploading}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) handlePhoto(f);
-                        // Reset value pour pouvoir re-uploader la même photo
-                        e.target.value = '';
-                      }}
-                      className="sr-only"
-                    />
-                    {photoUploading ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Camera className="size-4" />
-                    )}
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleParse}
-                    disabled={parsing || naturalText.trim().length < 3}
-                    aria-label="Analyser"
-                    className="flex size-9 items-center justify-center rounded-full bg-coral text-white disabled:opacity-50"
-                  >
-                    {parsing ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Send className="size-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
+          </section>
+        )}
 
         {/* Liste du jour */}
         <section
@@ -734,7 +694,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
             className="mb-2 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-ink-soft transition-colors hover:text-coral-dark"
           >
             <span>
-              Aujourd&apos;hui, tu as mangé&nbsp;: {day?.entries.length ?? 0}
+              Mes repas ({day?.entries.length ?? 0})
             </span>
             {todayOpen ? (
               <ChevronUp className="size-3.5" />
@@ -775,6 +735,15 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           ) : null}
         </section>
       </div>
+
+      {/* Modale Mes infos par-dessus (clic-outside ne ferme pas) */}
+      <MyInfoModal
+        open={myInfoOpen}
+        onClose={() => setMyInfoOpen(false)}
+        onSaved={() => refresh()}
+        onError={alertError}
+        profileComplete={day?.profileComplete ?? false}
+      />
     </div>,
     document.body,
   );
