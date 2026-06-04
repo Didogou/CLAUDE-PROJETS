@@ -20,8 +20,8 @@ export const maxDuration = 30;
  *
  * Pourquoi 2 étapes (Vision → parse) au lieu d'un parse direct
  * avec image ? Pour réutiliser 100% du pipeline existant
- * (correction → Mistral → Ciqual cascade → followups) et permettre
- * à l'abonnée de corriger la description avant le parse.
+ * (correction → Mistral → Ciqual cascade → accompagnements) et
+ * permettre à l'abonnée de corriger la description avant le parse.
  */
 export async function POST(request: NextRequest) {
   const supabase = await createClient();

@@ -5,7 +5,6 @@ import { searchCiqualFoods } from '@/lib/ciqual';
 import {
   getPortionRules,
   formatPortionRulesForPrompt,
-  detectFollowups,
 } from '@/lib/portion-rules';
 
 export const runtime = 'nodejs';
@@ -39,6 +38,18 @@ type MistralItem = {
   food_keyword?: string;
   /** v3 : taille explicite mentionnée par l'utilisatrice (null si pas dit). */
   size_hint?: 'small' | 'medium' | 'large' | null;
+  /** v4 : accompagnements classiques possibles, triés par kcal décroissant, max 3. */
+  possible_accompaniments?: Array<{
+    name: string;
+    typical_g: number;
+    kcal_estimate: number;
+  }>;
+};
+
+export type AccompanimentSuggestion = {
+  name: string;
+  typicalG: number;
+  kcalEstimate: number;
 };
 
 type CiqualCandidatePublic = {
@@ -73,6 +84,8 @@ type ParsedItem = {
   sizeVariability?: 'low' | 'medium' | 'high';
   /** Taille explicitement mentionnée par l'utilisatrice (Mistral détecte). */
   sizeHint?: 'small' | 'medium' | 'large' | null;
+  /** Suggestions Mistral d'accompagnements (sauce, sucre, fromage…). Triés par kcal décroissant, max 3. */
+  possibleAccompaniments?: AccompanimentSuggestion[];
 };
 
 const CORRECT_PROMPT = `Tu corriges l'orthographe d'une phrase française qui décrit un repas.
@@ -99,7 +112,12 @@ RÉPONDS UNIQUEMENT EN JSON PUR (pas de markdown, pas de commentaire) :
       "food_keyword": "yaourt",
       "portions": 1,
       "approx_grams": 125,
-      "size_hint": null
+      "size_hint": null,
+      "possible_accompaniments": [
+        { "name": "miel", "typical_g": 15, "kcal_estimate": 49 },
+        { "name": "confiture", "typical_g": 15, "kcal_estimate": 40 },
+        { "name": "sucre", "typical_g": 5, "kcal_estimate": 20 }
+      ]
     }
   ]
 }
@@ -119,6 +137,31 @@ CHAMPS À RENSEIGNER POUR CHAQUE ITEM :
    - "medium" si elle dit "moyen", "normal" → multiplicateur ×1
    - "large" si elle dit "grand", "gros", "grosse", "énorme", "XL" → multiplicateur déjà appliqué
    - null si aucune taille mentionnée
+
+6) possible_accompaniments : tableau de **EXACTEMENT 3** suggestions d'accompagnements ou ingrédients additionnels classiques qui pourraient accompagner ce plat et augmenter SIGNIFICATIVEMENT les calories ou les macros (sauce, fromage, huile, sucre, crème…). TRIE PAR KCAL_ESTIMATE DÉCROISSANT (le plus calorique en 1er pour alerter l'abonnée).
+
+   Format chaque élément : { name, typical_g, kcal_estimate }
+   - name : nom de l'accompagnement en français minuscules ("vinaigrette", "parmesan", "miel"…)
+   - typical_g : masse typique d'une portion classique (vinaigrette 15g, fromage râpé 10g, miel 15g, sucre 5g…)
+   - kcal_estimate : kcal de la portion typique (utilise tes connaissances : huile=90, vinaigrette=70, fromage râpé=40, miel=49, sucre=20…)
+
+   Exemples par plat :
+   - salade → vinaigrette / huile d'olive / fromage de chèvre
+   - pâtes → parmesan / huile d'olive / beurre
+   - pizza → huile pimentée / parmesan / origan
+   - café → lait / sucre / crème
+   - thé → sucre / miel / lait
+   - pain → beurre / confiture / nutella
+   - tartine → nutella / confiture / beurre
+   - crêpe → nutella / sucre / confiture
+   - frites → mayonnaise / ketchup / sauce barbecue
+   - hamburger → ketchup / mayonnaise / sauce barbecue
+   - yaourt → miel / confiture / sucre
+   - céréales → sucre / miel / chocolat en poudre
+   - aligot → saucisse de Toulouse / charcuterie / vin
+   - tartiflette → vin / charcuterie / pain
+
+   Si aucun accompagnement n'a de sens (fruits crus, eau, alcool fort…) : tableau vide [].
 
 ═══════════════════════════════════════════════════════
 ${portionRulesText || 'Pas de grille disponible — estime librement les portions selon les normes nutritionnelles françaises.'}
@@ -324,6 +367,36 @@ export async function POST(request: NextRequest) {
         ? candidates.slice(0, 7).map(toPublic)
         : undefined;
 
+    // Extraction des accompagnements suggérés par Mistral (max 3, triés
+    // par kcal décroissant). Pas d'appel à la DB : c'est dynamique
+    // 100% LLM, source plat-spécifique.
+    let possibleAccompaniments: AccompanimentSuggestion[] | undefined;
+    if (Array.isArray(it.possible_accompaniments)) {
+      const cleaned = it.possible_accompaniments
+        .filter(
+          (a) =>
+            a &&
+            typeof a.name === 'string' &&
+            a.name.trim().length > 0 &&
+            typeof a.typical_g === 'number' &&
+            Number.isFinite(a.typical_g) &&
+            a.typical_g > 0 &&
+            typeof a.kcal_estimate === 'number' &&
+            Number.isFinite(a.kcal_estimate) &&
+            a.kcal_estimate >= 0,
+        )
+        .map((a) => ({
+          name: a.name.trim(),
+          typicalG: Math.round(a.typical_g),
+          kcalEstimate: Math.round(a.kcal_estimate),
+        }))
+        // Tri par kcal décroissant (sécurité, on ne fait pas confiance
+        // aveuglément à l'ordre Mistral).
+        .sort((x, y) => y.kcalEstimate - x.kcalEstimate)
+        .slice(0, 3);
+      if (cleaned.length > 0) possibleAccompaniments = cleaned;
+    }
+
     out.push({
       label: picked ? picked.name : query,
       searchQuery: query,
@@ -339,22 +412,13 @@ export async function POST(request: NextRequest) {
       foodKeyword: foodKeyword || undefined,
       sizeVariability,
       sizeHint,
+      possibleAccompaniments,
     });
   }
-
-  // Détection des followups (questions de relance type "sauce dans la salade").
-  // 1 followup maximum par item, déclenché si le label/phrase matche un
-  // trigger_keyword et que la phrase n'inclut pas un exclude_keyword.
-  const followups = detectFollowups(
-    correctedText,
-    out.map((o) => o.label),
-    portionRules,
-  );
 
   return NextResponse.json({
     items: out,
     correctedText: correctedText !== text ? correctedText : undefined,
-    followups: followups.length > 0 ? followups : undefined,
   });
 }
 

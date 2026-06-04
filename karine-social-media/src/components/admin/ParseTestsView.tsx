@@ -17,8 +17,12 @@ type ParseResult = {
     proteinsPerPortion: number | null;
     lipidsPerPortion: number | null;
     carbsPerPortion: number | null;
+    possibleAccompaniments?: Array<{
+      name: string;
+      typicalG: number;
+      kcalEstimate: number;
+    }>;
   }>;
-  followups?: Array<{ itemIndex: number; question: string; suggestedFood: string }>;
   error?: string;
   durationMs: number;
 };
@@ -71,7 +75,6 @@ export function ParseTestsView() {
           phrase,
           correctedText: j.correctedText,
           items: Array.isArray(j.items) ? j.items : [],
-          followups: j.followups,
           error: !res.ok ? j.error || `Erreur ${res.status}` : undefined,
           durationMs: duration,
         });
@@ -206,41 +209,49 @@ function ResultCard({ result }: { result: ParseResult }) {
       </div>
 
       {result.items.length > 0 && (
-        <ul className="mt-2 space-y-1">
+        <ul className="mt-2 space-y-1.5">
           {result.items.map((it, i) => (
             <li
               key={i}
-              className="flex items-center gap-2 rounded border border-admin-border bg-white px-2 py-1 text-xs"
+              className="space-y-1 rounded border border-admin-border bg-white px-2 py-1 text-xs"
             >
-              <span className="min-w-0 flex-1 truncate">
-                <strong>{it.match ? it.match.name : '—'}</strong>
-                <span className="ml-1 text-admin-ink-soft">
-                  ({it.portions} × {it.approxGrams}g
-                  {it.sizeHint ? `, ${it.sizeHint}` : ''}
-                  {it.sizeVariability ? ` · variability=${it.sizeVariability}` : ''})
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate">
+                  <strong>{it.match ? it.match.name : '—'}</strong>
+                  <span className="ml-1 text-admin-ink-soft">
+                    ({it.portions} × {it.approxGrams}g
+                    {it.sizeHint ? `, ${it.sizeHint}` : ''}
+                    {it.sizeVariability ? ` · variability=${it.sizeVariability}` : ''})
+                  </span>
                 </span>
-              </span>
-              {it.kcalPerPortion !== null && (
-                <span className="shrink-0 font-semibold text-coral">
-                  {Math.round(it.kcalPerPortion * it.portions)} kcal
-                </span>
+                {it.kcalPerPortion !== null && (
+                  <span className="shrink-0 font-semibold text-coral">
+                    {Math.round(it.kcalPerPortion * it.portions)} kcal
+                  </span>
+                )}
+              </div>
+              {it.possibleAccompaniments && it.possibleAccompaniments.length > 0 && (
+                <div className="rounded border border-amber-200 bg-amber-50/60 p-1 text-[0.65rem]">
+                  <p className="font-semibold text-amber-900">
+                    Accompagnements suggérés (triés par kcal ↓) :
+                  </p>
+                  <ul className="mt-0.5 space-y-0.5">
+                    {it.possibleAccompaniments.map((a, k) => (
+                      <li key={k} className="flex items-center gap-1 text-amber-800">
+                        <span className="flex-1 truncate">
+                          {a.name} ({a.typicalG}g)
+                        </span>
+                        <span className="shrink-0 font-semibold">
+                          +{a.kcalEstimate} kcal
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </li>
           ))}
         </ul>
-      )}
-
-      {result.followups && result.followups.length > 0 && (
-        <div className="mt-2 rounded border border-amber-200 bg-amber-50/60 p-1.5 text-xs">
-          <p className="font-semibold text-amber-900">Followups détectés :</p>
-          <ul className="mt-0.5 space-y-0.5">
-            {result.followups.map((f, i) => (
-              <li key={i} className="text-amber-800">
-                Item #{f.itemIndex} → « {f.question} » (+{f.suggestedFood})
-              </li>
-            ))}
-          </ul>
-        </div>
       )}
     </li>
   );

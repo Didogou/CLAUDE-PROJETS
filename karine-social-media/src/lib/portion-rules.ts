@@ -17,19 +17,9 @@ export type PortionModifier = {
   multiplier: number;
 };
 
-export type PortionFollowup = {
-  id: number;
-  triggerKeyword: string;
-  question: string;
-  suggestedFood: string;
-  defaultG: number;
-  excludeKeywords: string[];
-};
-
 export type PortionRules = {
   foods: PortionFood[];
   modifiers: PortionModifier[];
-  followups: PortionFollowup[];
 };
 
 let cache: { rules: PortionRules; expiresAt: number } | null = null;
@@ -46,7 +36,7 @@ export async function getPortionRules(): Promise<PortionRules> {
   try {
     const supabase = createServiceClient();
     /* eslint-disable @typescript-eslint/no-explicit-any */
-    const [foodsRes, modsRes, fupsRes] = await Promise.all([
+    const [foodsRes, modsRes] = await Promise.all([
       (supabase as any)
         .from('portion_foods')
         .select('id, name, portion_g, size_variability, notes')
@@ -55,10 +45,6 @@ export async function getPortionRules(): Promise<PortionRules> {
         .from('portion_modifiers')
         .select('id, keyword, multiplier')
         .order('multiplier', { ascending: true }),
-      (supabase as any)
-        .from('portion_followups')
-        .select('id, trigger_keyword, question, suggested_food, default_g, exclude_keywords')
-        .order('trigger_keyword', { ascending: true }),
     ]);
     /* eslint-enable @typescript-eslint/no-explicit-any */
 
@@ -80,24 +66,11 @@ export async function getPortionRules(): Promise<PortionRules> {
       }),
     );
 
-    const followups: PortionFollowup[] = (fupsRes.data ?? []).map(
-      (r: Record<string, unknown>) => ({
-        id: Number(r.id),
-        triggerKeyword: String(r.trigger_keyword),
-        question: String(r.question),
-        suggestedFood: String(r.suggested_food),
-        defaultG: Number(r.default_g),
-        excludeKeywords: Array.isArray(r.exclude_keywords)
-          ? (r.exclude_keywords as string[])
-          : [],
-      }),
-    );
-
-    const rules: PortionRules = { foods, modifiers, followups };
+    const rules: PortionRules = { foods, modifiers };
     cache = { rules, expiresAt: Date.now() + CACHE_TTL_MS };
     return rules;
   } catch {
-    return { foods: [], modifiers: [], followups: [] };
+    return { foods: [], modifiers: [] };
   }
 }
 
@@ -135,56 +108,3 @@ export function formatPortionRulesForPrompt(rules: PortionRules): string {
   return lines.join('\n');
 }
 
-/**
- * Detecte les followups applicables apres parse. Pour chaque item
- * matche (label contient trigger_keyword sans aucun exclude_keyword
- * dans la phrase originale), renvoie la question + suggestion.
- */
-export type ApplicableFollowup = {
-  itemIndex: number;
-  triggerKeyword: string;
-  question: string;
-  suggestedFood: string;
-  defaultG: number;
-};
-
-function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/œ/g, 'oe');
-}
-
-export function detectFollowups(
-  originalText: string,
-  itemLabels: string[],
-  rules: PortionRules,
-): ApplicableFollowup[] {
-  const origNorm = normalize(originalText);
-  const out: ApplicableFollowup[] = [];
-  itemLabels.forEach((label, idx) => {
-    const labelNorm = normalize(label);
-    for (const f of rules.followups) {
-      const triggerNorm = normalize(f.triggerKeyword);
-      if (!labelNorm.includes(triggerNorm) && !origNorm.includes(triggerNorm)) {
-        continue;
-      }
-      // Check exclude keywords
-      const excluded = f.excludeKeywords.some((ex) => {
-        const exNorm = normalize(ex);
-        return origNorm.includes(exNorm) || labelNorm.includes(exNorm);
-      });
-      if (excluded) continue;
-      out.push({
-        itemIndex: idx,
-        triggerKeyword: f.triggerKeyword,
-        question: f.question,
-        suggestedFood: f.suggestedFood,
-        defaultG: f.defaultG,
-      });
-      break; // 1 followup max par item
-    }
-  });
-  return out;
-}

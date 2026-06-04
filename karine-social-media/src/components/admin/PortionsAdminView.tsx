@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Plus, Loader2, Trash2, Save } from 'lucide-react';
 
-type Tab = 'foods' | 'modifiers' | 'followups';
+type Tab = 'foods' | 'modifiers';
 
 type Food = {
   id: number;
@@ -19,15 +19,6 @@ type Modifier = {
   multiplier: number;
 };
 
-type Followup = {
-  id: number;
-  trigger_keyword: string;
-  question: string;
-  suggested_food: string;
-  default_g: number;
-  exclude_keywords: string[];
-};
-
 export function PortionsAdminView() {
   const [tab, setTab] = useState<Tab>('foods');
   return (
@@ -38,7 +29,6 @@ export function PortionsAdminView() {
           [
             ['foods', 'Aliments'],
             ['modifiers', 'Adjectifs'],
-            ['followups', 'Questions'],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -58,7 +48,6 @@ export function PortionsAdminView() {
 
       {tab === 'foods' && <FoodsTab />}
       {tab === 'modifiers' && <ModifiersTab />}
-      {tab === 'followups' && <FollowupsTab />}
     </div>
   );
 }
@@ -554,301 +543,6 @@ function NewModifierButton({ onCreated }: { onCreated: () => void }) {
       >
         Annuler
       </button>
-    </div>
-  );
-}
-
-// ============================================================
-// FOLLOWUPS
-// ============================================================
-
-function FollowupsTab() {
-  const [items, setItems] = useState<Followup[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const reload = useCallback(async () => {
-    setLoading(true);
-    const res = await fetch('/api/admin/portions/followups');
-    if (res.ok) {
-      const j = await res.json();
-      setItems(j.followups ?? []);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center p-6">
-        <Loader2 className="size-5 animate-spin text-admin-primary" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <NewFollowupButton onCreated={reload} />
-      <p className="text-xs text-admin-ink-soft">
-        Questions de relance pos&eacute;es &agrave; l&apos;abonn&eacute;e
-        quand un mot-cl&eacute; (<i>trigger</i>) appara&icirc;t dans sa saisie.
-        <b>exclude_keywords</b> permet d&apos;ignorer la question si la phrase
-        contient certains mots (ex : trigger=salade, exclude=fruits &rarr; pas
-        de question pour salade de fruits).
-      </p>
-      <ul className="space-y-2">
-        {items.map((f) => (
-          <FollowupCard key={f.id} followup={f} onChange={reload} />
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function FollowupCard({
-  followup,
-  onChange,
-}: {
-  followup: Followup;
-  onChange: () => void;
-}) {
-  const [trigger, setTrigger] = useState(followup.trigger_keyword);
-  const [question, setQuestion] = useState(followup.question);
-  const [suggestedFood, setSuggestedFood] = useState(followup.suggested_food);
-  const [defaultG, setDefaultG] = useState(String(followup.default_g));
-  const [excludeKeywords, setExcludeKeywords] = useState(
-    followup.exclude_keywords.join(', '),
-  );
-  const [dirty, setDirty] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  async function save() {
-    const g = parseInt(defaultG, 10);
-    if (!trigger.trim() || !question.trim() || !suggestedFood.trim()) return;
-    setBusy(true);
-    await fetch(`/api/admin/portions/followups/${followup.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        triggerKeyword: trigger.trim().toLowerCase(),
-        question: question.trim(),
-        suggestedFood: suggestedFood.trim().toLowerCase(),
-        defaultG: Number.isFinite(g) ? g : followup.default_g,
-        excludeKeywords: excludeKeywords
-          .split(',')
-          .map((k) => k.trim().toLowerCase())
-          .filter(Boolean),
-      }),
-    });
-    setDirty(false);
-    setBusy(false);
-    onChange();
-  }
-
-  async function del() {
-    if (!confirm(`Supprimer cette question ?`)) return;
-    await fetch(`/api/admin/portions/followups/${followup.id}`, {
-      method: 'DELETE',
-    });
-    onChange();
-  }
-
-  return (
-    <li className="space-y-2 rounded-xl border border-admin-border bg-white p-3">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <Field label="Trigger">
-          <input
-            value={trigger}
-            onChange={(e) => {
-              setTrigger(e.target.value);
-              setDirty(true);
-            }}
-            className="w-full rounded border border-admin-border px-2 py-1 text-sm"
-          />
-        </Field>
-        <Field label="Aliment suggéré">
-          <input
-            value={suggestedFood}
-            onChange={(e) => {
-              setSuggestedFood(e.target.value);
-              setDirty(true);
-            }}
-            className="w-full rounded border border-admin-border px-2 py-1 text-sm"
-          />
-        </Field>
-        <Field label="Masse défaut (g)">
-          <input
-            type="number"
-            min={1}
-            max={1000}
-            value={defaultG}
-            onChange={(e) => {
-              setDefaultG(e.target.value);
-              setDirty(true);
-            }}
-            className="w-full rounded border border-admin-border px-2 py-1 text-right text-sm"
-          />
-        </Field>
-      </div>
-      <Field label="Question (affichée à l'abonnée)">
-        <input
-          value={question}
-          onChange={(e) => {
-            setQuestion(e.target.value);
-            setDirty(true);
-          }}
-          className="w-full rounded border border-admin-border px-2 py-1 text-sm"
-        />
-      </Field>
-      <Field label="Mots-clés exclusifs (séparés par virgule)">
-        <input
-          value={excludeKeywords}
-          onChange={(e) => {
-            setExcludeKeywords(e.target.value);
-            setDirty(true);
-          }}
-          placeholder="ex : fruits, composee"
-          className="w-full rounded border border-admin-border px-2 py-1 text-sm"
-        />
-      </Field>
-      <div className="flex items-center justify-end gap-2">
-        {dirty && (
-          <button
-            type="button"
-            onClick={save}
-            disabled={busy}
-            className="inline-flex items-center gap-1 rounded-full bg-admin-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-          >
-            {busy ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              <Save className="size-3" />
-            )}
-            Enregistrer
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={del}
-          aria-label="Supprimer"
-          className="rounded-full p-1.5 text-admin-ink-soft hover:bg-rose-50 hover:text-rose-600"
-        >
-          <Trash2 className="size-3.5" />
-        </button>
-      </div>
-    </li>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="block">
-      <span className="block text-[0.6rem] font-semibold uppercase tracking-wider text-admin-ink-soft">
-        {label}
-      </span>
-      <div className="mt-0.5">{children}</div>
-    </label>
-  );
-}
-
-function NewFollowupButton({ onCreated }: { onCreated: () => void }) {
-  const [open, setOpen] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [trigger, setTrigger] = useState('');
-  const [question, setQuestion] = useState('');
-  const [suggested, setSuggested] = useState('');
-  const [defaultG, setDefaultG] = useState('15');
-
-  async function create() {
-    if (!trigger.trim() || !question.trim() || !suggested.trim()) return;
-    setBusy(true);
-    const res = await fetch('/api/admin/portions/followups', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        triggerKeyword: trigger.trim().toLowerCase(),
-        question: question.trim(),
-        suggestedFood: suggested.trim().toLowerCase(),
-        defaultG: parseInt(defaultG, 10) || 15,
-        excludeKeywords: [],
-      }),
-    });
-    if (res.ok) {
-      setTrigger('');
-      setQuestion('');
-      setSuggested('');
-      setDefaultG('15');
-      setOpen(false);
-      onCreated();
-    }
-    setBusy(false);
-  }
-
-  if (!open) {
-    return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-1 rounded-full bg-admin-primary px-3 py-1.5 text-xs font-semibold text-white"
-      >
-        <Plus className="size-3.5" />
-        Ajouter une question
-      </button>
-    );
-  }
-  return (
-    <div className="space-y-2 rounded-xl border border-admin-primary/40 bg-white p-3">
-      <input
-        value={trigger}
-        onChange={(e) => setTrigger(e.target.value)}
-        placeholder="Trigger (ex: salade)"
-        autoFocus
-        className="w-full rounded border border-admin-border px-2 py-1 text-sm"
-      />
-      <input
-        value={question}
-        onChange={(e) => setQuestion(e.target.value)}
-        placeholder="Question (ex: Tu as mis de la sauce ?)"
-        className="w-full rounded border border-admin-border px-2 py-1 text-sm"
-      />
-      <div className="flex gap-2">
-        <input
-          value={suggested}
-          onChange={(e) => setSuggested(e.target.value)}
-          placeholder="Aliment suggéré (ex: vinaigrette)"
-          className="flex-1 rounded border border-admin-border px-2 py-1 text-sm"
-        />
-        <input
-          type="number"
-          value={defaultG}
-          onChange={(e) => setDefaultG(e.target.value)}
-          className="w-20 rounded border border-admin-border px-1 py-1 text-right text-sm"
-        />
-      </div>
-      <div className="flex items-center justify-end gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen(false)}
-          className="px-3 text-xs text-admin-ink-soft"
-        >
-          Annuler
-        </button>
-        <button
-          type="button"
-          onClick={create}
-          disabled={busy}
-          className="inline-flex items-center gap-1 rounded-full bg-admin-primary px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-        >
-          {busy ? (
-            <Loader2 className="size-3 animate-spin" />
-          ) : (
-            <Plus className="size-3" />
-          )}
-          Créer
-        </button>
-      </div>
     </div>
   );
 }

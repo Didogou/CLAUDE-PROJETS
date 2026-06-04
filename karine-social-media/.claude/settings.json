@@ -122,7 +122,20 @@
       "Bash(grep -rn \"/images/.*\\\\\\\\.png\" src/)",
       "Bash(grep -n \"sanitizeExt\\\\|file, {\" src/app/api/admin/recipes/route.ts src/app/api/admin/recipes/\\\\[slug\\\\]/asset/route.ts src/app/api/admin/recipes/\\\\[slug\\\\]/route.ts src/app/api/recipes/\\\\[slug\\\\]/comments/route.ts)",
       "Bash(rm src/app/api/shopping-list/toggle-recipe/route.ts)",
-      "Bash(rmdir src/app/api/shopping-list/toggle-recipe)"
+      "Bash(rmdir src/app/api/shopping-list/toggle-recipe)",
+      "Bash(grep -nE \"Saisie naturelle|Liste du jour|/\\\\\\\\* Liste|/\\\\\\\\* Objectif\" src/components/nutrition/CalorieCounterSheet.tsx)",
+      "WebFetch(domain:ciqual.anses.fr)",
+      "Bash(where pdftoppm *)",
+      "Bash(where pdftotext *)",
+      "Bash(powershell -Command \"Get-Command pdftotext -ErrorAction SilentlyContinue\")",
+      "Bash(\"C:/Program Files/Git/mingw64/bin/pdftotext.exe\" -layout \"C:/Users/didie/.claude/projects/c--Users-didie-Documents-Projets-CLAUDE-PROJETS-karine-social-media/5dbaf80c-8c05-4141-b9f3-6e7ef70afb5f/tool-results/webfetch-1780521355011-vwhdgd.pdf\" \"C:/Users/didie/.claude/projects/c--Users-didie-Documents-Projets-CLAUDE-PROJETS-karine-social-media/5dbaf80c-8c05-4141-b9f3-6e7ef70afb5f/tool-results/ciqual-doc.txt\")",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:world.openfoodfacts.org)",
+      "Bash(openssl rand *)",
+      "Bash(curl -s https://karine-social-media.vercel.app/api/app-settings)",
+      "Bash(grep -n \"</div>,$\\\\|document.body,\" src/components/nutrition/CalorieCounterSheet.tsx)",
+      "Bash(npx eslint *)"
     ],
     "additionalDirectories": [
       "\\tmp"

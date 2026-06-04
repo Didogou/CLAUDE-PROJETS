@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, Fragment } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check, Camera } from 'lucide-react';
-import { NutritionProfileForm } from './NutritionProfileForm';
 import { MyInfoModal } from './MyInfoModal';
 
 type FoodLogEntry = {
@@ -56,6 +55,12 @@ const SIZE_LABELS: Record<SizeBucket, string> = {
   large: 'Grand',
 };
 
+type AccompanimentSuggestion = {
+  name: string;
+  typicalG: number;
+  kcalEstimate: number;
+};
+
 type ParsedItem = {
   label: string;
   searchQuery: string;
@@ -67,26 +72,17 @@ type ParsedItem = {
   proteinsPerPortion: number | null;
   lipidsPerPortion: number | null;
   carbsPerPortion: number | null;
-  /** Top 7 candidats Ciqual (toujours quand on en a trouvé) */
   topCandidates?: CiqualCandidate[];
   foodKeyword?: string;
   sizeVariability?: 'low' | 'medium' | 'high';
   sizeHint?: SizeBucket | null;
-};
-
-type Followup = {
-  itemIndex: number;
-  triggerKeyword: string;
-  question: string;
-  suggestedFood: string;
-  defaultG: number;
+  possibleAccompaniments?: AccompanimentSuggestion[];
 };
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
-/** Recalcule kcal/macros pour 1 portion à partir d'un candidat et de approxGrams. */
 function recomputeFromCandidate(
   candidate: CiqualCandidate,
   approxGrams: number,
@@ -119,11 +115,14 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [naturalText, setNaturalText] = useState('');
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState<ParsedItem[] | null>(null);
-  const [previewStep, setPreviewStep] = useState(0);
-  const [followups, setFollowups] = useState<Followup[]>([]);
-  const [answeredFollowups, setAnsweredFollowups] = useState<Set<number>>(new Set());
+  /**
+   * Sélection d'accompagnements par bloc-item.
+   * Map<itemIndex, Set<accompanimentIndex>>.
+   * Les cases sont cumulatives : l'abonnée peut cocher 0, 1, 2 ou 3
+   * accompagnements par aliment.
+   */
+  const [accSel, setAccSel] = useState<Map<number, Set<number>>>(new Map());
   const [photoUploading, setPhotoUploading] = useState(false);
-  const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
   const [myInfoOpen, setMyInfoOpen] = useState(false);
   const [todayOpen, setTodayOpen] = useState(false);
@@ -132,6 +131,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
     summaryText: string | null;
   } | null>(null);
   const [showCalories, setShowCalories] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -159,13 +159,11 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           });
         }
       } catch {
-        // silencieux : les ronds restent à 0
+        // silencieux
       }
     })();
   }, []);
-  const [error, setError] = useState<string | null>(null);
 
-  // Auto-clear erreurs après 4s
   useEffect(() => {
     if (!error) return;
     const t = setTimeout(() => setError(null), 4000);
@@ -183,9 +181,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
     refresh();
   }, [refresh]);
 
-  // Verrouille le scroll du body tant que la sheet est ouverte.
-  // Sans ça, sur mobile, le drag touch dans la liste fait scroller
-  // la page de fond (scroll bleeding).
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -220,8 +215,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         return;
       }
       if (typeof data.description === 'string' && data.description.trim()) {
-        // Injecte la description dans la textarea pour que l'abonnée
-        // puisse l'ajuster avant de lancer le parse.
         setNaturalText(data.description.trim());
       }
     } catch (e) {
@@ -248,15 +241,11 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       }
       const corrected =
         typeof data.correctedText === 'string' ? data.correctedText : null;
-      setCorrectedText(corrected);
-      // La saisie reflète maintenant la phrase corrigée (silencieux).
-      // L'abonnée peut re-modifier puis relancer Enter si nécessaire.
+      // Reflet silencieux dans la saisie pour qu'elle puisse re-modifier.
       if (corrected) setNaturalText(corrected);
       if (Array.isArray(data.items) && data.items.length > 0) {
         setPreview(data.items);
-        setPreviewStep(0);
-        setFollowups(Array.isArray(data.followups) ? data.followups : []);
-        setAnsweredFollowups(new Set());
+        setAccSel(new Map());
       } else {
         alertError('Aucun aliment détecté');
       }
@@ -265,22 +254,67 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
     }
   }
 
+  function toggleAcc(itemIdx: number, accIdx: number) {
+    setAccSel((prev) => {
+      const next = new Map(prev);
+      const set = new Set(next.get(itemIdx) ?? []);
+      if (set.has(accIdx)) set.delete(accIdx);
+      else set.add(accIdx);
+      next.set(itemIdx, set);
+      return next;
+    });
+  }
+
   async function handleConfirmPreview() {
     if (!preview || logging) return;
     setLogging(true);
     try {
-      const entries = preview
-        .filter((p) => p.kcalPerPortion !== null)
-        .map((p) => ({
-          source: p.match ? ('ciqual' as const) : ('free' as const),
-          sourceRefId: p.match ? String(p.match.alimCode) : null,
-          label: p.label,
-          kcal: p.kcalPerPortion ?? 0,
-          proteinsG: p.proteinsPerPortion,
-          lipidsG: p.lipidsPerPortion,
-          carbsG: p.carbsPerPortion,
-          portions: p.portions,
-        }));
+      const entries: Array<{
+        source: 'ciqual' | 'free';
+        sourceRefId: string | null;
+        label: string;
+        kcal: number;
+        proteinsG: number | null;
+        lipidsG: number | null;
+        carbsG: number | null;
+        portions: number;
+      }> = [];
+
+      preview.forEach((p, idx) => {
+        if (p.kcalPerPortion !== null) {
+          entries.push({
+            source: p.match ? 'ciqual' : 'free',
+            sourceRefId: p.match ? String(p.match.alimCode) : null,
+            label: p.label,
+            kcal: p.kcalPerPortion,
+            proteinsG: p.proteinsPerPortion,
+            lipidsG: p.lipidsPerPortion,
+            carbsG: p.carbsPerPortion,
+            portions: p.portions,
+          });
+        }
+        // Ajout des accompagnements cochés pour ce bloc — source 'free'
+        // (estimation Mistral, pas Ciqual). Macros nulles : seul kcal
+        // est connu à l'estime.
+        const selected = accSel.get(idx);
+        if (selected && selected.size > 0 && p.possibleAccompaniments) {
+          for (const accIdx of selected) {
+            const acc = p.possibleAccompaniments[accIdx];
+            if (!acc) continue;
+            entries.push({
+              source: 'free',
+              sourceRefId: null,
+              label: acc.name,
+              kcal: acc.kcalEstimate,
+              proteinsG: null,
+              lipidsG: null,
+              carbsG: null,
+              portions: 1,
+            });
+          }
+        }
+      });
+
       if (entries.length === 0) {
         alertError('Aucun aliment avec kcal détecté');
         return;
@@ -292,10 +326,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       });
       if (res.ok) {
         setPreview(null);
-        setCorrectedText(null);
-        setPreviewStep(0);
-        setFollowups([]);
-        setAnsweredFollowups(new Set());
+        setAccSel(new Map());
         setNaturalText('');
         await refresh();
         onChanged();
@@ -314,8 +345,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const totals = day?.totals.kcal ?? 0;
   const target = day?.target.dailyKcal ?? 2000;
   const burned = metrics?.kcalBurned ?? 0;
-  // Bilan net = ingere - depense. Le "reste avant objectif" tient
-  // compte des kcal brules par le sport.
   const net = totals - burned;
   const remaining = Math.max(0, target - net);
   const overshoot = Math.max(0, net - target);
@@ -362,7 +391,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           </div>
         )}
 
-        {/* Bilan Mistral du soir (genere par cron a partir de summary_hour). */}
         {metrics?.summaryText && (
           <div className="border-b border-coral-soft/30 bg-gradient-to-r from-coral-soft/30 to-amber-50/60 px-4 py-2.5">
             <p className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
@@ -389,8 +417,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               </p>
             </div>
 
-            {/* Champ kcal dépensées (sport, marche) — affiché à droite
-                du compteur. Edition inline. */}
             <KcalBurnedEditor
               value={metrics?.kcalBurned ?? 0}
               onSaved={(n) => {
@@ -408,7 +434,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               style={{ width: `${percent}%` }}
             />
           </div>
-
         </section>
 
         {/* Saisie naturelle (toujours visible) */}
@@ -490,190 +515,141 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           </div>
         </section>
 
-        {/* Propositions du parse (tous items visibles) */}
+        {/* Propositions du parse (1 bloc par aliment) */}
         {preview && preview.length > 0 && (
           <section className="border-b border-coral-soft/20 px-4 py-3">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-ink-soft">
-                  Voici ce que j&apos;ai trouvé, tu confirmes&nbsp;?
-                </p>
-                {preview.length > 1 && (
-                  <span className="rounded-full bg-coral-soft/40 px-2 py-0.5 text-[0.65rem] font-bold text-coral-dark">
-                    {preview.length} aliments
-                  </span>
-                )}
-              </div>
-              {/* Tous les items affichés ensemble (plus de stepper). */}
-              <ul
-                className="max-h-[40vh] space-y-1.5 overflow-y-auto pr-1"
-                style={{
-                  scrollbarWidth: 'thin',
-                  scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
-                  overscrollBehavior: 'contain',
-                }}
-              >
-                {preview.map((p, i) => (
-                  <Fragment key={i}>
-                    <PreviewRow
-                      item={p}
-                      showCalories={showCalories}
-                      onPortionsChange={(n) => {
-                        const next = [...preview];
-                        next[i] = { ...p, portions: n };
-                        setPreview(next);
-                      }}
-                      onPickCandidate={(c) => {
-                        const next = [...preview];
-                        const recomputed = recomputeFromCandidate(
-                          c,
-                          p.approxGrams,
-                        );
-                        next[i] = {
-                          ...p,
-                          label: c.name,
-                          match: c,
-                          ...recomputed,
-                          topCandidates: p.topCandidates?.some(
-                            (x) => x.alimCode === c.alimCode,
-                          )
-                            ? p.topCandidates
-                            : [c, ...(p.topCandidates ?? [])].slice(0, 7),
-                        };
-                        setPreview(next);
-                      }}
-                      onRemove={() => {
-                        const next = preview.filter((_, k) => k !== i);
-                        if (next.length === 0) {
-                          setPreview(null);
-                          setCorrectedText(null);
-                          setPreviewStep(0);
-                          setFollowups([]);
-                          setAnsweredFollowups(new Set());
-                        } else {
-                          setPreview(next);
-                        }
-                      }}
-                      onSizeChange={(bucket) => {
-                        const base = p.baseGramsBeforeSizeHint ?? p.approxGrams;
-                        const newGrams = Math.round(base * SIZE_MULTIPLIERS[bucket]);
-                        const factor = newGrams / 100;
-                        const next = [...preview];
-                        next[i] = {
-                          ...p,
-                          approxGrams: newGrams,
-                          sizeHint: bucket,
-                          kcalPerPortion:
-                            p.match?.kcalPer100g != null
-                              ? round1(p.match.kcalPer100g * factor)
-                              : p.kcalPerPortion,
-                          proteinsPerPortion:
-                            p.match?.proteinsG != null
-                              ? round1(p.match.proteinsG * factor)
-                              : p.proteinsPerPortion,
-                          lipidsPerPortion:
-                            p.match?.lipidsG != null
-                              ? round1(p.match.lipidsG * factor)
-                              : p.lipidsPerPortion,
-                          carbsPerPortion:
-                            p.match?.carbsG != null
-                              ? round1(p.match.carbsG * factor)
-                              : p.carbsPerPortion,
-                        };
-                        setPreview(next);
-                      }}
-                    />
-                    {/* Carte followup juste après cet item (si applicable) */}
-                    {(() => {
-                      const followup = followups.find(
-                        (f) =>
-                          f.itemIndex === i &&
-                          !answeredFollowups.has(f.itemIndex),
-                      );
-                      if (!followup) return null;
-                      return (
-                        <li className="rounded-lg border border-amber-300 bg-amber-50/70 p-2.5">
-                          <p className="text-xs font-semibold text-amber-900">
-                            💡 {followup.question}
-                          </p>
-                          <div className="mt-2 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setAnsweredFollowups((s) => {
-                                  const next = new Set(s);
-                                  next.add(followup.itemIndex);
-                                  return next;
-                                });
-                              }}
-                              className="rounded-full border border-amber-300 px-3 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100"
-                            >
-                              Non
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newItem: ParsedItem = {
-                                  label: followup.suggestedFood,
-                                  searchQuery: followup.suggestedFood,
-                                  portions: 1,
-                                  approxGrams: followup.defaultG,
-                                  baseGramsBeforeSizeHint: followup.defaultG,
-                                  match: null,
-                                  kcalPerPortion: null,
-                                  proteinsPerPortion: null,
-                                  lipidsPerPortion: null,
-                                  carbsPerPortion: null,
-                                  topCandidates: undefined,
-                                  sizeVariability: 'low',
-                                  sizeHint: null,
-                                };
-                                const next = [...preview];
-                                next.splice(i + 1, 0, newItem);
-                                setPreview(next);
-                                setAnsweredFollowups((s) => {
-                                  const out = new Set(s);
-                                  out.add(followup.itemIndex);
-                                  return out;
-                                });
-                              }}
-                              className="ml-auto rounded-full bg-amber-500 px-3 py-1 text-xs font-semibold text-white shadow hover:bg-amber-600"
-                            >
-                              Oui, ajouter
-                            </button>
-                          </div>
-                        </li>
-                      );
-                    })()}
-                  </Fragment>
-                ))}
-              </ul>
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPreview(null);
-                    setCorrectedText(null);
-                    setPreviewStep(0);
-                    setFollowups([]);
-                    setAnsweredFollowups(new Set());
+            <ul
+              className="max-h-[50vh] space-y-2.5 overflow-y-auto pr-1"
+              style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
+                overscrollBehavior: 'contain',
+              }}
+            >
+              {preview.map((p, i) => (
+                <ItemBlock
+                  key={i}
+                  item={p}
+                  showCalories={showCalories}
+                  selectedAccs={accSel.get(i) ?? new Set()}
+                  onToggleAcc={(accIdx) => toggleAcc(i, accIdx)}
+                  onPortionsChange={(n) => {
+                    const next = [...preview];
+                    next[i] = { ...p, portions: n };
+                    setPreview(next);
                   }}
-                  className="rounded-full border border-coral-soft px-3 py-1.5 text-xs font-semibold text-coral"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmPreview}
-                  disabled={logging}
-                  className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  {logging ? (
-                    <Loader2 className="size-3.5 animate-spin" />
-                  ) : null}
-                  Ajouter
-                </button>
-              </div>
+                  onGramsChange={(g) => {
+                    const next = [...preview];
+                    const factor = g / 100;
+                    next[i] = {
+                      ...p,
+                      approxGrams: g,
+                      kcalPerPortion:
+                        p.match?.kcalPer100g != null
+                          ? round1(p.match.kcalPer100g * factor)
+                          : p.kcalPerPortion,
+                      proteinsPerPortion:
+                        p.match?.proteinsG != null
+                          ? round1(p.match.proteinsG * factor)
+                          : p.proteinsPerPortion,
+                      lipidsPerPortion:
+                        p.match?.lipidsG != null
+                          ? round1(p.match.lipidsG * factor)
+                          : p.lipidsPerPortion,
+                      carbsPerPortion:
+                        p.match?.carbsG != null
+                          ? round1(p.match.carbsG * factor)
+                          : p.carbsPerPortion,
+                    };
+                    setPreview(next);
+                  }}
+                  onPickCandidate={(c) => {
+                    const next = [...preview];
+                    const recomputed = recomputeFromCandidate(c, p.approxGrams);
+                    next[i] = {
+                      ...p,
+                      label: c.name,
+                      match: c,
+                      ...recomputed,
+                      topCandidates: p.topCandidates?.some(
+                        (x) => x.alimCode === c.alimCode,
+                      )
+                        ? p.topCandidates
+                        : [c, ...(p.topCandidates ?? [])].slice(0, 7),
+                    };
+                    setPreview(next);
+                  }}
+                  onRemove={() => {
+                    const next = preview.filter((_, k) => k !== i);
+                    // Réindexe les sélections d'accompagnements pour
+                    // qu'elles restent alignées sur les blocs restants.
+                    setAccSel((prev) => {
+                      const out = new Map<number, Set<number>>();
+                      for (const [k, v] of prev) {
+                        if (k < i) out.set(k, v);
+                        else if (k > i) out.set(k - 1, v);
+                      }
+                      return out;
+                    });
+                    if (next.length === 0) {
+                      setPreview(null);
+                    } else {
+                      setPreview(next);
+                    }
+                  }}
+                  onSizeChange={(bucket) => {
+                    const base = p.baseGramsBeforeSizeHint ?? p.approxGrams;
+                    const newGrams = Math.round(base * SIZE_MULTIPLIERS[bucket]);
+                    const factor = newGrams / 100;
+                    const next = [...preview];
+                    next[i] = {
+                      ...p,
+                      approxGrams: newGrams,
+                      sizeHint: bucket,
+                      kcalPerPortion:
+                        p.match?.kcalPer100g != null
+                          ? round1(p.match.kcalPer100g * factor)
+                          : p.kcalPerPortion,
+                      proteinsPerPortion:
+                        p.match?.proteinsG != null
+                          ? round1(p.match.proteinsG * factor)
+                          : p.proteinsPerPortion,
+                      lipidsPerPortion:
+                        p.match?.lipidsG != null
+                          ? round1(p.match.lipidsG * factor)
+                          : p.lipidsPerPortion,
+                      carbsPerPortion:
+                        p.match?.carbsG != null
+                          ? round1(p.match.carbsG * factor)
+                          : p.carbsPerPortion,
+                    };
+                    setPreview(next);
+                  }}
+                />
+              ))}
+            </ul>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPreview(null);
+                  setAccSel(new Map());
+                }}
+                className="rounded-full border border-coral-soft px-3 py-1.5 text-xs font-semibold text-coral"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPreview}
+                disabled={logging}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {logging ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : null}
+                Ajouter
+              </button>
             </div>
           </section>
         )}
@@ -736,7 +712,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         </section>
       </div>
 
-      {/* Modale Mes infos par-dessus (clic-outside ne ferme pas) */}
       <MyInfoModal
         open={myInfoOpen}
         onClose={() => setMyInfoOpen(false)}
@@ -749,147 +724,105 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   );
 }
 
-function PreviewRow({
+/**
+ * Bloc d'un aliment Mistral détecté.
+ * Layout :
+ *   [Titre aliment] [select Taille] [X retirer]      ← MEME LIGNE
+ *   Liste radio candidats : ⦿ nom (Suite si long)  [g]  [Qté]
+ *   🔍 Chercher autre chose
+ *   Accompagnements (cases à cocher, max 3 triés par kcal desc)
+ */
+function ItemBlock({
   item,
   showCalories,
+  selectedAccs,
+  onToggleAcc,
   onPortionsChange,
+  onGramsChange,
   onPickCandidate,
   onRemove,
   onSizeChange,
 }: {
   item: ParsedItem;
   showCalories: boolean;
+  selectedAccs: Set<number>;
+  onToggleAcc: (accIdx: number) => void;
   onPortionsChange: (n: number) => void;
+  onGramsChange: (g: number) => void;
   onPickCandidate: (c: CiqualCandidate) => void;
   onRemove: () => void;
   onSizeChange: (bucket: SizeBucket) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
-  const total =
-    item.kcalPerPortion !== null
-      ? Math.round(item.kcalPerPortion * item.portions)
-      : null;
-
   const candidates = item.topCandidates ?? [];
   const hasCandidates = candidates.length > 0;
 
-  // Affichage des chips P/M/G : si l'aliment a une variability !=
-  // 'low' ET qu'aucun adjectif explicite (sizeHint=null), on
-  // propose les 3 chips pour que l'abonnée valide.
-  const showSizeChips =
+  // Affichage du select Taille : si l'aliment a une variabilité non
+  // triviale OU qu'un sizeHint a déjà été détecté.
+  const showSizeSelect =
     item.sizeVariability === 'high' ||
-    (item.sizeVariability === 'medium' && item.sizeHint === null);
+    item.sizeVariability === 'medium' ||
+    item.sizeHint !== null;
   const currentBucket: SizeBucket = item.sizeHint ?? 'medium';
 
   return (
-    <li className="space-y-1.5 rounded-lg border border-coral-soft/30 bg-cream/40 px-2 py-1.5">
-      {/* Header : nom sélectionné + kcal + stepper portions + supprimer */}
+    <li className="space-y-2 rounded-lg border border-coral-soft/30 bg-cream/30 p-2">
+      {/* Header : titre aliment + Taille (listbox) + retirer — MEME LIGNE */}
       <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-ink">{item.label}</p>
-          <p className="text-xs text-ink-soft">
-            {showCalories && (
-              <>
-                {total !== null ? `${total} kcal` : 'kcal inconnues'}
-                {' · '}
-              </>
-            )}
-            {item.approxGrams}g/portion
-          </p>
-        </div>
-        <input
-          type="number"
-          min={0.25}
-          max={20}
-          step={0.25}
-          value={item.portions}
-          onChange={(e) => {
-            const n = parseFloat(e.target.value);
-            if (Number.isFinite(n) && n > 0) onPortionsChange(n);
-          }}
-          className="w-14 rounded border border-coral-soft px-1 py-0.5 text-center text-xs"
-        />
+        <p className="min-w-0 flex-1 truncate text-sm font-semibold text-ink">
+          {item.foodKeyword
+            ? item.foodKeyword.charAt(0).toUpperCase() + item.foodKeyword.slice(1)
+            : item.label}
+        </p>
+        {showSizeSelect && (
+          <label className="flex shrink-0 items-center gap-1 text-[0.65rem] uppercase tracking-wider text-ink-soft">
+            <span>Taille</span>
+            <select
+              value={currentBucket}
+              onChange={(e) => onSizeChange(e.target.value as SizeBucket)}
+              className="rounded border border-coral-soft bg-white px-1 py-0.5 text-xs font-semibold text-ink"
+            >
+              {(['small', 'medium', 'large'] as const).map((b) => (
+                <option key={b} value={b}>
+                  {SIZE_LABELS[b]}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           type="button"
           onClick={onRemove}
-          aria-label="Retirer"
+          aria-label="Retirer ce bloc"
           className="rounded-full p-1 text-ink-soft hover:bg-rose-50 hover:text-rose-600"
         >
           <X className="size-3.5" />
         </button>
       </div>
 
-      {/* Chips Petit / Moyen / Grand — affichés si l'aliment a une
-          variabilité non triviale ET aucun adjectif n'a été détecté.
-          Sinon l'item garde son approxGrams initial. */}
-      {showSizeChips && (
-        <div className="flex items-center gap-1.5 rounded-md bg-white p-1.5">
-          <span className="text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
-            Taille :
-          </span>
-          {(['small', 'medium', 'large'] as const).map((b) => {
-            const active = b === currentBucket;
-            return (
-              <button
-                key={b}
-                type="button"
-                onClick={() => onSizeChange(b)}
-                className={`rounded-full px-2.5 py-0.5 text-xs font-semibold transition-colors ${
-                  active
-                    ? 'bg-coral text-white shadow'
-                    : 'bg-coral-soft/30 text-coral hover:bg-coral-soft/50'
-                }`}
-              >
-                {SIZE_LABELS[b]}
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Liste des candidats (radio-like) — toujours visible quand on
-          en a. Le candidat sélectionné a la coche verte rempli, les
-          autres une coche grise éteinte (cliquable). */}
+      {/* Liste des candidats radio (nom + g éditable + Qté éditable) */}
       {hasCandidates && (
         <ul className="space-y-0.5 rounded-md bg-white p-1.5">
           {candidates.map((c) => {
             const selected = item.match?.alimCode === c.alimCode;
             return (
-              <li key={c.alimCode}>
-                <button
-                  type="button"
-                  onClick={() => !selected && onPickCandidate(c)}
-                  disabled={selected}
-                  className={`flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs transition-colors ${
-                    selected
-                      ? 'bg-emerald-50 text-emerald-900'
-                      : 'text-ink hover:bg-coral-soft/30'
-                  }`}
-                >
-                  <span
-                    aria-hidden
-                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                      selected
-                        ? 'border-emerald-500 bg-emerald-500 text-white'
-                        : 'border-coral-soft/60 bg-white'
-                    }`}
-                  >
-                    {selected && <Check className="size-3" strokeWidth={3} />}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                  {showCalories && (
-                    <span
-                      className={`shrink-0 font-semibold ${
-                        selected ? 'text-emerald-700' : 'text-coral'
-                      }`}
-                    >
-                      {c.kcalPer100g !== null
-                        ? `${Math.round(c.kcalPer100g)} kcal/100g`
-                        : '—'}
-                    </span>
-                  )}
-                </button>
-              </li>
+              <CandidateRow
+                key={c.alimCode}
+                candidate={c}
+                selected={selected}
+                approxGrams={item.approxGrams}
+                portions={item.portions}
+                showCalories={showCalories}
+                onSelect={() => !selected && onPickCandidate(c)}
+                onGramsChange={(g) => {
+                  if (!selected) onPickCandidate(c);
+                  onGramsChange(g);
+                }}
+                onPortionsChange={(n) => {
+                  if (!selected) onPickCandidate(c);
+                  onPortionsChange(n);
+                }}
+              />
             );
           })}
           <li>
@@ -904,7 +837,6 @@ function PreviewRow({
         </ul>
       )}
 
-      {/* Aucun candidat — proposer recherche libre direct */}
       {!hasCandidates && (
         <button
           type="button"
@@ -924,14 +856,172 @@ function PreviewRow({
           }}
         />
       )}
+
+      {/* Accompagnements Mistral (cases à cocher, 0-3) */}
+      {item.possibleAccompaniments && item.possibleAccompaniments.length > 0 && (
+        <div className="rounded-md bg-amber-50/60 p-1.5">
+          <p className="text-[0.65rem] font-semibold uppercase tracking-wider text-amber-900">
+            As-tu ajouté…&nbsp;?
+          </p>
+          <ul className="mt-1 space-y-0.5">
+            {item.possibleAccompaniments.map((acc, accIdx) => {
+              const checked = selectedAccs.has(accIdx);
+              return (
+                <li key={accIdx}>
+                  <label className="flex w-full cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs hover:bg-amber-100/60">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => onToggleAcc(accIdx)}
+                      className="size-3.5 accent-amber-500"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-ink">
+                      {acc.name}
+                      <span className="ml-1 text-ink-soft">({acc.typicalG}g)</span>
+                    </span>
+                    {showCalories && (
+                      <span className="shrink-0 font-semibold text-amber-700">
+                        +{acc.kcalEstimate} kcal
+                      </span>
+                    )}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
     </li>
   );
 }
 
 /**
- * Recherche libre dans Ciqual (autocomplete). Utilisé en fallback
- * quand l'IA ne propose pas le bon aliment.
+ * Une ligne de candidat Ciqual.
+ * - Radio à gauche (cliquable pour sélectionner ce candidat).
+ * - Nom tronqué par défaut. Si trop long pour tenir, un lien "(Suite)"
+ *   permet de basculer en mode "nom complet visible".
+ * - Inputs grammes + Qté à droite. Tout changement de l'un sélectionne
+ *   automatiquement ce candidat.
  */
+function CandidateRow({
+  candidate,
+  selected,
+  approxGrams,
+  portions,
+  showCalories,
+  onSelect,
+  onGramsChange,
+  onPortionsChange,
+}: {
+  candidate: CiqualCandidate;
+  selected: boolean;
+  approxGrams: number;
+  portions: number;
+  showCalories: boolean;
+  onSelect: () => void;
+  onGramsChange: (g: number) => void;
+  onPortionsChange: (n: number) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const TRUNCATE_AT = 38;
+  const isLong = candidate.name.length > TRUNCATE_AT;
+  const visibleName =
+    !isLong || expanded ? candidate.name : candidate.name.slice(0, TRUNCATE_AT) + '…';
+
+  return (
+    <li
+      className={`flex flex-wrap items-center gap-1.5 rounded px-1.5 py-1 text-xs transition-colors ${
+        selected ? 'bg-emerald-50' : 'hover:bg-coral-soft/20'
+      }`}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-label={selected ? 'Sélectionné' : 'Sélectionner'}
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+          selected
+            ? 'border-emerald-500 bg-emerald-500 text-white'
+            : 'border-coral-soft/60 bg-white hover:border-coral'
+        }`}
+      >
+        {selected && <Check className="size-3" strokeWidth={3} />}
+      </button>
+
+      <span
+        className={`min-w-0 flex-1 ${
+          expanded ? 'whitespace-normal' : 'truncate'
+        } ${selected ? 'font-medium text-emerald-900' : 'text-ink'}`}
+      >
+        {visibleName}
+        {isLong && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setExpanded((v) => !v);
+            }}
+            className="ml-1 inline text-coral underline decoration-dotted"
+          >
+            ({expanded ? 'Réduire' : 'Suite'})
+          </button>
+        )}
+      </span>
+
+      <div className="flex shrink-0 items-center gap-1">
+        <label className="flex items-center gap-0.5 text-[0.65rem] text-ink-soft">
+          <input
+            type="number"
+            min={1}
+            max={5000}
+            step={5}
+            value={approxGrams}
+            onFocus={() => {
+              if (!selected) onSelect();
+            }}
+            onChange={(e) => {
+              const g = parseInt(e.target.value, 10);
+              if (Number.isFinite(g) && g > 0) onGramsChange(g);
+            }}
+            className={`w-12 rounded border bg-white px-1 py-0.5 text-right text-xs ${
+              selected ? 'border-emerald-300' : 'border-coral-soft/60 text-ink-soft'
+            }`}
+          />
+          g
+        </label>
+        <label className="flex items-center gap-0.5 text-[0.65rem] text-ink-soft">
+          Qté
+          <input
+            type="number"
+            min={0.25}
+            max={20}
+            step={0.25}
+            value={portions}
+            onFocus={() => {
+              if (!selected) onSelect();
+            }}
+            onChange={(e) => {
+              const n = parseFloat(e.target.value);
+              if (Number.isFinite(n) && n > 0) onPortionsChange(n);
+            }}
+            className={`w-10 rounded border bg-white px-1 py-0.5 text-right text-xs ${
+              selected ? 'border-emerald-300' : 'border-coral-soft/60 text-ink-soft'
+            }`}
+          />
+        </label>
+        {showCalories && candidate.kcalPer100g !== null && (
+          <span
+            className={`shrink-0 text-[0.65rem] font-semibold ${
+              selected ? 'text-emerald-700' : 'text-coral'
+            }`}
+          >
+            {Math.round((candidate.kcalPer100g * approxGrams) / 100 * portions)} kcal
+          </span>
+        )}
+      </div>
+    </li>
+  );
+}
+
 function FreeSearchPicker({
   showCalories,
   onPick,
@@ -1013,12 +1103,6 @@ function FreeSearchPicker({
   );
 }
 
-/**
- * Petit champ "Dépensées" editable inline.
- * - Affiche "💪 -X kcal" en mode lecture
- * - Click → input number editable + bouton check pour valider
- * - PATCH /api/nutrition/metrics au save
- */
 function KcalBurnedEditor({
   value,
   onSaved,
@@ -1127,4 +1211,3 @@ function SourceBadge({ source }: { source: FoodLogEntry['source'] }) {
     </span>
   );
 }
-

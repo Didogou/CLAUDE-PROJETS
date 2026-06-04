@@ -19,7 +19,7 @@ type MediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
  * mozzarella et un verre de vin".
  *
  * Ce texte est ensuite envoyé tel quel au pipeline /api/nutrition
- * /parse qui se charge du reste (Mistral, Ciqual, followups…).
+ * /parse qui se charge du reste (Mistral, Ciqual, accompagnements…).
  */
 export async function describeMealFromImage(
   imageBuffer: Buffer,
