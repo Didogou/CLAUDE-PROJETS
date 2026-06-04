@@ -92,6 +92,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [naturalText, setNaturalText] = useState('');
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState<ParsedItem[] | null>(null);
+  const [previewStep, setPreviewStep] = useState(0);
   const [correctedText, setCorrectedText] = useState<string | null>(null);
   const [logging, setLogging] = useState(false);
   const [editingTarget, setEditingTarget] = useState(false);
@@ -177,6 +178,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       );
       if (Array.isArray(data.items) && data.items.length > 0) {
         setPreview(data.items);
+        setPreviewStep(0);
       } else {
         alertError('Aucun aliment détecté');
       }
@@ -213,6 +215,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       if (res.ok) {
         setPreview(null);
         setCorrectedText(null);
+        setPreviewStep(0);
         setNaturalText('');
         await refresh();
         onChanged();
@@ -357,44 +360,73 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                   <span className="font-semibold">«&nbsp;{correctedText}&nbsp;»</span>
                 </p>
               )}
-              <p className="text-xs font-semibold text-ink-soft">
-                Voici ce que j&apos;ai trouvé, tu confirmes&nbsp;?
-              </p>
-              <ul className="space-y-1.5">
-                {preview.map((p, i) => (
-                  <PreviewRow
-                    key={i}
-                    item={p}
-                    onPortionsChange={(n) => {
-                      const next = [...preview];
-                      next[i] = { ...p, portions: n };
-                      setPreview(next);
-                    }}
-                    onPickCandidate={(c) => {
-                      const next = [...preview];
-                      const recomputed = recomputeFromCandidate(c, p.approxGrams);
-                      next[i] = {
-                        ...p,
-                        label: c.name,
-                        match: c,
-                        ...recomputed,
-                        // Si on choisit un candidat qui n'est pas
-                        // dans topCandidates (recherche libre), on
-                        // l'ajoute en tête de liste.
-                        topCandidates: p.topCandidates?.some(
-                          (x) => x.alimCode === c.alimCode,
-                        )
-                          ? p.topCandidates
-                          : [c, ...(p.topCandidates ?? [])].slice(0, 7),
-                      };
-                      setPreview(next);
-                    }}
-                    onRemove={() => {
-                      const next = preview.filter((_, k) => k !== i);
-                      setPreview(next.length > 0 ? next : null);
-                    }}
-                  />
-                ))}
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-ink-soft">
+                  Voici ce que j&apos;ai trouvé, tu confirmes&nbsp;?
+                </p>
+                {preview.length > 1 && (
+                  <span className="rounded-full bg-coral-soft/40 px-2 py-0.5 text-[0.65rem] font-bold text-coral-dark">
+                    {previewStep + 1} / {preview.length}
+                  </span>
+                )}
+              </div>
+              {/* Affichage 1 item a la fois (stepper) — l aliment courant
+                  est dans une section scrollable pour que la liste des
+                  candidats reste visible meme si elle deborde. */}
+              <ul
+                className="max-h-[40vh] space-y-1.5 overflow-y-auto pr-1"
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
+                  overscrollBehavior: 'contain',
+                }}
+              >
+                {(() => {
+                  const i = Math.min(previewStep, preview.length - 1);
+                  const p = preview[i];
+                  return (
+                    <PreviewRow
+                      key={i}
+                      item={p}
+                      onPortionsChange={(n) => {
+                        const next = [...preview];
+                        next[i] = { ...p, portions: n };
+                        setPreview(next);
+                      }}
+                      onPickCandidate={(c) => {
+                        const next = [...preview];
+                        const recomputed = recomputeFromCandidate(
+                          c,
+                          p.approxGrams,
+                        );
+                        next[i] = {
+                          ...p,
+                          label: c.name,
+                          match: c,
+                          ...recomputed,
+                          topCandidates: p.topCandidates?.some(
+                            (x) => x.alimCode === c.alimCode,
+                          )
+                            ? p.topCandidates
+                            : [c, ...(p.topCandidates ?? [])].slice(0, 7),
+                        };
+                        setPreview(next);
+                      }}
+                      onRemove={() => {
+                        const next = preview.filter((_, k) => k !== i);
+                        if (next.length === 0) {
+                          setPreview(null);
+                          setCorrectedText(null);
+                          setPreviewStep(0);
+                        } else {
+                          setPreview(next);
+                          // Si on a retire le dernier, recule
+                          setPreviewStep((s) => Math.min(s, next.length - 1));
+                        }
+                      }}
+                    />
+                  );
+                })()}
               </ul>
               <div className="flex gap-2 pt-1">
                 <button
@@ -402,20 +434,42 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                   onClick={() => {
                     setPreview(null);
                     setCorrectedText(null);
+                    setPreviewStep(0);
                   }}
                   className="rounded-full border border-coral-soft px-3 py-1.5 text-xs font-semibold text-coral"
                 >
                   Annuler
                 </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmPreview}
-                  disabled={logging}
-                  className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                >
-                  {logging ? <Loader2 className="size-3.5 animate-spin" /> : null}
-                  Ajouter au compteur
-                </button>
+                {previewStep > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewStep((s) => Math.max(0, s - 1))}
+                    className="rounded-full border border-coral-soft px-3 py-1.5 text-xs font-semibold text-coral"
+                  >
+                    ← Précédent
+                  </button>
+                )}
+                {previewStep < preview.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewStep((s) => s + 1)}
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white"
+                  >
+                    Valider et suivant →
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleConfirmPreview}
+                    disabled={logging}
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                  >
+                    {logging ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : null}
+                    Ajouter au compteur
+                  </button>
+                )}
               </div>
             </div>
           ) : (
