@@ -122,11 +122,11 @@ export function IdeasFloatingButton() {
         aria-label="Soumettre une idée à Karine"
         className="group mx-auto flex items-center gap-2 rounded-full bg-white py-1.5 pl-1.5 pr-4 shadow-md ring-2 ring-coral-soft/60 transition hover:scale-105 active:scale-95"
       >
-        {/* Icone lucide (Lightbulb) dans un cercle coral — versions
-            antérieures utilisaient un PNG, jugé peu lisible. Le SVG
-            ressort beaucoup mieux et se charge instantanément. */}
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-coral text-white shadow-sm">
-          <Lightbulb className="h-5 w-5" strokeWidth={2.2} />
+        {/* Icone lucide (Lightbulb) dans un cercle blanc — l ampoule
+            est jaune ambree pour evoquer une lumiere allumee
+            (preference Didier 2026-06-04). */}
+        <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-amber-400 shadow-sm ring-1 ring-coral-soft/40">
+          <Lightbulb className="h-5 w-5 fill-amber-400" strokeWidth={2.2} />
         </span>
         <span className="font-script text-xl text-coral-dark sm:text-2xl">
           Une idée&nbsp;?
