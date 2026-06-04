@@ -61,8 +61,8 @@ export async function POST() {
     { kcal: 0, proteins: 0, lipids: 0, carbs: 0 },
   );
 
-  // Résumé compact par catégorie de repas
-  const byCat: Record<string, string[]> = {
+  // Résumé compact par catégorie de repas avec timestamp court
+  const byCat: Record<string, Array<{ label: string; kcal: number; hhmm: string }>> = {
     breakfast: [],
     lunch: [],
     snack: [],
@@ -72,8 +72,62 @@ export async function POST() {
   for (const e of entries) {
     const cat = (e.meal_category as string) || 'none';
     const bucket = byCat[cat] ?? byCat.none;
-    bucket.push(`${e.label} (${Math.round(Number(e.kcal ?? 0) * Number(e.portions ?? 1))} kcal)`);
+    const d = new Date(e.logged_at);
+    const hhmm = `${String(d.getHours()).padStart(2, '0')}h${String(d.getMinutes()).padStart(2, '0')}`;
+    bucket.push({
+      label: String(e.label),
+      kcal: Math.round(Number(e.kcal ?? 0) * Number(e.portions ?? 1)),
+      hhmm,
+    });
   }
+  const formatBucket = (
+    arr: Array<{ label: string; kcal: number; hhmm: string }>,
+  ) =>
+    arr.length === 0
+      ? 'rien'
+      : arr.map((x) => `${x.label} ${x.kcal} kcal à ${x.hhmm}`).join(', ');
+
+  // Heure + phase de la journée + prochain repas attendu
+  const hh = today.getHours();
+  const mm = today.getMinutes();
+  const nowStr = `${String(hh).padStart(2, '0')}h${String(mm).padStart(2, '0')}`;
+  const minuteOfDay = hh * 60 + mm;
+  let phase: string;
+  let nextMeal: string;
+  if (minuteOfDay < 11 * 60 + 45) {
+    phase = 'matinée';
+    nextMeal = byCat.breakfast.length === 0 ? 'petit-déjeuner' : 'déjeuner';
+  } else if (minuteOfDay < 15 * 60 + 30) {
+    phase = 'midi / début après-midi';
+    nextMeal = byCat.lunch.length === 0 ? 'déjeuner' : 'goûter';
+  } else if (minuteOfDay < 19 * 60) {
+    phase = 'après-midi / fin de journée';
+    nextMeal = byCat.snack.length === 0 ? 'goûter' : 'dîner';
+  } else {
+    phase = 'soirée';
+    nextMeal = byCat.dinner.length === 0 ? 'dîner' : 'fin de journée';
+  }
+
+  // Reste à consommer pour atteindre l'objectif sans dépasser
+  const remainingKcal =
+    prof?.daily_kcal ? Math.round(Number(prof.daily_kcal) - totals.kcal) : null;
+  const remainingProteins =
+    prof?.daily_proteins_g
+      ? Math.round(Number(prof.daily_proteins_g) - totals.proteins)
+      : null;
+  const remainingLipids =
+    prof?.daily_lipids_g
+      ? Math.round(Number(prof.daily_lipids_g) - totals.lipids)
+      : null;
+  const remainingCarbs =
+    prof?.daily_carbs_g
+      ? Math.round(Number(prof.daily_carbs_g) - totals.carbs)
+      : null;
+
+  const ratioKcal =
+    prof?.daily_kcal && prof.daily_kcal > 0
+      ? Math.round((totals.kcal / Number(prof.daily_kcal)) * 100)
+      : null;
 
   // 3) Prompt Mistral
   const system = `Tu es Karine Piffaretti, diététicienne bienveillante française. Tu accompagnes une abonnée dans son suivi calorique quotidien.
@@ -81,18 +135,17 @@ export async function POST() {
 RÈGLES ABSOLUES :
 - Tutoiement, ton chaleureux, jamais de jugement, jamais culpabilisant.
 - Pas d'injonctions, pas d'interdits. Tu suggères, tu encourages, tu rassures.
-- Pratique et concret : 1 piste actionnable max, pas de liste.
-- 1 à 2 phrases courtes (max 30 mots au total).
+- 1 à 2 phrases courtes (max 35 mots au total).
+- Le conseil doit s'appuyer sur CE QU'ELLE A DÉJÀ MANGÉ et orienter LE PROCHAIN REPAS (donné dans le contexte) en cohérence avec son OBJECTIF de perte de poids (s'il y en a un) et les macros qu'il lui reste à atteindre.
+- Si elle a déjà bien mangé, propose un repas léger ou équilibré pour le suivant.
+- Si elle est en retard sur les kcal/macros, propose une idée précise (ex: "ce midi, une assiette avec du poulet et des légumes").
+- Si elle a déjà dépassé, rassure et propose une fin de journée légère (eau, tisane, soupe).
+- Évite la généralité : nomme un type d'aliment ou un plat concret pour le prochain repas si possible.
 - Pas d'émoji, pas de markdown, pas de citation entre guillemets.
 - Pas de salutation ni de signature.
 
 RÉPONDS UNIQUEMENT EN JSON :
 { "tip": "le conseil ici" }`;
-
-  const ratioKcal =
-    prof?.daily_kcal && prof.daily_kcal > 0
-      ? Math.round((totals.kcal / Number(prof.daily_kcal)) * 100)
-      : null;
 
   const user_prompt = `CONTEXTE ABONNÉE :
 - Sexe : ${prof?.sex ?? 'inconnu'}
@@ -100,20 +153,29 @@ RÉPONDS UNIQUEMENT EN JSON :
 - Activité : ${prof?.activity_level ?? '?'}
 - Objectif : ${
     prof?.weight_loss_kg
-      ? `perdre ${prof.weight_loss_kg} kg en 3 mois`
+      ? `perdre ${prof.weight_loss_kg} kg en 3 mois (déficit calorique calculé)`
       : 'maintenir son poids'
   }
-- Cible kcal/jour : ${prof?.daily_kcal ?? '?'} kcal (P:${prof?.daily_proteins_g ?? '?'}g / L:${prof?.daily_lipids_g ?? '?'}g / G:${prof?.daily_carbs_g ?? '?'}g)
+- Cible journalière : ${prof?.daily_kcal ?? '?'} kcal | Protéines ${prof?.daily_proteins_g ?? '?'}g | Lipides ${prof?.daily_lipids_g ?? '?'}g | Glucides ${prof?.daily_carbs_g ?? '?'}g
 
-CONSOMMÉ AUJOURD'HUI :
-- Total : ${Math.round(totals.kcal)} kcal${ratioKcal !== null ? ` (${ratioKcal}% de l'objectif)` : ''}
-- Macros : P:${Math.round(totals.proteins)}g, L:${Math.round(totals.lipids)}g, G:${Math.round(totals.carbs)}g
-- Pti dej : ${byCat.breakfast.join(', ') || '—'}
-- Déjeuner : ${byCat.lunch.join(', ') || '—'}
-- Goûter : ${byCat.snack.join(', ') || '—'}
-- Dîner : ${byCat.dinner.join(', ') || '—'}
+MOMENT ACTUEL :
+- Il est ${nowStr} (phase : ${phase})
+- Prochain repas attendu : ${nextMeal}
 
-Écris un conseil court, bienveillant, qui s'appuie sur ce qu'elle a déjà mangé et la guide pour la suite de la journée (si elle est en avance, en retard, ou équilibrée). Si elle n'a quasi rien mangé, encourage. Si elle dépasse, rassure et propose un ajustement doux pour la suite.`;
+DÉJÀ MANGÉ AUJOURD'HUI :
+- Petit-déjeuner : ${formatBucket(byCat.breakfast)}
+- Déjeuner : ${formatBucket(byCat.lunch)}
+- Goûter : ${formatBucket(byCat.snack)}
+- Dîner : ${formatBucket(byCat.dinner)}
+- Total : ${Math.round(totals.kcal)} kcal${ratioKcal !== null ? ` (${ratioKcal}% de l'objectif journalier)` : ''} | P:${Math.round(totals.proteins)}g, L:${Math.round(totals.lipids)}g, G:${Math.round(totals.carbs)}g
+
+RESTE À CONSOMMER POUR ATTEINDRE L'OBJECTIF :
+${remainingKcal !== null ? `- Kcal restantes : ${remainingKcal}${remainingKcal < 0 ? ' (déjà au-dessus)' : ''}` : ''}
+${remainingProteins !== null ? `- Protéines restantes : ${remainingProteins}g` : ''}
+${remainingLipids !== null ? `- Lipides restants : ${remainingLipids}g` : ''}
+${remainingCarbs !== null ? `- Glucides restants : ${remainingCarbs}g` : ''}
+
+Écris un conseil concret qui oriente son ${nextMeal} en fonction de tout ça.`;
 
   let tip: string;
   try {
