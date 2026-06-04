@@ -101,6 +101,21 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
     kcalBurned: number;
     summaryText: string | null;
   } | null>(null);
+  const [showCalories, setShowCalories] = useState<boolean>(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/app-settings', { cache: 'no-store' });
+        if (res.ok) {
+          const j = await res.json();
+          setShowCalories(j?.showCaloriesInCounter !== false);
+        }
+      } catch {
+        // default = true
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -388,6 +403,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                     <PreviewRow
                       key={i}
                       item={p}
+                      showCalories={showCalories}
                       onPortionsChange={(n) => {
                         const next = [...preview];
                         next[i] = { ...p, portions: n };
@@ -467,7 +483,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                     {logging ? (
                       <Loader2 className="size-3.5 animate-spin" />
                     ) : null}
-                    Ajouter au compteur
+                    Ajouter
                   </button>
                 )}
               </div>
@@ -575,11 +591,13 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 
 function PreviewRow({
   item,
+  showCalories,
   onPortionsChange,
   onPickCandidate,
   onRemove,
 }: {
   item: ParsedItem;
+  showCalories: boolean;
   onPortionsChange: (n: number) => void;
   onPickCandidate: (c: CiqualCandidate) => void;
   onRemove: () => void;
@@ -600,8 +618,12 @@ function PreviewRow({
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-ink">{item.label}</p>
           <p className="text-xs text-ink-soft">
-            {total !== null ? `${total} kcal` : 'kcal inconnues'}
-            {' · '}
+            {showCalories && (
+              <>
+                {total !== null ? `${total} kcal` : 'kcal inconnues'}
+                {' · '}
+              </>
+            )}
             {item.approxGrams}g/portion
           </p>
         </div>
@@ -657,15 +679,17 @@ function PreviewRow({
                     {selected && <Check className="size-3" strokeWidth={3} />}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                  <span
-                    className={`shrink-0 font-semibold ${
-                      selected ? 'text-emerald-700' : 'text-coral'
-                    }`}
-                  >
-                    {c.kcalPer100g !== null
-                      ? `${Math.round(c.kcalPer100g)} kcal/100g`
-                      : '—'}
-                  </span>
+                  {showCalories && (
+                    <span
+                      className={`shrink-0 font-semibold ${
+                        selected ? 'text-emerald-700' : 'text-coral'
+                      }`}
+                    >
+                      {c.kcalPer100g !== null
+                        ? `${Math.round(c.kcalPer100g)} kcal/100g`
+                        : '—'}
+                    </span>
+                  )}
                 </button>
               </li>
             );
@@ -695,6 +719,7 @@ function PreviewRow({
 
       {showPicker && (
         <FreeSearchPicker
+          showCalories={showCalories}
           onPick={(c) => {
             onPickCandidate(c);
             setShowPicker(false);
@@ -710,8 +735,10 @@ function PreviewRow({
  * quand l'IA ne propose pas le bon aliment.
  */
 function FreeSearchPicker({
+  showCalories,
   onPick,
 }: {
+  showCalories: boolean;
   onPick: (c: CiqualCandidate) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -774,9 +801,11 @@ function FreeSearchPicker({
                 className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-coral-soft/30"
               >
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                <span className="shrink-0 font-semibold text-coral">
-                  {c.kcalPer100g !== null ? `${Math.round(c.kcalPer100g)} kcal/100g` : '—'}
-                </span>
+                {showCalories && (
+                  <span className="shrink-0 font-semibold text-coral">
+                    {c.kcalPer100g !== null ? `${Math.round(c.kcalPer100g)} kcal/100g` : '—'}
+                  </span>
+                )}
               </button>
             </li>
           ))}

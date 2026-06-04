@@ -40,6 +40,16 @@ export async function PATCH(request: NextRequest) {
       update.patient_relance_cooldown_days = v;
     }
 
+    if (json.show_calories_in_counter !== undefined) {
+      if (typeof json.show_calories_in_counter !== 'boolean') {
+        return NextResponse.json(
+          { error: 'show_calories_in_counter doit être boolean' },
+          { status: 400 },
+        );
+      }
+      update.show_calories_in_counter = json.show_calories_in_counter;
+    }
+
     if (Object.keys(update).length === 0) {
       return NextResponse.json(
         { error: 'Aucun paramètre à mettre à jour' },

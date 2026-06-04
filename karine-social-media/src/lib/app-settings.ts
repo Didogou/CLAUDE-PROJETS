@@ -17,7 +17,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data, error } = await (supabase as any)
       .from('app_settings')
-      .select('patient_relance_cooldown_days')
+      .select('patient_relance_cooldown_days, show_calories_in_counter')
       .eq('id', 1)
       .maybeSingle();
     if (error || !data) return DEFAULT_APP_SETTINGS;
@@ -26,6 +26,10 @@ export async function getAppSettings(): Promise<AppSettings> {
         typeof data.patient_relance_cooldown_days === 'number'
           ? data.patient_relance_cooldown_days
           : DEFAULT_APP_SETTINGS.patientRelanceCooldownDays,
+      showCaloriesInCounter:
+        typeof data.show_calories_in_counter === 'boolean'
+          ? data.show_calories_in_counter
+          : DEFAULT_APP_SETTINGS.showCaloriesInCounter,
     };
   } catch {
     return DEFAULT_APP_SETTINGS;

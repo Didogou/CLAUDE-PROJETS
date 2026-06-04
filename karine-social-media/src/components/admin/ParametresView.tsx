@@ -3,13 +3,16 @@
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { BellRing, ChevronRight, ImagePlus, Save } from 'lucide-react';
+import { BellRing, ChevronRight, Flame, ImagePlus, Save } from 'lucide-react';
 import type { AppSettings } from '@/data/app-settings';
 
 export function ParametresView({ initial }: { initial: AppSettings }) {
   const router = useRouter();
   const [cooldown, setCooldown] = useState<number>(
     initial.patientRelanceCooldownDays,
+  );
+  const [showCalories, setShowCalories] = useState<boolean>(
+    initial.showCaloriesInCounter,
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,6 +29,7 @@ export function ParametresView({ initial }: { initial: AppSettings }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patient_relance_cooldown_days: cooldown,
+          show_calories_in_counter: showCalories,
         }),
       });
       if (!res.ok) {
@@ -96,6 +100,39 @@ export function ParametresView({ initial }: { initial: AppSettings }) {
           />
           <span className="text-sm text-admin-ink-soft">jour(s)</span>
         </div>
+      </section>
+
+      {/* === Section : Affichage des kcal côté abonnée === */}
+      <section className="rounded-2xl bg-admin-surface p-5 shadow-sm">
+        <header className="mb-3 flex items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-coral-soft/40 text-coral-dark">
+            <Flame className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-bold text-admin-ink">
+              Montrer les calories dans Mes calories
+            </h3>
+            <p className="mt-0.5 text-xs text-admin-ink-soft">
+              Si activé, les abonnées voient les <b>kcal/100g</b> et la
+              valeur calorique de chaque candidat dans la fenêtre Mes
+              calories. <b>Désactiver</b> pour un mode focus aliments
+              (anti-stress chiffres).
+            </p>
+          </div>
+        </header>
+
+        <label className="flex cursor-pointer items-center gap-3">
+          <input
+            type="checkbox"
+            checked={showCalories}
+            onChange={(e) => setShowCalories(e.target.checked)}
+            disabled={busy}
+            className="h-5 w-5 rounded border-admin-border text-admin-primary focus:ring-admin-primary"
+          />
+          <span className="text-sm font-semibold text-admin-ink">
+            {showCalories ? 'Activé' : 'Désactivé'}
+          </span>
+        </label>
       </section>
 
       {error && (
