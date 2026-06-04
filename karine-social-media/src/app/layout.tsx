@@ -20,7 +20,7 @@ const sacramento = Sacramento({
   weight: '400',
 });
 
-// Re-deploy trigger 2026-06-04 (2e tentative apres reconnect).
+// Re-deploy test post-GitHub-App-reinstall 2026-06-04.
 export const metadata: Metadata = {
   title: 'Karine Diététique',
   description: 'Prenons soin de vous — menus, recettes, conseils et astuces.',
