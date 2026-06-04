@@ -94,6 +94,14 @@ Exemples :
     → ["pomme crue", "pomme"]
   "j'ai mangé des lasagnes"
     → ["lasagnes", "lasagne bolognaise"]
+  "un verre de lait" (BOISSON, pas un fromage)
+    → ["lait demi-écrémé", "lait entier", "lait écrémé", "lait"]
+  "un verre de vin"
+    → ["vin rouge", "vin blanc", "vin"]
+  "un café"
+    → ["café noir", "café expresso", "café"]
+  "un yaourt"
+    → ["yaourt nature", "yaourt", "yogourt"]
 
 - **NE DÉCOMPOSE PAS LES PLATS COMPOSÉS** en mot unique. Ciqual contient les plats préparés français (aligot, ratatouille, paella, choucroute, hachis parmentier, lasagnes, tartiflette, couscous, quiche lorraine, tiramisu…). Mets le plat tel quel comme 1ère search_query.
 
@@ -102,6 +110,8 @@ Exemples :
     "des pâtes et une salade" = 2 items
 
 - Pour les viandes, fournis toujours 2-3 variantes (la coupe précise + un nom de coupe Ciqual + le nom de l'animal). Ciqual liste les coupes officielles (faux-filet, entrecôte, paleron, jarret, rumsteck…), pas les appellations bouchères ("côte de bœuf").
+
+- **BOISSONS** : "verre de X" / "tasse de X" / "bol de X" = LA BOISSON elle-même, jamais un dérivé. "verre de lait" ≠ "lait de vache" (qui matchera des fromages au lait de vache). Toujours mettre le nom de la boisson en 1er ("lait demi-écrémé" pas "lait de vache"). Idem "vin", "bière", "jus d'orange", "thé", "café", "smoothie", etc.
 
 - Pour les poissons, fournis 1-2 variantes (poisson + préparation).
 
