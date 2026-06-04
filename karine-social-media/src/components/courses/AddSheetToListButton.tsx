@@ -178,18 +178,18 @@ export function AddSheetToListButton({
           onClick={toggle}
           disabled={state !== 'ready'}
           aria-label={linked ? 'Retirer de mes courses' : 'Ajouter à mes courses'}
-          className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold whitespace-nowrap shadow-sm transition disabled:opacity-50 ${
+          className={`flex h-9 items-center gap-1 rounded-full px-2.5 text-[0.65rem] font-bold whitespace-nowrap shadow-sm transition disabled:opacity-50 ${
             linked
               ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-200'
               : 'bg-coral text-white hover:bg-coral-dark'
           }`}
         >
           {state === 'busy' || state === 'loading' ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <Loader2 className="h-3 w-3 animate-spin" />
           ) : linked ? (
-            <Check className="h-3.5 w-3.5" strokeWidth={3} />
+            <Check className="h-3 w-3" strokeWidth={3} />
           ) : (
-            <Plus className="h-3.5 w-3.5" strokeWidth={3} />
+            <Plus className="h-3 w-3" strokeWidth={3} />
           )}
           {linked ? 'Dans mes courses' : 'Mes courses'}
         </button>

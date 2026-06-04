@@ -54,7 +54,7 @@ export function CalorieFAB() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Compteur de calories"
-        className="fixed bottom-20 right-4 z-30 flex h-16 w-16 flex-col items-center justify-center rounded-full bg-coral text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
+        className="fixed bottom-20 right-2 z-30 flex h-14 w-14 flex-col items-center justify-center rounded-full bg-coral text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
       >
         <RingProgress percent={percent} color="white" strokeWidth={6} />
         <Flame className="relative size-4" />

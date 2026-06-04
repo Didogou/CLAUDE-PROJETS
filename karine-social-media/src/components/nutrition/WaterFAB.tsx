@@ -59,7 +59,7 @@ export function WaterFAB() {
         onClick={() => setOpen(true)}
         aria-label="Compteur d'eau"
         title="Compteur d'eau"
-        className={`fixed bottom-40 right-4 z-30 flex h-16 w-16 flex-col items-center justify-center rounded-full text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden ${
+        className={`fixed bottom-36 right-2 z-30 flex h-14 w-14 flex-col items-center justify-center rounded-full text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden ${
           reached ? 'bg-emerald-500' : 'bg-sky-400'
         }`}
       >
