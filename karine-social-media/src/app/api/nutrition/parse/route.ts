@@ -126,6 +126,16 @@ CHAMPS À RENSEIGNER POUR CHAQUE ITEM :
 
 1) search_queries : tableau de 1 à 4 termes à chercher en cascade dans Ciqual. Le 1er est le plus précis, les suivants dégradent vers du plus générique. Si zéro résultat sur le 1er, on essaie le 2e, etc.
 
+   ⚠️ RÈGLE CRITIQUE — CASCADE DÉGRADANTE :
+   La DERNIÈRE entrée de search_queries doit TOUJOURS être l'aliment principal SEUL (le nom du légume, de la viande, du féculent, du fruit…). JAMAIS un qualificatif de préparation isolé comme "farci", "rôti", "grillé", "braisé", "mijoté", "poêlé", "gratiné", "pané", "fumé".
+
+   Exemples :
+   - "poivrons farcis à la viande" → ["poivron farci viande", "poivron"] ✅ (PAS ["poivron farci", "farci"] ❌)
+   - "gigot d'agneau rôti" → ["gigot agneau", "agneau"] ✅ (PAS ["gigot rôti", "rôti"] ❌)
+   - "côte de bœuf grillée" → ["côte bœuf grillée", "côte bœuf", "bœuf"] ✅
+   - "poisson pané" → ["poisson pané", "poisson"] ✅
+   - "saumon fumé" → ["saumon fumé", "saumon"] ✅ (la forme "saumon fumé" existe en Ciqual donc OK en 1er)
+
 2) food_keyword : un mot-clé simple en français qui sert à matcher la grille des portions (voir ci-dessous). Ex : "yaourt", "lait", "frites", "pomme", "salade".
 
 3) portions : nombre de portions. "2 pommes" = 2. "un demi sandwich" = 0.5. "un verre de lait" = 1.
@@ -196,9 +206,19 @@ EXEMPLES COMPLETS :
 "une côte de bœuf crue"
   → search_queries=["côte de bœuf crue","faux-filet bœuf","entrecôte bœuf","bœuf cru"], food_keyword="bœuf", portions=1, approx_grams=150, size_hint=null
 
+"un poivron farci à la viande" (PLAT COMPOSÉ ABSENT DE CIQUAL → DÉCOMPOSE)
+  → item 1 : search_queries=["poivron cru","poivron"], food_keyword="poivron", portions=1, approx_grams=120, size_hint=null
+  → item 2 : search_queries=["viande hachée bœuf cuite","viande hachée"], food_keyword="viande hachée", portions=1, approx_grams=80, size_hint=null
+
+"des tomates farcies" (DÉCOMPOSE)
+  → item 1 : search_queries=["tomate crue","tomate"], food_keyword="tomate", portions=2, approx_grams=150
+  → item 2 : search_queries=["viande hachée bœuf cuite","viande hachée"], food_keyword="viande hachée", portions=1, approx_grams=100
+
 RÈGLES IMPORTANTES :
 
-- NE DÉCOMPOSE PAS LES PLATS COMPOSÉS connus (aligot, ratatouille, paella, lasagnes, tartiflette, couscous, quiche lorraine, hachis parmentier, tiramisu, choucroute). Mets le plat tel quel comme 1ère search_query.
+- PLATS COMPOSÉS PRÉSENTS DANS CIQUAL — NE DÉCOMPOSE PAS : aligot, ratatouille, paella, lasagnes, tartiflette, couscous, quiche lorraine, hachis parmentier, tiramisu, choucroute. Mets le plat tel quel comme 1ère search_query.
+
+- ⚠️ PLATS COMPOSÉS ABSENTS DE CIQUAL — DÉCOMPOSE EN 2-3 ITEMS : poivrons farcis, tomates farcies, courgettes farcies, aubergines farcies, parmentier de canard, moussaka, cannelloni, tajine, blanquette, navarin, bourguignon préparé maison. Pour ces plats, crée un item par ingrédient principal (légume + protéine + parfois féculent) avec leur masse estimée. Le résultat sera plus précis qu'un match approximatif.
 
 - DÉCOMPOSE en plusieurs items SEULEMENT si l'utilisatrice énumère explicitement plusieurs aliments avec "et", "puis", ",", "avec" :
     "une pomme et un yaourt" → 2 items
