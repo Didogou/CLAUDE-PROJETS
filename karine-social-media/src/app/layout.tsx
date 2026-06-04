@@ -20,8 +20,7 @@ const sacramento = Sacramento({
   weight: '400',
 });
 
-// Re-deploy trigger 2026-06-04 : forcer le rebuild apres
-// reconnexion Vercel <-> GitHub (cf memory).
+// Re-deploy trigger 2026-06-04 (2e tentative apres reconnect).
 export const metadata: Metadata = {
   title: 'Karine Diététique',
   description: 'Prenons soin de vous — menus, recettes, conseils et astuces.',
