@@ -526,15 +526,13 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 
         {/* Saisie naturelle (toujours visible) */}
         <section className="border-b border-coral-soft/20 px-4 py-3">
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <label className="text-xs font-semibold text-ink-soft">
-              Qu&apos;as-tu mang&eacute; ?
-            </label>
-            <MealCategoryChips
-              value={mealCategory}
-              onChange={setMealCategory}
-            />
-          </div>
+          <label className="mb-2 block text-xs font-semibold text-ink-soft">
+            Qu&apos;as-tu mang&eacute; ?
+          </label>
+          <MealCategoryChips
+            value={mealCategory}
+            onChange={setMealCategory}
+          />
           <div className="space-y-2">
             <div className="flex gap-2">
               {naturalText.length > 80 ? (
@@ -1154,13 +1152,13 @@ function MacroRow({
     },
   ];
   return (
-    <div className="mt-3 grid grid-cols-3 gap-1.5">
+    <div className="mt-3 grid grid-cols-3 gap-2">
       {items.map((it) => (
         <div
           key={it.label}
-          className="rounded-lg border border-coral-soft/40 bg-white px-2 py-1"
+          className="rounded-xl border border-coral-soft/40 bg-coral-soft/20 px-2.5 py-1.5"
         >
-          <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-ink-soft">
+          <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-coral-dark/80">
             {it.label}
           </p>
           <p className="text-sm font-bold text-coral">
@@ -1187,7 +1185,7 @@ function MealCategoryChips({
   onChange: (next: MealCategory) => void;
 }) {
   return (
-    <div className="flex shrink-0 gap-0.5 rounded-full bg-coral-soft/30 p-0.5">
+    <div className="mb-2 grid grid-cols-4 gap-1 rounded-full bg-coral-soft/20 p-1">
       {MEAL_ORDER.map((m) => {
         const active = m === value;
         return (
@@ -1195,10 +1193,10 @@ function MealCategoryChips({
             key={m}
             type="button"
             onClick={() => onChange(m)}
-            className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[0.65rem] font-semibold transition-colors ${
+            className={`rounded-full px-2 py-1 text-center text-[0.7rem] font-semibold transition-colors ${
               active
                 ? 'bg-coral text-white shadow-sm'
-                : 'text-coral-dark hover:bg-coral-soft/50'
+                : 'text-coral-dark hover:bg-coral-soft/40'
             }`}
           >
             {MEAL_LABELS[m]}
@@ -1223,6 +1221,9 @@ function MealsByCategory({
   onDelete: (id: string) => void;
   onChangeCategory: (id: string, next: MealCategory) => void;
 }) {
+  // Catégories pliées (par défaut tout est déployé).
+  const [collapsed, setCollapsed] = useState<Set<MealCategory>>(new Set());
+
   const groups: Record<MealCategory, FoodLogEntry[]> = {
     breakfast: [],
     lunch: [],
@@ -1233,32 +1234,59 @@ function MealsByCategory({
     groups[categoryOf(e)].push(e);
   }
 
+  function toggle(cat: MealCategory) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-2.5">
       {MEAL_ORDER.map((cat) => {
         const items = groups[cat];
         if (items.length === 0) return null;
         const subTotal = items.reduce((a, e) => a + e.kcal * e.portions, 0);
+        const isCollapsed = collapsed.has(cat);
         return (
-          <div key={cat}>
-            <div className="mb-1 flex items-center justify-between">
-              <h4 className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
+          <div
+            key={cat}
+            className="overflow-hidden rounded-xl border border-coral-soft/30 bg-coral-soft/10"
+          >
+            <button
+              type="button"
+              onClick={() => toggle(cat)}
+              className="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-coral-soft/20"
+            >
+              <span className="flex items-center gap-1.5 text-[0.7rem] font-bold uppercase tracking-wider text-coral-dark">
+                {isCollapsed ? (
+                  <ChevronDown className="size-3.5" />
+                ) : (
+                  <ChevronUp className="size-3.5" />
+                )}
                 {MEAL_LABELS[cat]}
-              </h4>
-              <span className="text-[0.65rem] font-semibold text-ink-soft">
+                <span className="rounded-full bg-coral-soft/40 px-1.5 py-0.5 text-[0.6rem] font-semibold text-coral-dark">
+                  {items.length}
+                </span>
+              </span>
+              <span className="text-[0.7rem] font-semibold text-coral">
                 {Math.round(subTotal)} kcal
               </span>
-            </div>
-            <ul className="space-y-1.5">
-              {items.map((e) => (
-                <EntryRow
-                  key={e.id}
-                  entry={e}
-                  onDelete={() => onDelete(e.id)}
-                  onChangeCategory={(next) => onChangeCategory(e.id, next)}
-                />
-              ))}
-            </ul>
+            </button>
+            {!isCollapsed && (
+              <ul className="space-y-1.5 border-t border-coral-soft/30 bg-white/40 p-2">
+                {items.map((e) => (
+                  <EntryRow
+                    key={e.id}
+                    entry={e}
+                    onDelete={() => onDelete(e.id)}
+                    onChangeCategory={(next) => onChangeCategory(e.id, next)}
+                  />
+                ))}
+              </ul>
+            )}
           </div>
         );
       })}
