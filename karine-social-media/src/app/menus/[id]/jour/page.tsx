@@ -4,13 +4,10 @@ import { ArrowLeft } from 'lucide-react';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { Logo } from '@/components/brand/Logo';
-import { DayPagerView } from '@/components/menus/DayPagerView';
 import { MenuDayMealsCarousel } from '@/components/menus/MenuDayMealsCarousel';
 import { getPublishedMenuById, getMenuMealSheets } from '@/lib/menus';
-import { getRecipeBySlug } from '@/lib/recipes';
 import { getCurrentUser } from '@/lib/current-user';
 import { dayIndexFromDate, formatWeekTitle } from '@/data/menus';
-import type { Recipe } from '@/data/recipes';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,17 +42,6 @@ export default async function MenuDayPage({
     { lunch: import('@/data/menus').MenuMealSheet | null; dinner: import('@/data/menus').MenuMealSheet | null }
   > = {};
   for (const [k, v] of mealSheetsMap) mealSheetsByDay[k] = v;
-
-  // Charge les recettes liées au menu pour pouvoir afficher les tuiles
-  // en mode "RecipeCard" (badges, calories, likes…).
-  const slugs = new Set<string>();
-  for (const d of menu.days) {
-    if (d.lunchRecipeSlug) slugs.add(d.lunchRecipeSlug);
-    if (d.dinnerRecipeSlug) slugs.add(d.dinnerRecipeSlug);
-  }
-  const recipeArr = await Promise.all([...slugs].map((s) => getRecipeBySlug(s)));
-  const recipesBySlug: Record<string, Recipe> = {};
-  for (const r of recipeArr) if (r) recipesBySlug[r.id] = r;
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
@@ -92,8 +78,6 @@ export default async function MenuDayPage({
           isSubscriber={isSubscriber}
           isAuthenticated={user.isAuthenticated}
         />
-
-        <DayPagerView menu={menu} defaultDayIndex={today} recipesBySlug={recipesBySlug} />
       </main>
 
       <div className="print:hidden">
