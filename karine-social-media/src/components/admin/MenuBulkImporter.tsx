@@ -168,14 +168,18 @@ export function MenuBulkImporter() {
       const id = String(j.id);
       setMenuId(id);
 
-      // 2. Upload cover + shopping en parallèle (ils sont indépendants)
+      // 2. Cover : simple upload (PUT /asset). Shopping list : passage
+      // par /shopping-list/extract qui upload + lance Vision + retourne
+      // { portions, items }. On enchaîne avec PUT /shopping-list pour
+      // les persister direct (workflow "tout auto" demandé par Karine —
+      // elle pourra éditer plus tard via l'éditeur classique du menu).
       const opts = { maxDim: 1200, quality: 0.8, skipBelowKB: 150 };
       const assetJobs: Array<Promise<unknown>> = [];
       if (coverFile) {
         assetJobs.push(uploadAsset(id, 'cover', coverFile, opts));
       }
       if (shoppingFile) {
-        assetJobs.push(uploadAsset(id, 'shopping', shoppingFile, opts));
+        assetJobs.push(extractAndSaveShoppingList(id, shoppingFile));
       }
       await Promise.all(assetJobs);
     } catch (err) {
@@ -963,6 +967,54 @@ async function uploadAsset(
   if (!res.ok) {
     const j = await res.json().catch(() => ({}));
     throw new Error(j?.error || `Upload ${type} échoué`);
+  }
+}
+
+/**
+ * Upload de l'image de la liste de courses + extraction Vision +
+ * persistance directe en BDD.
+ *
+ * 1. POST /shopping-list/extract → upload Storage + Vision extrait
+ *    { portions, items } (et met à jour shopping_list_image_url côté
+ *    serveur).
+ * 2. PUT /shopping-list → persiste portions + items dans
+ *    weekly_menus.shopping_list_items.
+ *
+ * Pas de compression côté front : la route /shopping-list/extract
+ * fait déjà optimizeUploadToWebp. Compresser ici donnerait une double
+ * conversion lossy.
+ */
+async function extractAndSaveShoppingList(
+  menuId: string,
+  file: File,
+): Promise<void> {
+  // 1) extract + Vision
+  const extractFd = new FormData();
+  extractFd.set('file', file);
+  const ex = await fetch(
+    `/api/admin/menus/${menuId}/shopping-list/extract`,
+    { method: 'POST', body: extractFd },
+  );
+  if (!ex.ok) {
+    const j = await ex.json().catch(() => ({}));
+    throw new Error(j?.error || 'Extraction liste de courses échouée');
+  }
+  const data = (await ex.json()) as {
+    portions?: number | null;
+    items?: ShoppingListItem[];
+  };
+  const portions = typeof data.portions === 'number' ? data.portions : null;
+  const items = Array.isArray(data.items) ? data.items : [];
+
+  // 2) persist
+  const save = await fetch(`/api/admin/menus/${menuId}/shopping-list`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ portions, items }),
+  });
+  if (!save.ok) {
+    const j = await save.json().catch(() => ({}));
+    throw new Error(j?.error || 'Sauvegarde liste de courses échouée');
   }
 }
 

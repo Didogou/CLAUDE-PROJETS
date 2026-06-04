@@ -164,7 +164,7 @@ export async function extractRecipeSheetFromImage(
             ingredients: {
               type: 'array',
               description:
-                'Liste structurée des ingrédients. Reste fidèle au texte de la fiche.',
+                'Liste structurée des ingrédients. Reste fidèle au texte de la fiche. ⚠️ N\'AJOUTE JAMAIS une ligne d\'ingrédient si tu n\'arrives pas à lire son nom (label). Une ligne avec quantité mais sans label est INTERDITE — préfère omettre cette ligne plutôt que de la retourner avec un label vide.',
               items: {
                 type: 'object',
                 properties: {
@@ -176,7 +176,7 @@ export async function extractRecipeSheetFromImage(
                   label: {
                     type: 'string',
                     description:
-                      'Nom de l\'ingrédient SEUL, en minuscules, SANS la quantité NI l\'unité. Exemples : "poivrons jaunes", "thon au naturel", "boulgour cuit", "huile d\'olive", "tomates cerises". ⚠️ NE JAMAIS commencer le label par une unité ("g", "ml", "cl", "cs", "cc") — l\'unité a sa propre colonne.',
+                      'Nom de l\'ingrédient SEUL, en minuscules, SANS la quantité NI l\'unité, JAMAIS VIDE. Exemples : "poivrons jaunes", "thon au naturel", "boulgour cuit", "huile d\'olive", "tomates cerises". ⚠️ NE JAMAIS commencer le label par une unité ("g", "ml", "cl", "cs", "cc") — l\'unité a sa propre colonne. ⚠️ Si tu ne peux pas déterminer le label d\'une ligne, OMETS COMPLÈTEMENT cette ligne du tableau — ne retourne jamais "" ou "?" comme label.',
                   },
                   quantity: {
                     type: ['number', 'null'],

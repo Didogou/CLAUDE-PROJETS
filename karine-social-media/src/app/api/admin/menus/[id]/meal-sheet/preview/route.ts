@@ -66,6 +66,12 @@ export async function POST(
       title: extracted?.title ?? null,
       servings: extracted?.servings ?? null,
       calories: extracted?.calories ?? null,
+      // Bug fix 2026-06-04 : ces 3 macros manquaient dans la
+      // reponse, ce qui faisait que le bulk import recevait
+      // toujours null alors que Vision les extrait correctement.
+      proteinsG: extracted?.proteinsG ?? null,
+      lipidsG: extracted?.lipidsG ?? null,
+      carbsG: extracted?.carbsG ?? null,
       prepTimeMin: extracted?.prepTimeMin ?? null,
       cookTimeMin: extracted?.cookTimeMin ?? null,
       tags: extracted?.tags ?? [],
