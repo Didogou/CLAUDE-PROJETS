@@ -1,9 +1,47 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check, Camera } from 'lucide-react';
 import { MyInfoModal } from './MyInfoModal';
+
+type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
+
+const MEAL_LABELS: Record<MealCategory, string> = {
+  breakfast: "P'tit dej",
+  lunch: 'Déjeuner',
+  snack: 'Goûter',
+  dinner: 'Dîner',
+};
+
+const MEAL_ORDER: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+
+/**
+ * Catégorie par défaut selon l'heure courante (Europe/Paris).
+ *   < 11h45 → breakfast
+ *   < 15h30 → lunch
+ *   < 19h   → snack
+ *   sinon   → dinner
+ */
+function defaultMealForHour(date: Date = new Date()): MealCategory {
+  const h = date.getHours();
+  const m = date.getMinutes();
+  const total = h * 60 + m;
+  if (total < 11 * 60 + 45) return 'breakfast';
+  if (total < 15 * 60 + 30) return 'lunch';
+  if (total < 19 * 60) return 'snack';
+  return 'dinner';
+}
+
+/**
+ * Catégorie effective d'une entrée : explicite si meal_category posée
+ * en base, sinon dérivée de l'heure de logged_at (rétro-compatibilité
+ * avec les entrées d'avant la migration).
+ */
+function categoryOf(entry: FoodLogEntry): MealCategory {
+  if (entry.mealCategory) return entry.mealCategory;
+  return defaultMealForHour(new Date(entry.loggedAt));
+}
 
 type FoodLogEntry = {
   id: string;
@@ -16,6 +54,7 @@ type FoodLogEntry = {
   lipidsG: number | null;
   carbsG: number | null;
   portions: number;
+  mealCategory: MealCategory | null;
 };
 
 type DayState = {
@@ -115,6 +154,11 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [naturalText, setNaturalText] = useState('');
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState<ParsedItem[] | null>(null);
+  // Catégorie sélectionnée pour la prochaine saisie (et le preview en
+  // cours). Initialisée à la catégorie correspondant à l'heure.
+  const [mealCategory, setMealCategory] = useState<MealCategory>(() =>
+    defaultMealForHour(),
+  );
   /**
    * Sélection d'accompagnements par bloc-item.
    * Map<itemIndex, Set<accompanimentIndex>>.
@@ -214,8 +258,12 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         setError(data?.error || 'Analyse photo impossible');
         return;
       }
-      if (typeof data.description === 'string' && data.description.trim()) {
-        setNaturalText(data.description.trim());
+      const desc = typeof data.description === 'string' ? data.description.trim() : '';
+      if (desc) {
+        setNaturalText(desc);
+        // Auto-parse : la description Vision part directement dans le
+        // pipeline parse — l'abonnée n'a pas besoin de re-cliquer Send.
+        await parseText(desc);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur photo');
@@ -224,9 +272,8 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
     }
   }
 
-  async function handleParse() {
-    const text = naturalText.trim();
-    if (!text || parsing) return;
+  async function parseText(text: string) {
+    if (!text.trim() || parsing) return;
     setParsing(true);
     try {
       const res = await fetch('/api/nutrition/parse', {
@@ -241,7 +288,6 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       }
       const corrected =
         typeof data.correctedText === 'string' ? data.correctedText : null;
-      // Reflet silencieux dans la saisie pour qu'elle puisse re-modifier.
       if (corrected) setNaturalText(corrected);
       if (Array.isArray(data.items) && data.items.length > 0) {
         setPreview(data.items);
@@ -252,6 +298,10 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
     } finally {
       setParsing(false);
     }
+  }
+
+  async function handleParse() {
+    await parseText(naturalText);
   }
 
   function toggleAcc(itemIdx: number, accIdx: number) {
@@ -322,12 +372,15 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       const res = await fetch('/api/nutrition/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries }),
+        body: JSON.stringify({ entries, mealCategory }),
       });
       if (res.ok) {
         setPreview(null);
         setAccSel(new Map());
         setNaturalText('');
+        // Recalcule la catégorie par défaut depuis l'heure courante
+        // pour la prochaine saisie (cas où on est resté longtemps).
+        setMealCategory(defaultMealForHour());
         await refresh();
         onChanged();
         window.dispatchEvent(new CustomEvent('nutrition-log-updated'));
@@ -337,6 +390,35 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
       }
     } finally {
       setLogging(false);
+    }
+  }
+
+  async function changeEntryCategory(id: string, next: MealCategory) {
+    const prev = day;
+    // Optimistic update
+    setDay((d) =>
+      d
+        ? {
+            ...d,
+            entries: d.entries.map((e) =>
+              e.id === id ? { ...e, mealCategory: next } : e,
+            ),
+          }
+        : d,
+    );
+    const res = await fetch(`/api/nutrition/log/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mealCategory: next }),
+    });
+    if (!res.ok) {
+      // Rollback
+      setDay(prev);
+      const j = await res.json().catch(() => ({}));
+      alertError(j?.error || 'Modification impossible');
+    } else {
+      onChanged();
+      window.dispatchEvent(new CustomEvent('nutrition-log-updated'));
     }
   }
 
@@ -434,14 +516,26 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               style={{ width: `${percent}%` }}
             />
           </div>
+
+          {/* Macros : Glucides / Protéines / Lipides — consommé / objectif (g) */}
+          <MacroRow
+            consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
+            target={day?.target ?? null}
+          />
         </section>
 
         {/* Saisie naturelle (toujours visible) */}
         <section className="border-b border-coral-soft/20 px-4 py-3">
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-ink-soft">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <label className="text-xs font-semibold text-ink-soft">
               Qu&apos;as-tu mang&eacute; ?
             </label>
+            <MealCategoryChips
+              value={mealCategory}
+              onChange={setMealCategory}
+            />
+          </div>
+          <div className="space-y-2">
             <div className="flex gap-2">
               {naturalText.length > 80 ? (
                 <textarea
@@ -635,15 +729,16 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         )}
 
         {/* Liste du jour — masquée pendant le preview (pas de scroll
-            parallèle, on se concentre sur la validation). */}
+            parallèle, on se concentre sur la validation). Scroll
+            tactile activé pour mobile (touchAction + overscroll). */}
         {!(preview && preview.length > 0) && (
         <section
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3"
           style={{
             scrollbarWidth: 'thin',
             scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
-            overscrollBehavior: 'contain',
             WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
           }}
         >
           <button
@@ -662,34 +757,12 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           </button>
           {todayOpen && day && day.entries.length === 0 ? (
             <p className="text-sm text-ink-soft">Aucune entrée pour le moment.</p>
-          ) : todayOpen ? (
-            <ul className="space-y-1.5">
-              {day?.entries.map((e) => (
-                <li
-                  key={e.id}
-                  className="flex items-center gap-2 rounded-lg border border-coral-soft/30 bg-white px-2.5 py-1.5"
-                >
-                  <SourceBadge source={e.source} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-ink">
-                      {e.label}
-                    </p>
-                    <p className="text-xs text-ink-soft">
-                      {Math.round(e.kcal * e.portions)} kcal
-                      {e.portions !== 1 && ` (${e.portions} portions)`}
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(e.id)}
-                    aria-label="Supprimer"
-                    className="rounded-full p-1.5 text-ink-soft hover:bg-rose-50 hover:text-rose-600"
-                  >
-                    <Trash2 className="size-4" />
-                  </button>
-                </li>
-              ))}
-            </ul>
+          ) : todayOpen && day ? (
+            <MealsByCategory
+              entries={day.entries}
+              onDelete={handleDelete}
+              onChangeCategory={changeEntryCategory}
+            />
           ) : null}
         </section>
         )}
@@ -1045,6 +1118,233 @@ function CandidateRow({
   );
 }
 
+/**
+ * Mini-cards macros : Glucides / Protéines / Lipides au format
+ * `consommé / objectif g`. Si le profil n'est pas complet (objectif
+ * null), on affiche seulement le consommé.
+ */
+function MacroRow({
+  consumed,
+  target,
+}: {
+  consumed: { kcal: number; proteinsG: number; lipidsG: number; carbsG: number };
+  target:
+    | {
+        dailyProteinsG: number | null;
+        dailyLipidsG: number | null;
+        dailyCarbsG: number | null;
+      }
+    | null;
+}) {
+  const items: Array<{ label: string; consumed: number; target: number | null }> = [
+    {
+      label: 'Glucides',
+      consumed: consumed.carbsG,
+      target: target?.dailyCarbsG ?? null,
+    },
+    {
+      label: 'Protéines',
+      consumed: consumed.proteinsG,
+      target: target?.dailyProteinsG ?? null,
+    },
+    {
+      label: 'Lipides',
+      consumed: consumed.lipidsG,
+      target: target?.dailyLipidsG ?? null,
+    },
+  ];
+  return (
+    <div className="mt-3 grid grid-cols-3 gap-1.5">
+      {items.map((it) => (
+        <div
+          key={it.label}
+          className="rounded-lg border border-coral-soft/40 bg-white px-2 py-1"
+        >
+          <p className="text-[0.6rem] font-semibold uppercase tracking-wider text-ink-soft">
+            {it.label}
+          </p>
+          <p className="text-sm font-bold text-coral">
+            {Math.round(it.consumed)}
+            <span className="text-xs font-normal text-ink-soft">
+              {it.target !== null ? `/${Math.round(it.target)}` : ''}g
+            </span>
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Chips de catégorie de repas. Compacts pour cohabiter avec le label
+ * "Qu'as-tu mangé ?" sur la même ligne.
+ */
+function MealCategoryChips({
+  value,
+  onChange,
+}: {
+  value: MealCategory;
+  onChange: (next: MealCategory) => void;
+}) {
+  return (
+    <div className="flex shrink-0 gap-0.5 rounded-full bg-coral-soft/30 p-0.5">
+      {MEAL_ORDER.map((m) => {
+        const active = m === value;
+        return (
+          <button
+            key={m}
+            type="button"
+            onClick={() => onChange(m)}
+            className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[0.65rem] font-semibold transition-colors ${
+              active
+                ? 'bg-coral text-white shadow-sm'
+                : 'text-coral-dark hover:bg-coral-soft/50'
+            }`}
+          >
+            {MEAL_LABELS[m]}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Affiche les entrées du jour groupées par catégorie de repas (Ptit
+ * dej / Déj / Goûter / Dîner). Sous-total kcal par section. Chaque
+ * entry permet de re-catégoriser via un popover compact.
+ */
+function MealsByCategory({
+  entries,
+  onDelete,
+  onChangeCategory,
+}: {
+  entries: FoodLogEntry[];
+  onDelete: (id: string) => void;
+  onChangeCategory: (id: string, next: MealCategory) => void;
+}) {
+  const groups: Record<MealCategory, FoodLogEntry[]> = {
+    breakfast: [],
+    lunch: [],
+    snack: [],
+    dinner: [],
+  };
+  for (const e of entries) {
+    groups[categoryOf(e)].push(e);
+  }
+
+  return (
+    <div className="space-y-3">
+      {MEAL_ORDER.map((cat) => {
+        const items = groups[cat];
+        if (items.length === 0) return null;
+        const subTotal = items.reduce((a, e) => a + e.kcal * e.portions, 0);
+        return (
+          <div key={cat}>
+            <div className="mb-1 flex items-center justify-between">
+              <h4 className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
+                {MEAL_LABELS[cat]}
+              </h4>
+              <span className="text-[0.65rem] font-semibold text-ink-soft">
+                {Math.round(subTotal)} kcal
+              </span>
+            </div>
+            <ul className="space-y-1.5">
+              {items.map((e) => (
+                <EntryRow
+                  key={e.id}
+                  entry={e}
+                  onDelete={() => onDelete(e.id)}
+                  onChangeCategory={(next) => onChangeCategory(e.id, next)}
+                />
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function EntryRow({
+  entry,
+  onDelete,
+  onChangeCategory,
+}: {
+  entry: FoodLogEntry;
+  onDelete: () => void;
+  onChangeCategory: (next: MealCategory) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const cat = categoryOf(entry);
+  const wrapperRef = useRef<HTMLLIElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) {
+      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  return (
+    <li
+      ref={wrapperRef}
+      className="relative flex items-center gap-2 rounded-lg border border-coral-soft/30 bg-white px-2.5 py-1.5"
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="shrink-0 rounded-full bg-coral-soft/40 px-2 py-0.5 text-[0.6rem] font-semibold text-coral-dark hover:bg-coral-soft/60"
+        aria-label="Changer la catégorie"
+      >
+        {MEAL_LABELS[cat]}
+      </button>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-ink">{entry.label}</p>
+        <p className="text-xs text-ink-soft">
+          {Math.round(entry.kcal * entry.portions)} kcal
+          {entry.portions !== 1 && ` (${entry.portions} portions)`}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onDelete}
+        aria-label="Supprimer"
+        className="rounded-full p-1.5 text-ink-soft hover:bg-rose-50 hover:text-rose-600"
+      >
+        <Trash2 className="size-4" />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-full z-10 mt-1 flex gap-1 rounded-full border border-coral-soft/40 bg-white p-1 shadow-lg">
+          {MEAL_ORDER.map((m) => {
+            const active = m === cat;
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  if (m !== cat) onChangeCategory(m);
+                }}
+                className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[0.65rem] font-semibold transition-colors ${
+                  active
+                    ? 'bg-coral text-white'
+                    : 'text-coral-dark hover:bg-coral-soft/40'
+                }`}
+              >
+                {MEAL_LABELS[m]}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </li>
+  );
+}
+
 function KcalBurnedEditor({
   value,
   onSaved,
@@ -1137,19 +1437,3 @@ function KcalBurnedEditor({
   );
 }
 
-function SourceBadge({ source }: { source: FoodLogEntry['source'] }) {
-  const map: Record<FoodLogEntry['source'], { label: string; cls: string }> = {
-    ciqual: { label: 'Ciqual', cls: 'bg-emerald-100 text-emerald-700' },
-    recipe: { label: 'Recette', cls: 'bg-coral-soft/40 text-coral' },
-    menu: { label: 'Menu', cls: 'bg-amber-100 text-amber-700' },
-    free: { label: 'Libre', cls: 'bg-slate-100 text-slate-600' },
-  };
-  const m = map[source];
-  return (
-    <span
-      className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.65rem] font-semibold ${m.cls}`}
-    >
-      {m.label}
-    </span>
-  );
-}

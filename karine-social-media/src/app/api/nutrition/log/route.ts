@@ -1,6 +1,9 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 
+type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
+const MEAL_CATEGORIES: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+
 type IncomingEntry = {
   source: 'ciqual' | 'recipe' | 'menu' | 'free';
   sourceRefId?: string | null;
@@ -10,6 +13,7 @@ type IncomingEntry = {
   lipidsG?: number | null;
   carbsG?: number | null;
   portions?: number;
+  mealCategory?: MealCategory | null;
 };
 
 /**
@@ -38,8 +42,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Max 20 entrées par requête' }, { status: 400 });
   }
 
+  // Catégorie globale optionnelle au niveau du body (s'applique à
+  // tous les items du parse). Chaque entry peut overrider.
+  const bodyMeal: MealCategory | null = MEAL_CATEGORIES.includes(body?.mealCategory)
+    ? body.mealCategory
+    : null;
+
   const now = new Date().toISOString();
-  const rows = entries.map((e) => sanitizeEntry(e, user.id, now)).filter(Boolean);
+  const rows = entries
+    .map((e) => sanitizeEntry({ ...e, mealCategory: e.mealCategory ?? bodyMeal }, user.id, now))
+    .filter(Boolean);
   if (rows.length === 0) {
     return NextResponse.json({ error: 'Aucune entrée valide' }, { status: 400 });
   }
@@ -79,5 +91,8 @@ function sanitizeEntry(
       typeof e.lipidsG === 'number' && Number.isFinite(e.lipidsG) ? e.lipidsG : null,
     carbs_g: typeof e.carbsG === 'number' && Number.isFinite(e.carbsG) ? e.carbsG : null,
     portions,
+    meal_category: MEAL_CATEGORIES.includes(e.mealCategory as MealCategory)
+      ? e.mealCategory
+      : null,
   };
 }
