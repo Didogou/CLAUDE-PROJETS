@@ -138,14 +138,24 @@ CHAMPS À RENSEIGNER POUR CHAQUE ITEM :
    - "large" si elle dit "grand", "gros", "grosse", "énorme", "XL" → multiplicateur déjà appliqué
    - null si aucune taille mentionnée
 
-6) possible_accompaniments : tableau de **EXACTEMENT 3** suggestions d'accompagnements ou ingrédients additionnels classiques qui pourraient accompagner ce plat et augmenter SIGNIFICATIVEMENT les calories ou les macros (sauce, fromage, huile, sucre, crème…). TRIE PAR KCAL_ESTIMATE DÉCROISSANT (le plus calorique en 1er pour alerter l'abonnée).
+6) possible_accompaniments : tableau de **JUSQU'À 3** suggestions d'accompagnements ou ingrédients additionnels classiques qui pourraient accompagner ce plat et augmenter SIGNIFICATIVEMENT les calories ou les macros (sauce, fromage, huile, sucre, crème…). TRIE PAR KCAL_ESTIMATE DÉCROISSANT (le plus calorique en 1er pour alerter l'abonnée).
+
+   ⚠️ RÈGLE CRITIQUE D'EXCLUSION : NE PROPOSE JAMAIS un accompagnement qui est DÉJÀ MENTIONNÉ dans la phrase de l'abonnée. Examine toute la phrase. Si elle dit :
+   - "crêpe au sucre" → NE PROPOSE PAS sucre (déjà mentionné). Propose nutella, confiture, chantilly à la place.
+   - "salade avec vinaigrette" → NE PROPOSE PAS vinaigrette. Propose huile d'olive, fromage, noix.
+   - "café au lait" → NE PROPOSE PAS lait. Propose sucre, miel, sirop.
+   - "yaourt au miel" → NE PROPOSE PAS miel. Propose confiture, granola, fruits secs.
+   - "pâtes au parmesan" → NE PROPOSE PAS parmesan. Propose huile d'olive, beurre, sauce tomate.
+   - "tartine au beurre" → NE PROPOSE PAS beurre. Propose confiture, nutella, miel.
+   - "frites avec ketchup" → NE PROPOSE PAS ketchup. Propose mayonnaise, sauce barbecue.
+   Si tous les accompagnements classiques sont déjà mentionnés, le tableau peut contenir 0, 1 ou 2 éléments — c'est OK.
 
    Format chaque élément : { name, typical_g, kcal_estimate }
    - name : nom de l'accompagnement en français minuscules ("vinaigrette", "parmesan", "miel"…)
    - typical_g : masse typique d'une portion classique (vinaigrette 15g, fromage râpé 10g, miel 15g, sucre 5g…)
    - kcal_estimate : kcal de la portion typique (utilise tes connaissances : huile=90, vinaigrette=70, fromage râpé=40, miel=49, sucre=20…)
 
-   Exemples par plat :
+   Exemples par plat (uniquement si AUCUN n'est déjà mentionné) :
    - salade → vinaigrette / huile d'olive / fromage de chèvre
    - pâtes → parmesan / huile d'olive / beurre
    - pizza → huile pimentée / parmesan / origan
@@ -161,7 +171,7 @@ CHAMPS À RENSEIGNER POUR CHAQUE ITEM :
    - aligot → saucisse de Toulouse / charcuterie / vin
    - tartiflette → vin / charcuterie / pain
 
-   Si aucun accompagnement n'a de sens (fruits crus, eau, alcool fort…) : tableau vide [].
+   Si aucun accompagnement n'a de sens (fruits crus, eau, alcool fort…) ou si tous sont déjà mentionnés : tableau vide [].
 
 ═══════════════════════════════════════════════════════
 ${portionRulesText || 'Pas de grille disponible — estime librement les portions selon les normes nutritionnelles françaises.'}
