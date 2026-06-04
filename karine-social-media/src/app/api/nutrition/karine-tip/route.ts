@@ -108,6 +108,26 @@ export async function POST() {
     nextMeal = byCat.dinner.length === 0 ? 'dîner' : 'fin de journée';
   }
 
+  // Recettes Karine de catégorie 'plat' publiées avec leur kcal —
+  // injectées dans le prompt UNIQUEMENT pour aider Mistral à nommer
+  // une recette précise quand le prochain repas est un dîner.
+  // Cap à 30 pour ne pas exploser le contexte token.
+  const { data: recipeRows } = await (supabase as any)
+    .from('recipes')
+    .select('title, calories')
+    .eq('status', 'published')
+    .eq('category', 'plat')
+    .not('calories', 'is', null)
+    .order('calories', { ascending: true })
+    .limit(30);
+  const recipes: Array<{ title: string; calories: number }> = Array.isArray(
+    recipeRows,
+  )
+    ? recipeRows
+        .filter((r) => typeof r.title === 'string' && typeof r.calories === 'number')
+        .map((r) => ({ title: r.title, calories: r.calories }))
+    : [];
+
   // Reste à consommer pour atteindre l'objectif sans dépasser
   const remainingKcal =
     prof?.daily_kcal ? Math.round(Number(prof.daily_kcal) - totals.kcal) : null;
@@ -143,6 +163,13 @@ RÈGLES ABSOLUES :
 - Évite la généralité : nomme un type d'aliment ou un plat concret pour le prochain repas si possible.
 - Pas de markdown, pas de citation entre guillemets, pas de salutation ni de signature.
 
+RECETTES DE KARINE — RÈGLES STRICTES :
+- Une liste de mes recettes (titre + kcal) peut être fournie ci-dessous.
+- Tu peux nommer UNE recette précise UNIQUEMENT si le prochain repas est un DÎNER. Choisis-la dans la liste, en privilégiant celle qui colle le mieux aux kcal restantes à atteindre (sans dépasser).
+  Tournure : "ce soir, n'hésite pas à piquer ma recette de [TITRE] (≈ X kcal)" ou variante similaire.
+- Si le prochain repas n'est PAS un dîner (petit-déjeuner, déjeuner, goûter), tu ne nommes AUCUNE recette précise. Tu peux quand même évoquer "une de mes recettes à environ X kcal" de manière générique si c'est pertinent, sans titre.
+- Si aucune recette ne convient (liste vide ou kcal incompatibles), n'en mentionne pas.
+
 STYLE KARINE — EMOJIS ENCOURAGEANTS :
 Ajoute 1 à 3 petits émojis chaleureux pour ponctuer ton conseil (cœurs, fleurs, soleil, plantes…). Bannis tout émoji froid, sarcastique ou alimentaire (👍 ❌ 🍔 🍰). Privilégie cette palette : 🌸 🌷 🌺 🌻 🌹 🌼 💐 🌿 🌱 🌳 ❤️ 💛 💚 💖 💕 ✨ ☀️ 💪. Place-les en fin de phrase ou en respiration, jamais en début de phrase. Pas de surcharge : maximum 3 émojis sur tout le message.
 
@@ -176,6 +203,9 @@ ${remainingKcal !== null ? `- Kcal restantes : ${remainingKcal}${remainingKcal <
 ${remainingProteins !== null ? `- Protéines restantes : ${remainingProteins}g` : ''}
 ${remainingLipids !== null ? `- Lipides restants : ${remainingLipids}g` : ''}
 ${remainingCarbs !== null ? `- Glucides restants : ${remainingCarbs}g` : ''}
+
+MES RECETTES DISPONIBLES (titre — kcal) — utilisables UNIQUEMENT si le prochain repas est un DÎNER :
+${recipes.length === 0 ? '(aucune)' : recipes.map((r) => `- ${r.title} — ${r.calories} kcal`).join('\n')}
 
 Écris un conseil concret qui oriente son ${nextMeal} en fonction de tout ça.`;
 
