@@ -34,13 +34,16 @@ export async function GET(request: NextRequest) {
 
   const supabase = createServiceClient();
 
-  // 1) Trouve les abonnees dont summary_hour = currentHour
+  // 1) Trouve toutes les abonnees avec un profil renseigne.
+  // Plan Hobby Vercel = 1 cron / jour. On a fixe 19h UTC (21h Paris ete /
+  // 20h Paris hiver) et on traite tout le monde dans la meme passe. Le
+  // champ summary_hour est conserve pour un upgrade Pro futur (cron
+  // horaire avec filtre par heure).
   const { data: targets, error: tErr } = await (supabase as any)
     .from('user_nutrition_targets')
     .select(
       'user_id, daily_kcal, daily_proteins_g, daily_lipids_g, daily_carbs_g, summary_hour, sex',
     )
-    .eq('summary_hour', currentHour)
     .not('daily_kcal', 'is', null);
 
   if (tErr) {
