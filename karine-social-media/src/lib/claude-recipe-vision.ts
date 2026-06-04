@@ -257,12 +257,20 @@ Appelle save_recipe_sheet.`,
   }
   const input = toolUse.input as Record<string, unknown>;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Filtre les placeholders ("—", "?", "...", "n/a", "illisible"…)
+  // que Haiku peut retourner quand il n'arrive pas à lire un label
+  // au lieu d'omettre la ligne. Empêche ces ingrédients fantômes
+  // d'arriver dans menu_meal_sheets.ingredients.
+  const PLACEHOLDER_LABEL =
+    /^(?:[?\-—.…\s]+|n\/?a|illisible|ingr[ée]dient(?:\s+illisible)?|inconnu)$/i;
+
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const ingredients: RecipeIngredient[] = Array.isArray(input.ingredients)
     ? (input.ingredients as any[])
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .filter((it: any) => it && typeof it.label === 'string' && typeof it.category === 'string')
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .filter(
+          (it: any) =>
+            it && typeof it.label === 'string' && typeof it.category === 'string',
+        )
         .map((it: any) => ({
           category: String(it.category).trim(),
           label: String(it.label).trim(),
@@ -270,7 +278,25 @@ Appelle save_recipe_sheet.`,
           unit: typeof it.unit === 'string' ? it.unit.trim() || null : null,
           note: typeof it.note === 'string' ? it.note.trim() || null : null,
         }))
+        .filter(
+          (it: RecipeIngredient) =>
+            it.label.length > 0 &&
+            !PLACEHOLDER_LABEL.test(it.label) &&
+            it.category.length > 0,
+        )
     : [];
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+
+  // Log debug temporaire pour Karine — à retirer après stabilisation.
+  if (Array.isArray(input.ingredients)) {
+    const rawCount = (input.ingredients as unknown[]).length;
+    if (rawCount !== ingredients.length) {
+      console.warn(
+        `[recipe-vision] ${rawCount - ingredients.length} ingrédient(s) filtré(s) (placeholder/vide). Raw labels:`,
+        (input.ingredients as Array<{ label?: unknown }>).map((i) => i?.label),
+      );
+    }
+  }
 
   return {
     title: typeof input.title === 'string' ? input.title.trim() : null,

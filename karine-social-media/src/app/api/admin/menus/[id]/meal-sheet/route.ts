@@ -201,6 +201,14 @@ function stringArray(v: unknown): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Regex de placeholders bidons que Vision peut renvoyer quand elle
+ * ne lit pas un label (au lieu d'omettre la ligne comme demandé) :
+ * "—", "-", "?", "...", "…", "n/a", "—…", "ingrédient illisible".
+ */
+const PLACEHOLDER_LABEL =
+  /^(?:[?\-—.…\s]+|n\/?a|illisible|ingr[ée]dient(?:\s+illisible)?|inconnu)$/i;
+
 function sanitizeIngredients(v: unknown): ShoppingListItem[] {
   if (!Array.isArray(v)) return [];
   const out: ShoppingListItem[] = [];
@@ -209,7 +217,9 @@ function sanitizeIngredients(v: unknown): ShoppingListItem[] {
     const obj = it as Record<string, unknown>;
     const category = typeof obj.category === 'string' ? obj.category.trim() : '';
     const label = typeof obj.label === 'string' ? obj.label.trim() : '';
+    // Filtre : category + label requis, label non-placeholder
     if (!category || !label) continue;
+    if (PLACEHOLDER_LABEL.test(label)) continue;
     out.push({
       category,
       label,
