@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 import { extractRecipeSheetFromImage } from '@/lib/claude-recipe-vision';
+import { estimateMacrosFromIngredients } from '@/lib/macros-estimator';
 
 const BUCKET = 'content-images';
 export const maxDuration = 60;
@@ -60,23 +61,45 @@ export async function POST(
       console.warn('[meal-sheet preview] Vision failed (non-blocking):', visionErr);
     }
 
+    // Fallback macros : Vision n'a pas trouve les macros sur la
+    // fiche → on demande a Mistral d'estimer a partir de la liste
+    // des ingredients + servings. Karine peut toujours corriger
+    // dans le tableau de relecture.
+    let proteinsG = extracted?.proteinsG ?? null;
+    let lipidsG = extracted?.lipidsG ?? null;
+    let carbsG = extracted?.carbsG ?? null;
+    let calories = extracted?.calories ?? null;
+    const ingredients = extracted?.ingredients ?? [];
+    const servings = extracted?.servings ?? null;
+
+    const macrosIncomplete =
+      proteinsG === null || lipidsG === null || carbsG === null;
+    if (macrosIncomplete && ingredients.length > 0) {
+      const estimated = await estimateMacrosFromIngredients(
+        ingredients,
+        servings ?? 4,
+        calories,
+      );
+      if (proteinsG === null) proteinsG = estimated.proteinsG;
+      if (lipidsG === null) lipidsG = estimated.lipidsG;
+      if (carbsG === null) carbsG = estimated.carbsG;
+      if (calories === null) calories = estimated.caloriesPerServing;
+    }
+
     return NextResponse.json({
       tempPath,
       imageUrl,
       title: extracted?.title ?? null,
-      servings: extracted?.servings ?? null,
-      calories: extracted?.calories ?? null,
-      // Bug fix 2026-06-04 : ces 3 macros manquaient dans la
-      // reponse, ce qui faisait que le bulk import recevait
-      // toujours null alors que Vision les extrait correctement.
-      proteinsG: extracted?.proteinsG ?? null,
-      lipidsG: extracted?.lipidsG ?? null,
-      carbsG: extracted?.carbsG ?? null,
+      servings,
+      calories,
+      proteinsG,
+      lipidsG,
+      carbsG,
       prepTimeMin: extracted?.prepTimeMin ?? null,
       cookTimeMin: extracted?.cookTimeMin ?? null,
       tags: extracted?.tags ?? [],
       aliments: extracted?.aliments ?? [],
-      ingredients: extracted?.ingredients ?? [],
+      ingredients,
     });
   } catch (e) {
     console.error('[admin/menus meal-sheet/preview] error:', e);
