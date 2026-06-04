@@ -2,6 +2,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { callMistralJson } from '@/lib/mistral';
 import { searchCiqualFoods } from '@/lib/ciqual';
+import {
+  getPortionRules,
+  formatPortionRulesForPrompt,
+  detectFollowups,
+} from '@/lib/portion-rules';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -30,6 +35,10 @@ type MistralItem = {
   search_queries?: string[];
   portions?: number;
   approx_grams?: number;
+  /** v3 : mot-clé simple pour matcher avec portion_foods (Karine peut tuner). */
+  food_keyword?: string;
+  /** v3 : taille explicite mentionnée par l'utilisatrice (null si pas dit). */
+  size_hint?: 'small' | 'medium' | 'large' | null;
 };
 
 type CiqualCandidatePublic = {
@@ -47,6 +56,8 @@ type ParsedItem = {
   searchQuery: string;
   portions: number;
   approxGrams: number;
+  /** Masse de base SANS multiplicateur de taille (utile pour recalcul UI chips P/M/G). */
+  baseGramsBeforeSizeHint: number;
   match: CiqualCandidatePublic | null;
   // Kcal pour 1 portion (à multiplier par portions côté UI).
   kcalPerPortion: number | null;
@@ -56,6 +67,12 @@ type ParsedItem = {
   // Top 7 candidats Ciqual — toujours présent quand on en a trouvé,
   // pour permettre à l'utilisatrice de choisir une alternative.
   topCandidates?: CiqualCandidatePublic[];
+  /** Mot-clé portion (matché avec portion_foods, sert au UI pour size_variability). */
+  foodKeyword?: string;
+  /** "low" | "medium" | "high" depuis portion_foods. UI utilise pour décider d'afficher les chips P/M/G. */
+  sizeVariability?: 'low' | 'medium' | 'high';
+  /** Taille explicitement mentionnée par l'utilisatrice (Mistral détecte). */
+  sizeHint?: 'small' | 'medium' | 'large' | null;
 };
 
 const CORRECT_PROMPT = `Tu corriges l'orthographe d'une phrase française qui décrit un repas.
@@ -71,57 +88,83 @@ Règles :
 - Si la phrase est déjà correcte : renvoie-la telle quelle.
 - Réponds TOUJOURS en JSON valide.`;
 
-const SYSTEM_PROMPT = `Tu es un assistant nutritionnel français. L'utilisatrice décrit en français ce qu'elle a mangé. Extrais les aliments mentionnés.
+function buildSystemPrompt(portionRulesText: string): string {
+  return `Tu es un assistant nutritionnel français. L'utilisatrice tape en français une phrase qui décrit son repas. Tu dois extraire la liste des aliments, leur quantité, et fournir des termes de recherche pour la base ANSES Ciqual.
 
-SORTIE OBLIGATOIRE (JSON pur sans markdown) :
+RÉPONDS UNIQUEMENT EN JSON PUR (pas de markdown, pas de commentaire) :
 {
   "items": [
-    { "search_queries": ["yaourt nature", "yaourt"], "portions": 1, "approx_grams": 125 }
+    {
+      "search_queries": ["yaourt nature", "yaourt"],
+      "food_keyword": "yaourt",
+      "portions": 1,
+      "approx_grams": 125,
+      "size_hint": null
+    }
   ]
 }
 
-Règles strictes :
-- search_queries : LISTE de 1 à 4 termes à essayer en cascade dans la base ANSES Ciqual. On essaie la 1ère, si zéro résultat on passe à la 2ème, etc. Mets toujours en 1er le terme le plus précis, puis dégrade vers du plus générique.
+CHAMPS À RENSEIGNER POUR CHAQUE ITEM :
 
-Exemples :
-  "j'ai mangé une côte de bœuf crue"
-    → ["côte de bœuf cru", "faux-filet bœuf", "entrecôte bœuf", "bœuf cru"]
-  "j'ai mangé du saumon fumé"
-    → ["saumon fumé", "saumon"]
-  "j'ai mangé de l'aligot"
-    → ["aligot"]
-  "j'ai mangé une pomme"
-    → ["pomme crue", "pomme"]
-  "j'ai mangé des lasagnes"
-    → ["lasagnes", "lasagne bolognaise"]
-  "un verre de lait" (BOISSON, pas un fromage)
-    → ["lait demi-écrémé", "lait entier", "lait écrémé", "lait"]
-  "un verre de vin"
-    → ["vin rouge", "vin blanc", "vin"]
-  "un café"
-    → ["café noir", "café expresso", "café"]
-  "un yaourt"
-    → ["yaourt nature", "yaourt", "yogourt"]
+1) search_queries : tableau de 1 à 4 termes à chercher en cascade dans Ciqual. Le 1er est le plus précis, les suivants dégradent vers du plus générique. Si zéro résultat sur le 1er, on essaie le 2e, etc.
 
-- **NE DÉCOMPOSE PAS LES PLATS COMPOSÉS** en mot unique. Ciqual contient les plats préparés français (aligot, ratatouille, paella, choucroute, hachis parmentier, lasagnes, tartiflette, couscous, quiche lorraine, tiramisu…). Mets le plat tel quel comme 1ère search_query.
+2) food_keyword : un mot-clé simple en français qui sert à matcher la grille des portions (voir ci-dessous). Ex : "yaourt", "lait", "frites", "pomme", "salade".
 
-- Décompose en plusieurs items UNIQUEMENT si l'utilisatrice liste explicitement plusieurs aliments distincts avec "et" / "puis" / "," :
-    "une pomme et un yaourt" = 2 items
-    "des pâtes et une salade" = 2 items
+3) portions : nombre de portions. "2 pommes" = 2. "un demi sandwich" = 0.5. "un verre de lait" = 1.
 
-- Pour les viandes, fournis toujours 2-3 variantes (la coupe précise + un nom de coupe Ciqual + le nom de l'animal). Ciqual liste les coupes officielles (faux-filet, entrecôte, paleron, jarret, rumsteck…), pas les appellations bouchères ("côte de bœuf").
+4) approx_grams : masse en grammes pour UNE portion. Calcule selon la grille ci-dessous × le multiplicateur (si adjectif).
 
-- **BOISSONS** : "verre de X" / "tasse de X" / "bol de X" = LA BOISSON elle-même, jamais un dérivé. "verre de lait" ≠ "lait de vache" (qui matchera des fromages au lait de vache). Toujours mettre le nom de la boisson en 1er ("lait demi-écrémé" pas "lait de vache"). Idem "vin", "bière", "jus d'orange", "thé", "café", "smoothie", etc.
+5) size_hint : indique si l'utilisatrice a mentionné explicitement une taille.
+   - "small" si elle dit "petit", "petite", "léger", "mini" → multiplicateur déjà appliqué dans approx_grams
+   - "medium" si elle dit "moyen", "normal" → multiplicateur ×1
+   - "large" si elle dit "grand", "gros", "grosse", "énorme", "XL" → multiplicateur déjà appliqué
+   - null si aucune taille mentionnée
 
-- Pour les poissons, fournis 1-2 variantes (poisson + préparation).
+═══════════════════════════════════════════════════════
+${portionRulesText || 'Pas de grille disponible — estime librement les portions selon les normes nutritionnelles françaises.'}
+═══════════════════════════════════════════════════════
 
-- portions : nombre mentionné (1 yaourt=1, 2 pommes=2, "demi"=0.5).
-- approx_grams : masse en grammes pour UNE portion :
-    pomme≈150, yaourt≈125, tranche pain≈30, sandwich≈200, bol pâtes/riz cuites≈250, assiette plat principal≈300, plat composé≈250, viande crue/cuite≈150, poisson≈130.
-- Si masse précise donnée ("500g de pâtes") : portions=1, approx_grams=500.
+EXEMPLES COMPLETS :
 
-- Si vraiment vague ("un repas", "des trucs") : IGNORE.
-- Maximum 10 items. JSON valide obligatoire (items vide si rien d'identifiable).`;
+"j'ai mangé un yaourt"
+  → search_queries=["yaourt nature","yaourt"], food_keyword="yaourt", portions=1, approx_grams=125, size_hint=null
+
+"j'ai mangé une grosse assiette de frites"
+  → search_queries=["frites cuites","frites"], food_keyword="frites", portions=1, approx_grams=350 (250×1.4), size_hint="large"
+
+"un grand bol de céréales avec du lait" (DEUX items distincts)
+  → item 1 : search_queries=["céréales petit déjeuner","céréales"], food_keyword="céréales", portions=1, approx_grams=56 (40×1.4), size_hint="large"
+  → item 2 : search_queries=["lait demi-écrémé","lait"], food_keyword="lait", portions=1, approx_grams=280 (200×1.4), size_hint="large"
+
+"un verre de lait" (BOISSON, jamais "lait de vache" qui matche des fromages)
+  → search_queries=["lait demi-écrémé","lait entier","lait"], food_keyword="lait", portions=1, approx_grams=200, size_hint=null
+
+"500g de pâtes"
+  → search_queries=["pâtes cuites","pâtes"], food_keyword="pâtes", portions=1, approx_grams=500, size_hint=null (la masse explicite REMPLACE la grille)
+
+"deux pommes"
+  → search_queries=["pomme crue","pomme"], food_keyword="pomme", portions=2, approx_grams=150, size_hint=null
+
+"une côte de bœuf crue"
+  → search_queries=["côte de bœuf crue","faux-filet bœuf","entrecôte bœuf","bœuf cru"], food_keyword="bœuf", portions=1, approx_grams=150, size_hint=null
+
+RÈGLES IMPORTANTES :
+
+- NE DÉCOMPOSE PAS LES PLATS COMPOSÉS connus (aligot, ratatouille, paella, lasagnes, tartiflette, couscous, quiche lorraine, hachis parmentier, tiramisu, choucroute). Mets le plat tel quel comme 1ère search_query.
+
+- DÉCOMPOSE en plusieurs items SEULEMENT si l'utilisatrice énumère explicitement plusieurs aliments avec "et", "puis", ",", "avec" :
+    "une pomme et un yaourt" → 2 items
+    "un bol de céréales avec du lait" → 2 items (céréales + lait)
+    "des pâtes à la carbonara" → 1 item (carbonara est un plat composé)
+
+- POUR LES VIANDES : 2-3 variantes (la coupe précise + un nom Ciqual + le nom de l'animal). Ciqual liste les coupes officielles (faux-filet, entrecôte, paleron, jarret, rumsteck), pas les appellations bouchères.
+
+- POUR LES BOISSONS ("verre de X", "tasse de X") : c'est la BOISSON elle-même. "verre de lait" ≠ "lait de vache" (qui matche les fromages). Mets toujours le nom de la boisson en 1er ("lait demi-écrémé", pas "lait de vache").
+
+- IGNORE les phrases vagues ("un repas", "des trucs", "pas grand chose").
+
+- MAXIMUM 10 items par phrase.`;
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -151,10 +194,15 @@ export async function POST(request: NextRequest) {
   // retombe sur le texte brut.
   const correctedText = await correctSpelling(text);
 
+  // Charge les regles de portions (cache 5 min) + injecte dans le prompt.
+  const portionRules = await getPortionRules();
+  const rulesText = formatPortionRulesForPrompt(portionRules);
+  const systemPrompt = buildSystemPrompt(rulesText);
+
   let parsed: { items?: MistralItem[] };
   try {
-    const result = await callMistralJson(SYSTEM_PROMPT, correctedText, {
-      maxTokens: 800,
+    const result = await callMistralJson(systemPrompt, correctedText, {
+      maxTokens: 1200, // plus large car la grille a injecter peut etre grosse
     });
     parsed = JSON.parse(result.content) as { items?: MistralItem[] };
   } catch (e) {
@@ -194,6 +242,29 @@ export async function POST(request: NextRequest) {
       it.approx_grams > 0
         ? it.approx_grams
         : 100;
+
+    // Extraction food_keyword + size_hint Mistral.
+    const foodKeyword =
+      typeof it.food_keyword === 'string' ? it.food_keyword.trim().toLowerCase() : '';
+    const sizeHint: ParsedItem['sizeHint'] =
+      it.size_hint === 'small' || it.size_hint === 'medium' || it.size_hint === 'large'
+        ? it.size_hint
+        : null;
+
+    // Match avec portion_foods pour récupérer size_variability +
+    // base_g (= grams sans le multiplicateur de taille, utile UI).
+    const matchedFood = foodKeyword
+      ? portionRules.foods.find(
+          (f) =>
+            f.name === foodKeyword ||
+            f.name.includes(foodKeyword) ||
+            foodKeyword.includes(f.name),
+        )
+      : undefined;
+    const sizeVariability = matchedFood?.sizeVariability ?? 'medium';
+    // Base = portion standard du food matché. Sinon retombe sur grams
+    // estimé Mistral (le ratio sera 1).
+    const baseGrams = matchedFood ? matchedFood.portionG : grams;
 
     // Étape 2a : essayer chaque variante jusqu'à trouver des candidats
     let candidates: Awaited<ReturnType<typeof searchCiqualFoods>> = [];
@@ -258,18 +329,32 @@ export async function POST(request: NextRequest) {
       searchQuery: query,
       portions,
       approxGrams: grams,
+      baseGramsBeforeSizeHint: baseGrams,
       match: picked ? toPublic(picked) : null,
       kcalPerPortion,
       proteinsPerPortion,
       lipidsPerPortion,
       carbsPerPortion,
       topCandidates,
+      foodKeyword: foodKeyword || undefined,
+      sizeVariability,
+      sizeHint,
     });
   }
+
+  // Détection des followups (questions de relance type "sauce dans la salade").
+  // 1 followup maximum par item, déclenché si le label/phrase matche un
+  // trigger_keyword et que la phrase n'inclut pas un exclude_keyword.
+  const followups = detectFollowups(
+    correctedText,
+    out.map((o) => o.label),
+    portionRules,
+  );
 
   return NextResponse.json({
     items: out,
     correctedText: correctedText !== text ? correctedText : undefined,
+    followups: followups.length > 0 ? followups : undefined,
   });
 }
 
