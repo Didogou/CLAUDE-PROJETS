@@ -515,11 +515,14 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           </div>
         </section>
 
-        {/* Propositions du parse (1 bloc par aliment) */}
+        {/* Propositions du parse (1 bloc par aliment).
+            Quand preview est actif, on prend toute la place restante
+            (flex-1) et on scroll en interne. Les boutons Annuler /
+            Ajouter sont dans le footer de la sheet (sticky bas). */}
         {preview && preview.length > 0 && (
-          <section className="border-b border-coral-soft/20 px-4 py-3">
+          <section className="flex min-h-0 flex-1 flex-col border-b border-coral-soft/20 px-4 py-3">
             <ul
-              className="max-h-[50vh] space-y-2.5 overflow-y-auto pr-1"
+              className="flex-1 space-y-2.5 overflow-y-auto pr-1"
               style={{
                 scrollbarWidth: 'thin',
                 scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
@@ -628,33 +631,12 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 />
               ))}
             </ul>
-            <div className="mt-3 flex items-center gap-2 border-t border-coral-soft/20 pt-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setPreview(null);
-                  setAccSel(new Map());
-                }}
-                className="rounded-full border border-coral-soft px-3 py-1.5 text-xs font-semibold text-coral"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmPreview}
-                disabled={logging}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-5 py-2 text-sm font-semibold text-white shadow disabled:opacity-50"
-              >
-                {logging ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : null}
-                Ajouter
-              </button>
-            </div>
           </section>
         )}
 
-        {/* Liste du jour */}
+        {/* Liste du jour — masquée pendant le preview (pas de scroll
+            parallèle, on se concentre sur la validation). */}
+        {!(preview && preview.length > 0) && (
         <section
           className="min-h-0 flex-1 overflow-y-auto px-4 py-3"
           style={{
@@ -710,6 +692,39 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
             </ul>
           ) : null}
         </section>
+        )}
+
+        {/* Footer sticky : actions de validation. Visible uniquement
+            quand un preview est en cours. Sa hauteur fixe garantit que
+            les boutons restent atteignables même avec une longue liste
+            de blocs. */}
+        {preview && preview.length > 0 && (
+          <footer className="shrink-0 border-t border-coral-soft/30 bg-white px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPreview(null);
+                  setAccSel(new Map());
+                }}
+                className="rounded-full border border-coral-soft px-4 py-2 text-sm font-semibold text-coral"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmPreview}
+                disabled={logging}
+                className="ml-auto inline-flex items-center gap-2 rounded-full bg-coral px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-50"
+              >
+                {logging ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : null}
+                Ajouter
+              </button>
+            </div>
+          </footer>
+        )}
       </div>
 
       <MyInfoModal
@@ -753,7 +768,6 @@ function ItemBlock({
   onRemove: () => void;
   onSizeChange: (bucket: SizeBucket) => void;
 }) {
-  const [showPicker, setShowPicker] = useState(false);
   // Replié par défaut : seule la ligne sélectionnée est affichée. Un
   // bouton "Voir les X autres propositions" permet de déployer.
   const [expanded, setExpanded] = useState(false);
@@ -863,36 +877,7 @@ function ItemBlock({
               </button>
             </li>
           )}
-          <li>
-            <button
-              type="button"
-              onClick={() => setShowPicker((v) => !v)}
-              className="w-full rounded px-1.5 py-1 text-left text-xs italic text-coral hover:bg-coral-soft/30"
-            >
-              {showPicker ? '↑ Fermer' : '🔍 Chercher autre chose…'}
-            </button>
-          </li>
         </ul>
-      )}
-
-      {!hasCandidates && (
-        <button
-          type="button"
-          onClick={() => setShowPicker((v) => !v)}
-          className="w-full rounded-md bg-white px-2 py-1 text-left text-xs italic text-coral hover:bg-coral-soft/30"
-        >
-          {showPicker ? '↑ Fermer la recherche' : '🔍 Chercher dans la base Ciqual'}
-        </button>
-      )}
-
-      {showPicker && (
-        <FreeSearchPicker
-          showCalories={showCalories}
-          onPick={(c) => {
-            onPickCandidate(c);
-            setShowPicker(false);
-          }}
-        />
       )}
 
       {/* Accompagnements Mistral (cases à cocher, 0-3) */}
@@ -1057,87 +1042,6 @@ function CandidateRow({
         )}
       </div>
     </li>
-  );
-}
-
-function FreeSearchPicker({
-  showCalories,
-  onPick,
-}: {
-  showCalories: boolean;
-  onPick: (c: CiqualCandidate) => void;
-}) {
-  const [query, setQuery] = useState('');
-  const [items, setItems] = useState<CiqualCandidate[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < 2) {
-      setItems([]);
-      return;
-    }
-    const ctrl = new AbortController();
-    setSearching(true);
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `/api/nutrition/search?q=${encodeURIComponent(q)}`,
-          { signal: ctrl.signal },
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setItems(Array.isArray(data.items) ? data.items : []);
-        }
-      } catch {
-        // abort = silencieux
-      } finally {
-        setSearching(false);
-      }
-    }, 250);
-    return () => {
-      ctrl.abort();
-      clearTimeout(t);
-    };
-  }, [query]);
-
-  return (
-    <div className="space-y-1 rounded-md bg-white p-1.5">
-      <input
-        type="search"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Tapez un aliment…"
-        autoFocus
-        className="w-full rounded border border-coral-soft px-2 py-1 text-sm"
-      />
-      {searching && (
-        <p className="px-1 py-0.5 text-xs italic text-ink-soft">Recherche…</p>
-      )}
-      {!searching && query.trim().length >= 2 && items.length === 0 && (
-        <p className="px-1 py-0.5 text-xs italic text-ink-soft">Aucun résultat.</p>
-      )}
-      {items.length > 0 && (
-        <ul className="max-h-40 space-y-0.5 overflow-y-auto">
-          {items.map((c) => (
-            <li key={c.alimCode}>
-              <button
-                type="button"
-                onClick={() => onPick(c)}
-                className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-xs hover:bg-coral-soft/30"
-              >
-                <span className="min-w-0 flex-1 truncate">{c.name}</span>
-                {showCalories && (
-                  <span className="shrink-0 font-semibold text-coral">
-                    {c.kcalPer100g !== null ? `${Math.round(c.kcalPer100g)} kcal/100g` : '—'}
-                  </span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
   );
 }
 
