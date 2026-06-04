@@ -1,7 +1,10 @@
 import 'server-only';
 import Anthropic from '@anthropic-ai/sdk';
 
-const MODEL = 'claude-haiku-4-5-20251001';
+// Sonnet 4.6 : meilleur que Haiku 4.5 sur les images complexes
+// (multi-ingredients, eclairage difficile, plats exotiques).
+// Surcout marginal (~0.003€/image vs 0.001) acceptable vs precision.
+const MODEL = 'claude-sonnet-4-6';
 const MAX_TOKENS = 400;
 
 type MediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
