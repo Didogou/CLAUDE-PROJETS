@@ -12,6 +12,7 @@ import {
   Users,
 } from 'lucide-react';
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
+import { scaleIngredients } from '@/lib/recipe-portions';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
 import { AddCaloriesButton } from '@/components/nutrition/AddCaloriesButton';
 import { FavoriteButton } from '@/components/favorites/FavoriteButton';
@@ -355,7 +356,11 @@ export function SheetCarousel({
 
       {/* Ingrédients groupés */}
       {sheet.ingredients.length > 0 && (
-        <IngredientsList ingredients={sheet.ingredients} />
+        <IngredientsList
+          ingredients={sheet.ingredients}
+          baseServings={sheet.servings}
+          customPortions={customPortions}
+        />
       )}
 
       {/* Tags uniquement (les aliments sont retires : redondant avec la
@@ -435,15 +440,26 @@ function ActionIconButton({
   );
 }
 
-function IngredientsList({ ingredients }: { ingredients: RecipeIngredient[] }) {
+function IngredientsList({
+  ingredients,
+  baseServings,
+  customPortions,
+}: {
+  ingredients: RecipeIngredient[];
+  baseServings: number;
+  customPortions: number;
+}) {
+  const factor =
+    baseServings > 0 && customPortions > 0 ? customPortions / baseServings : 1;
   const grouped = useMemo(() => {
+    const scaled = scaleIngredients(ingredients, factor);
     const map = new Map<string, RecipeIngredient[]>();
-    for (const it of ingredients) {
+    for (const it of scaled) {
       if (!map.has(it.category)) map.set(it.category, []);
       map.get(it.category)!.push(it);
     }
     return [...map.entries()];
-  }, [ingredients]);
+  }, [ingredients, factor]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-2 pt-2">

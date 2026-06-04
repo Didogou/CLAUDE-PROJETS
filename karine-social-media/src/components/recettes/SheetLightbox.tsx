@@ -16,6 +16,7 @@ import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton'
 import { HeartBurst, useHeartBurst } from '@/components/ui/HeartBurst';
 import { PortionsStepper } from './PortionsStepper';
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
+import { scaleIngredients } from '@/lib/recipe-portions';
 
 type Props = {
   sheets: RecipeSheet[];
@@ -146,7 +147,14 @@ export function SheetLightbox({
   function handlePrintCurrent() {
     const w = window.open('', '_blank', 'width=900,height=1200');
     if (!w) return;
-    const ingredientsHtml = renderIngredientsHtml(sheet.ingredients);
+    const currentPortions = portionsBySheet[sheet.id] ?? sheet.servings;
+    const factor =
+      sheet.servings > 0 && currentPortions > 0
+        ? currentPortions / sheet.servings
+        : 1;
+    const ingredientsHtml = renderIngredientsHtml(
+      scaleIngredients(sheet.ingredients, factor),
+    );
     const title = (sheet.title ?? recipeTitle).replace(/[<>]/g, '');
     w.document.write(`<!DOCTYPE html>
 <html lang="fr"><head>
@@ -296,7 +304,11 @@ export function SheetLightbox({
             </div>
           )}
 
-          <IngredientsPanel ingredients={sheet.ingredients} />
+          <IngredientsPanel
+            ingredients={sheet.ingredients}
+            baseServings={sheet.servings}
+            customPortions={portionsBySheet[sheet.id] ?? sheet.servings}
+          />
         </aside>
       </div>
 
@@ -409,15 +421,26 @@ export function SheetLightbox({
   );
 }
 
-function IngredientsPanel({ ingredients }: { ingredients: RecipeIngredient[] }) {
+function IngredientsPanel({
+  ingredients,
+  baseServings,
+  customPortions,
+}: {
+  ingredients: RecipeIngredient[];
+  baseServings: number;
+  customPortions: number;
+}) {
+  const factor =
+    baseServings > 0 && customPortions > 0 ? customPortions / baseServings : 1;
   const grouped = useMemo(() => {
+    const scaled = scaleIngredients(ingredients, factor);
     const map = new Map<string, RecipeIngredient[]>();
-    for (const it of ingredients) {
+    for (const it of scaled) {
       if (!map.has(it.category)) map.set(it.category, []);
       map.get(it.category)!.push(it);
     }
     return [...map.entries()];
-  }, [ingredients]);
+  }, [ingredients, factor]);
 
   if (ingredients.length === 0) {
     return (
