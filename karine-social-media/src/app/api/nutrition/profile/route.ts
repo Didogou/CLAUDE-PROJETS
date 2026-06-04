@@ -28,7 +28,7 @@ export async function GET() {
   const { data } = await (supabase as any)
     .from('user_nutrition_targets')
     .select(
-      'sex, age_years, weight_kg, height_cm, activity_level, goal, daily_kcal, daily_proteins_g, daily_lipids_g, daily_carbs_g',
+      'sex, age_years, weight_kg, height_cm, activity_level, goal, summary_hour, daily_kcal, daily_proteins_g, daily_lipids_g, daily_carbs_g',
     )
     .eq('user_id', user.id)
     .maybeSingle();
@@ -58,6 +58,8 @@ export async function GET() {
       heightCm: data?.height_cm ?? null,
       activityLevel: (data?.activity_level as ActivityLevel) ?? null,
       goal: (data?.goal as Goal) ?? null,
+      summaryHour:
+        typeof data?.summary_hour === 'number' ? data.summary_hour : 21,
     },
     targets: {
       dailyKcal: data?.daily_kcal ?? null,
@@ -104,6 +106,15 @@ export async function PATCH(request: NextRequest) {
 
   const targets = calculateNutritionTargets(profile);
 
+  const summaryHourRaw = body?.summaryHour;
+  const summaryHour =
+    typeof summaryHourRaw === 'number' &&
+    Number.isFinite(summaryHourRaw) &&
+    summaryHourRaw >= 0 &&
+    summaryHourRaw <= 23
+      ? Math.round(summaryHourRaw)
+      : 21;
+
   const payload = {
     user_id: user.id,
     sex: profile.sex,
@@ -112,6 +123,7 @@ export async function PATCH(request: NextRequest) {
     height_cm: profile.heightCm,
     activity_level: profile.activityLevel,
     goal: profile.goal,
+    summary_hour: summaryHour,
     daily_kcal: targets.dailyKcal,
     daily_proteins_g: targets.proteinsG,
     daily_lipids_g: targets.lipidsG,

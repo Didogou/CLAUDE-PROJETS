@@ -17,6 +17,8 @@ type Profile = {
   heightCm: number | null;
   activityLevel: ActivityLevel | null;
   goal: Goal | null;
+  /** Heure d'envoi du bilan quotidien (19-22h). Default 21h. */
+  summaryHour: number | null;
 };
 
 type Targets = {
@@ -48,6 +50,7 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
     heightCm: null,
     activityLevel: null,
     goal: null,
+    summaryHour: 21,
   });
 
   useEffect(() => {
@@ -215,6 +218,27 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
           {(Object.keys(GOAL_LABELS) as Goal[]).map((k) => (
             <option key={k} value={k}>
               {GOAL_LABELS[k]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Heure du bilan quotidien (Mistral analyse et envoie un mot
+          bienveillant). 19h-22h. */}
+      <div>
+        <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
+          Heure du bilan du soir
+        </p>
+        <select
+          value={profile.summaryHour ?? 21}
+          onChange={(e) =>
+            set('summaryHour', parseInt(e.target.value, 10))
+          }
+          className="w-full rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
+        >
+          {[19, 20, 21, 22].map((h) => (
+            <option key={h} value={h}>
+              {h}h00
             </option>
           ))}
         </select>

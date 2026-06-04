@@ -263,6 +263,18 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
           </div>
         )}
 
+        {/* Bilan Mistral du soir (genere par cron a partir de summary_hour). */}
+        {metrics?.summaryText && (
+          <div className="border-b border-coral-soft/30 bg-gradient-to-r from-coral-soft/30 to-amber-50/60 px-4 py-2.5">
+            <p className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
+              Ton bilan ce soir
+            </p>
+            <p className="mt-0.5 text-sm leading-snug text-ink">
+              {metrics.summaryText}
+            </p>
+          </div>
+        )}
+
         {/* Objectif vs consommé */}
         <section className="border-b border-coral-soft/20 bg-cream/40 px-4 py-3">
           <div className="flex items-center justify-between gap-2">
