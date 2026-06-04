@@ -31,6 +31,10 @@ export type NutritionDayState = {
     lipidsG: number;
     carbsG: number;
   };
+  /** Vrai si le profil nutritionnel est rempli (sexe + age + poids
+   *  + taille + activité + objectif). Sinon les besoins macros
+   *  sont null. */
+  profileComplete: boolean;
 };
 
 const DEFAULT_TARGET: NutritionTarget = {
@@ -86,6 +90,13 @@ export async function getNutritionDayState(userId: string): Promise<NutritionDay
   const target = await getNutritionTarget(userId);
   const { start, end } = todayBounds();
 
+  // Profil complet = on a calculé daily_kcal via Mifflin (donc on a
+  // forcément aussi les 3 macros target).
+  const profileComplete =
+    target.dailyProteinsG !== null &&
+    target.dailyLipidsG !== null &&
+    target.dailyCarbsG !== null;
+
   const { data, error } = await (supabase as any)
     .from('food_log_entries')
     .select('id, logged_at, source, source_ref_id, label, kcal, proteins_g, lipids_g, carbs_g, portions')
@@ -118,5 +129,5 @@ export async function getNutritionDayState(userId: string): Promise<NutritionDay
     { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 },
   );
 
-  return { target, entries, totals };
+  return { target, entries, totals, profileComplete };
 }

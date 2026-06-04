@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Loader2, ShoppingCart } from 'lucide-react';
+import { Check, Loader2, Plus } from 'lucide-react';
 import { MyShoppingListOverlay } from './MyShoppingListOverlay';
 
 type Props = {
@@ -131,20 +131,20 @@ export function AddSheetToListButton({
           onClick={toggle}
           disabled={state !== 'ready'}
           aria-label={linked ? 'Retirer de mes courses' : 'Ajouter à mes courses'}
-          title={linked ? 'Dans mes courses' : 'Ajouter à mes courses'}
-          className={`flex h-9 w-9 items-center justify-center rounded-full shadow-sm transition disabled:opacity-50 ${
+          className={`flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-bold whitespace-nowrap shadow-sm transition disabled:opacity-50 ${
             linked
               ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300 hover:bg-emerald-200'
               : 'bg-coral text-white hover:bg-coral-dark'
           }`}
         >
           {state === 'busy' || state === 'loading' ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
           ) : linked ? (
-            <Check className="h-4 w-4" strokeWidth={3} />
+            <Check className="h-3.5 w-3.5" strokeWidth={3} />
           ) : (
-            <ShoppingCart className="h-4 w-4" strokeWidth={2.4} />
+            <Plus className="h-3.5 w-3.5" strokeWidth={3} />
           )}
+          {linked ? 'Dans mes courses' : 'Mes courses'}
         </button>
         {/* Lien discret en absolute sous le bouton — ouvre la liste
             de courses en overlay sans pousser la ligne. */}

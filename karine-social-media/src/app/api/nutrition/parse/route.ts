@@ -53,10 +53,9 @@ type ParsedItem = {
   proteinsPerPortion: number | null;
   lipidsPerPortion: number | null;
   carbsPerPortion: number | null;
-  // Si match=null mais qu'on a quand même trouvé des candidats Ciqual
-  // proches : on les remonte pour que l'UI propose à l'utilisatrice
-  // de choisir manuellement.
-  fallbackCandidates?: CiqualCandidatePublic[];
+  // Top 7 candidats Ciqual — toujours présent quand on en a trouvé,
+  // pour permettre à l'utilisatrice de choisir une alternative.
+  topCandidates?: CiqualCandidatePublic[];
 };
 
 const CORRECT_PROMPT = `Tu corriges l'orthographe d'une phrase française qui décrit un repas.
@@ -235,6 +234,15 @@ export async function POST(request: NextRequest) {
       carbsG: c.carbs_g,
     });
 
+    // Construit topCandidates : on remonte TOUJOURS la liste des
+    // 7 meilleurs candidats Ciqual, même si on a un match certain,
+    // pour permettre à l'utilisatrice de choisir une autre option
+    // (UX V3 — "tu confirmes ?").
+    const topCandidates =
+      candidates.length > 0
+        ? candidates.slice(0, 7).map(toPublic)
+        : undefined;
+
     out.push({
       label: picked ? picked.name : query,
       searchQuery: query,
@@ -245,12 +253,7 @@ export async function POST(request: NextRequest) {
       proteinsPerPortion,
       lipidsPerPortion,
       carbsPerPortion,
-      // Si Mistral a rejeté tous les candidats mais qu'on en avait,
-      // on les remonte au front pour que l'utilisatrice choisisse.
-      fallbackCandidates:
-        !picked && candidates.length > 0
-          ? candidates.slice(0, 8).map(toPublic)
-          : undefined,
+      topCandidates,
     });
   }
 
