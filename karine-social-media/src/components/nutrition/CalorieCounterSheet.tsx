@@ -628,7 +628,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 />
               ))}
             </ul>
-            <div className="flex gap-2 pt-2">
+            <div className="mt-3 flex items-center gap-2 border-t border-coral-soft/20 pt-3">
               <button
                 type="button"
                 onClick={() => {
@@ -643,7 +643,7 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 type="button"
                 onClick={handleConfirmPreview}
                 disabled={logging}
-                className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-coral px-5 py-2 text-sm font-semibold text-white shadow disabled:opacity-50"
               >
                 {logging ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -754,8 +754,19 @@ function ItemBlock({
   onSizeChange: (bucket: SizeBucket) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
+  // Replié par défaut : seule la ligne sélectionnée est affichée. Un
+  // bouton "Voir les X autres propositions" permet de déployer.
+  const [expanded, setExpanded] = useState(false);
   const candidates = item.topCandidates ?? [];
   const hasCandidates = candidates.length > 0;
+  const selectedIdx = candidates.findIndex(
+    (c) => item.match?.alimCode === c.alimCode,
+  );
+  const selectedCandidate =
+    selectedIdx >= 0 ? candidates[selectedIdx] : candidates[0] ?? null;
+  const visibleCandidates =
+    expanded || !selectedCandidate ? candidates : [selectedCandidate];
+  const otherCount = candidates.length - visibleCandidates.length;
 
   // Affichage du select Taille : si l'aliment a une variabilité non
   // triviale OU qu'un sizeHint a déjà été détecté.
@@ -800,10 +811,12 @@ function ItemBlock({
         </button>
       </div>
 
-      {/* Liste des candidats radio (nom + g éditable + Qté éditable) */}
+      {/* Liste des candidats radio (nom + g éditable + Qté éditable).
+          Par défaut on n'affiche QUE le candidat sélectionné. Un toggle
+          déploie les autres propositions Ciqual. */}
       {hasCandidates && (
         <ul className="space-y-0.5 rounded-md bg-white p-1.5">
-          {candidates.map((c) => {
+          {visibleCandidates.map((c) => {
             const selected = item.match?.alimCode === c.alimCode;
             return (
               <CandidateRow
@@ -825,6 +838,31 @@ function ItemBlock({
               />
             );
           })}
+          {!expanded && otherCount > 0 && (
+            <li>
+              <button
+                type="button"
+                onClick={() => setExpanded(true)}
+                className="flex w-full items-center gap-1 rounded px-1.5 py-1 text-left text-xs font-semibold text-coral hover:bg-coral-soft/30"
+              >
+                <ChevronDown className="size-3" />
+                Voir {otherCount} autre{otherCount > 1 ? 's' : ''} proposition
+                {otherCount > 1 ? 's' : ''}
+              </button>
+            </li>
+          )}
+          {expanded && candidates.length > 1 && (
+            <li>
+              <button
+                type="button"
+                onClick={() => setExpanded(false)}
+                className="flex w-full items-center gap-1 rounded px-1.5 py-1 text-left text-xs font-semibold text-ink-soft hover:bg-coral-soft/30"
+              >
+                <ChevronUp className="size-3" />
+                Replier
+              </button>
+            </li>
+          )}
           <li>
             <button
               type="button"
