@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check, Camera } from 'lucide-react';
 import { MyInfoModal } from './MyInfoModal';
+import { LongPressSlider } from '@/components/ui/LongPressSlider';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -1123,20 +1124,20 @@ function CandidateRow({
 
       <div className="flex shrink-0 items-center gap-1">
         <label className="flex items-center gap-0.5 text-[0.65rem] text-ink-soft">
-          <input
-            type="number"
-            min={1}
-            max={5000}
-            step={5}
+          <LongPressSlider
             value={approxGrams}
-            onFocus={() => {
+            min={1}
+            max={1000}
+            step={5}
+            suffix="g"
+            ariaLabel="Grammes par portion"
+            onFocusValue={() => {
               if (!selected) onSelect();
             }}
-            onChange={(e) => {
-              const g = parseInt(e.target.value, 10);
-              if (Number.isFinite(g) && g > 0) onGramsChange(g);
+            onChange={(g) => {
+              if (Number.isFinite(g) && g > 0) onGramsChange(Math.round(g));
             }}
-            className={`w-12 rounded border bg-white px-1 py-0.5 text-right text-xs ${
+            inputClassName={`w-12 rounded border bg-white px-1 py-0.5 text-right text-xs ${
               selected ? 'border-emerald-300' : 'border-coral-soft/60 text-ink-soft'
             }`}
           />
@@ -1144,20 +1145,20 @@ function CandidateRow({
         </label>
         <label className="flex items-center gap-0.5 text-[0.65rem] text-ink-soft">
           Qté
-          <input
-            type="number"
+          <LongPressSlider
+            value={portions}
             min={0.25}
             max={20}
             step={0.25}
-            value={portions}
-            onFocus={() => {
+            suffix="Qté"
+            ariaLabel="Nombre de portions"
+            onFocusValue={() => {
               if (!selected) onSelect();
             }}
-            onChange={(e) => {
-              const n = parseFloat(e.target.value);
+            onChange={(n) => {
               if (Number.isFinite(n) && n > 0) onPortionsChange(n);
             }}
-            className={`w-10 rounded border bg-white px-1 py-0.5 text-right text-xs ${
+            inputClassName={`w-10 rounded border bg-white px-1 py-0.5 text-right text-xs ${
               selected ? 'border-emerald-300' : 'border-coral-soft/60 text-ink-soft'
             }`}
           />
