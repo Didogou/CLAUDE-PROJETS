@@ -1162,13 +1162,15 @@ function CandidateRow({
             }`}
           />
         </label>
-        {showCalories && candidate.kcalPer100g !== null && (
+        {showCalories && (
           <span
             className={`shrink-0 text-[0.65rem] font-semibold ${
               selected ? 'text-emerald-700' : 'text-coral'
             }`}
           >
-            {Math.round((candidate.kcalPer100g * approxGrams) / 100 * portions)} kcal
+            {candidate.kcalPer100g !== null
+              ? `${Math.round((candidate.kcalPer100g * approxGrams) / 100 * portions)} kcal`
+              : '— kcal'}
           </span>
         )}
       </div>
