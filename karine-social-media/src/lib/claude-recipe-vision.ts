@@ -287,17 +287,10 @@ Appelle save_recipe_sheet.`,
     : [];
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
-  // Log debug verbeux temporaire — Karine peut consulter les logs
-  // Vercel pour voir EXACTEMENT ce que Haiku retourne pour chaque
-  // fiche. À retirer après stabilisation des labels.
-  console.log(
-    '[recipe-vision] RAW Haiku ingredients (avant filtre) :',
-    JSON.stringify(input.ingredients, null, 2),
-  );
-  console.log(
-    '[recipe-vision] FILTERED ingredients (après filtre) :',
-    JSON.stringify(ingredients, null, 2),
-  );
+  // Garde uniquement un log warn discret quand des ingrédients sont
+  // filtrés (placeholder Haiku type "—", "?"). Utile pour détecter
+  // des dérives futures du modèle sans polluer les logs en cas
+  // normal.
   if (Array.isArray(input.ingredients)) {
     const rawCount = (input.ingredients as unknown[]).length;
     if (rawCount !== ingredients.length) {
