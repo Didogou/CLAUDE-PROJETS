@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { NutritionProfileForm } from './NutritionProfileForm';
-import { MacroRing } from './MacroRing';
 
 type FoodLogEntry = {
   id: string;
@@ -97,6 +96,27 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [logging, setLogging] = useState(false);
   const [editingTarget, setEditingTarget] = useState(false);
   const [todayOpen, setTodayOpen] = useState(false);
+  const [metrics, setMetrics] = useState<{
+    kcalBurned: number;
+    summaryText: string | null;
+  } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/nutrition/metrics', { cache: 'no-store' });
+        if (res.ok) {
+          const j = await res.json();
+          setMetrics({
+            kcalBurned: Number(j.metrics?.kcalBurned ?? 0),
+            summaryText: j.metrics?.summaryText ?? null,
+          });
+        }
+      } catch {
+        // silencieux : les ronds restent à 0
+      }
+    })();
+  }, []);
   const [error, setError] = useState<string | null>(null);
 
   // Auto-clear erreurs après 4s
@@ -210,9 +230,13 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
 
   const totals = day?.totals.kcal ?? 0;
   const target = day?.target.dailyKcal ?? 2000;
-  const remaining = Math.max(0, target - totals);
-  const overshoot = Math.max(0, totals - target);
-  const percent = Math.min(100, target > 0 ? (totals / target) * 100 : 0);
+  const burned = metrics?.kcalBurned ?? 0;
+  // Bilan net = ingere - depense. Le "reste avant objectif" tient
+  // compte des kcal brules par le sport.
+  const net = totals - burned;
+  const remaining = Math.max(0, target - net);
+  const overshoot = Math.max(0, net - target);
+  const percent = Math.min(100, target > 0 ? Math.max(0, net) / target * 100 : 0);
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-center md:justify-center md:p-4">
@@ -254,24 +278,16 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               </p>
             </div>
 
-            {/* 3 anneaux macros à droite du compteur kcal */}
-            <div className="flex items-center gap-1.5">
-              <MacroRing
-                kind="protein"
-                current={day?.totals.proteinsG ?? 0}
-                target={day?.target.dailyProteinsG ?? null}
-              />
-              <MacroRing
-                kind="carbs"
-                current={day?.totals.carbsG ?? 0}
-                target={day?.target.dailyCarbsG ?? null}
-              />
-              <MacroRing
-                kind="lipid"
-                current={day?.totals.lipidsG ?? 0}
-                target={day?.target.dailyLipidsG ?? null}
-              />
-            </div>
+            {/* Champ kcal dépensées (sport, marche) — affiché à droite
+                du compteur. Edition inline. */}
+            <KcalBurnedEditor
+              value={metrics?.kcalBurned ?? 0}
+              onSaved={(n) => {
+                setMetrics((m) =>
+                  m ? { ...m, kcalBurned: n } : { kcalBurned: n, summaryText: null },
+                );
+              }}
+            />
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded-full bg-coral-soft/30">
             <div
@@ -700,6 +716,104 @@ function FreeSearchPicker({
           ))}
         </ul>
       )}
+    </div>
+  );
+}
+
+/**
+ * Petit champ "Dépensées" editable inline.
+ * - Affiche "💪 -X kcal" en mode lecture
+ * - Click → input number editable + bouton check pour valider
+ * - PATCH /api/nutrition/metrics au save
+ */
+function KcalBurnedEditor({
+  value,
+  onSaved,
+}: {
+  value: number;
+  onSaved: (n: number) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(value));
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    const n = parseInt(draft, 10);
+    if (!Number.isFinite(n) || n < 0 || n > 10000) {
+      setEditing(false);
+      setDraft(String(value));
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch('/api/nutrition/metrics', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kcalBurned: n }),
+      });
+      if (res.ok) {
+        onSaved(n);
+        setEditing(false);
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(String(value));
+          setEditing(true);
+        }}
+        className="flex flex-col items-end text-right"
+      >
+        <span className="text-[0.65rem] uppercase tracking-wider text-ink-soft">
+          Dépensées
+        </span>
+        <span className="text-xl font-bold text-emerald-600">
+          {value > 0 ? `−${value}` : '+'}
+          <span className="ml-0.5 text-xs font-normal text-ink-soft">kcal</span>
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex items-end gap-1">
+      <div className="flex flex-col">
+        <span className="text-[0.65rem] uppercase tracking-wider text-ink-soft">
+          Dépensées
+        </span>
+        <input
+          type="number"
+          min={0}
+          max={10000}
+          step={10}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') save();
+            if (e.key === 'Escape') {
+              setEditing(false);
+              setDraft(String(value));
+            }
+          }}
+          autoFocus
+          className="w-16 rounded border border-emerald-300 px-1 py-0.5 text-right text-sm"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        aria-label="Enregistrer"
+        className="rounded-full bg-emerald-500 p-1 text-white disabled:opacity-50"
+      >
+        <Check className="size-3" strokeWidth={3} />
+      </button>
     </div>
   );
 }
