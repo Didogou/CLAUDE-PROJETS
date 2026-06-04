@@ -81,6 +81,19 @@ export async function POST(
       .eq('day_index', dayIndex)
       .eq('meal_kind', mealKind);
 
+    // Log debug temporaire : on trace exactement ce que le client
+    // envoie comme ingredients AVANT le sanitize, puis ce qui reste
+    // APRÈS. Permet d'identifier si le label se perd ici ou en aval.
+    console.log(
+      '[meal-sheet POST] body.ingredients (avant sanitize) :',
+      JSON.stringify(body.ingredients, null, 2),
+    );
+    const sanitizedIngredients = sanitizeIngredients(body.ingredients);
+    console.log(
+      '[meal-sheet POST] sanitizedIngredients (après sanitize) :',
+      JSON.stringify(sanitizedIngredients, null, 2),
+    );
+
     const insertPayload = {
       menu_id: menuId,
       day_index: dayIndex,
@@ -96,7 +109,7 @@ export async function POST(
       cook_time_min: nullableInt(body.cookTimeMin),
       tags: stringArray(body.tags),
       aliments: stringArray(body.aliments),
-      ingredients: sanitizeIngredients(body.ingredients),
+      ingredients: sanitizedIngredients,
     };
     const { data, error } = await (supabase as any)
       .from('menu_meal_sheets')
