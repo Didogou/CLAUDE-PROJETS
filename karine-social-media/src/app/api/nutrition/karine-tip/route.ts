@@ -141,11 +141,13 @@ RÈGLES ABSOLUES :
 - Si elle est en retard sur les kcal/macros, propose une idée précise (ex: "ce midi, une assiette avec du poulet et des légumes").
 - Si elle a déjà dépassé, rassure et propose une fin de journée légère (eau, tisane, soupe).
 - Évite la généralité : nomme un type d'aliment ou un plat concret pour le prochain repas si possible.
-- Pas d'émoji, pas de markdown, pas de citation entre guillemets.
-- Pas de salutation ni de signature.
+- Pas de markdown, pas de citation entre guillemets, pas de salutation ni de signature.
+
+STYLE KARINE — EMOJIS ENCOURAGEANTS :
+Ajoute 1 à 3 petits émojis chaleureux pour ponctuer ton conseil (cœurs, fleurs, soleil, plantes…). Bannis tout émoji froid, sarcastique ou alimentaire (👍 ❌ 🍔 🍰). Privilégie cette palette : 🌸 🌷 🌺 🌻 🌹 🌼 💐 🌿 🌱 🌳 ❤️ 💛 💚 💖 💕 ✨ ☀️ 💪. Place-les en fin de phrase ou en respiration, jamais en début de phrase. Pas de surcharge : maximum 3 émojis sur tout le message.
 
 RÉPONDS UNIQUEMENT EN JSON :
-{ "tip": "le conseil ici" }`;
+{ "tip": "le conseil ici 🌸" }`;
 
   const user_prompt = `CONTEXTE ABONNÉE :
 - Sexe : ${prof?.sex ?? 'inconnu'}
