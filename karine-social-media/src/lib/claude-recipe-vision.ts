@@ -287,13 +287,22 @@ Appelle save_recipe_sheet.`,
     : [];
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
-  // Log debug temporaire pour Karine — à retirer après stabilisation.
+  // Log debug verbeux temporaire — Karine peut consulter les logs
+  // Vercel pour voir EXACTEMENT ce que Haiku retourne pour chaque
+  // fiche. À retirer après stabilisation des labels.
+  console.log(
+    '[recipe-vision] RAW Haiku ingredients (avant filtre) :',
+    JSON.stringify(input.ingredients, null, 2),
+  );
+  console.log(
+    '[recipe-vision] FILTERED ingredients (après filtre) :',
+    JSON.stringify(ingredients, null, 2),
+  );
   if (Array.isArray(input.ingredients)) {
     const rawCount = (input.ingredients as unknown[]).length;
     if (rawCount !== ingredients.length) {
       console.warn(
-        `[recipe-vision] ${rawCount - ingredients.length} ingrédient(s) filtré(s) (placeholder/vide). Raw labels:`,
-        (input.ingredients as Array<{ label?: unknown }>).map((i) => i?.label),
+        `[recipe-vision] ${rawCount - ingredients.length} ingrédient(s) filtré(s) (placeholder/vide).`,
       );
     }
   }

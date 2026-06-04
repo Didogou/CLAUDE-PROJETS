@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Plus, Zap } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { getAllMenusAdmin } from '@/lib/menus';
 import { formatWeekTitle } from '@/data/menus';
 import { MenuRowActions } from '@/components/admin/MenuRowActions';
@@ -16,21 +16,12 @@ export default async function AdminMenusPage() {
           <p className="text-xs font-bold uppercase tracking-[0.3em] text-admin-primary">Contenu</p>
           <h2 className="font-script text-4xl text-admin-primary-dark">Menus de la semaine</h2>
         </header>
-        <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/admin/menus/bulk-new"
-            className="flex items-center gap-2 rounded-full border border-admin-primary bg-white px-4 py-2 text-sm font-semibold text-admin-primary-dark shadow-sm transition hover:bg-admin-soft/40"
-            title="Charger 14 photos d'un coup, Vision extrait tout"
-          >
-            <Zap className="h-4 w-4" /> Import rapide
-          </Link>
-          <Link
-            href="/admin/menus/new"
-            className="flex items-center gap-2 rounded-full bg-admin-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-admin-primary-dark"
-          >
-            <Plus className="h-4 w-4" /> Nouveau
-          </Link>
-        </div>
+        <Link
+          href="/admin/menus/bulk-new"
+          className="flex items-center gap-2 rounded-full bg-admin-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-admin-primary-dark"
+        >
+          <Plus className="h-4 w-4" /> Nouveau menu
+        </Link>
       </div>
 
       {menus.length === 0 ? (

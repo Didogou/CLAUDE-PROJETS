@@ -1,32 +1,16 @@
-import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
-import { MenuForm } from '@/components/admin/MenuForm';
-import { getAllRecipesAdmin } from '@/lib/recipes';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default async function NewMenuPage() {
-  const recipes = await getAllRecipesAdmin();
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center gap-3">
-        <Link
-          href="/admin/menus"
-          aria-label="Retour aux menus"
-          className="grid h-10 w-10 place-items-center rounded-full bg-admin-surface text-admin-ink-soft transition hover:bg-admin-soft/50"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <header>
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-admin-primary">
-            Nouveau menu
-          </p>
-          <h2 className="font-script text-3xl text-admin-primary-dark">Composer la semaine</h2>
-        </header>
-      </div>
-
-      <MenuForm recipeOptions={recipes.map((r) => ({ slug: r.id, title: r.title }))} />
-    </div>
-  );
+/**
+ * Ancienne page de création manuelle d'un menu (formulaire 1-par-1).
+ *
+ * Décision Karine 2026-06-04 : la création passe uniquement par
+ * l'import rapide (Vision extrait tout depuis 14 fiches recettes).
+ * On redirige donc systématiquement vers /admin/menus/bulk-new.
+ *
+ * On garde MenuForm + l'ensemble de ses sous-éditeurs (MealSheetEditor,
+ * ShoppingListEditor, PrepPhotosRow…) car ils restent utilisés pour
+ * l'ÉDITION d'un menu existant — /admin/menus/[id] est inchangé.
+ */
+export default function NewMenuPage() {
+  redirect('/admin/menus/bulk-new');
 }
