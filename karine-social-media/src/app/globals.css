@@ -45,6 +45,16 @@
 html {
   background: linear-gradient(180deg, var(--color-blush) 0%, var(--color-blush-deep) 100%);
   background-attachment: fixed;
+  /* iOS Safari : empêche le "rubber band" qui révèle le fond du document
+     quand on overscrolle au-dessus ou en-dessous du contenu. Sinon on
+     peut faire glisser le footer vers le haut et voir le fond rose
+     transparaître derrière. */
+  overscroll-behavior-y: none;
+}
+body {
+  /* Idem : on cascade sur body car sur certains navigateurs c'est lui
+     le scrollport effectif. */
+  overscroll-behavior-y: none;
 }
 
 /* Animations d'ouverture/fermeture pour TOUTES les lightboxes d'images

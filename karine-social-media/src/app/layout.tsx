@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Nunito, Sacramento } from 'next/font/google';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import NextTopLoader from 'nextjs-toploader';
@@ -24,6 +24,18 @@ const sacramento = Sacramento({
 export const metadata: Metadata = {
   title: 'Karine Diététique',
   description: 'Prenons soin de vous — menus, recettes, conseils et astuces.',
+};
+
+// Sans <meta viewport>, Safari iOS rend l'app dans un canvas virtuel de
+// 980px et la scale down. Conséquences observées : sheet Mes calories
+// décalée à gauche, contenu minuscule, scroll horizontal parasite.
+// viewport-fit=cover laisse le contenu déborder sous l'island/notch.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#fdf2f3',
 };
 
 export default function RootLayout({
