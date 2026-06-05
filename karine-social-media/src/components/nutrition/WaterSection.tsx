@@ -1,7 +1,8 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { CircularProgress } from '@/components/ui/CircularProgress';
 
 type WaterState = {
   glassesCount: number;
@@ -100,16 +101,24 @@ export function WaterSection() {
 
   const filled = state.glassesCount;
   const targetGlasses = Math.max(1, Math.round(state.targetMl / state.glassSizeMl));
-  // Affiche les verres remplis + 1 vide cliquable, ou tout l'objectif
-  // si déjà atteint.
-  const visibleCount = Math.min(filled + 1, targetGlasses);
-  const pct = Math.min(100, Math.round((filled / targetGlasses) * 100));
+  // TOUJOURS afficher un verre vide cliquable APRÈS les remplis,
+  // même si l'objectif est dépassé. Karine peut continuer à boire.
+  const visibleCount = filled + 1;
 
   const totalMl = filled * state.glassSizeMl;
   const targetMl = state.targetMl;
 
   // Affichage du target en cours (slider en live + save au release)
   const displayedTargetMl = targetDraft ?? targetMl;
+  // Auto-scroll vers le verre vide à droite à chaque nouveau remplissage
+  // pour que l'utilisatrice voie toujours le prochain à boire.
+  const glassesScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = glassesScrollRef.current;
+    if (el) {
+      el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+    }
+  }, [filled]);
 
   return (
     <section className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-coral-soft/30">
@@ -123,8 +132,12 @@ export function WaterSection() {
       </div>
 
       <div className="flex items-stretch gap-3">
-        {/* Verres — grands, scroll horizontal si nécessaire */}
-        <div className="flex flex-1 items-end gap-1.5 overflow-x-auto pb-1">
+        {/* Verres — grands, scroll horizontal qui suit toujours le
+            dernier verre vide à droite. */}
+        <div
+          ref={glassesScrollRef}
+          className="flex flex-1 items-end gap-1.5 overflow-x-auto pb-1"
+        >
           {Array.from({ length: visibleCount }, (_, i) => {
             const isFilled = i < filled;
             const isBurstingThis = bursting === i;
@@ -206,12 +219,25 @@ export function WaterSection() {
         </div>
       </div>
 
-      {/* Barre de progression bleue sous les verres */}
-      <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-blue-100">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 transition-[width] duration-500"
-          style={{ width: `${pct}%` }}
-        />
+      {/* Cercle bleu centré avec le nombre de verres bus au centre.
+          Remplace la barre de progression : plus lisible d'un coup
+          d'œil + affordance verres / objectif (X / Y). */}
+      <div className="mt-3 flex items-center justify-center">
+        <CircularProgress
+          value={filled}
+          max={targetGlasses}
+          size="5.5rem"
+          strokeWidth="0.55rem"
+          trackClassName="stroke-blue-100"
+          arcClassName="stroke-blue-500"
+        >
+          <span className="text-2xl font-extrabold leading-none text-blue-700">
+            {filled}
+          </span>
+          <span className="text-[0.6rem] font-semibold uppercase tracking-wider text-blue-700/80">
+            / {targetGlasses} verres
+          </span>
+        </CircularProgress>
       </div>
 
       <style>{`
