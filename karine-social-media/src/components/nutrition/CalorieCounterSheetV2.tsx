@@ -674,8 +674,10 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
             </div>
           </section>
 
-          {/* === SECTION EAU : verres + slider objectif + barre === */}
-          <section className="bg-gradient-to-b from-white to-blue-50/40 px-4 pb-5 pt-1">
+          {/* === SECTION EAU : verres + slider objectif + barre ===
+              Fond dégradé rose (continuité avec les tuiles repas) →
+              bleu (signature eau). */}
+          <section className="bg-gradient-to-b from-coral-soft/40 via-sky-100/50 to-blue-100/60 px-4 pb-5 pt-2">
             <WaterSection />
           </section>
           </div>

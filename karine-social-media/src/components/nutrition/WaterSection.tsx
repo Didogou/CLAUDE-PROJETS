@@ -108,20 +108,23 @@ export function WaterSection() {
   const totalMl = filled * state.glassSizeMl;
   const targetMl = state.targetMl;
 
+  // Affichage du target en cours (slider en live + save au release)
+  const displayedTargetMl = targetDraft ?? targetMl;
+
   return (
-    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-coral-soft/30">
-      <div className="mb-3 flex items-baseline justify-between">
+    <section className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-coral-soft/30">
+      <div className="mb-2 flex items-baseline justify-between">
         <h3 className="text-sm font-bold uppercase tracking-wider text-blue-700">
           Eau
         </h3>
         <span className="text-xs font-semibold text-ink-soft">
-          {Math.round(totalMl / 100) / 10} L / {Math.round(targetMl / 100) / 10} L
+          {Math.round(totalMl / 100) / 10} L / {(displayedTargetMl / 1000).toFixed(2)} L
         </span>
       </div>
 
       <div className="flex items-stretch gap-3">
-        {/* Verres */}
-        <div className="flex flex-1 flex-wrap items-end gap-1.5">
+        {/* Verres — grands, scroll horizontal si nécessaire */}
+        <div className="flex flex-1 items-end gap-1.5 overflow-x-auto pb-1">
           {Array.from({ length: visibleCount }, (_, i) => {
             const isFilled = i < filled;
             const isBurstingThis = bursting === i;
@@ -132,7 +135,7 @@ export function WaterSection() {
                 onClick={isFilled ? undefined : () => addGlass(i)}
                 disabled={isFilled || busy}
                 aria-label={isFilled ? 'Verre bu' : `Boire un verre (${i + 1})`}
-                className={`relative grid size-12 place-items-center rounded-lg transition ${
+                className={`relative grid size-16 shrink-0 place-items-center transition ${
                   isFilled ? 'cursor-default' : 'hover:-translate-y-0.5 active:scale-95'
                 }`}
               >
@@ -141,18 +144,17 @@ export function WaterSection() {
                   alt=""
                   aria-hidden
                   draggable={false}
-                  className="size-12 object-contain"
+                  className="size-16 object-contain"
                 />
-                {/* Burst : 8 gouttes qui partent en étoile */}
+                {/* Burst : 8 gouttes qui partent en étoile depuis le verre */}
                 {isBurstingThis && (
                   <span className="pointer-events-none absolute inset-0" aria-hidden>
                     {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
                       <span
                         key={angle}
-                        className="water-burst-drop absolute left-1/2 top-1/2 block size-1.5 rounded-full bg-cyan-400"
+                        className="water-burst-drop absolute left-1/2 top-1/2 block size-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]"
                         style={{
                           transform: `rotate(${angle}deg) translateY(-0.25rem)`,
-                          animationDelay: `${angle / 720}s`,
                         }}
                       />
                     ))}
@@ -163,42 +165,49 @@ export function WaterSection() {
           })}
         </div>
 
-        {/* Slider vertical d'objectif (0.5 L → 2 L, step 0.25 L) */}
-        <div className="flex flex-col items-center justify-between rounded-lg bg-blue-50/70 px-2 py-2 ring-1 ring-blue-100">
+        {/* Slider vertical d'objectif (0.5 L → 2 L, step 0.25 L).
+            Wrapper avec hauteur fixe — l'input range est tourné via
+            transform pour un rendu fluide et cross-browser. Le 2L
+            est en haut, 0.5L en bas (slider qui monte = boire plus). */}
+        <div className="flex flex-col items-center gap-1 rounded-xl bg-blue-50 px-2 py-2 ring-1 ring-blue-100">
           <span className="text-[0.55rem] font-bold uppercase tracking-wider text-blue-700">
-            2 L
+            2L
           </span>
-          <input
-            type="range"
-            min={500}
-            max={2000}
-            step={250}
-            value={targetDraft ?? targetMl}
-            onChange={(e) => setTargetDraft(Number(e.target.value))}
-            onMouseUp={() => {
-              if (targetDraft !== null) {
-                void saveTarget(targetDraft);
-                setTargetDraft(null);
-              }
-            }}
-            onTouchEnd={() => {
-              if (targetDraft !== null) {
-                void saveTarget(targetDraft);
-                setTargetDraft(null);
-              }
-            }}
-            aria-label="Objectif eau quotidien"
-            className="water-target-slider my-1.5 h-20 w-1 cursor-pointer accent-blue-500"
-            style={{ writingMode: 'vertical-lr' as const, direction: 'rtl' }}
-          />
+          <div className="relative h-20 w-7">
+            <input
+              type="range"
+              min={500}
+              max={2000}
+              step={250}
+              value={displayedTargetMl}
+              onChange={(e) => setTargetDraft(Number(e.target.value))}
+              onMouseUp={() => {
+                if (targetDraft !== null) {
+                  void saveTarget(targetDraft);
+                  setTargetDraft(null);
+                }
+              }}
+              onTouchEnd={() => {
+                if (targetDraft !== null) {
+                  void saveTarget(targetDraft);
+                  setTargetDraft(null);
+                }
+              }}
+              aria-label="Objectif eau quotidien"
+              className="water-target-slider absolute left-1/2 top-1/2 h-7 w-20 -translate-x-1/2 -translate-y-1/2 -rotate-90 cursor-pointer accent-blue-500"
+            />
+          </div>
           <span className="text-[0.55rem] font-bold uppercase tracking-wider text-blue-700">
-            0,5 L
+            0,5L
+          </span>
+          <span className="text-[0.6rem] font-bold text-blue-700">
+            {(displayedTargetMl / 1000).toFixed(2)}L
           </span>
         </div>
       </div>
 
-      {/* Barre de progression bleue */}
-      <div className="mt-3 h-2.5 w-full overflow-hidden rounded-full bg-blue-100">
+      {/* Barre de progression bleue sous les verres */}
+      <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-blue-100">
         <div
           className="h-full rounded-full bg-gradient-to-r from-cyan-300 via-sky-400 to-blue-500 transition-[width] duration-500"
           style={{ width: `${pct}%` }}
@@ -208,8 +217,8 @@ export function WaterSection() {
       <style>{`
         @keyframes water-burst {
           0%   { opacity: 1; transform: rotate(var(--angle, 0deg)) translateY(-0.1rem) scale(0.5); }
-          60%  { opacity: 1; transform: rotate(var(--angle, 0deg)) translateY(-1.8rem) scale(1); }
-          100% { opacity: 0; transform: rotate(var(--angle, 0deg)) translateY(-2.2rem) scale(0.6); }
+          60%  { opacity: 1; transform: rotate(var(--angle, 0deg)) translateY(-2rem) scale(1); }
+          100% { opacity: 0; transform: rotate(var(--angle, 0deg)) translateY(-2.4rem) scale(0.6); }
         }
         .water-burst-drop {
           animation: water-burst 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
@@ -219,16 +228,37 @@ export function WaterSection() {
         @media (prefers-reduced-motion: reduce) {
           .water-burst-drop { animation: none; opacity: 0; }
         }
-        /* Slider vertical : largeur du track plus visible */
+        /* Slider tourné -90deg : input horizontal qui devient vertical.
+           Cross-browser, plus fluide que writing-mode + direction. */
         .water-target-slider::-webkit-slider-runnable-track {
-          width: 0.35rem;
-          background: linear-gradient(to top, #93c5fd, #2563eb);
+          height: 0.35rem;
+          background: linear-gradient(to right, #93c5fd, #2563eb);
           border-radius: 999px;
         }
         .water-target-slider::-moz-range-track {
-          width: 0.35rem;
-          background: linear-gradient(to top, #93c5fd, #2563eb);
+          height: 0.35rem;
+          background: linear-gradient(to right, #93c5fd, #2563eb);
           border-radius: 999px;
+        }
+        .water-target-slider::-webkit-slider-thumb {
+          appearance: none;
+          height: 1.1rem;
+          width: 1.1rem;
+          margin-top: -0.4rem;
+          background: #2563eb;
+          border-radius: 999px;
+          border: 2px solid white;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+          cursor: pointer;
+        }
+        .water-target-slider::-moz-range-thumb {
+          height: 1.1rem;
+          width: 1.1rem;
+          background: #2563eb;
+          border-radius: 999px;
+          border: 2px solid white;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+          cursor: pointer;
         }
       `}</style>
     </section>
