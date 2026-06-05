@@ -21,6 +21,7 @@ import {
 import { MyInfoModal } from './MyInfoModal';
 import { LongPressSlider } from '@/components/ui/LongPressSlider';
 import { CircularProgress } from '@/components/ui/CircularProgress';
+import { MealIcon } from './MealIcon';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -559,55 +560,53 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
         )}
 
         {/* === Body : 2 panneaux qui slident horizontalement ===
-            Pattern Apple Forme drill-down. Vue Home à gauche, vue
-            Meal Detail à droite. translate-x sur le container. */}
+            Pattern Apple Forme drill-down. Chaque panel prend toute
+            la largeur (absolute inset-0) et glisse via translate-x —
+            plus fiable que le pattern flex w-[200%] qui cassait sur
+            PC. */}
         <div className="relative min-h-0 flex-1 overflow-hidden">
-          <div
-            className="flex h-full w-[200%] transition-transform duration-300 ease-out"
-            style={{
-              transform: activeMealCategory
-                ? 'translateX(-50%)'
-                : 'translateX(0)',
-            }}
-          >
 
           {/* === PANEL 1 : HOME === */}
           <div
-            className="h-full w-1/2 overflow-y-auto overscroll-contain"
+            className={`absolute inset-0 overflow-y-auto overscroll-contain transition-transform duration-300 ease-out ${
+              activeMealCategory ? '-translate-x-full' : 'translate-x-0'
+            }`}
             style={{
               scrollbarWidth: 'thin',
               scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
               WebkitOverflowScrolling: 'touch',
               touchAction: 'pan-y',
             }}
+            aria-hidden={!!activeMealCategory}
           >
-          {/* === HERO : cercle restant + kcal dépensées ===
-              Plus de padding vertical pour laisser respirer le cercle
-              (auparavant rogné par les sections suivantes). Dépensées
-              dans une carte vert pastel bien lisible. */}
-          <section className="bg-gradient-to-b from-coral via-coral/85 to-coral/45 px-5 pt-10 pb-14 text-white">
-            <div className="flex items-center justify-center gap-5">
+          {/* === HERO : cercle + kcal dépensées ===
+              Fond dégradé coral du thème, padding généreux pour ne
+              pas tronquer le cercle. */}
+          <section className="bg-gradient-to-b from-coral via-coral/90 to-coral/50 px-6 pt-12 pb-16 text-white">
+            <div className="flex flex-wrap items-center justify-center gap-6">
               <CircularProgress
                 value={Math.max(0, net)}
                 max={target}
-                size="13rem"
-                strokeWidth="0.95rem"
+                size="14rem"
+                strokeWidth="1rem"
                 trackClassName="stroke-white/25"
                 arcClassName={overshoot > 0 ? 'stroke-rose-200' : 'stroke-white'}
               >
-                <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-white/90">
+                <span className="text-[0.75rem] font-semibold uppercase tracking-widest text-white/90">
                   Restant
                 </span>
-                <span className="font-bold leading-none" style={{ fontSize: '2.75rem' }}>
+                <span className="font-bold leading-none" style={{ fontSize: '3rem' }}>
                   {Math.round(Math.max(0, remaining))}
                 </span>
-                <span className="text-[0.75rem] text-white/90">
+                <span className="text-[0.8rem] text-white/90">
                   Objectif {target} kcal
                 </span>
               </CircularProgress>
 
-              <div className="flex flex-col items-stretch gap-1.5 rounded-2xl bg-emerald-50/95 p-3 text-emerald-900 shadow-md ring-1 ring-emerald-200/60">
-                <span className="text-[0.65rem] font-bold uppercase tracking-wider text-emerald-700">
+              {/* Card Dépensées simplifiée : label "Dépensées" en haut,
+                  valeur "N kcal" éditable au clic, plus de "Consommé". */}
+              <div className="flex flex-col items-stretch gap-2 rounded-2xl bg-white/95 p-4 text-emerald-900 shadow-lg ring-1 ring-emerald-200/60">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
                   Dépensées
                 </span>
                 <KcalBurnedEditor
@@ -669,9 +668,12 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
 
           {/* === PANEL 2 : MEAL DETAIL ===
               Affiche header (back + nom catégorie) + entries + invite
-              + preview. Ce panel utilise sa propre scroll. */}
+              + preview. Slide depuis la droite quand activeMealCategory
+              est posé. */}
           <div
-            className="flex h-full w-1/2 flex-col overflow-hidden bg-white"
+            className={`absolute inset-0 flex flex-col overflow-hidden bg-white transition-transform duration-300 ease-out ${
+              activeMealCategory ? 'translate-x-0' : 'translate-x-full'
+            }`}
             aria-hidden={!activeMealCategory}
           >
             {activeMealCategory && (
@@ -876,7 +878,6 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
             )}
           </div>
 
-          </div>
         </div>
       </div>
 
@@ -1338,7 +1339,6 @@ function MealTileApple({
   totalKcal: number;
   onClick: () => void;
 }) {
-  const Icon = MEAL_ICONS[category];
   return (
     <button
       type="button"
@@ -1346,10 +1346,10 @@ function MealTileApple({
       className="flex flex-col items-start gap-2 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
     >
       <span
-        className="grid size-10 shrink-0 place-items-center rounded-full text-white shadow-sm"
+        className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full text-white shadow-sm"
         style={{ backgroundColor: MEAL_BG_COLOR[category] }}
       >
-        <Icon className="size-5" />
+        <MealIcon category={category} imageClassName="size-10" lucideClassName="size-5" />
       </span>
       <span className="text-sm font-bold text-ink">
         {MEAL_LABELS[category]}
@@ -1387,7 +1387,6 @@ function MealTile({
   children?: React.ReactNode;
 }) {
   const tileRef = useRef<HTMLElement | null>(null);
-  const Icon = MEAL_ICONS[category];
   const hasEntries = entries.length > 0;
 
   // Quand la tuile passe en mode actif, on la centre dans le viewport
@@ -1413,10 +1412,10 @@ function MealTile({
       {/* Bandeau header de la tuile */}
       <div className="flex items-center gap-3 px-4 py-3">
         <span
-          className="grid size-11 shrink-0 place-items-center rounded-full text-white shadow-sm"
+          className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-full text-white shadow-sm"
           style={{ backgroundColor: MEAL_BG_COLOR[category] }}
         >
-          <Icon className="size-5" />
+          <MealIcon category={category} imageClassName="size-11" lucideClassName="size-5" />
         </span>
         <div className="flex min-w-0 flex-1 flex-col items-start text-left">
           <span className="text-base font-bold text-ink">
