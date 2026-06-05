@@ -33,6 +33,8 @@ export function WaterSection() {
   const [bursting, setBursting] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Picker du nombre de verres bus (ouvert au clic sur le cercle bleu)
+  const [countPickerOpen, setCountPickerOpen] = useState(false);
 
   useEffect(() => {
     void refresh();
@@ -90,6 +92,25 @@ export function WaterSection() {
     }
   }
 
+  async function setCount(nextCount: number) {
+    if (!state) return;
+    // optimistic
+    const prev = state.glassesCount;
+    setState((s) => (s ? { ...s, glassesCount: nextCount } : s));
+    try {
+      const res = await fetch('/api/water/set-today', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ count: nextCount }),
+      });
+      if (!res.ok) throw new Error('set-today failed');
+      window.dispatchEvent(new CustomEvent('water-log-updated'));
+    } catch {
+      // rollback
+      setState((s) => (s ? { ...s, glassesCount: prev } : s));
+    }
+  }
+
   if (!state) {
     return (
       <section className="rounded-2xl p-4">
@@ -135,7 +156,12 @@ export function WaterSection() {
           pour ne pas décentrer le cercle. */}
       <div className="grid grid-cols-3 items-center gap-2">
         <span aria-hidden />
-        <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => setCountPickerOpen(true)}
+          aria-label="Modifier le nombre de verres bus"
+          className="flex justify-center rounded-full transition active:scale-95"
+        >
           <CircularProgress
             value={filled}
             max={targetGlasses}
@@ -152,7 +178,7 @@ export function WaterSection() {
               / {targetGlasses} verres
             </span>
           </CircularProgress>
-        </div>
+        </button>
 
         {/* Verre cliquable (colonne droite) */}
         <button
@@ -199,7 +225,7 @@ export function WaterSection() {
         </button>
       </div>
 
-      {/* Picker iOS-style pour l'objectif */}
+      {/* Picker iOS-style pour l'objectif (en mL) */}
       {pickerOpen && (
         <WaterTargetPicker
           currentMl={state.targetMl}
@@ -207,6 +233,19 @@ export function WaterSection() {
           onPick={(ml) => {
             void saveTarget(ml);
             setPickerOpen(false);
+          }}
+        />
+      )}
+
+      {/* Picker pour CORRIGER le nombre de verres bus (clic sur cercle) */}
+      {countPickerOpen && (
+        <WaterCountPicker
+          current={filled}
+          maxCount={Math.max(targetGlasses + 4, 20)}
+          onClose={() => setCountPickerOpen(false)}
+          onPick={(n) => {
+            void setCount(n);
+            setCountPickerOpen(false);
           }}
         />
       )}
@@ -339,6 +378,134 @@ function WaterTargetPicker({
                   }`}
                 >
                   {label}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-blue-200 px-4 py-1.5 text-xs font-semibold text-blue-700"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => onPick(selected)}
+            className="rounded-full bg-blue-500 px-5 py-1.5 text-xs font-semibold text-white shadow"
+          >
+            Valider
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ============================================================
+// WaterCountPicker : drum picker pour CORRIGER le nombre de verres
+// déjà bus (entiers 0 -> maxCount). Même UX que WaterTargetPicker.
+// ============================================================
+
+function WaterCountPicker({
+  current,
+  maxCount,
+  onClose,
+  onPick,
+}: {
+  current: number;
+  maxCount: number;
+  onClose: () => void;
+  onPick: (n: number) => void;
+}) {
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const ITEM_HEIGHT_PX = 56;
+  const options = Array.from({ length: maxCount + 1 }, (_, i) => i);
+  const [selected, setSelected] = useState<number>(
+    Math.max(0, Math.min(maxCount, current)),
+  );
+
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const idx = Math.max(0, Math.min(maxCount, current));
+    el.scrollTo({ top: idx * ITEM_HEIGHT_PX, behavior: 'auto' });
+  }, [current, maxCount]);
+
+  function onScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollTop / ITEM_HEIGHT_PX);
+    const clamped = Math.max(0, Math.min(maxCount, idx));
+    if (clamped !== selected) setSelected(clamped);
+  }
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 backdrop-blur-sm md:items-center"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm space-y-3 rounded-t-3xl bg-white p-4 shadow-2xl md:rounded-3xl"
+      >
+        <div className="flex items-center justify-between">
+          <h4 className="font-bold text-blue-900">Verres bus aujourd&apos;hui</h4>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer"
+            className="grid size-8 place-items-center rounded-full bg-ink-soft/10 text-ink-soft hover:bg-ink-soft/20"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="relative">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-14 -translate-y-1/2 rounded-xl border-2 border-blue-400/40 bg-blue-50/40"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 z-10 h-14 bg-gradient-to-b from-white to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-14 bg-gradient-to-t from-white to-transparent"
+          />
+          <ul
+            ref={listRef}
+            onScroll={onScroll}
+            className="relative h-44 overflow-y-auto py-[5.25rem]"
+            style={{
+              scrollSnapType: 'y mandatory',
+              scrollbarWidth: 'none',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {options.map((n) => {
+              const isSelected = n === selected;
+              return (
+                <li
+                  key={n}
+                  style={{
+                    height: `${ITEM_HEIGHT_PX}px`,
+                    scrollSnapAlign: 'center',
+                  }}
+                  className={`flex items-center justify-center text-xl font-bold transition-all ${
+                    isSelected ? 'scale-110 text-blue-700' : 'text-ink-soft/60'
+                  }`}
+                >
+                  {n} {n === 1 ? 'verre' : 'verres'}
                 </li>
               );
             })}
