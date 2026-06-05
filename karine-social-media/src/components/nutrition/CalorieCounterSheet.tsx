@@ -2,9 +2,26 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Trash2, Send, Loader2, Flame, ChevronDown, ChevronUp, Check, Camera } from 'lucide-react';
+import {
+  X,
+  Trash2,
+  Send,
+  Loader2,
+  Flame,
+  ChevronDown,
+  ChevronUp,
+  Check,
+  Camera,
+  Plus,
+  Sun,
+  UtensilsCrossed,
+  Cookie,
+  Moon,
+} from 'lucide-react';
 import { MyInfoModal } from './MyInfoModal';
 import { LongPressSlider } from '@/components/ui/LongPressSlider';
+import { CircularProgress } from '@/components/ui/CircularProgress';
+import { showToast } from '@/lib/toast';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -160,6 +177,12 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const [mealCategory, setMealCategory] = useState<MealCategory>(() =>
     defaultMealForHour(),
   );
+  // Tuile repas dont l'invite de saisie est ouverte inline. Null par
+  // défaut — l'écran montre alors juste les tuiles compactes. Quand
+  // l'abonnée clique le + d'une tuile, on set la catégorie ici et le
+  // bloc saisie + photo + preview s'affiche sous cette tuile.
+  const [activeMealCategory, setActiveMealCategory] =
+    useState<MealCategory | null>(null);
   /**
    * Sélection d'accompagnements par bloc-item.
    * Map<itemIndex, Set<accompanimentIndex>>.
@@ -377,28 +400,33 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         alertError('Aucun aliment avec kcal détecté');
         return;
       }
+      // Catégorie effective : celle de la tuile active si l'invite a
+      // été ouverte via un + de tuile, sinon la sélection globale.
+      const effectiveCategory: MealCategory = activeMealCategory ?? mealCategory;
       const res = await fetch('/api/nutrition/log', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entries, mealCategory }),
+        body: JSON.stringify({ entries, mealCategory: effectiveCategory }),
       });
       if (res.ok) {
         setPreview(null);
         setAccSel(new Map());
         setNaturalText('');
-        // Recalcule la catégorie par défaut depuis l'heure courante
-        // pour la prochaine saisie (cas où on est resté longtemps).
+        // Ferme l'invite inline et recalcule la catégorie par défaut.
+        setActiveMealCategory(null);
         setMealCategory(defaultMealForHour());
         await refresh();
         onChanged();
         window.dispatchEvent(new CustomEvent('nutrition-log-updated'));
         // Déclenche la génération du conseil Karine en arrière-plan.
         // Pas de await : si Mistral met 2s, l'UI reste réactive et le
-        // bandeau apparaît dès que la réponse arrive.
+        // toast apparaît dès que la réponse arrive.
         fetch('/api/nutrition/karine-tip', { method: 'POST' })
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (data?.tip) {
+              // Affichage en toast (visible ~8s, le temps de lire).
+              showToast(data.tip, 'info', 8000);
               setMetrics((m) =>
                 m
                   ? { ...m, karineTip: data.tip, karineTipRecipe: data.recipe ?? null }
@@ -462,14 +490,34 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
   const overshoot = Math.max(0, net - target);
   const percent = Math.min(100, target > 0 ? Math.max(0, net) / target * 100 : 0);
 
+  // Préparation des stats macros + groupement entries par catégorie.
+  // Ces calculs sont peu coûteux et faits à chaque rerender — pas
+  // besoin de memo.
+  const entriesByCat: Record<MealCategory, FoodLogEntry[]> = {
+    breakfast: [],
+    lunch: [],
+    snack: [],
+    dinner: [],
+  };
+  if (day) {
+    for (const e of day.entries) entriesByCat[categoryOf(e)].push(e);
+  }
+  const totalsForCat = (cat: MealCategory) =>
+    entriesByCat[cat].reduce((a, e) => a + e.kcal * e.portions, 0);
+
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-center md:justify-center md:p-4">
-      <div className="flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(90vh,720px)] md:rounded-3xl">
-        {/* Header */}
-        <header className="flex items-center justify-between gap-2 border-b border-coral-soft/30 px-4 py-3">
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-center md:justify-center md:p-4"
+      // Désactive le pinch-to-zoom et autres gestes natifs sur la
+      // sheet, autorise uniquement le scroll vertical.
+      style={{ touchAction: 'pan-y' }}
+    >
+      <div className="flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:rounded-3xl">
+        {/* === Header transparent sur fond hero === */}
+        <header className="flex shrink-0 items-center justify-between gap-2 bg-coral/95 px-4 py-3 text-white">
           <div className="flex items-center gap-2">
-            <Flame className="size-5 text-coral" />
-            <h2 className="font-script text-2xl text-coral">Mes calories</h2>
+            <Flame className="size-5" />
+            <h2 className="font-script text-2xl">Mes calories</h2>
           </div>
           <div className="flex items-center gap-1">
             <button
@@ -477,8 +525,8 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               onClick={() => setMyInfoOpen(true)}
               className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
                 day?.profileComplete
-                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                  : 'bg-coral-soft/30 text-coral-dark hover:bg-coral-soft/50'
+                  ? 'bg-white/90 text-coral-dark hover:bg-white'
+                  : 'bg-coral-soft/40 text-white hover:bg-coral-soft/60'
               }`}
             >
               {day?.profileComplete && (
@@ -490,198 +538,123 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               type="button"
               onClick={onClose}
               aria-label="Fermer"
-              className="rounded-full p-1.5 hover:bg-coral-soft/30"
+              className="rounded-full p-1.5 hover:bg-white/10"
             >
-              <X className="size-5 text-ink-soft" />
+              <X className="size-5" />
             </button>
           </div>
         </header>
 
         {error && (
-          <div className="border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-800">
+          <div className="shrink-0 border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-800">
             {error}
           </div>
         )}
 
-        {/* Conseil Karine du jour. Régénéré par Mistral après chaque
-            ajout de repas, persisté dans daily_metrics.karine_tip. */}
-        {metrics?.karineTip && (
-          <div className="border-b border-coral-soft/30 bg-gradient-to-r from-coral-soft/30 to-amber-50/60 px-4 py-2.5">
-            <p className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
-              Le conseil de Karine
-            </p>
-            <div className="mt-0.5 flex items-start gap-2.5">
-              <p className="flex-1 text-sm italic leading-snug text-ink">
-                « {metrics.karineTip} »
-              </p>
-              {metrics.karineTipRecipe && (
-                <a
-                  href={`/recettes/${metrics.karineTipRecipe.slug}`}
-                  className="group flex shrink-0 flex-col items-center gap-0.5"
-                  aria-label={`Voir la recette ${metrics.karineTipRecipe.title}`}
+        {/* === Body scrollable (hero + macros + tuiles) === */}
+        <div
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain"
+          style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
+            WebkitOverflowScrolling: 'touch',
+            touchAction: 'pan-y',
+          }}
+        >
+          {/* === HERO : cercle restant + kcal dépensées === */}
+          <section className="bg-gradient-to-b from-coral via-coral/85 to-coral/40 px-4 pt-5 pb-7 text-white">
+            <div className="flex items-center justify-center gap-4">
+              <CircularProgress
+                value={Math.max(0, net)}
+                max={target}
+                size="11rem"
+                strokeWidth="0.85rem"
+                trackClassName="stroke-white/25"
+                arcClassName={overshoot > 0 ? 'stroke-rose-200' : 'stroke-white'}
+              >
+                <span className="text-[0.65rem] font-semibold uppercase tracking-widest text-white/85">
+                  Restant
+                </span>
+                <span className="font-bold leading-none" style={{ fontSize: '2.25rem' }}>
+                  {Math.round(Math.max(0, remaining))}
+                </span>
+                <span className="text-[0.7rem] text-white/85">
+                  Objectif {target} kcal
+                </span>
+              </CircularProgress>
+
+              <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-white/15 p-3 backdrop-blur-sm">
+                <KcalBurnedEditor
+                  value={metrics?.kcalBurned ?? 0}
+                  onSaved={(n) => {
+                    setMetrics((m) =>
+                      m
+                        ? { ...m, kcalBurned: n }
+                        : { kcalBurned: n, karineTip: null, karineTipRecipe: null },
+                    );
+                  }}
+                />
+                <span className="text-[0.6rem] uppercase tracking-wider text-white/80">
+                  Consommé : {Math.round(totals)} kcal
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* === MACROS : tuiles blanc cassé + barres colorées === */}
+          <section className="bg-gradient-to-b from-coral/40 via-coral-soft/30 to-cream/20 px-4 pb-3 -mt-3">
+            <MacrosTiles
+              consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
+              target={day?.target ?? null}
+            />
+          </section>
+
+          {/* === TUILES REPAS === */}
+          <section className="flex-1 space-y-2.5 bg-gradient-to-b from-cream/20 to-white px-4 py-3">
+            {MEAL_ORDER.map((cat) => {
+              const isActive = activeMealCategory === cat;
+              const entries = entriesByCat[cat];
+              return (
+                <MealTile
+                  key={cat}
+                  category={cat}
+                  entries={entries}
+                  totalKcal={totalsForCat(cat)}
+                  isActive={isActive}
+                  onAddClick={() => {
+                    setActiveMealCategory(cat);
+                    setMealCategory(cat);
+                    setNaturalText('');
+                    setPreview(null);
+                    setAccSel(new Map());
+                  }}
+                  onCloseInvite={() => {
+                    setActiveMealCategory(null);
+                    setNaturalText('');
+                    setPreview(null);
+                    setAccSel(new Map());
+                  }}
+                  onDelete={handleDelete}
+                  onChangeCategory={changeEntryCategory}
                 >
-                  {metrics.karineTipRecipe.coverImageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={metrics.karineTipRecipe.coverImageUrl}
-                      alt={metrics.karineTipRecipe.title}
-                      className="size-14 rounded-lg object-cover ring-2 ring-coral-soft transition group-hover:ring-coral"
+                  {/* Invite inline : zone de saisie + photo + preview du
+                      parse Mistral. Visible UNIQUEMENT pour la tuile
+                      active. */}
+                  {isActive && (
+                    <InlineMealInvite
+                      naturalText={naturalText}
+                      onTextChange={setNaturalText}
+                      parsing={parsing}
+                      photoUploading={photoUploading}
+                      onPhoto={handlePhoto}
+                      onParse={handleParse}
                     />
-                  ) : (
-                    <div className="flex size-14 items-center justify-center rounded-lg bg-coral-soft/40 text-xs font-semibold text-coral-dark ring-2 ring-coral-soft">
-                      Recette
-                    </div>
                   )}
-                  {metrics.karineTipRecipe.calories !== null && (
-                    <span className="text-[0.6rem] font-semibold text-coral-dark">
-                      ≈ {metrics.karineTipRecipe.calories} kcal
-                    </span>
-                  )}
-                </a>
-              )}
-            </div>
-          </div>
-        )}
 
-        {/* Objectif vs consommé */}
-        <section className="border-b border-coral-soft/20 bg-cream/40 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <p className="text-3xl font-bold text-coral">
-                {Math.round(totals)}
-                <span className="text-base font-normal text-ink-soft"> / {target} kcal</span>
-              </p>
-              <p className="text-xs text-ink-soft">
-                {overshoot > 0
-                  ? `${Math.round(overshoot)} kcal au-dessus`
-                  : `Reste ${Math.round(remaining)} kcal`}
-              </p>
-            </div>
-
-            <KcalBurnedEditor
-              value={metrics?.kcalBurned ?? 0}
-              onSaved={(n) => {
-                setMetrics((m) =>
-                  m
-                    ? { ...m, kcalBurned: n }
-                    : { kcalBurned: n, karineTip: null, karineTipRecipe: null },
-                );
-              }}
-            />
-          </div>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-coral-soft/30">
-            <div
-              className={`h-full transition-all ${
-                overshoot > 0 ? 'bg-rose-500' : 'bg-coral'
-              }`}
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-
-          {/* Macros : Glucides / Protéines / Lipides — consommé / objectif (g) */}
-          <MacroRow
-            consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
-            target={day?.target ?? null}
-          />
-        </section>
-
-        {/* Saisie naturelle (toujours visible) */}
-        <section className="border-b border-coral-soft/20 px-4 py-3">
-          <label className="mb-2 block text-xs font-semibold text-ink-soft">
-            Qu&apos;as-tu mang&eacute; ?
-          </label>
-          <MealCategoryChips
-            value={mealCategory}
-            onChange={setMealCategory}
-          />
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              {naturalText.length > 80 ? (
-                <textarea
-                  value={naturalText}
-                  onChange={(e) => setNaturalText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleParse();
-                    }
-                  }}
-                  rows={2}
-                  maxLength={500}
-                  className="flex-1 resize-none rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
-                  placeholder="ex. un yaourt nature et une pomme"
-                />
-              ) : (
-                <input
-                  type="text"
-                  value={naturalText}
-                  onChange={(e) => setNaturalText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      handleParse();
-                    }
-                  }}
-                  maxLength={500}
-                  className="flex-1 rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
-                  placeholder="ex. un yaourt nature et une pomme"
-                />
-              )}
-              <label
-                className={`flex size-9 cursor-pointer items-center justify-center self-end rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
-                  photoUploading ? 'cursor-wait opacity-50' : ''
-                }`}
-                title="Prendre une photo du plat"
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  disabled={photoUploading}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) handlePhoto(f);
-                    e.target.value = '';
-                  }}
-                  className="sr-only"
-                />
-                {photoUploading ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Camera className="size-4" />
-                )}
-              </label>
-              <button
-                type="button"
-                onClick={handleParse}
-                disabled={parsing || naturalText.trim().length < 3}
-                aria-label="Analyser"
-                className="flex size-9 items-center justify-center self-end rounded-full bg-coral text-white disabled:opacity-50"
-              >
-                {parsing ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* Propositions du parse (1 bloc par aliment).
-            Quand preview est actif, on prend toute la place restante
-            (flex-1) et on scroll en interne. Les boutons Annuler /
-            Ajouter sont dans le footer de la sheet (sticky bas). */}
-        {preview && preview.length > 0 && (
-          <section className="flex min-h-0 flex-1 flex-col border-b border-coral-soft/20 px-4 py-3">
-            <ul
-              className="flex-1 space-y-2.5 overflow-y-auto pr-1"
-              style={{
-                scrollbarWidth: 'thin',
-                scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
-                overscrollBehavior: 'contain',
-              }}
-            >
+                  {/* Preview des blocs aliments parsés, affichés
+                      directement sous la tuile active. */}
+                  {isActive && preview && preview.length > 0 && (
+                    <ul className="mt-2 space-y-2.5">
               {preview.map((p, i) => (
                 <ItemBlock
                   key={i}
@@ -784,52 +757,15 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                 />
               ))}
             </ul>
+                  )}
+                </MealTile>
+              );
+            })}
           </section>
-        )}
-
-        {/* Liste du jour — masquée pendant le preview (pas de scroll
-            parallèle, on se concentre sur la validation). Scroll
-            tactile activé pour mobile (touchAction + overscroll). */}
-        {!(preview && preview.length > 0) && (
-        <section
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3"
-          style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(226, 120, 141, 0.5) transparent',
-            WebkitOverflowScrolling: 'touch',
-            touchAction: 'pan-y',
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setTodayOpen((v) => !v)}
-            className="mb-2 flex w-full items-center justify-between text-left text-xs font-semibold uppercase tracking-wide text-ink-soft transition-colors hover:text-coral-dark"
-          >
-            <span>
-              Mes repas ({day?.entries.length ?? 0})
-            </span>
-            {todayOpen ? (
-              <ChevronUp className="size-3.5" />
-            ) : (
-              <ChevronDown className="size-3.5" />
-            )}
-          </button>
-          {todayOpen && day && day.entries.length === 0 ? (
-            <p className="text-sm text-ink-soft">Aucune entrée pour le moment.</p>
-          ) : todayOpen && day ? (
-            <MealsByCategory
-              entries={day.entries}
-              onDelete={handleDelete}
-              onChangeCategory={changeEntryCategory}
-            />
-          ) : null}
-        </section>
-        )}
+        </div>
 
         {/* Footer sticky : actions de validation. Visible uniquement
-            quand un preview est en cours. Sa hauteur fixe garantit que
-            les boutons restent atteignables même avec une longue liste
-            de blocs. */}
+            quand un preview est en cours. */}
         {preview && preview.length > 0 && (
           <footer className="shrink-0 border-t border-coral-soft/30 bg-white px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
             <div className="flex items-center gap-2">
@@ -1184,7 +1120,11 @@ function CandidateRow({
  * `consommé / objectif g`. Si le profil n'est pas complet (objectif
  * null), on affiche seulement le consommé.
  */
-function MacroRow({
+/**
+ * Tuiles macros — fond blanc cassé, mini-barre de progression colorée
+ * par macro (rose / sky / amber comme aujourd'hui).
+ */
+function MacrosTiles({
   consumed,
   target,
 }: {
@@ -1201,62 +1141,271 @@ function MacroRow({
     label: string;
     consumed: number;
     target: number | null;
-    bg: string;
-    border: string;
+    barClass: string;
     accent: string;
-    label_color: string;
+    labelColor: string;
   }> = [
     {
       label: 'Glucides',
       consumed: consumed.carbsG,
       target: target?.dailyCarbsG ?? null,
-      bg: 'bg-rose-50',
-      border: 'border-rose-200',
+      barClass: 'bg-rose-400',
       accent: 'text-rose-700',
-      label_color: 'text-rose-800/80',
+      labelColor: 'text-rose-800/80',
     },
     {
       label: 'Protéines',
       consumed: consumed.proteinsG,
       target: target?.dailyProteinsG ?? null,
-      bg: 'bg-sky-50',
-      border: 'border-sky-200',
+      barClass: 'bg-sky-500',
       accent: 'text-sky-700',
-      label_color: 'text-sky-800/80',
+      labelColor: 'text-sky-800/80',
     },
     {
       label: 'Lipides',
       consumed: consumed.lipidsG,
       target: target?.dailyLipidsG ?? null,
-      bg: 'bg-amber-50',
-      border: 'border-amber-200',
+      barClass: 'bg-amber-500',
       accent: 'text-amber-700',
-      label_color: 'text-amber-800/80',
+      labelColor: 'text-amber-800/80',
     },
   ];
   return (
-    <div className="mt-3 grid grid-cols-3 gap-2">
-      {items.map((it) => (
-        <div
-          key={it.label}
-          className={`rounded-xl border ${it.border} ${it.bg} px-2.5 py-1.5`}
-        >
-          <p
-            className={`text-[0.6rem] font-semibold uppercase tracking-wider ${it.label_color}`}
+    <div className="grid grid-cols-3 gap-2">
+      {items.map((it) => {
+        const pct =
+          it.target && it.target > 0
+            ? Math.min(100, Math.round((it.consumed / it.target) * 100))
+            : 0;
+        return (
+          <div
+            key={it.label}
+            className="rounded-xl bg-[#fdfbf6] px-2.5 py-2 shadow-sm ring-1 ring-coral-soft/30"
           >
-            {it.label}
-          </p>
-          <p className={`text-sm font-bold ${it.accent}`}>
-            {Math.round(it.consumed)}
-            <span className="text-xs font-normal text-ink-soft">
-              {it.target !== null ? `/${Math.round(it.target)}` : ''}g
-            </span>
-          </p>
-        </div>
-      ))}
+            <p
+              className={`text-[0.6rem] font-semibold uppercase tracking-wider ${it.labelColor}`}
+            >
+              {it.label}
+            </p>
+            <p className={`mt-0.5 text-sm font-bold ${it.accent}`}>
+              {Math.round(it.consumed)}
+              <span className="text-xs font-normal text-ink-soft">
+                {it.target !== null ? `/${Math.round(it.target)}` : ''}g
+              </span>
+            </p>
+            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-ink-soft/15">
+              <div
+                className={`h-full ${it.barClass} transition-[width] duration-500`}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
+
+/**
+ * Tuile d'une catégorie de repas (P'tit dej / Déj / Goûter / Dîner).
+ *
+ * En mode compact (non-active) :
+ *   [icône] Pti dej · 235 kcal · 2 plats    [ + ]
+ *
+ * Quand active (children rendus dessous) : l'invite de saisie inline,
+ * le preview Mistral, etc.
+ *
+ * Cliquer la tuile (hors +) déploie le détail éditable des entries
+ * (avec changement de catégorie + suppression).
+ */
+function MealTile({
+  category,
+  entries,
+  totalKcal,
+  isActive,
+  onAddClick,
+  onCloseInvite,
+  onDelete,
+  onChangeCategory,
+  children,
+}: {
+  category: MealCategory;
+  entries: FoodLogEntry[];
+  totalKcal: number;
+  isActive: boolean;
+  onAddClick: () => void;
+  onCloseInvite: () => void;
+  onDelete: (id: string) => void;
+  onChangeCategory: (id: string, next: MealCategory) => void;
+  children?: React.ReactNode;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const Icon = MEAL_ICONS[category];
+
+  return (
+    <article
+      className={`overflow-hidden rounded-2xl bg-[#fdfbf6] shadow-sm ring-1 transition-colors ${
+        isActive ? 'ring-coral' : 'ring-coral-soft/30'
+      }`}
+    >
+      <div className="flex items-center gap-2.5 px-3 py-2.5">
+        <span
+          className="grid size-9 shrink-0 place-items-center rounded-full text-white"
+          style={{ backgroundColor: MEAL_BG_COLOR[category] }}
+        >
+          <Icon className="size-4" />
+        </span>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="flex min-w-0 flex-1 flex-col items-start text-left"
+        >
+          <span className="text-sm font-bold text-ink">{MEAL_LABELS[category]}</span>
+          <span className="text-[0.7rem] text-ink-soft">
+            {entries.length === 0
+              ? 'Aucun plat'
+              : `${Math.round(totalKcal)} kcal · ${entries.length} ${
+                  entries.length > 1 ? 'plats' : 'plat'
+                }`}
+          </span>
+        </button>
+        {isActive ? (
+          <button
+            type="button"
+            onClick={onCloseInvite}
+            aria-label="Fermer l'invite"
+            className="grid size-8 shrink-0 place-items-center rounded-full bg-coral-soft/40 text-coral-dark transition hover:bg-coral-soft/70"
+          >
+            <X className="size-4" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onAddClick}
+            aria-label={`Ajouter à ${MEAL_LABELS[category]}`}
+            className="grid size-8 shrink-0 place-items-center rounded-full bg-coral text-white shadow transition hover:bg-coral-dark"
+          >
+            <Plus className="size-4" />
+          </button>
+        )}
+      </div>
+
+      {/* Détail des entries (édition par entrée) — visible si tuile
+          dépliée ET non en mode invite, pour éviter une UI surchargée. */}
+      {!isActive && expanded && entries.length > 0 && (
+        <ul className="space-y-1 border-t border-coral-soft/20 bg-white px-3 py-2">
+          {entries.map((e) => (
+            <EntryRow
+              key={e.id}
+              entry={e}
+              onDelete={() => onDelete(e.id)}
+              onChangeCategory={(next) => onChangeCategory(e.id, next)}
+            />
+          ))}
+        </ul>
+      )}
+
+      {/* Children = invite + preview rendus par le parent quand active */}
+      {isActive && (
+        <div className="border-t border-coral-soft/20 bg-white px-3 py-3">
+          {children}
+        </div>
+      )}
+    </article>
+  );
+}
+
+/**
+ * Invite inline de saisie naturelle + photo. Déclenchée par le +
+ * d'une tuile repas — la catégorie cible est gérée par l'état
+ * `activeMealCategory` côté parent.
+ */
+function InlineMealInvite({
+  naturalText,
+  onTextChange,
+  parsing,
+  photoUploading,
+  onPhoto,
+  onParse,
+}: {
+  naturalText: string;
+  onTextChange: (v: string) => void;
+  parsing: boolean;
+  photoUploading: boolean;
+  onPhoto: (file: File) => void;
+  onParse: () => void;
+}) {
+  return (
+    <div className="flex gap-2">
+      <input
+        type="text"
+        value={naturalText}
+        onChange={(e) => onTextChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onParse();
+          }
+        }}
+        maxLength={500}
+        autoFocus
+        placeholder="ex. un yaourt nature et une pomme"
+        className="flex-1 rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
+      />
+      <label
+        className={`flex size-9 cursor-pointer items-center justify-center rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
+          photoUploading ? 'cursor-wait opacity-50' : ''
+        }`}
+        title="Prendre une photo du plat"
+      >
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          disabled={photoUploading}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onPhoto(f);
+            e.target.value = '';
+          }}
+          className="sr-only"
+        />
+        {photoUploading ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Camera className="size-4" />
+        )}
+      </label>
+      <button
+        type="button"
+        onClick={onParse}
+        disabled={parsing || naturalText.trim().length < 3}
+        aria-label="Analyser"
+        className="flex size-9 items-center justify-center rounded-full bg-coral text-white disabled:opacity-50"
+      >
+        {parsing ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Send className="size-4" />
+        )}
+      </button>
+    </div>
+  );
+}
+
+// Mapping icône + couleur de fond par catégorie de repas.
+const MEAL_ICONS: Record<MealCategory, typeof Sun> = {
+  breakfast: Sun,
+  lunch: UtensilsCrossed,
+  snack: Cookie,
+  dinner: Moon,
+};
+const MEAL_BG_COLOR: Record<MealCategory, string> = {
+  breakfast: '#f59e0b', // amber
+  lunch: '#e2788d',     // coral
+  snack: '#a78bfa',     // violet
+  dinner: '#1e3a8a',    // navy
+};
 
 /**
  * Chips de catégorie de repas. Compacts pour cohabiter avec le label
