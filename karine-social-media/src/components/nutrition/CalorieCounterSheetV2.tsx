@@ -650,12 +650,16 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
             <div className="grid grid-cols-2 gap-2">
               {MEAL_ORDER.map((cat) => {
                 const entries = entriesByCat[cat];
+                const dailyTarget = day?.target.dailyKcal ?? 0;
+                const ratio = MEAL_KCAL_RATIO[cat];
+                const mealTarget = Math.round(dailyTarget * ratio);
                 return (
                   <MealTileApple
                     key={cat}
                     category={cat}
                     count={entries.length}
                     totalKcal={totalsForCat(cat)}
+                    mealTargetKcal={mealTarget}
                     onClick={() => {
                       setActiveMealCategory(cat);
                       setMealCategory(cat);
@@ -1336,18 +1340,28 @@ function MealTileApple({
   category,
   count,
   totalKcal,
+  mealTargetKcal,
   onClick,
 }: {
   category: MealCategory;
   count: number;
   totalKcal: number;
+  /** Objectif kcal calculé pour ce repas (ex: petit dej = 20% du
+   *  daily target). 0 ou null si profil incomplet. */
+  mealTargetKcal: number;
   onClick: () => void;
 }) {
+  const pct =
+    mealTargetKcal > 0
+      ? Math.min(100, Math.round((totalKcal / mealTargetKcal) * 100))
+      : 0;
+  // Overshoot : on garde la barre rouge si on dépasse la cible
+  const overshoot = mealTargetKcal > 0 && totalKcal > mealTargetKcal;
   return (
     <button
       type="button"
       onClick={onClick}
-      className="relative flex min-h-[7.5rem] flex-col items-start justify-end gap-1 overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+      className="relative flex min-h-[8.5rem] flex-col items-start justify-end gap-1 overflow-hidden rounded-2xl bg-white p-4 pb-3 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
     >
       {/* Icône en haut à droite, grande, transparente sans fond. */}
       <span className="absolute right-2 top-2">
@@ -1362,11 +1376,20 @@ function MealTileApple({
       </span>
       <span className="whitespace-nowrap pr-12 text-xs font-medium text-ink-soft">
         {count === 0
-          ? 'Aucun plat'
-          : `${Math.round(totalKcal)} kcal · ${count} ${
+          ? `0 / ${mealTargetKcal} kcal`
+          : `${Math.round(totalKcal)} / ${mealTargetKcal} kcal · ${count} ${
               count > 1 ? 'plats' : 'plat'
             }`}
       </span>
+      {/* Barre de progression par repas (objectif = % du daily target). */}
+      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ink-soft/15">
+        <div
+          className={`h-full transition-[width] duration-500 ${
+            overshoot ? 'bg-rose-500' : 'bg-coral'
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
       {/* + en bas à droite — affordance "ajouter" toujours visible */}
       <span
         aria-hidden
@@ -1589,6 +1612,19 @@ const MEAL_BG_COLOR: Record<MealCategory, string> = {
   lunch: '#e2788d',     // coral
   snack: '#a78bfa',     // violet
   dinner: '#1e3a8a',    // navy
+};
+
+/**
+ * Répartition standard des apports caloriques par repas (en %
+ * du total journalier). Convention Karine 2026-06-05 — sert à
+ * calculer la cible kcal et la barre de progression de chaque
+ * tuile repas. Total = 90% (10% pour collation libre / boissons).
+ */
+const MEAL_KCAL_RATIO: Record<MealCategory, number> = {
+  breakfast: 0.20,
+  lunch: 0.30,
+  snack: 0.10,
+  dinner: 0.30,
 };
 
 /**
