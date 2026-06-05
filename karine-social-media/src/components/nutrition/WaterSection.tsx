@@ -2,6 +2,8 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { ChevronDown, X } from 'lucide-react';
 import { CircularProgress } from '@/components/ui/CircularProgress';
 
 type WaterState = {
@@ -13,27 +15,27 @@ type WaterState = {
 /**
  * Section "Eau" pour la sheet calorie V2.
  *
- *  - Une rangée de verres : les remplis à gauche, un vide juste à
- *    côté (cliquable pour boire). Quand on clique le vide, il y a
- *    une petite "explosion d'eau" + il se transforme en plein, et
- *    un nouveau vide apparaît à droite.
- *  - Slider vertical (0.5 L → 2 L) à droite pour régler l'objectif.
- *  - Barre de progression bleue sous les verres.
+ * Layout :
+ *   1. Titre "Ma consommation d'eau aujourd'hui"
+ *   2. Sous-titre "Objectif : X L" cliquable → ouvre un picker iOS
+ *      style (drum scrollable) pour changer l'objectif.
+ *   3. Cercle bleu CENTRÉ au-dessus des verres, avec le nombre de
+ *      verres bus en grand au centre.
+ *   4. Rangée de verres GROS scrollable horizontalement. Toujours
+ *      un verre vide cliquable à droite (même après l'objectif).
  *
- * Toute la persistance passe par les APIs existantes :
- *  - GET /api/water/today
- *  - POST /api/water/log  (+ 1 verre)
- *  - PATCH /api/water/settings (objectif quotidien)
+ * Plus de fond bg-white sur la section pour que le dégradé du
+ * parent (coral → bleu) soit visible.
  */
 export function WaterSection() {
   const [state, setState] = useState<WaterState | null>(null);
-  // Index du verre qui vient d'être rempli — déclenche le burst
-  // animation pendant 600 ms.
+  // Index du verre qui vient d'être rempli — burst 600 ms.
   const [bursting, setBursting] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
-  const [targetDraft, setTargetDraft] = useState<number | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
   // Ref pour auto-scroller la rangée de verres vers la droite.
-  // DÉCLARÉ AVANT tout early return pour respecter les Rules of Hooks.
+  // Déclaré tout en haut (avant tout early return) pour respecter
+  // les Rules of Hooks de React.
   const glassesScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -45,9 +47,6 @@ export function WaterSection() {
     return () => window.removeEventListener('water-log-updated', onChange);
   }, []);
 
-  // Auto-scroll vers le verre vide à droite à chaque ajout. Déclaré
-  // ici (avant early return) pour ne jamais changer l'ordre des
-  // hooks entre renders.
   const filledCount = state?.glassesCount ?? 0;
   useEffect(() => {
     const el = glassesScrollRef.current;
@@ -76,13 +75,11 @@ export function WaterSection() {
     setBusy(true);
     setBursting(idx);
     window.setTimeout(() => setBursting(null), 600);
-    // optimistic update
     setState((s) => (s ? { ...s, glassesCount: s.glassesCount + 1 } : s));
     try {
       await fetch('/api/water/log', { method: 'POST' });
       window.dispatchEvent(new CustomEvent('water-log-updated'));
     } catch {
-      // rollback
       setState((s) =>
         s ? { ...s, glassesCount: Math.max(0, s.glassesCount - 1) } : s,
       );
@@ -101,13 +98,13 @@ export function WaterSection() {
         body: JSON.stringify({ dailyWaterMl: nextMl }),
       });
     } catch {
-      // rollback handled by next refresh
+      /* rollback handled by next refresh */
     }
   }
 
   if (!state) {
     return (
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-coral-soft/30">
+      <section className="rounded-2xl p-4">
         <p className="text-xs italic text-ink-soft">Chargement…</p>
       </section>
     );
@@ -115,128 +112,40 @@ export function WaterSection() {
 
   const filled = state.glassesCount;
   const targetGlasses = Math.max(1, Math.round(state.targetMl / state.glassSizeMl));
-  // TOUJOURS afficher un verre vide cliquable APRÈS les remplis,
-  // même si l'objectif est dépassé. Karine peut continuer à boire.
   const visibleCount = filled + 1;
-
-  const totalMl = filled * state.glassSizeMl;
-  const targetMl = state.targetMl;
-
-  // Affichage du target en cours (slider en live + save au release)
-  const displayedTargetMl = targetDraft ?? targetMl;
+  const targetL = (state.targetMl / 1000).toFixed(2).replace('.', ',');
 
   return (
-    <section className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-coral-soft/30">
-      <div className="mb-2 flex items-baseline justify-between">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-blue-700">
-          Eau
+    <section className="space-y-3 rounded-2xl px-1 pb-2 pt-1">
+      {/* Titre + objectif cliquable */}
+      <div className="space-y-0.5 text-center">
+        <h3 className="text-sm font-bold text-blue-900">
+          Ma consommation d&apos;eau aujourd&apos;hui
         </h3>
-        <span className="text-xs font-semibold text-ink-soft">
-          {Math.round(totalMl / 100) / 10} L / {(displayedTargetMl / 1000).toFixed(2)} L
-        </span>
-      </div>
-
-      <div className="flex items-stretch gap-3">
-        {/* Verres — grands, scroll horizontal qui suit toujours le
-            dernier verre vide à droite. */}
-        <div
-          ref={glassesScrollRef}
-          className="flex flex-1 items-end gap-1.5 overflow-x-auto pb-1"
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className="inline-flex items-center gap-1 rounded-full bg-white/80 px-3 py-0.5 text-xs font-semibold text-blue-700 ring-1 ring-blue-200 transition hover:bg-white"
         >
-          {Array.from({ length: visibleCount }, (_, i) => {
-            const isFilled = i < filled;
-            const isBurstingThis = bursting === i;
-            return (
-              <button
-                key={i}
-                type="button"
-                onClick={isFilled ? undefined : () => addGlass(i)}
-                disabled={isFilled || busy}
-                aria-label={isFilled ? 'Verre bu' : `Boire un verre (${i + 1})`}
-                className={`relative grid size-16 shrink-0 place-items-center transition ${
-                  isFilled ? 'cursor-default' : 'hover:-translate-y-0.5 active:scale-95'
-                }`}
-              >
-                <img
-                  src={isFilled ? '/icons/water/full.png' : '/icons/water/empty.png'}
-                  alt=""
-                  aria-hidden
-                  draggable={false}
-                  className="size-16 object-contain"
-                />
-                {/* Burst : 8 gouttes qui partent en étoile depuis le verre */}
-                {isBurstingThis && (
-                  <span className="pointer-events-none absolute inset-0" aria-hidden>
-                    {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
-                      <span
-                        key={angle}
-                        className="water-burst-drop absolute left-1/2 top-1/2 block size-2 rounded-full bg-cyan-400 shadow-[0_0_8px_rgba(34,211,238,0.7)]"
-                        style={{
-                          transform: `rotate(${angle}deg) translateY(-0.25rem)`,
-                        }}
-                      />
-                    ))}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Slider vertical d'objectif (0.5 L → 2 L, step 0.25 L).
-            Wrapper avec hauteur fixe — l'input range est tourné via
-            transform pour un rendu fluide et cross-browser. Le 2L
-            est en haut, 0.5L en bas (slider qui monte = boire plus). */}
-        <div className="flex flex-col items-center gap-1 rounded-xl bg-blue-50 px-2 py-2 ring-1 ring-blue-100">
-          <span className="text-[0.55rem] font-bold uppercase tracking-wider text-blue-700">
-            2L
-          </span>
-          <div className="relative h-20 w-7">
-            <input
-              type="range"
-              min={500}
-              max={2000}
-              step={250}
-              value={displayedTargetMl}
-              onChange={(e) => setTargetDraft(Number(e.target.value))}
-              onMouseUp={() => {
-                if (targetDraft !== null) {
-                  void saveTarget(targetDraft);
-                  setTargetDraft(null);
-                }
-              }}
-              onTouchEnd={() => {
-                if (targetDraft !== null) {
-                  void saveTarget(targetDraft);
-                  setTargetDraft(null);
-                }
-              }}
-              aria-label="Objectif eau quotidien"
-              className="water-target-slider absolute left-1/2 top-1/2 h-7 w-20 -translate-x-1/2 -translate-y-1/2 -rotate-90 cursor-pointer accent-blue-500"
-            />
-          </div>
-          <span className="text-[0.55rem] font-bold uppercase tracking-wider text-blue-700">
-            0,5L
-          </span>
-          <span className="text-[0.6rem] font-bold text-blue-700">
-            {(displayedTargetMl / 1000).toFixed(2)}L
-          </span>
-        </div>
+          Objectif&nbsp;: <span className="font-bold">{targetL} L</span>
+          <ChevronDown className="size-3" />
+        </button>
       </div>
 
-      {/* Cercle bleu centré avec le nombre de verres bus au centre.
-          Remplace la barre de progression : plus lisible d'un coup
-          d'œil + affordance verres / objectif (X / Y). */}
-      <div className="mt-3 flex items-center justify-center">
+      {/* Cercle bleu centré au-dessus des verres. Rotation 90° pour
+          que le remplissage parte du HAUT et descende dans le sens
+          horaire — effet "verre qui se remplit par le haut". */}
+      <div className="flex items-center justify-center">
         <CircularProgress
           value={filled}
           max={targetGlasses}
-          size="5.5rem"
-          strokeWidth="0.55rem"
-          trackClassName="stroke-blue-100"
+          size="6.5rem"
+          strokeWidth="0.65rem"
+          trackClassName="stroke-white/70"
           arcClassName="stroke-blue-500"
+          rotateClassName="rotate-90"
         >
-          <span className="text-2xl font-extrabold leading-none text-blue-700">
+          <span className="text-3xl font-extrabold leading-none text-blue-700">
             {filled}
           </span>
           <span className="text-[0.6rem] font-semibold uppercase tracking-wider text-blue-700/80">
@@ -245,11 +154,69 @@ export function WaterSection() {
         </CircularProgress>
       </div>
 
+      {/* Rangée de verres GROS scrollable horizontalement.
+          Toujours un verre vide cliquable à droite. */}
+      <div
+        ref={glassesScrollRef}
+        className="flex items-end gap-2 overflow-x-auto px-1 pb-1"
+        style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+      >
+        {Array.from({ length: visibleCount }, (_, i) => {
+          const isFilled = i < filled;
+          const isBurstingThis = bursting === i;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={isFilled ? undefined : () => addGlass(i)}
+              disabled={isFilled || busy}
+              aria-label={isFilled ? 'Verre bu' : `Boire un verre (${i + 1})`}
+              className={`relative grid size-24 shrink-0 place-items-center transition ${
+                isFilled ? 'cursor-default' : 'hover:-translate-y-0.5 active:scale-95'
+              }`}
+            >
+              <img
+                src={isFilled ? '/icons/water/full.png' : '/icons/water/empty.png'}
+                alt=""
+                aria-hidden
+                draggable={false}
+                className="size-24 object-contain"
+              />
+              {isBurstingThis && (
+                <span className="pointer-events-none absolute inset-0" aria-hidden>
+                  {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => (
+                    <span
+                      key={angle}
+                      className="water-burst-drop absolute left-1/2 top-1/2 block size-2.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.8)]"
+                      style={{
+                        transform: `rotate(${angle}deg) translateY(-0.35rem)`,
+                      }}
+                    />
+                  ))}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Picker iOS-style pour l'objectif */}
+      {pickerOpen && (
+        <WaterTargetPicker
+          currentMl={state.targetMl}
+          onClose={() => setPickerOpen(false)}
+          onPick={(ml) => {
+            void saveTarget(ml);
+            setPickerOpen(false);
+          }}
+        />
+      )}
+
       <style>{`
         @keyframes water-burst {
           0%   { opacity: 1; transform: rotate(var(--angle, 0deg)) translateY(-0.1rem) scale(0.5); }
-          60%  { opacity: 1; transform: rotate(var(--angle, 0deg)) translateY(-2rem) scale(1); }
-          100% { opacity: 0; transform: rotate(var(--angle, 0deg)) translateY(-2.4rem) scale(0.6); }
+          60%  { opacity: 1; transform: rotate(var(--angle, 0deg)) translateY(-2.5rem) scale(1.1); }
+          100% { opacity: 0; transform: rotate(var(--angle, 0deg)) translateY(-3rem) scale(0.6); }
         }
         .water-burst-drop {
           animation: water-burst 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
@@ -259,39 +226,144 @@ export function WaterSection() {
         @media (prefers-reduced-motion: reduce) {
           .water-burst-drop { animation: none; opacity: 0; }
         }
-        /* Slider tourné -90deg : input horizontal qui devient vertical.
-           Cross-browser, plus fluide que writing-mode + direction. */
-        .water-target-slider::-webkit-slider-runnable-track {
-          height: 0.35rem;
-          background: linear-gradient(to right, #93c5fd, #2563eb);
-          border-radius: 999px;
-        }
-        .water-target-slider::-moz-range-track {
-          height: 0.35rem;
-          background: linear-gradient(to right, #93c5fd, #2563eb);
-          border-radius: 999px;
-        }
-        .water-target-slider::-webkit-slider-thumb {
-          appearance: none;
-          height: 1.1rem;
-          width: 1.1rem;
-          margin-top: -0.4rem;
-          background: #2563eb;
-          border-radius: 999px;
-          border: 2px solid white;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-          cursor: pointer;
-        }
-        .water-target-slider::-moz-range-thumb {
-          height: 1.1rem;
-          width: 1.1rem;
-          background: #2563eb;
-          border-radius: 999px;
-          border: 2px solid white;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.25);
-          cursor: pointer;
-        }
       `}</style>
     </section>
+  );
+}
+
+// ============================================================
+// WaterTargetPicker : drum picker iOS style pour choisir l'objectif
+// ============================================================
+
+const TARGET_OPTIONS_ML = [
+  500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 3000,
+];
+
+function WaterTargetPicker({
+  currentMl,
+  onClose,
+  onPick,
+}: {
+  currentMl: number;
+  onClose: () => void;
+  onPick: (ml: number) => void;
+}) {
+  const listRef = useRef<HTMLUListElement | null>(null);
+  // Hauteur de chaque item (en px) — utilisé pour snap + détection
+  // de la valeur centrale par scroll position.
+  const ITEM_HEIGHT_PX = 56;
+  const [selected, setSelected] = useState<number>(currentMl);
+
+  // Centre l'item courant au mount.
+  useEffect(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const idx = TARGET_OPTIONS_ML.findIndex((v) => v === currentMl);
+    const safeIdx = idx >= 0 ? idx : 4; // fallback 1.5L
+    // Pas d'animation au mount.
+    el.scrollTo({ top: safeIdx * ITEM_HEIGHT_PX, behavior: 'auto' });
+  }, [currentMl]);
+
+  function onScroll() {
+    const el = listRef.current;
+    if (!el) return;
+    const idx = Math.round(el.scrollTop / ITEM_HEIGHT_PX);
+    const clamped = Math.max(0, Math.min(TARGET_OPTIONS_ML.length - 1, idx));
+    const ml = TARGET_OPTIONS_ML[clamped];
+    if (ml !== selected) setSelected(ml);
+  }
+
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/40 backdrop-blur-sm md:items-center"
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm space-y-3 rounded-t-3xl bg-white p-4 shadow-2xl md:rounded-3xl"
+      >
+        <div className="flex items-center justify-between">
+          <h4 className="font-bold text-blue-900">Objectif quotidien</h4>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer"
+            className="grid size-8 place-items-center rounded-full bg-ink-soft/10 text-ink-soft hover:bg-ink-soft/20"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        {/* Drum picker : ul scrollable avec scroll-snap, padding
+            haut/bas pour pouvoir centrer le premier/dernier item.
+            L'item central est mis en avant. */}
+        <div className="relative">
+          {/* Highlight central + fades haut/bas. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-1/2 z-10 h-14 -translate-y-1/2 rounded-xl border-2 border-blue-400/40 bg-blue-50/40"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 z-10 h-14 bg-gradient-to-b from-white to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-14 bg-gradient-to-t from-white to-transparent"
+          />
+          <ul
+            ref={listRef}
+            onScroll={onScroll}
+            className="relative h-44 overflow-y-auto py-[5.25rem]"
+            style={{
+              scrollSnapType: 'y mandatory',
+              scrollbarWidth: 'none',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {TARGET_OPTIONS_ML.map((ml) => {
+              const isSelected = ml === selected;
+              const label = (ml / 1000).toFixed(2).replace('.', ',') + ' L';
+              return (
+                <li
+                  key={ml}
+                  style={{
+                    height: `${ITEM_HEIGHT_PX}px`,
+                    scrollSnapAlign: 'center',
+                  }}
+                  className={`flex items-center justify-center text-xl font-bold transition-all ${
+                    isSelected ? 'scale-110 text-blue-700' : 'text-ink-soft/60'
+                  }`}
+                >
+                  {label}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full border border-blue-200 px-4 py-1.5 text-xs font-semibold text-blue-700"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={() => onPick(selected)}
+            className="rounded-full bg-blue-500 px-5 py-1.5 text-xs font-semibold text-white shadow"
+          >
+            Valider
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }

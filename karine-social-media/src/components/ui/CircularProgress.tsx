@@ -17,6 +17,14 @@ export function CircularProgress({
   strokeWidth = '0.85rem',
   trackClassName = 'stroke-white/40',
   arcClassName = 'stroke-white',
+  /**
+   * Sens de rotation du SVG.
+   *  - `'-rotate-90'` (par défaut) : départ en haut, arc qui tourne
+   *    dans le sens horaire (cas calorie).
+   *  - `'rotate-90'` : départ en bas, arc qui se remplit en montant
+   *    (effet "verre qui se remplit" pour la jauge eau).
+   */
+  rotateClassName = '-rotate-90',
   children,
 }: {
   value: number;
@@ -29,6 +37,8 @@ export function CircularProgress({
   trackClassName?: string;
   /** Classe CSS pour l'arc rempli. */
   arcClassName?: string;
+  /** Classe Tailwind rotate-* pour orienter le départ de l'arc. */
+  rotateClassName?: string;
   /** Rendu au centre du cercle (valeur, sous-texte…). */
   children?: React.ReactNode;
 }) {
@@ -49,7 +59,7 @@ export function CircularProgress({
     >
       <svg
         viewBox="0 0 100 100"
-        className="absolute inset-0 h-full w-full -rotate-90 overflow-visible"
+        className={`absolute inset-0 h-full w-full overflow-visible ${rotateClassName}`}
         aria-hidden
       >
         <circle
