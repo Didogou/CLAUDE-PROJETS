@@ -21,7 +21,7 @@ import {
 import { MyInfoModal } from './MyInfoModal';
 import { LongPressSlider } from '@/components/ui/LongPressSlider';
 import { CircularProgress } from '@/components/ui/CircularProgress';
-import { MealIcon } from './MealIcon';
+import { MealCategoryAvatar } from './MealIcon';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -1276,10 +1276,9 @@ function MealTile({
       {/* Bandeau header de la tuile */}
       <div className="flex items-center gap-3 px-4 py-3">
         <span
-          className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-full text-white shadow-sm"
-          style={{ backgroundColor: MEAL_BG_COLOR[category] }}
+          className="grid size-11 shrink-0 place-items-center"
         >
-          <MealIcon category={category} imageClassName="size-11" lucideClassName="size-5" />
+          <MealCategoryAvatar category={category} wrapperSize="size-11" lucideSize="size-5" />
         </span>
         <div className="flex min-w-0 flex-1 flex-col items-start text-left">
           <span className="text-base font-bold text-ink">

@@ -15,7 +15,23 @@ type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 const MEAL_IMAGE: Partial<Record<MealCategory, string>> = {
   breakfast: '/icons/meals/breakfast.png',
   lunch: '/icons/meals/lunch.png',
+  dinner: '/icons/meals/dinner.png',
 };
+
+const MEAL_BG_COLOR: Record<MealCategory, string> = {
+  breakfast: '#f59e0b',
+  lunch: '#e2788d',
+  snack: '#a78bfa',
+  dinner: '#1e3a8a',
+};
+
+/**
+ * `true` si une image custom existe pour cette catégorie (donc pas
+ * besoin de pastille colorée derrière).
+ */
+export function hasMealImage(category: MealCategory): boolean {
+  return MEAL_IMAGE[category] != null;
+}
 
 const MEAL_LUCIDE: Record<MealCategory, typeof Sun> = {
   breakfast: Sun,
@@ -25,13 +41,52 @@ const MEAL_LUCIDE: Record<MealCategory, typeof Sun> = {
 };
 
 /**
- * Icône d'une catégorie de repas.
+ * Avatar carré-arrondi auto-géré d'une catégorie de repas.
  *
- * - Si une image custom existe dans MEAL_IMAGE (ex: breakfast),
- *   on la rend en taille `imageClassName` (par défaut couvre toute
- *   la pastille pour un rendu illustration).
- * - Sinon, on rend l'icône lucide en taille `lucideClassName`
- *   (plus petite pour rester centrée dans la pastille).
+ * - Si une image custom existe → image en pleine taille SANS fond
+ *   coloré (l'illustration apporte déjà son contexte visuel).
+ * - Sinon → pastille avec couleur de catégorie + icône lucide
+ *   centrée en taille `lucideSize`.
+ *
+ * `wrapperSize` contrôle la taille globale du composant (ex:
+ * "size-12"). Utilise un wrapper unique côté caller, plus de span
+ * coloré séparé.
+ */
+export function MealCategoryAvatar({
+  category,
+  wrapperSize = 'size-11',
+  lucideSize = 'size-5',
+}: {
+  category: MealCategory;
+  wrapperSize?: string;
+  lucideSize?: string;
+}) {
+  const url = MEAL_IMAGE[category];
+  if (url) {
+    return (
+      <img
+        src={url}
+        alt=""
+        aria-hidden
+        draggable={false}
+        className={`${wrapperSize} object-contain`}
+      />
+    );
+  }
+  const Lucide = MEAL_LUCIDE[category];
+  return (
+    <span
+      className={`grid ${wrapperSize} shrink-0 place-items-center rounded-full text-white shadow-sm`}
+      style={{ backgroundColor: MEAL_BG_COLOR[category] }}
+    >
+      <Lucide className={lucideSize} />
+    </span>
+  );
+}
+
+/**
+ * @deprecated Préférer MealCategoryAvatar (gère lui-même son fond).
+ * Conservé temporairement le temps de migrer les usages.
  */
 export function MealIcon({
   category,
@@ -50,7 +105,7 @@ export function MealIcon({
         alt=""
         aria-hidden
         draggable={false}
-        className={`${imageClassName} rounded-full object-cover`}
+        className={`${imageClassName} object-contain`}
       />
     );
   }

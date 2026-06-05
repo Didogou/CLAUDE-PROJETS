@@ -21,7 +21,7 @@ import {
 import { MyInfoModal } from './MyInfoModal';
 import { LongPressSlider } from '@/components/ui/LongPressSlider';
 import { CircularProgress } from '@/components/ui/CircularProgress';
-import { MealIcon } from './MealIcon';
+import { MealCategoryAvatar } from './MealIcon';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -580,35 +580,33 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
             aria-hidden={!!activeMealCategory}
           >
           {/* === HERO : cercle + kcal dépensées ===
-              Fond dégradé coral du thème, padding généreux pour ne
-              pas tronquer le cercle. */}
-          <section className="bg-gradient-to-b from-coral via-coral/90 to-coral/50 px-6 pt-12 pb-16 text-white">
-            <div className="flex flex-wrap items-center justify-center gap-6">
+              Fond dégradé coral, paddings horizontaux + verticaux
+              généreux pour que le cercle ne touche jamais les bords. */}
+          <section className="bg-gradient-to-b from-coral via-coral/90 to-coral/50 px-4 pt-6 pb-8 text-white">
+            <div className="flex items-center justify-center gap-3">
               <CircularProgress
                 value={Math.max(0, net)}
                 max={target}
-                size="14rem"
-                strokeWidth="1rem"
+                size="9.5rem"
+                strokeWidth="0.8rem"
                 trackClassName="stroke-white/25"
                 arcClassName={overshoot > 0 ? 'stroke-rose-200' : 'stroke-white'}
               >
-                <span className="text-[0.75rem] font-semibold uppercase tracking-widest text-white/90">
+                <span className="text-[0.65rem] font-semibold uppercase tracking-widest text-white/90">
                   Restant
                 </span>
-                <span className="font-bold leading-none" style={{ fontSize: '3rem' }}>
+                <span className="font-bold leading-none" style={{ fontSize: '2.1rem' }}>
                   {Math.round(Math.max(0, remaining))}
                 </span>
-                <span className="text-[0.8rem] text-white/90">
-                  Objectif {target} kcal
+                <span className="text-[0.65rem] text-white/90">
+                  / {target} kcal
                 </span>
               </CircularProgress>
 
-              {/* Card Dépensées simplifiée : label "Dépensées" en haut,
-                  valeur "N kcal" éditable au clic, plus de "Consommé". */}
-              <div className="flex flex-col items-stretch gap-2 rounded-2xl bg-white/95 p-4 text-emerald-900 shadow-lg ring-1 ring-emerald-200/60">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                  Dépensées
-                </span>
+              {/* Card Dépensées côte à côte avec le cercle, compacte.
+                  KcalBurnedEditor gère son propre label "Dépensées" —
+                  on ne le double pas ici. */}
+              <div className="flex shrink-0 flex-col items-stretch rounded-2xl bg-white p-3 text-emerald-900 shadow-xl ring-2 ring-white/40">
                 <KcalBurnedEditor
                   value={metrics?.kcalBurned ?? 0}
                   onSaved={(n) => {
@@ -630,7 +628,7 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
               Tuiles décalées vers le haut pour entrer dans la fin du
               hero, donnent l'illusion d'une carte qui flotte sur le
               gradient coral. */}
-          <section className="bg-gradient-to-b from-emerald-50/60 via-emerald-50/30 to-white px-4 pb-4 -mt-8">
+          <section className="bg-gradient-to-b from-emerald-50/60 via-emerald-50/30 to-white px-4 pb-3 -mt-4">
             <MacrosTiles
               consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
               target={day?.target ?? null}
@@ -639,11 +637,11 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
 
           {/* === TUILES REPAS en grid 2x2 (style Apple) ===
               Click sur tuile = drill-down vers Panel 2 (meal detail). */}
-          <section className="bg-gradient-to-b from-cream/20 to-white px-4 py-4">
-            <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-coral-dark">
+          <section className="bg-gradient-to-b from-cream/20 to-white px-4 pt-2 pb-3">
+            <h3 className="mb-2 text-sm font-bold uppercase tracking-wider text-coral-dark">
               Repas du jour
             </h3>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {MEAL_ORDER.map((cat) => {
                 const entries = entriesByCat[cat];
                 return (
@@ -1257,7 +1255,7 @@ function MacrosTiles({
     },
   ];
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-3 gap-1.5">
       {items.map((it) => {
         const pct =
           it.target && it.target > 0
@@ -1266,20 +1264,20 @@ function MacrosTiles({
         return (
           <div
             key={it.label}
-            className="rounded-2xl bg-gradient-to-b from-white to-emerald-50/60 px-3.5 py-3 shadow-md ring-1 ring-emerald-100"
+            className="rounded-2xl bg-gradient-to-b from-white to-emerald-50/60 px-4 py-4 shadow-md ring-1 ring-emerald-100"
           >
             <p
-              className={`text-[0.7rem] font-bold uppercase tracking-wider ${it.labelColor}`}
+              className={`text-xs font-bold uppercase tracking-wider ${it.labelColor}`}
             >
               {it.label}
             </p>
-            <p className={`mt-1 text-xl font-extrabold ${it.accent}`}>
+            <p className={`mt-1.5 text-2xl font-extrabold ${it.accent}`}>
               {Math.round(it.consumed)}
-              <span className="text-sm font-semibold text-ink-soft">
+              <span className="text-base font-semibold text-ink-soft">
                 {it.target !== null ? `/${Math.round(it.target)}` : ''}g
               </span>
             </p>
-            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-soft/15">
+            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-ink-soft/15">
               <div
                 className={`h-full ${it.barClass} transition-[width] duration-500`}
                 style={{ width: `${pct}%` }}
@@ -1343,18 +1341,13 @@ function MealTileApple({
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-start gap-2 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+      className="flex flex-col items-start gap-2.5 rounded-2xl bg-white p-5 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
     >
-      <span
-        className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full text-white shadow-sm"
-        style={{ backgroundColor: MEAL_BG_COLOR[category] }}
-      >
-        <MealIcon category={category} imageClassName="size-10" lucideClassName="size-5" />
-      </span>
-      <span className="text-sm font-bold text-ink">
+      <MealCategoryAvatar category={category} wrapperSize="size-12" lucideSize="size-6" />
+      <span className="text-lg font-bold text-ink">
         {MEAL_LABELS[category]}
       </span>
-      <span className="text-xs text-ink-soft">
+      <span className="text-sm font-medium text-ink-soft">
         {count === 0
           ? 'Aucun plat'
           : `${Math.round(totalKcal)} kcal · ${count} ${
@@ -1412,10 +1405,9 @@ function MealTile({
       {/* Bandeau header de la tuile */}
       <div className="flex items-center gap-3 px-4 py-3">
         <span
-          className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-full text-white shadow-sm"
-          style={{ backgroundColor: MEAL_BG_COLOR[category] }}
+          className="grid size-11 shrink-0 place-items-center"
         >
-          <MealIcon category={category} imageClassName="size-11" lucideClassName="size-5" />
+          <MealCategoryAvatar category={category} wrapperSize="size-11" lucideSize="size-5" />
         </span>
         <div className="flex min-w-0 flex-1 flex-col items-start text-left">
           <span className="text-base font-bold text-ink">

@@ -81,14 +81,15 @@ export function CalorieFAB() {
       </button>
 
       {/* FAB secondaire — sheet V2 (layout Apple Forme). Temporaire
-          pour permettre la comparaison. Position au-dessus du FAB
-          principal pour eviter le recouvrement. */}
+          pour permettre la comparaison. Positionné suffisamment au-
+          dessus du FAB calorie pour ne pas se chevaucher avec lui ni
+          avec le FAB eau qui est juste à côté. */}
       <button
         type="button"
         onClick={() => setOpen('v2')}
         aria-label="Compteur de calories — V2 (test layout)"
         title="Tester le nouveau layout (V2)"
-        className="fixed bottom-[8.5rem] right-2 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-violet-500 text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
+        className="fixed bottom-[10.5rem] right-2 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-violet-500 text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
       >
         <Sparkles className="size-5" />
         <span
