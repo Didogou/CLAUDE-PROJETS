@@ -3,6 +3,8 @@ import { Bell, HeartHandshake, Sparkles, User } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { MainDrawer } from './MainDrawer';
 import { IdeasFloatingButton } from '@/components/ideas/IdeasFloatingButton';
+import { TrackingPill } from '@/components/nutrition/TrackingPill';
+import { getAppSettings } from '@/lib/app-settings';
 import { getCurrentUser } from '@/lib/current-user';
 import { getMyUnreadCount } from '@/lib/notifications';
 
@@ -14,6 +16,16 @@ export async function AppHeader({
   const user = await getCurrentUser();
   const unreadCount =
     user.isAuthenticated && user.id ? await getMyUnreadCount(user.id) : 0;
+  // Pill "Mon suivi" : visible pour patient/subscriber/admin si
+  // le toggle global calorie est ON (ou admin bypass).
+  const allowedTracking =
+    user.effectiveRole === 'patient' ||
+    user.effectiveRole === 'subscriber' ||
+    user.effectiveRole === 'admin';
+  const isAdmin = user.effectiveRole === 'admin';
+  const settings = allowedTracking ? await getAppSettings() : null;
+  const showTracking =
+    allowedTracking && (isAdmin || settings?.calorieTrackerEnabled);
 
   return (
     <header className="sticky top-0 z-40 flex flex-col bg-transparent px-5 py-3 lg:py-5">
@@ -43,6 +55,7 @@ export async function AppHeader({
 
         {user.isAuthenticated ? (
           <>
+            {showTracking && <TrackingPill />}
             <Link
               href="/notifications"
               aria-label={
@@ -50,7 +63,7 @@ export async function AppHeader({
                   ? `Notifications (${unreadCount} non lues)`
                   : 'Notifications'
               }
-              className="relative grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink backdrop-blur transition hover:bg-white/80"
+              className="relative grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink ring-2 ring-coral-soft backdrop-blur transition hover:bg-white/80"
             >
               <Bell className="h-6 w-6" strokeWidth={2} />
               {unreadCount > 0 && (
@@ -64,7 +77,7 @@ export async function AppHeader({
             <Link
               href="/profil"
               aria-label="Mon profil"
-              className="grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink backdrop-blur transition hover:bg-white/80"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink ring-2 ring-coral-soft backdrop-blur transition hover:bg-white/80"
             >
               <User className="h-5 w-5" strokeWidth={2} />
             </Link>
@@ -86,11 +99,11 @@ export async function AppHeader({
         </div>
       </div>
 
-      {/* Ligne 2 : bouton "Une idée ?" centré. Visible uniquement pour
-          les utilisatrices authentifiees (la soumission requiert un compte
-          pour pouvoir leur notifier la reponse de Karine). */}
+      {/* Ligne 2 : bouton "Une idée ?" aligné à gauche. Le suivi
+          nutrition est accessible via le petit bouton 🔥 à gauche
+          du Bell ci-dessus, plus discret. */}
       {user.isAuthenticated && (
-        <div className="mt-2 flex justify-center">
+        <div className="mt-2 flex justify-start">
           <IdeasFloatingButton />
         </div>
       )}

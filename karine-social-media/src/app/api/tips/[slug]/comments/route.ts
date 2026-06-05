@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { moderatePhoto } from '@/lib/moderation';
+import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 
 const BUCKET = 'content-images';
 const MAX_PHOTOS = 2;
@@ -11,11 +12,16 @@ async function uploadPhoto(
   index: number,
   file: File,
 ): Promise<string> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-  const path = `comments/${commentId}/photo-${index}.${ext}`;
+  // Compression OBLIGATOIRE avant upload (regle Karine, cf. memoire
+  // feedback-always-compress-images). WebP 1920px max q85.
+  const optimized = await optimizeUploadToWebp(file);
+  const path = `comments/${commentId}/photo-${index}.${optimized.ext}`;
   const { error } = await supabase.storage
     .from(BUCKET)
-    .upload(path, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+    .upload(path, optimized.buffer, {
+      upsert: true,
+      contentType: optimized.contentType,
+    });
   if (error) throw error;
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
 }

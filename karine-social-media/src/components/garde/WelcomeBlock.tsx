@@ -2,13 +2,19 @@ import { Heart } from 'lucide-react';
 
 export function WelcomeBlock() {
   return (
-    <div className="px-5 pb-3 pt-1 lg:absolute lg:inset-y-0 lg:left-28 lg:flex lg:flex-col lg:justify-center lg:p-0">
-      <div className="flex items-end gap-3">
-        <h1 className="text-3xl font-extrabold text-ink lg:text-4xl">Bienvenue,</h1>
-        <Heart className="mb-1 h-6 w-6 text-coral" strokeWidth={2} />
-      </div>
-      <p className="mt-1 font-script text-3xl leading-tight text-coral lg:text-4xl">
-        prenons soin de vous !
+    <div className="px-5 pb-3 pt-1 text-center lg:absolute lg:inset-y-0 lg:left-28 lg:flex lg:flex-col lg:justify-center lg:p-0 lg:text-left">
+      <p className="flex items-end justify-center gap-2 whitespace-nowrap font-script leading-tight text-coral lg:justify-start lg:gap-3">
+        {/* `clamp` garantit que la phrase tient toujours sur 1 ligne
+            même sur les très petits écrans : la taille s'ajuste entre
+            1.8rem (mobile étroit) et 4rem (desktop). */}
+        <span style={{ fontSize: 'clamp(1.8rem, 9vw, 4rem)' }}>
+          Prenons soin de vous
+        </span>
+        <Heart
+          className="mb-2 text-coral lg:mb-3"
+          style={{ width: 'clamp(1.1rem, 5vw, 1.75rem)', height: 'clamp(1.1rem, 5vw, 1.75rem)' }}
+          strokeWidth={2}
+        />
       </p>
     </div>
   );

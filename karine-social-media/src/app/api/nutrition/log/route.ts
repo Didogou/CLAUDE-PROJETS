@@ -48,9 +48,24 @@ export async function POST(request: NextRequest) {
     ? body.mealCategory
     : null;
 
+  // Photo URL optionnelle : si fournie, on l'attache UNIQUEMENT à
+  // la 1ère entry insérée. Au retour, le front retrouvera la photo
+  // sur cette entry et la rendra en mini-vignette dans "Déjà ajouté".
+  const photoUrl: string | null =
+    typeof body?.photoUrl === 'string' && body.photoUrl.trim()
+      ? body.photoUrl.trim()
+      : null;
+
   const now = new Date().toISOString();
   const rows = entries
-    .map((e) => sanitizeEntry({ ...e, mealCategory: e.mealCategory ?? bodyMeal }, user.id, now))
+    .map((e, idx) =>
+      sanitizeEntry(
+        { ...e, mealCategory: e.mealCategory ?? bodyMeal },
+        user.id,
+        now,
+        idx === 0 ? photoUrl : null,
+      ),
+    )
     .filter(Boolean);
   if (rows.length === 0) {
     return NextResponse.json({ error: 'Aucune entrée valide' }, { status: 400 });
@@ -70,6 +85,7 @@ function sanitizeEntry(
   e: IncomingEntry,
   userId: string,
   now: string,
+  photoUrl: string | null,
 ): Record<string, unknown> | null {
   if (!e || typeof e.label !== 'string' || !e.label.trim()) return null;
   if (typeof e.kcal !== 'number' || !Number.isFinite(e.kcal) || e.kcal < 0) return null;
@@ -94,5 +110,6 @@ function sanitizeEntry(
     meal_category: MEAL_CATEGORIES.includes(e.mealCategory as MealCategory)
       ? e.mealCategory
       : null,
+    photo_url: photoUrl,
   };
 }

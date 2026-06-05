@@ -1,9 +1,22 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import sharp from 'sharp';
 import { createClient } from '@/lib/supabase/server';
 import { describeMealFromImage } from '@/lib/claude-meal-vision';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
+
+// Compression des photos repas :
+//  - resize à 1280px max sur le plus grand côté (largement suffisant
+//    pour Claude Vision + vignette + lightbox)
+//  - JPEG quality 80 (bon compromis qualité/taille)
+//  - cible 100-300 KB par photo au lieu de 2-5 MB brut
+//
+// Conséquence : Vision reçoit aussi la version compressée (gain en
+// bande passante + temps de transit + coût API Claude qui facture
+// au token image ~= proportionnel à la résolution).
+const COMPRESS_MAX_SIDE = 1280;
+const COMPRESS_JPEG_QUALITY = 80;
 
 /**
  * POST /api/nutrition/describe-meal
@@ -66,16 +79,53 @@ export async function POST(request: NextRequest) {
       ? mimeType
       : 'image/jpeg';
 
-  let description: string | null;
+  const arrayBuffer = await photo.arrayBuffer();
+  const rawBuffer = Buffer.from(arrayBuffer);
+
+  // Compression : resize + JPEG qualité 80 (1 seule fois, réutilisée
+  // pour Vision ET Storage). Si la compression plante (format
+  // inconnu, image corrompue), on retombe sur le buffer brut.
+  let compressedBuffer: Buffer;
+  let compressedMimeType: 'image/jpeg' = 'image/jpeg';
   try {
-    const arrayBuffer = await photo.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    description = await describeMealFromImage(buffer, mediaType);
+    compressedBuffer = await sharp(rawBuffer)
+      .rotate() // applique l'EXIF orientation (photos téléphone)
+      .resize(COMPRESS_MAX_SIDE, COMPRESS_MAX_SIDE, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      .jpeg({ quality: COMPRESS_JPEG_QUALITY, mozjpeg: true })
+      .toBuffer();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Vision indisponible';
-    return NextResponse.json({ error: msg }, { status: 502 });
+    console.warn('[describe-meal] sharp compress failed, using raw:', e);
+    compressedBuffer = rawBuffer;
   }
 
+  // En parallèle : décrire via Vision + uploader en Storage pour
+  // l'afficher en vignette côté front. Les 2 utilisent le buffer
+  // compressé (cohérent + économe).
+  const photoPath = `${user.id}/${Date.now()}.jpg`;
+  const [descriptionResult, uploadResult] = await Promise.allSettled([
+    describeMealFromImage(
+      compressedBuffer,
+      compressedBuffer === rawBuffer ? mediaType : compressedMimeType,
+    ),
+    (supabase as any).storage
+      .from('nutrition-meal-photos')
+      .upload(photoPath, compressedBuffer, {
+        contentType: compressedBuffer === rawBuffer ? mediaType : compressedMimeType,
+        upsert: false,
+      }),
+  ]);
+
+  if (descriptionResult.status === 'rejected') {
+    const msg =
+      descriptionResult.reason instanceof Error
+        ? descriptionResult.reason.message
+        : 'Vision indisponible';
+    return NextResponse.json({ error: msg }, { status: 502 });
+  }
+  const description: string | null = descriptionResult.value;
   if (!description) {
     return NextResponse.json(
       {
@@ -85,5 +135,21 @@ export async function POST(request: NextRequest) {
       { status: 422 },
     );
   }
-  return NextResponse.json({ description });
+
+  // URL publique si l'upload a réussi (sinon on retourne juste la
+  // description, la photo n'apparaîtra pas en vignette).
+  let photoUrl: string | null = null;
+  if (
+    uploadResult.status === 'fulfilled' &&
+    !uploadResult.value.error
+  ) {
+    const { data } = (supabase as any).storage
+      .from('nutrition-meal-photos')
+      .getPublicUrl(photoPath);
+    photoUrl = data?.publicUrl ?? null;
+  } else if (uploadResult.status === 'rejected') {
+    console.warn('[describe-meal] upload failed:', uploadResult.reason);
+  }
+
+  return NextResponse.json({ description, photoUrl });
 }

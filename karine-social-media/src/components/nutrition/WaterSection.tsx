@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, Plus, X } from 'lucide-react';
+import { ChevronDown, Minus, Plus, X } from 'lucide-react';
 import { CircularProgress } from '@/components/ui/CircularProgress';
 
 type WaterState = {
@@ -180,15 +180,15 @@ export function WaterSection() {
           </CircularProgress>
         </button>
 
-        {/* Verre cliquable (colonne droite) */}
-        <button
-          type="button"
-          onClick={() => addGlass(filled)}
-          disabled={busy || glassAnimation === 'full'}
-          aria-label="Boire un verre"
-          className="relative flex flex-col items-center gap-1 justify-self-center transition active:scale-95"
-        >
-          <span className="relative grid size-24 place-items-center">
+        {/* Verre + paire de boutons − / + juste en dessous */}
+        <div className="flex flex-col items-center justify-self-center">
+          <button
+            type="button"
+            onClick={() => addGlass(filled)}
+            disabled={busy || glassAnimation === 'full'}
+            aria-label="Boire un verre"
+            className="relative grid size-24 place-items-center transition active:scale-95"
+          >
             <img
               src={
                 glassAnimation === 'full'
@@ -214,15 +214,29 @@ export function WaterSection() {
                 ))}
               </span>
             )}
-          </span>
-          {/* Le + sous le verre */}
-          <span
-            aria-hidden
-            className="grid size-7 place-items-center rounded-full bg-blue-500 text-white shadow-md ring-2 ring-white"
-          >
-            <Plus className="size-4" />
-          </span>
-        </button>
+          </button>
+          {/* Paire − / + JUSTE sous le verre (margin réduite). */}
+          <div className="-mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCount(Math.max(0, filled - 1))}
+              disabled={busy || filled === 0}
+              aria-label="Retirer un verre"
+              className="grid size-7 place-items-center rounded-full bg-white text-blue-500 shadow-md ring-2 ring-blue-500 transition hover:scale-105 active:scale-95 disabled:opacity-40"
+            >
+              <Minus className="size-4" strokeWidth={3} />
+            </button>
+            <button
+              type="button"
+              onClick={() => addGlass(filled)}
+              disabled={busy || glassAnimation === 'full'}
+              aria-label="Ajouter un verre"
+              className="grid size-7 place-items-center rounded-full bg-blue-500 text-white shadow-md ring-2 ring-white transition hover:scale-105 active:scale-95 disabled:opacity-50"
+            >
+              <Plus className="size-4" strokeWidth={3} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Picker iOS-style pour l'objectif (en mL) */}

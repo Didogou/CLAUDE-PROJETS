@@ -120,15 +120,12 @@ export function IdeasFloatingButton() {
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Soumettre une idée à Karine"
-        className="group mx-auto flex items-center gap-2 rounded-full bg-white py-1.5 pl-1.5 pr-4 shadow-md ring-2 ring-coral-soft/60 transition hover:scale-105 active:scale-95"
+        className="group flex items-center gap-1.5 rounded-full bg-white py-1 pl-1 pr-3 shadow-md ring-2 ring-coral-soft/60 transition hover:scale-105 active:scale-95"
       >
-        {/* Icone lucide (Lightbulb) dans un cercle blanc — l ampoule
-            est jaune ambree pour evoquer une lumiere allumee
-            (preference Didier 2026-06-04). */}
-        <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-amber-400 shadow-sm ring-1 ring-coral-soft/40">
-          <Lightbulb className="h-5 w-5 fill-amber-400" strokeWidth={2.2} />
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-amber-400 shadow-sm ring-1 ring-coral-soft/40">
+          <Lightbulb className="h-3.5 w-3.5 fill-amber-400" strokeWidth={2.2} />
         </span>
-        <span className="font-script text-xl text-coral-dark sm:text-2xl">
+        <span className="font-script text-base text-coral-dark sm:text-lg">
           Une idée&nbsp;?
         </span>
       </button>
@@ -137,13 +134,13 @@ export function IdeasFloatingButton() {
         open &&
         createPortal(
           <div
-            className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-4 pt-12 backdrop-blur-sm sm:items-center sm:p-6"
+            className="anim-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-4 pt-12 backdrop-blur-sm sm:items-center sm:p-6"
             // Sticky : pas de onClick sur le backdrop
             role="dialog"
             aria-modal="true"
             aria-labelledby="ideas-title"
           >
-            <div className="relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+            <div className="anim-slide-up relative flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
               <div className="flex items-center justify-between border-b border-coral-soft/30 px-5 py-3">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-coral" />

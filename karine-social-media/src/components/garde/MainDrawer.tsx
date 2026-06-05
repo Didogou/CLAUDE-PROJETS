@@ -16,6 +16,7 @@ import {
   Shield,
   LogIn,
   LogOut,
+  Flame,
 } from 'lucide-react';
 import { RecentViewsList } from './RecentViewsList';
 
@@ -24,10 +25,11 @@ type Section = { href: string; label: string; icon: typeof Home };
 const SECTIONS: Section[] = [
   { href: '/', label: 'Accueil', icon: Home },
   { href: '/recettes', label: 'Recettes', icon: UtensilsCrossed },
-  { href: '/menus', label: 'Mes menus', icon: NotebookText },
+  { href: '/menus', label: 'Les menus de la semaine', icon: NotebookText },
   { href: '/conseils', label: 'Conseils', icon: Leaf },
   { href: '/astuces', label: 'Astuces', icon: Sparkles },
   { href: '/favoris', label: 'Mes favoris', icon: Heart },
+  { href: '/mes-repas', label: 'Mes repas', icon: Flame },
   { href: '/profil', label: 'Profil', icon: User },
 ];
 
@@ -58,16 +60,27 @@ export function MainDrawer({
     };
   }, [open]);
 
-  const drawer = open ? (
+  // Toujours rendu dans le DOM pour pouvoir animer la fermeture.
+  // - Backdrop : transition opacity
+  // - Drawer : transition translate-x (slide from left)
+  // pointer-events-none quand fermé pour ne pas bloquer les clics sous.
+  const drawer = (
     <div
-      className="fixed inset-0 z-[100] flex bg-black/40"
+      className={`fixed inset-0 z-[100] flex transition-[background-color] duration-300 ease-out ${
+        open
+          ? 'pointer-events-auto bg-black/40'
+          : 'pointer-events-none bg-transparent'
+      }`}
       onClick={() => setOpen(false)}
       role="dialog"
       aria-modal="true"
       aria-label="Menu principal"
+      aria-hidden={!open}
     >
       <nav
-        className="flex h-full w-72 max-w-[85vw] flex-col bg-blush p-4 shadow-xl"
+        className={`flex h-full w-72 max-w-[85vw] flex-col bg-blush p-4 shadow-xl transition-transform duration-300 ease-out ${
+          open ? 'translate-x-0' : '-translate-x-full'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-3 flex shrink-0 items-center justify-between">
@@ -148,7 +161,7 @@ export function MainDrawer({
         </div>
       </nav>
     </div>
-  ) : null;
+  );
 
   return (
     <>
@@ -161,7 +174,7 @@ export function MainDrawer({
         <Menu className="h-6 w-6" strokeWidth={2} />
       </button>
 
-      {mounted && drawer ? createPortal(drawer, document.body) : null}
+      {mounted ? createPortal(drawer, document.body) : null}
     </>
   );
 }

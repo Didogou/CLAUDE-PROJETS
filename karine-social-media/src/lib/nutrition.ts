@@ -26,6 +26,10 @@ export type FoodLogEntry = {
    *  meal_category — le front déduit alors la catégorie depuis
    *  loggedAt. */
   mealCategory: MealCategory | null;
+  /** URL de la photo Supabase Storage. Seule la 1ère entry d'un
+   *  batch créé depuis une photo l'a (les suivantes du même batch
+   *  sont null pour éviter le doublon de vignette). */
+  photoUrl: string | null;
 };
 
 export type NutritionDayState = {
@@ -105,7 +109,7 @@ export async function getNutritionDayState(userId: string): Promise<NutritionDay
 
   const { data, error } = await (supabase as any)
     .from('food_log_entries')
-    .select('id, logged_at, source, source_ref_id, label, kcal, proteins_g, lipids_g, carbs_g, portions, meal_category')
+    .select('id, logged_at, source, source_ref_id, label, kcal, proteins_g, lipids_g, carbs_g, portions, meal_category, photo_url')
     .eq('user_id', userId)
     .gte('logged_at', start)
     .lt('logged_at', end)
@@ -124,6 +128,7 @@ export async function getNutritionDayState(userId: string): Promise<NutritionDay
     carbsG: r.carbs_g === null ? null : Number(r.carbs_g),
     portions: Number(r.portions),
     mealCategory: (r.meal_category as MealCategory | null) ?? null,
+    photoUrl: (r.photo_url as string | null) ?? null,
   }));
 
   const totals = entries.reduce(

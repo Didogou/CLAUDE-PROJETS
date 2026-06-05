@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 
 const BUCKET = 'content-images';
 
@@ -44,8 +45,13 @@ export async function PUT(
 
     const supabase = createServiceClient();
 
+    // Compression OBLIGATOIRE avant upload (regle Karine, cf. memoire
+    // feedback-always-compress-images). WebP 1920px max q85 → gain
+    // ~80-95% sur le poids vs JPEG brut, qualité visuelle équivalente.
+    const optimized = await optimizeUploadToWebp(file);
+
     // Construire le nom de fichier et la cible
-    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+    const ext = optimized.ext;
     let storagePath = '';
     let column = '';
     let table = '';
@@ -96,10 +102,13 @@ export async function PUT(
       ];
     }
 
-    // Upload Storage
+    // Upload Storage (buffer compressé en WebP)
     const { error: upErr } = await supabase.storage
       .from(BUCKET)
-      .upload(storagePath, file, { upsert: true, contentType: file.type || 'image/jpeg' });
+      .upload(storagePath, optimized.buffer, {
+        upsert: true,
+        contentType: optimized.contentType,
+      });
     if (upErr) throw upErr;
     const url = supabase.storage.from(BUCKET).getPublicUrl(storagePath).data.publicUrl;
 

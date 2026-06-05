@@ -133,3 +133,37 @@ body {
 *::-webkit-scrollbar-thumb:hover {
   background: var(--color-coral);
 }
+
+/* ===========================================================
+   ANIMATIONS GLOBALES — toutes les modales / sheets utilisent
+   ces 3 patterns pour une UX douce et cohérente.
+   ===========================================================
+   - .anim-fade-in        : fade-in du backdrop (200ms)
+   - .anim-slide-up       : slide depuis le bas + fade (300ms ease-out)
+   - .anim-scale-in       : scale + fade (250ms ease-out) pour modales centrées
+   - .anim-fade-quick     : fade rapide (150ms) pour lightbox image */
+@keyframes karine-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes karine-slide-up {
+  from { opacity: 0; transform: translateY(2rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes karine-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.anim-fade-in    { animation: karine-fade-in 200ms ease-out both; }
+.anim-fade-quick { animation: karine-fade-in 150ms ease-out both; }
+.anim-slide-up   { animation: karine-slide-up 300ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-scale-in   { animation: karine-scale-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-in,
+  .anim-fade-quick,
+  .anim-slide-up,
+  .anim-scale-in {
+    animation: none !important;
+  }
+}
