@@ -49,7 +49,7 @@ export function CircularProgress({
     >
       <svg
         viewBox="0 0 100 100"
-        className="absolute inset-0 h-full w-full -rotate-90"
+        className="absolute inset-0 h-full w-full -rotate-90 overflow-visible"
         aria-hidden
       >
         <circle

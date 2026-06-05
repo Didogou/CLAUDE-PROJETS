@@ -15,6 +15,7 @@ type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 const MEAL_IMAGE: Partial<Record<MealCategory, string>> = {
   breakfast: '/icons/meals/breakfast.png',
   lunch: '/icons/meals/lunch.png',
+  snack: '/icons/meals/snack.png',
   dinner: '/icons/meals/dinner.png',
 };
 

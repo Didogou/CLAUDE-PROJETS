@@ -582,23 +582,23 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
           {/* === HERO : cercle + kcal dépensées ===
               Fond dégradé coral, paddings horizontaux + verticaux
               généreux pour que le cercle ne touche jamais les bords. */}
-          <section className="bg-gradient-to-b from-coral via-coral/90 to-coral/50 px-4 pt-6 pb-8 text-white">
-            <div className="flex items-center justify-center gap-3">
+          <section className="bg-gradient-to-b from-coral via-coral/90 to-coral/50 px-4 pt-10 pb-12 text-white">
+            <div className="flex items-center justify-center gap-4">
               <CircularProgress
                 value={Math.max(0, net)}
                 max={target}
-                size="9.5rem"
-                strokeWidth="0.8rem"
+                size="12rem"
+                strokeWidth="0.9rem"
                 trackClassName="stroke-white/25"
                 arcClassName={overshoot > 0 ? 'stroke-rose-200' : 'stroke-white'}
               >
-                <span className="text-[0.65rem] font-semibold uppercase tracking-widest text-white/90">
+                <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-white/90">
                   Restant
                 </span>
-                <span className="font-bold leading-none" style={{ fontSize: '2.1rem' }}>
+                <span className="font-bold leading-none" style={{ fontSize: '2.5rem' }}>
                   {Math.round(Math.max(0, remaining))}
                 </span>
-                <span className="text-[0.65rem] text-white/90">
+                <span className="text-[0.7rem] text-white/90">
                   / {target} kcal
                 </span>
               </CircularProgress>
@@ -1341,9 +1341,9 @@ function MealTileApple({
     <button
       type="button"
       onClick={onClick}
-      className="relative flex min-h-[7rem] flex-col items-start justify-end gap-1 overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+      className="relative flex min-h-[7.5rem] flex-col items-start justify-end gap-1 overflow-hidden rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
     >
-      {/* Icône en haut à droite, grande pour effet "vignette" Apple. */}
+      {/* Icône en haut à droite, grande, transparente sans fond. */}
       <span className="absolute right-2 top-2">
         <MealCategoryAvatar
           category={category}
@@ -1351,15 +1351,22 @@ function MealTileApple({
           lucideSize="size-8"
         />
       </span>
-      <span className="mt-auto text-lg font-bold text-ink">
+      <span className="mt-auto pr-12 text-lg font-bold text-ink">
         {MEAL_LABELS[category]}
       </span>
-      <span className="text-sm font-medium text-ink-soft">
+      <span className="pr-12 text-sm font-medium text-ink-soft">
         {count === 0
           ? 'Aucun plat'
           : `${Math.round(totalKcal)} kcal · ${count} ${
               count > 1 ? 'plats' : 'plat'
             }`}
+      </span>
+      {/* + en bas à droite — affordance "ajouter" toujours visible */}
+      <span
+        aria-hidden
+        className="absolute bottom-2 right-2 grid size-9 place-items-center rounded-full bg-coral text-white shadow"
+      >
+        <Plus className="size-4" />
       </span>
     </button>
   );
