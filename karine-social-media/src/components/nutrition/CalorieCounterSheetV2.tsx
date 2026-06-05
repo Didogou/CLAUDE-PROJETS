@@ -1381,13 +1381,24 @@ function MealTileApple({
               count > 1 ? 'plats' : 'plat'
             }`}
       </span>
-      {/* Barre de progression par repas (objectif = % du daily target). */}
-      <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-ink-soft/15">
+      {/* Barre de progression par repas (objectif = % du daily target).
+          Gradient vert pâle → jaune → coral → rose qui se révèle au
+          fur et à mesure du remplissage. Le backgroundSize en %
+          inverse de pct fait que le gradient garde sa position
+          absolue dans la barre : à 30% rempli on voit la partie
+          verte, à 100% le rose. */}
+      <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-ink-soft/15">
         <div
-          className={`h-full transition-[width] duration-500 ${
-            overshoot ? 'bg-rose-500' : 'bg-coral'
-          }`}
-          style={{ width: `${pct}%` }}
+          className="h-full transition-[width] duration-500"
+          style={{
+            width: `${pct}%`,
+            background: overshoot
+              ? '#e11d48'
+              : 'linear-gradient(to right, #86efac 0%, #fde68a 40%, #f9a8d4 75%, #ec4899 100%)',
+            backgroundSize: pct > 0 ? `${10000 / pct}% 100%` : '100% 100%',
+            backgroundPosition: 'left center',
+            backgroundRepeat: 'no-repeat',
+          }}
         />
       </div>
       {/* + en bas à droite — affordance "ajouter" toujours visible */}
