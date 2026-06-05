@@ -189,6 +189,14 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
   // bloc saisie + photo + preview s'affiche sous cette tuile.
   const [activeMealCategory, setActiveMealCategory] =
     useState<MealCategory | null>(null);
+  // Garde la dernière catégorie ouverte même quand on referme, pour
+  // que le contenu du panel détail reste rendu pendant l'animation de
+  // slide (sinon il "tremble" en disparaissant brusquement). Le panel
+  // est masqué par translate-x-full, pas par démontage du DOM.
+  const lastMealCategoryRef = useRef<MealCategory | null>(null);
+  if (activeMealCategory) lastMealCategoryRef.current = activeMealCategory;
+  const renderedMealCategory =
+    activeMealCategory ?? lastMealCategoryRef.current;
   /**
    * Sélection d'accompagnements par bloc-item.
    * Map<itemIndex, Set<accompanimentIndex>>.
@@ -522,23 +530,23 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
     >
       <div className="flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:rounded-3xl">
         {/* === Header transparent sur fond hero === */}
-        <header className="flex shrink-0 items-center justify-between gap-2 bg-coral/95 px-4 py-3 text-white">
-          <div className="flex items-center gap-2">
-            <Flame className="size-5" />
-            <h2 className="font-script text-2xl">Mes calories</h2>
+        <header className="flex shrink-0 items-center justify-between gap-2 bg-coral/95 px-4 py-4 text-white">
+          <div className="flex items-center gap-2.5">
+            <Flame className="size-6" />
+            <h2 className="font-script text-3xl">Mes calories</h2>
           </div>
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setMyInfoOpen(true)}
-              className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
                 day?.profileComplete
                   ? 'bg-white/90 text-coral-dark hover:bg-white'
                   : 'bg-coral-soft/40 text-white hover:bg-coral-soft/60'
               }`}
             >
               {day?.profileComplete && (
-                <Check className="size-3" strokeWidth={3} />
+                <Check className="size-4" strokeWidth={3} />
               )}
               Mes infos
             </button>
@@ -603,10 +611,10 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
                 </span>
               </CircularProgress>
 
-              {/* Card Dépensées côte à côte avec le cercle, compacte.
-                  KcalBurnedEditor gère son propre label "Dépensées" —
-                  on ne le double pas ici. */}
-              <div className="flex shrink-0 flex-col items-stretch rounded-2xl bg-white p-3 text-emerald-900 shadow-xl ring-2 ring-white/40">
+              {/* Card Dépensées côte à côte avec le cercle. Plus
+                  grande en hauteur et polices plus visibles. Plus
+                  d info "Consommé" (le cercle l indique deja). */}
+              <div className="flex shrink-0 flex-col items-stretch justify-center rounded-2xl bg-white px-4 py-5 text-emerald-900 shadow-xl ring-2 ring-white/40" style={{ minHeight: '11rem' }}>
                 <KcalBurnedEditor
                   value={metrics?.kcalBurned ?? 0}
                   onSaved={(n) => {
@@ -617,18 +625,16 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
                     );
                   }}
                 />
-                <span className="border-t border-emerald-200/70 pt-1 text-[0.65rem] font-semibold uppercase tracking-wider text-emerald-800/80">
-                  Consommé&nbsp;: {Math.round(totals)} kcal
-                </span>
               </div>
             </div>
           </section>
 
-          {/* === MACROS : fond légèrement vert + grosses tuiles ===
-              Tuiles décalées vers le haut pour entrer dans la fin du
-              hero, donnent l'illusion d'une carte qui flotte sur le
-              gradient coral. */}
-          <section className="bg-gradient-to-b from-emerald-50/60 via-emerald-50/30 to-white px-4 pb-3 -mt-4">
+          {/* === MACROS : fond fondu depuis le coral vers blanc ===
+              Le gradient demarre en coral/30 pour faire la continuite
+              avec la section hero, puis fond en blanc. Les tuiles
+              sont decalees vers le haut pour mordre sur la fin du
+              hero (effet flottant). */}
+          <section className="bg-gradient-to-b from-coral/30 via-emerald-50/40 to-white px-4 pb-3 -mt-6">
             <MacrosTiles
               consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
               target={day?.target ?? null}
@@ -674,7 +680,7 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
             }`}
             aria-hidden={!activeMealCategory}
           >
-            {activeMealCategory && (
+            {renderedMealCategory && (
               <>
                 <div className="flex shrink-0 items-center gap-3 border-b border-coral-soft/30 bg-coral/95 px-4 py-3 text-white">
                   <button
@@ -691,7 +697,7 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
                     <ChevronLeftIcon />
                   </button>
                   <h2 className="font-script text-2xl">
-                    {MEAL_LABELS[activeMealCategory]}
+                    {MEAL_LABELS[renderedMealCategory]}
                   </h2>
                 </div>
 
@@ -705,13 +711,13 @@ export function CalorieCounterSheetV2({ onClose, onChanged }: Props) {
                   }}
                 >
                   {/* Entries déjà saisies pour cette catégorie */}
-                  {entriesByCat[activeMealCategory].length > 0 && (
+                  {entriesByCat[renderedMealCategory].length > 0 && (
                     <div className="rounded-2xl bg-white shadow-sm ring-1 ring-coral-soft/30">
                       <h4 className="border-b border-coral-soft/20 px-4 py-2 text-[0.7rem] font-bold uppercase tracking-wider text-coral-dark">
-                        Déjà ajouté ({Math.round(totalsForCat(activeMealCategory))} kcal)
+                        Déjà ajouté ({Math.round(totalsForCat(renderedMealCategory))} kcal)
                       </h4>
                       <ul className="space-y-1.5 px-4 py-2.5">
-                        {entriesByCat[activeMealCategory].map((e) => (
+                        {entriesByCat[renderedMealCategory].map((e) => (
                           <EntryRow
                             key={e.id}
                             entry={e}
@@ -1354,7 +1360,7 @@ function MealTileApple({
       <span className="mt-auto pr-12 text-lg font-bold text-ink">
         {MEAL_LABELS[category]}
       </span>
-      <span className="pr-12 text-sm font-medium text-ink-soft">
+      <span className="whitespace-nowrap pr-12 text-xs font-medium text-ink-soft">
         {count === 0
           ? 'Aucun plat'
           : `${Math.round(totalKcal)} kcal · ${count} ${
@@ -1824,54 +1830,57 @@ function KcalBurnedEditor({
       <button
         type="button"
         onClick={() => {
-          setDraft(String(value));
+          // Si value === 0, on prefere demarrer avec un draft vide
+          // pour ne pas avoir le "0" en prefixe quand on tape.
+          setDraft(value === 0 ? '' : String(value));
           setEditing(true);
         }}
-        className="flex flex-col items-end text-right"
+        className="flex flex-col items-center gap-1 text-center"
       >
-        <span className="text-[0.65rem] uppercase tracking-wider text-ink-soft">
+        <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
           Dépensées
         </span>
-        <span className="text-xl font-bold text-emerald-600">
-          {value > 0 ? `−${value}` : '+'}
-          <span className="ml-0.5 text-xs font-normal text-ink-soft">kcal</span>
+        <span className="text-3xl font-extrabold leading-none text-emerald-600">
+          {value > 0 ? `−${value}` : '0'}
         </span>
+        <span className="text-xs font-semibold text-ink-soft">kcal</span>
       </button>
     );
   }
 
   return (
-    <div className="flex items-end gap-1">
-      <div className="flex flex-col">
-        <span className="text-[0.65rem] uppercase tracking-wider text-ink-soft">
-          Dépensées
-        </span>
-        <input
-          type="number"
-          min={0}
-          max={10000}
-          step={10}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') save();
-            if (e.key === 'Escape') {
-              setEditing(false);
-              setDraft(String(value));
-            }
-          }}
-          autoFocus
-          className="w-16 rounded border border-emerald-300 px-1 py-0.5 text-right text-sm"
-        />
-      </div>
+    <div className="flex flex-col items-center gap-2 text-center">
+      <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+        Dépensées
+      </span>
+      <input
+        type="number"
+        min={0}
+        max={10000}
+        step={10}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') save();
+          if (e.key === 'Escape') {
+            setEditing(false);
+            setDraft(String(value));
+          }
+        }}
+        onFocus={(e) => e.currentTarget.select()}
+        autoFocus
+        placeholder="0"
+        className="w-24 rounded-lg border-2 border-emerald-300 px-2 py-1.5 text-center text-2xl font-extrabold text-emerald-600 outline-none focus:border-emerald-500"
+      />
       <button
         type="button"
         onClick={save}
         disabled={saving}
         aria-label="Enregistrer"
-        className="rounded-full bg-emerald-500 p-1 text-white disabled:opacity-50"
+        className="inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
       >
         <Check className="size-3" strokeWidth={3} />
+        OK
       </button>
     </div>
   );
