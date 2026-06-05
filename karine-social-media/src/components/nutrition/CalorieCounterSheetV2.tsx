@@ -1361,20 +1361,20 @@ function MealTileApple({
     <button
       type="button"
       onClick={onClick}
-      className="relative flex min-h-[8.5rem] flex-col items-start justify-end gap-1 overflow-hidden rounded-2xl bg-white p-4 pb-3 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+      className="relative flex min-h-[9.5rem] flex-col items-start justify-end gap-1 overflow-hidden rounded-2xl bg-white p-4 pb-3 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
     >
       {/* Icône en haut à droite, grande, transparente sans fond. */}
       <span className="absolute right-2 top-2">
         <MealCategoryAvatar
           category={category}
-          wrapperSize="size-16"
-          lucideSize="size-8"
+          wrapperSize="size-20"
+          lucideSize="size-10"
         />
       </span>
-      <span className="mt-auto pr-12 text-lg font-bold text-ink">
+      <span className="mt-auto text-lg font-bold text-ink">
         {MEAL_LABELS[category]}
       </span>
-      <span className="whitespace-nowrap pr-12 text-xs font-medium text-ink-soft">
+      <span className="whitespace-nowrap text-xs font-medium text-ink-soft">
         {count === 0
           ? `0 / ${mealTargetKcal} kcal`
           : `${Math.round(totalKcal)} / ${mealTargetKcal} kcal · ${count} ${
