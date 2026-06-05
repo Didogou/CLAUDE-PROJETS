@@ -32,6 +32,9 @@ export function WaterSection() {
   const [bursting, setBursting] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [targetDraft, setTargetDraft] = useState<number | null>(null);
+  // Ref pour auto-scroller la rangée de verres vers la droite.
+  // DÉCLARÉ AVANT tout early return pour respecter les Rules of Hooks.
+  const glassesScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     void refresh();
@@ -41,6 +44,17 @@ export function WaterSection() {
     window.addEventListener('water-log-updated', onChange);
     return () => window.removeEventListener('water-log-updated', onChange);
   }, []);
+
+  // Auto-scroll vers le verre vide à droite à chaque ajout. Déclaré
+  // ici (avant early return) pour ne jamais changer l'ordre des
+  // hooks entre renders.
+  const filledCount = state?.glassesCount ?? 0;
+  useEffect(() => {
+    const el = glassesScrollRef.current;
+    if (el) {
+      el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
+    }
+  }, [filledCount]);
 
   async function refresh() {
     try {
@@ -110,15 +124,6 @@ export function WaterSection() {
 
   // Affichage du target en cours (slider en live + save au release)
   const displayedTargetMl = targetDraft ?? targetMl;
-  // Auto-scroll vers le verre vide à droite à chaque nouveau remplissage
-  // pour que l'utilisatrice voie toujours le prochain à boire.
-  const glassesScrollRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = glassesScrollRef.current;
-    if (el) {
-      el.scrollTo({ left: el.scrollWidth, behavior: 'smooth' });
-    }
-  }, [filled]);
 
   return (
     <section className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-coral-soft/30">
