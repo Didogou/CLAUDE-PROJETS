@@ -21,7 +21,6 @@ import {
 import { MyInfoModal } from './MyInfoModal';
 import { LongPressSlider } from '@/components/ui/LongPressSlider';
 import { CircularProgress } from '@/components/ui/CircularProgress';
-import { showToast } from '@/lib/toast';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -421,12 +420,14 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
         // Déclenche la génération du conseil Karine en arrière-plan.
         // Pas de await : si Mistral met 2s, l'UI reste réactive et le
         // toast apparaît dès que la réponse arrive.
+        // Decision Karine 2026-06-05 : on retire l'affichage du
+        // conseil (toast supprime, bandeau supprime). On continue
+        // a l'enregistrer en BDD via karine-tip pour pouvoir le
+        // ressortir plus tard si besoin.
         fetch('/api/nutrition/karine-tip', { method: 'POST' })
           .then((r) => (r.ok ? r.json() : null))
           .then((data) => {
             if (data?.tip) {
-              // Affichage en toast (visible ~8s, le temps de lire).
-              showToast(data.tip, 'info', 8000);
               setMetrics((m) =>
                 m
                   ? { ...m, karineTip: data.tip, karineTipRecipe: data.recipe ?? null }
@@ -561,29 +562,35 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
             touchAction: 'pan-y',
           }}
         >
-          {/* === HERO : cercle restant + kcal dépensées === */}
-          <section className="bg-gradient-to-b from-coral via-coral/85 to-coral/40 px-4 pt-5 pb-7 text-white">
-            <div className="flex items-center justify-center gap-4">
+          {/* === HERO : cercle restant + kcal dépensées ===
+              Plus de padding vertical pour laisser respirer le cercle
+              (auparavant rogné par les sections suivantes). Dépensées
+              dans une carte vert pastel bien lisible. */}
+          <section className="bg-gradient-to-b from-coral via-coral/85 to-coral/45 px-5 pt-10 pb-14 text-white">
+            <div className="flex items-center justify-center gap-5">
               <CircularProgress
                 value={Math.max(0, net)}
                 max={target}
-                size="11rem"
-                strokeWidth="0.85rem"
+                size="13rem"
+                strokeWidth="0.95rem"
                 trackClassName="stroke-white/25"
                 arcClassName={overshoot > 0 ? 'stroke-rose-200' : 'stroke-white'}
               >
-                <span className="text-[0.65rem] font-semibold uppercase tracking-widest text-white/85">
+                <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-white/90">
                   Restant
                 </span>
-                <span className="font-bold leading-none" style={{ fontSize: '2.25rem' }}>
+                <span className="font-bold leading-none" style={{ fontSize: '2.75rem' }}>
                   {Math.round(Math.max(0, remaining))}
                 </span>
-                <span className="text-[0.7rem] text-white/85">
+                <span className="text-[0.75rem] text-white/90">
                   Objectif {target} kcal
                 </span>
               </CircularProgress>
 
-              <div className="flex flex-col items-center gap-1.5 rounded-2xl bg-white/15 p-3 backdrop-blur-sm">
+              <div className="flex flex-col items-stretch gap-1.5 rounded-2xl bg-emerald-50/95 p-3 text-emerald-900 shadow-md ring-1 ring-emerald-200/60">
+                <span className="text-[0.65rem] font-bold uppercase tracking-wider text-emerald-700">
+                  Dépensées
+                </span>
                 <KcalBurnedEditor
                   value={metrics?.kcalBurned ?? 0}
                   onSaved={(n) => {
@@ -594,15 +601,18 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
                     );
                   }}
                 />
-                <span className="text-[0.6rem] uppercase tracking-wider text-white/80">
-                  Consommé : {Math.round(totals)} kcal
+                <span className="border-t border-emerald-200/70 pt-1 text-[0.65rem] font-semibold uppercase tracking-wider text-emerald-800/80">
+                  Consommé&nbsp;: {Math.round(totals)} kcal
                 </span>
               </div>
             </div>
           </section>
 
-          {/* === MACROS : tuiles blanc cassé + barres colorées === */}
-          <section className="bg-gradient-to-b from-coral/40 via-coral-soft/30 to-cream/20 px-4 pb-3 -mt-3">
+          {/* === MACROS : fond légèrement vert + grosses tuiles ===
+              Tuiles décalées vers le haut pour entrer dans la fin du
+              hero, donnent l'illusion d'une carte qui flotte sur le
+              gradient coral. */}
+          <section className="bg-gradient-to-b from-emerald-50/60 via-emerald-50/30 to-white px-4 pb-4 -mt-8">
             <MacrosTiles
               consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
               target={day?.target ?? null}
@@ -758,41 +768,41 @@ export function CalorieCounterSheet({ onClose, onChanged }: Props) {
               ))}
             </ul>
                   )}
+
+                  {/* Boutons Annuler / Ajouter — DANS la tuile, juste
+                      sous le preview pour éviter au flux d'aller chercher
+                      le footer sticky. Apparaissent dès qu'il y a un
+                      preview à confirmer. */}
+                  {isActive && preview && preview.length > 0 && (
+                    <div className="mt-3 flex items-center gap-2 border-t border-coral-soft/20 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPreview(null);
+                          setAccSel(new Map());
+                        }}
+                        className="rounded-full border border-coral-soft px-4 py-2 text-sm font-semibold text-coral"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleConfirmPreview}
+                        disabled={logging}
+                        className="ml-auto inline-flex items-center gap-2 rounded-full bg-coral px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-50"
+                      >
+                        {logging ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : null}
+                        Ajouter
+                      </button>
+                    </div>
+                  )}
                 </MealTile>
               );
             })}
           </section>
         </div>
-
-        {/* Footer sticky : actions de validation. Visible uniquement
-            quand un preview est en cours. */}
-        {preview && preview.length > 0 && (
-          <footer className="shrink-0 border-t border-coral-soft/30 bg-white px-4 py-3 shadow-[0_-2px_8px_rgba(0,0,0,0.04)]">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setPreview(null);
-                  setAccSel(new Map());
-                }}
-                className="rounded-full border border-coral-soft px-4 py-2 text-sm font-semibold text-coral"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmPreview}
-                disabled={logging}
-                className="ml-auto inline-flex items-center gap-2 rounded-full bg-coral px-6 py-2 text-sm font-semibold text-white shadow disabled:opacity-50"
-              >
-                {logging ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : null}
-                Ajouter
-              </button>
-            </div>
-          </footer>
-        )}
       </div>
 
       <MyInfoModal
@@ -1171,7 +1181,7 @@ function MacrosTiles({
     },
   ];
   return (
-    <div className="grid grid-cols-3 gap-2">
+    <div className="grid grid-cols-3 gap-3">
       {items.map((it) => {
         const pct =
           it.target && it.target > 0
@@ -1180,20 +1190,20 @@ function MacrosTiles({
         return (
           <div
             key={it.label}
-            className="rounded-xl bg-[#fdfbf6] px-2.5 py-2 shadow-sm ring-1 ring-coral-soft/30"
+            className="rounded-2xl bg-gradient-to-b from-white to-emerald-50/60 px-3.5 py-3 shadow-md ring-1 ring-emerald-100"
           >
             <p
-              className={`text-[0.6rem] font-semibold uppercase tracking-wider ${it.labelColor}`}
+              className={`text-[0.7rem] font-bold uppercase tracking-wider ${it.labelColor}`}
             >
               {it.label}
             </p>
-            <p className={`mt-0.5 text-sm font-bold ${it.accent}`}>
+            <p className={`mt-1 text-xl font-extrabold ${it.accent}`}>
               {Math.round(it.consumed)}
-              <span className="text-xs font-normal text-ink-soft">
+              <span className="text-sm font-semibold text-ink-soft">
                 {it.target !== null ? `/${Math.round(it.target)}` : ''}g
               </span>
             </p>
-            <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-ink-soft/15">
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-soft/15">
               <div
                 className={`h-full ${it.barClass} transition-[width] duration-500`}
                 style={{ width: `${pct}%` }}
@@ -1239,42 +1249,56 @@ function MealTile({
   onChangeCategory: (id: string, next: MealCategory) => void;
   children?: React.ReactNode;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const tileRef = useRef<HTMLElement | null>(null);
   const Icon = MEAL_ICONS[category];
+  const hasEntries = entries.length > 0;
+
+  // Quand la tuile passe en mode actif, on la centre dans le viewport
+  // de la sheet pour que l'abonnée voie clairement l'invite + entries.
+  useEffect(() => {
+    if (isActive && tileRef.current) {
+      // Délai léger pour laisser l'animation d'ouverture commencer
+      // avant de scroller (sinon le scroll vise une mauvaise hauteur).
+      const t = setTimeout(() => {
+        tileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 80);
+      return () => clearTimeout(t);
+    }
+  }, [isActive]);
 
   return (
     <article
-      className={`overflow-hidden rounded-2xl bg-[#fdfbf6] shadow-sm ring-1 transition-colors ${
-        isActive ? 'ring-coral' : 'ring-coral-soft/30'
+      ref={tileRef}
+      className={`overflow-hidden rounded-2xl bg-[#fdfbf6] shadow-sm transition-all duration-300 ring-1 ${
+        isActive ? 'ring-2 ring-coral' : 'ring-coral-soft/30'
       }`}
     >
-      <div className="flex items-center gap-2.5 px-3 py-2.5">
+      {/* Bandeau header de la tuile */}
+      <div className="flex items-center gap-3 px-4 py-3">
         <span
-          className="grid size-9 shrink-0 place-items-center rounded-full text-white"
+          className="grid size-11 shrink-0 place-items-center rounded-full text-white shadow-sm"
           style={{ backgroundColor: MEAL_BG_COLOR[category] }}
         >
-          <Icon className="size-4" />
+          <Icon className="size-5" />
         </span>
-        <button
-          type="button"
-          onClick={() => setExpanded((v) => !v)}
-          className="flex min-w-0 flex-1 flex-col items-start text-left"
-        >
-          <span className="text-sm font-bold text-ink">{MEAL_LABELS[category]}</span>
-          <span className="text-[0.7rem] text-ink-soft">
-            {entries.length === 0
-              ? 'Aucun plat'
-              : `${Math.round(totalKcal)} kcal · ${entries.length} ${
-                  entries.length > 1 ? 'plats' : 'plat'
-                }`}
+        <div className="flex min-w-0 flex-1 flex-col items-start text-left">
+          <span className="text-base font-bold text-ink">
+            {MEAL_LABELS[category]}
           </span>
-        </button>
+          <span className="text-xs text-ink-soft">
+            {hasEntries
+              ? `${Math.round(totalKcal)} kcal · ${entries.length} ${
+                  entries.length > 1 ? 'plats' : 'plat'
+                }`
+              : 'Aucun plat'}
+          </span>
+        </div>
         {isActive ? (
           <button
             type="button"
             onClick={onCloseInvite}
-            aria-label="Fermer l'invite"
-            className="grid size-8 shrink-0 place-items-center rounded-full bg-coral-soft/40 text-coral-dark transition hover:bg-coral-soft/70"
+            aria-label="Fermer"
+            className="grid size-9 shrink-0 place-items-center rounded-full bg-coral-soft/40 text-coral-dark transition hover:bg-coral-soft/70"
           >
             <X className="size-4" />
           </button>
@@ -1283,17 +1307,19 @@ function MealTile({
             type="button"
             onClick={onAddClick}
             aria-label={`Ajouter à ${MEAL_LABELS[category]}`}
-            className="grid size-8 shrink-0 place-items-center rounded-full bg-coral text-white shadow transition hover:bg-coral-dark"
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-coral text-white shadow-md transition-transform duration-200 hover:scale-105 hover:bg-coral-dark active:scale-95"
           >
-            <Plus className="size-4" />
+            <Plus className="size-5" />
           </button>
         )}
       </div>
 
-      {/* Détail des entries (édition par entrée) — visible si tuile
-          dépliée ET non en mode invite, pour éviter une UI surchargée. */}
-      {!isActive && expanded && entries.length > 0 && (
-        <ul className="space-y-1 border-t border-coral-soft/20 bg-white px-3 py-2">
+      {/* Liste des entries existantes — TOUJOURS visible quand la
+          tuile contient des plats, qu'on soit en mode invite OU non.
+          Karine voulait pouvoir voir ce qu'elle a déjà ajouté avant
+          d'en ajouter un nouveau. */}
+      {hasEntries && (
+        <ul className="space-y-1.5 border-t border-coral-soft/20 bg-white px-4 py-2.5">
           {entries.map((e) => (
             <EntryRow
               key={e.id}
@@ -1305,12 +1331,22 @@ function MealTile({
         </ul>
       )}
 
-      {/* Children = invite + preview rendus par le parent quand active */}
-      {isActive && (
-        <div className="border-t border-coral-soft/20 bg-white px-3 py-3">
-          {children}
+      {/* Panneau invite + preview + bouton Ajouter — uniquement
+          quand la tuile est active. Animation slide via grid-rows
+          0→1fr (technique CSS moderne, sans JS). */}
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-out ${
+          isActive ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className="overflow-hidden">
+          {isActive && (
+            <div className="border-t border-coral-soft/20 bg-white px-4 pb-3 pt-3">
+              {children}
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </article>
   );
 }
