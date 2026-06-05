@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { usePathname, useSearchParams } from 'next/navigation';
-import { Flame } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { Flame, Sparkles } from 'lucide-react';
 import { CalorieCounterSheet } from './CalorieCounterSheet';
 import { CalorieCounterSheetV2 } from './CalorieCounterSheetV2';
 import { RingProgress } from './RingProgress';
@@ -19,11 +19,10 @@ import { RingProgress } from './RingProgress';
  */
 export function CalorieFAB() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  // Pour comparer les 2 designs : ?sheet=v2 dans l'URL → ouvre le
-  // layout Apple Forme (drill-down). Sinon V1 actuel.
-  const useV2 = searchParams?.get('sheet') === 'v2';
-  const [open, setOpen] = useState(false);
+  // 2 FAB cote a cote pour comparer V1 et V2 (decision Karine
+  // 2026-06-05). Quand V2 sera valide, on retirera ce bouton et on
+  // supprimera le fichier CalorieCounterSheet.tsx.
+  const [open, setOpen] = useState<false | 'v1' | 'v2'>(false);
   const [todayKcal, setTodayKcal] = useState<number | null>(null);
   const [targetKcal, setTargetKcal] = useState<number>(2000);
 
@@ -55,9 +54,10 @@ export function CalorieFAB() {
 
   return (
     <>
+      {/* FAB principal — sheet V1 actuelle. */}
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={() => setOpen('v1')}
         aria-label="Compteur de calories"
         className="fixed bottom-20 right-2 z-30 flex h-14 w-14 flex-col items-center justify-center rounded-full bg-coral text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
       >
@@ -80,18 +80,35 @@ export function CalorieFAB() {
         )}
       </button>
 
-      {open && (
-        useV2 ? (
-          <CalorieCounterSheetV2
-            onClose={() => setOpen(false)}
-            onChanged={refresh}
-          />
-        ) : (
-          <CalorieCounterSheet
-            onClose={() => setOpen(false)}
-            onChanged={refresh}
-          />
-        )
+      {/* FAB secondaire — sheet V2 (layout Apple Forme). Temporaire
+          pour permettre la comparaison. Position au-dessus du FAB
+          principal pour eviter le recouvrement. */}
+      <button
+        type="button"
+        onClick={() => setOpen('v2')}
+        aria-label="Compteur de calories — V2 (test layout)"
+        title="Tester le nouveau layout (V2)"
+        className="fixed bottom-[8.5rem] right-2 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-violet-500 text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
+      >
+        <Sparkles className="size-5" />
+        <span
+          className="absolute -bottom-1 -right-1 rounded-full bg-white px-1 text-[0.55rem] font-bold leading-tight text-violet-600 ring-1 ring-violet-500"
+        >
+          V2
+        </span>
+      </button>
+
+      {open === 'v1' && (
+        <CalorieCounterSheet
+          onClose={() => setOpen(false)}
+          onChanged={refresh}
+        />
+      )}
+      {open === 'v2' && (
+        <CalorieCounterSheetV2
+          onClose={() => setOpen(false)}
+          onChanged={refresh}
+        />
       )}
     </>
   );
