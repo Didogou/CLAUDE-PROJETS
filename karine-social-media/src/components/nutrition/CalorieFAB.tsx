@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { Flame } from 'lucide-react';
 import { CalorieCounterSheet } from './CalorieCounterSheet';
+import { CalorieCounterSheetV2 } from './CalorieCounterSheetV2';
 import { RingProgress } from './RingProgress';
 
 /**
@@ -18,6 +19,10 @@ import { RingProgress } from './RingProgress';
  */
 export function CalorieFAB() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  // Pour comparer les 2 designs : ?sheet=v2 dans l'URL → ouvre le
+  // layout Apple Forme (drill-down). Sinon V1 actuel.
+  const useV2 = searchParams?.get('sheet') === 'v2';
   const [open, setOpen] = useState(false);
   const [todayKcal, setTodayKcal] = useState<number | null>(null);
   const [targetKcal, setTargetKcal] = useState<number>(2000);
@@ -76,10 +81,17 @@ export function CalorieFAB() {
       </button>
 
       {open && (
-        <CalorieCounterSheet
-          onClose={() => setOpen(false)}
-          onChanged={refresh}
-        />
+        useV2 ? (
+          <CalorieCounterSheetV2
+            onClose={() => setOpen(false)}
+            onChanged={refresh}
+          />
+        ) : (
+          <CalorieCounterSheet
+            onClose={() => setOpen(false)}
+            onChanged={refresh}
+          />
+        )
       )}
     </>
   );
