@@ -28,7 +28,8 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}));
 
   const { data: profile } = await (supabase as any)
-    .from('user_nutrition_profile')
+    // Bug fix : table canonique = user_nutrition_targets.
+    .from('user_nutrition_targets')
     .select('weight_kg, weight_loss_kg')
     .eq('user_id', user.id)
     .maybeSingle();

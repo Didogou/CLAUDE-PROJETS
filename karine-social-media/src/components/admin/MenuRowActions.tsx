@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
 export function MenuRowActions({
@@ -39,11 +39,14 @@ export function MenuRowActions({
   return (
     <>
       <div className="flex shrink-0 items-center gap-1.5">
+        {/* Crayon rond (cohérent avec admin recettes) au lieu du bouton
+            "Modifier" texte qui prenait trop de place sur mobile. */}
         <Link
           href={`/admin/menus/${id}`}
-          className="rounded-full bg-admin-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-admin-primary-dark"
+          aria-label="Modifier le menu"
+          className="grid h-9 w-9 place-items-center rounded-full bg-admin-primary text-white transition hover:bg-admin-primary-dark"
         >
-          Modifier
+          <Pencil className="h-4 w-4" />
         </Link>
         <button
           type="button"

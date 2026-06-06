@@ -66,6 +66,7 @@ function buildRecipe(row: RecipeRow, sheetRows: any[]): Recipe {
     slides: row.slides ?? [],
     isSeasonal: r.is_seasonal ?? false,
     isFeatured: r.is_featured ?? false,
+    isPublic: row.is_public ?? false,
     likesCount: r.likes_count ?? 0,
     prepPhotos: r.prep_photos ?? [],
     sheets,

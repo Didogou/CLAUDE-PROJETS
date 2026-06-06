@@ -5,6 +5,7 @@ import { searchCiqualFoods } from '@/lib/ciqual';
 import {
   getPortionRules,
   formatPortionRulesForPrompt,
+  invalidatePortionCache,
 } from '@/lib/portion-rules';
 
 export const runtime = 'nodejs';
@@ -246,6 +247,9 @@ Si l'item N'EST PAS un plat composé : fallback_decomposition = [] (tableau vide
    - "gigot d'agneau rôti" → ["gigot agneau rôti", "agneau cuit", "agneau"] ✅
    - "poisson pané" → ["poisson pané", "poisson cuit", "poisson"] ✅
    - "saumon fumé" → ["saumon fumé", "saumon"] ✅ (la forme "saumon fumé" existe en Ciqual donc OK en 1er)
+   - "pâté en croûte" → ["pâté en croûte", "pâté"] ✅ (= CHARCUTERIE cuite enveloppée d'une pâte, PAS de la pâtisserie. NE JAMAIS confondre "pâté" avec "pâte" — ce sont 2 mots distincts. PAS ["pâte feuilletée", "nem"] ❌)
+   - "rillettes de porc" → ["rillettes porc", "rillettes"] ✅
+   - "boudin noir" → ["boudin noir", "boudin"] ✅
 
 2) food_keyword : un mot-clé simple en français qui sert à matcher la grille des portions (voir ci-dessous). Ex : "yaourt", "lait", "frites", "pomme", "salade".
 
@@ -428,7 +432,10 @@ export async function POST(request: NextRequest) {
       typeof it.portions === 'number' && Number.isFinite(it.portions) && it.portions > 0
         ? it.portions
         : 1;
-    const grams =
+    // grams_from_mistral : estimation Mistral. Utilisée comme fallback
+    // si aucune règle BDD ne matche, OU si l'utilisatrice a donné une
+    // masse explicite ("500 g de pâtes") qui sort de la formule.
+    const gramsFromMistral =
       typeof it.approx_grams === 'number' &&
       Number.isFinite(it.approx_grams) &&
       it.approx_grams > 0
@@ -456,7 +463,68 @@ export async function POST(request: NextRequest) {
     const sizeVariability = matchedFood?.sizeVariability ?? 'medium';
     // Base = portion standard du food matché. Sinon retombe sur grams
     // estimé Mistral (le ratio sera 1).
-    const baseGrams = matchedFood ? matchedFood.portionG : grams;
+    const baseGrams = matchedFood ? matchedFood.portionG : gramsFromMistral;
+
+    // === CALCUL DÉTERMINISTE de la portion finale ===
+    // Si l'aliment est dans la grille BDD : on applique la formule
+    //   portion_g(food) × multiplier(size) × portions
+    // (= règle expliquée dans l'onglet Règle de /admin/portions).
+    // Sinon : on retombe sur l'estimation Mistral (gramsFromMistral).
+    //
+    // Cas spécial "masse explicite" : si l'écart entre l'estimation
+    // Mistral et le résultat formule est > 15 %, on considère que
+    // Mistral a interprété une masse explicite ("500 g de pâtes"),
+    // donc on garde sa valeur.
+    const SIZE_HINT_MULTIPLIER: Record<
+      'small' | 'medium' | 'large',
+      number
+    > = { small: 0.7, medium: 1.0, large: 1.4 };
+    const ruleMultiplier = sizeHint ? SIZE_HINT_MULTIPLIER[sizeHint] : 1.0;
+    let grams: number;
+    if (matchedFood) {
+      const fromRule = matchedFood.portionG * ruleMultiplier * portions;
+      const diffRatio =
+        Math.abs(gramsFromMistral - fromRule) / Math.max(fromRule, 1);
+      // > 15 % d'écart = Mistral a probablement vu une masse explicite
+      // dans la phrase (ex : "500 g de pâtes"). On respecte sa valeur.
+      grams = diffRatio > 0.15 ? gramsFromMistral : fromRule;
+    } else {
+      grams = gramsFromMistral;
+      // Apprentissage : si l'aliment n'est pas dans la grille, on
+      // l'insère automatiquement avec ai_generated=true. Karine verra
+      // un badge IA dans /admin/portions et pourra valider ou ajuster.
+      // Fire-and-forget : si l'insert échoue (dup, RLS, etc.), tant pis,
+      // on continue le parse normalement.
+      if (foodKeyword) {
+        const portionGBase = portions > 0
+          ? Math.round(gramsFromMistral / portions / ruleMultiplier)
+          : Math.round(gramsFromMistral);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        void (supabase as any)
+          .from('portion_foods')
+          .insert({
+            name: foodKeyword,
+            portion_g: Math.max(1, Math.min(10000, portionGBase)),
+            size_variability: 'medium',
+            notes: 'Estimation IA — à valider',
+            ai_generated: true,
+          })
+          .then((res: { error: { message: string } | null }) => {
+            if (res.error) {
+              // Ignore les conflits (unique constraint) — un autre
+              // parse a peut-être déjà inséré le même mot. C'est OK.
+              if (!/duplicate|already exists|unique/i.test(res.error.message)) {
+                console.warn(
+                  '[parse] insert portion_foods ai-generated failed:',
+                  res.error.message,
+                );
+              }
+            } else {
+              invalidatePortionCache();
+            }
+          });
+      }
+    }
 
     // Étape 2a : essayer chaque variante jusqu'à trouver des candidats
     // PERTINENTS — c-à-d dont au moins UN nom commence par le mot
@@ -692,11 +760,18 @@ function round1(n: number): number {
  * name="Pomme, chair et peau, crue") → match évident, skip l'appel
  * Mistral. Économise un appel API quand la recherche est triviale.
  */
+/**
+ * "Match évident" = on est sûr du candidat, pas besoin d'arbitrage
+ * Mistral. On accepte UNIQUEMENT le nom exact ou le préfixe + virgule
+ * (variante stricte du même aliment, ex: "banane, chair sans peau,
+ * crue"). Le préfixe + espace ("banane plantain") est AMBIGU : c'est
+ * souvent un aliment DIFFÉRENT, donc on laisse Mistral arbitrer.
+ */
 function isObviousMatch(query: string, name: string): boolean {
   const q = query.toLowerCase();
   const n = name.toLowerCase();
   if (n === q) return true;
-  if (n.startsWith(q + ',') || n.startsWith(q + ' ')) return true;
+  if (n.startsWith(q + ',')) return true;
   return false;
 }
 

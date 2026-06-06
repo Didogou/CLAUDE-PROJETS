@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { getAllRecipesAdmin } from '@/lib/recipes';
 import { CATEGORY_LABELS } from '@/data/recipes';
 import { RecipeRowActions } from '@/components/admin/RecipeRowActions';
+import { RecipePublicToggle } from '@/components/admin/RecipePublicToggle';
 import { SeasonBadge } from '@/components/admin/SeasonBadge';
 
 export const dynamic = 'force-dynamic';
@@ -34,41 +35,56 @@ export default async function AdminRecettesPage() {
           {recipes.map((r) => (
             <li
               key={r.id}
-              className="flex items-center gap-3 rounded-2xl bg-admin-surface p-3 shadow-sm"
+              className="rounded-2xl bg-admin-surface p-3 shadow-sm"
             >
+              {/* Titre pleine largeur en haut, NON tronqué. Sur mobile
+                  les titres longs se cassent sur plusieurs lignes plutôt
+                  que d'être coupés par "..." — Karine voit l'intégralité. */}
               <Link
                 href={`/admin/recettes/${r.id}`}
                 aria-label={`Modifier ${r.title}`}
-                className="flex min-w-0 flex-1 items-center gap-3 transition hover:opacity-80"
+                className="block transition hover:opacity-80"
               >
-                <span
-                  aria-hidden
-                  className="block h-16 w-16 shrink-0 rounded-xl bg-cover bg-center"
-                  style={{ backgroundImage: `url(${r.coverImage})` }}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate text-base font-semibold text-admin-ink">{r.title}</p>
-                    {r.isSeasonal && <SeasonBadge compact />}
-                  </div>
-                  <p className="text-xs text-admin-ink-soft">
-                    {CATEGORY_LABELS[r.category]} · {r.calories ? `${r.calories} kcal` : 'kcal n/a'}{' '}
-                    · {r.slides.length} slides
+                <div className="flex items-center gap-2">
+                  <p className="text-base font-semibold leading-tight text-admin-ink">
+                    {r.title}
                   </p>
+                  {r.isSeasonal && <SeasonBadge compact />}
                 </div>
               </Link>
-              <span
-                className={`hidden rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide sm:inline-flex ${
-                  r.status === 'published'
-                    ? 'bg-admin-primary text-white'
-                    : r.status === 'scheduled'
-                      ? 'bg-tangerine text-white'
-                      : 'bg-admin-soft text-admin-ink'
-                }`}
-              >
-                {r.status}
-              </span>
-              <RecipeRowActions slug={r.id} title={r.title} />
+
+              {/* Ligne actions : image + meta + toggle + édition/suppr. */}
+              <div className="mt-2 flex items-center gap-3">
+                <Link
+                  href={`/admin/recettes/${r.id}`}
+                  aria-label={`Modifier ${r.title}`}
+                  className="flex min-w-0 flex-1 items-center gap-3 transition hover:opacity-80"
+                >
+                  <span
+                    aria-hidden
+                    className="block h-16 w-16 shrink-0 rounded-xl bg-cover bg-center"
+                    style={{ backgroundImage: `url(${r.coverImage})` }}
+                  />
+                  <p className="min-w-0 flex-1 truncate text-xs text-admin-ink-soft">
+                    {CATEGORY_LABELS[r.category]} ·{' '}
+                    {r.calories ? `${r.calories} kcal` : 'kcal n/a'} ·{' '}
+                    {r.slides.length} slides
+                  </p>
+                </Link>
+                <RecipePublicToggle slug={r.id} initial={r.isPublic} />
+                <span
+                  className={`hidden rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide sm:inline-flex ${
+                    r.status === 'published'
+                      ? 'bg-admin-primary text-white'
+                      : r.status === 'scheduled'
+                        ? 'bg-tangerine text-white'
+                        : 'bg-admin-soft text-admin-ink'
+                  }`}
+                >
+                  {r.status}
+                </span>
+                <RecipeRowActions slug={r.id} title={r.title} />
+              </div>
             </li>
           ))}
         </ul>

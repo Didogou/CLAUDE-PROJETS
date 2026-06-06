@@ -296,10 +296,14 @@ function MealCard({
         />
       )}
 
-      {/* Tags chips */}
+      {/* Tags chips — déduplication par Set : la source peut contenir
+          des doublons (ex. "Plaisir & saveurs" hérité de la recette ET
+          ajouté manuellement). Sans dédup, React warne sur les keys
+          dupliquées et omet un des spans. Set préserve l'ordre
+          d'insertion en JS. */}
       {sheet.tags.length > 0 && (
         <div className="flex flex-wrap justify-center gap-1.5 pt-1">
-          {sheet.tags.map((t) => (
+          {Array.from(new Set(sheet.tags)).map((t) => (
             <span
               key={`t-${t}`}
               className="rounded-full bg-coral-soft/30 px-2.5 py-0.5 text-xs font-semibold text-coral-dark"

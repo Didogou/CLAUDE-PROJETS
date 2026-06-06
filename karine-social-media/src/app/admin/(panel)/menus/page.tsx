@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import { getAllMenusAdmin } from '@/lib/menus';
 import { formatWeekTitle } from '@/data/menus';
 import { MenuRowActions } from '@/components/admin/MenuRowActions';
+import { MenuPublicToggle } from '@/components/admin/MenuPublicToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,39 +31,56 @@ export default async function AdminMenusPage() {
         </p>
       ) : (
         <ul className="space-y-2">
-          {menus.map((m) => (
-            <li key={m.id} className="flex items-center gap-3 rounded-2xl bg-admin-surface p-3 shadow-sm">
-              <span
-                aria-hidden
-                className="block h-16 w-16 shrink-0 rounded-xl bg-cover bg-center"
-                style={{
-                  backgroundImage: `url(${m.coverImageUrl || ''})`,
-                  backgroundColor: 'var(--color-admin-soft)',
-                }}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-base font-semibold text-admin-ink">
-                  {m.title || formatWeekTitle(m.weekStart)}
-                </p>
-                <p className="text-xs text-admin-ink-soft">
-                  {m.days.length} plats · {m.weekStart}
-                </p>
-              </div>
-              <span
-                className={`hidden rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide sm:inline-flex ${
-                  m.status === 'published'
-                    ? 'bg-admin-primary text-white'
-                    : 'bg-admin-soft text-admin-ink'
-                }`}
+          {menus.map((m) => {
+            const fullTitle = m.title || formatWeekTitle(m.weekStart);
+            return (
+              <li
+                key={m.id}
+                className="rounded-2xl bg-admin-surface p-3 shadow-sm"
               >
-                {m.status}
-              </span>
-              <MenuRowActions
-                id={m.id}
-                title={m.title || formatWeekTitle(m.weekStart)}
-              />
-            </li>
-          ))}
+                {/* Titre pleine largeur en haut, NON tronqué. */}
+                <Link
+                  href={`/admin/menus/${m.id}`}
+                  className="block transition hover:opacity-80"
+                >
+                  <p className="text-base font-semibold leading-tight text-admin-ink">
+                    {fullTitle}
+                  </p>
+                </Link>
+
+                {/* Ligne actions : image + meta + toggle + crayon + suppr. */}
+                <div className="mt-2 flex items-center gap-3">
+                  <Link
+                    href={`/admin/menus/${m.id}`}
+                    className="flex min-w-0 flex-1 items-center gap-3 transition hover:opacity-80"
+                  >
+                    <span
+                      aria-hidden
+                      className="block h-16 w-16 shrink-0 rounded-xl bg-cover bg-center"
+                      style={{
+                        backgroundImage: `url(${m.coverImageUrl || ''})`,
+                        backgroundColor: 'var(--color-admin-soft)',
+                      }}
+                    />
+                    <p className="min-w-0 flex-1 truncate text-xs text-admin-ink-soft">
+                      {m.days.length} plats · {m.weekStart}
+                    </p>
+                  </Link>
+                  <MenuPublicToggle id={m.id} initial={m.isPublic} />
+                  <span
+                    className={`hidden rounded-full px-2.5 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide sm:inline-flex ${
+                      m.status === 'published'
+                        ? 'bg-admin-primary text-white'
+                        : 'bg-admin-soft text-admin-ink'
+                    }`}
+                  >
+                    {m.status}
+                  </span>
+                  <MenuRowActions id={m.id} title={fullTitle} />
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

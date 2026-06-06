@@ -1,9 +1,7 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { notFound, redirect } from 'next/navigation';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
-import { Logo } from '@/components/brand/Logo';
+import { MenuDayHeader } from '@/components/menus/MenuDayHeader';
 import { MenuDayMealsCarousel } from '@/components/menus/MenuDayMealsCarousel';
 import { getPublishedMenuById, getMenuMealSheets } from '@/lib/menus';
 import { getCurrentUser } from '@/lib/current-user';
@@ -23,18 +21,26 @@ export default async function MenuDayPage({
   ]);
   if (!menu) notFound();
 
-  const today = dayIndexFromDate(new Date());
-
   // L'accès aux fiches recettes du menu (meal sheets) est réservé aux
-  // abonnés (subscriber + patient + admin). Les visiteurs voient
-  // uniquement les jours/repas sans ingrédients.
+  // abonnés (subscriber + patient + admin).
   const isSubscriber =
     user.effectiveRole === 'patient' ||
     user.effectiveRole === 'subscriber' ||
     user.effectiveRole === 'admin';
 
-  // Charge les meal sheets (un jour x lunch/dinner par sheet) si abonné.
-  const mealSheetsMap = isSubscriber
+  // Gate accès : si le menu n'est PAS public et que l'utilisatrice
+  // n'a pas de plan actif → redirect vers /mon-plan avec next préservé.
+  // Évite le contournement via URL directe.
+  if (!menu.isPublic && !isSubscriber) {
+    redirect(`/mon-plan?next=/menus/${menu.id}/jour`);
+  }
+
+  const today = dayIndexFromDate(new Date());
+
+  // Charge les meal sheets si abonnée OU si le menu est public
+  // (la visiteuse doit pouvoir voir toutes les recettes du menu).
+  const canSeeFullMenu = isSubscriber || menu.isPublic;
+  const mealSheetsMap = canSeeFullMenu
     ? await getMenuMealSheets(menu.id)
     : new Map();
   const mealSheetsByDay: Record<
@@ -45,21 +51,16 @@ export default async function MenuDayPage({
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
-      <div className="print:hidden">
-        <FloralBackground />
-      </div>
-      <header className="relative flex items-center px-5 py-6 lg:py-8 print:hidden">
-        <Link
-          href={`/menus`}
-          aria-label="Retour aux menus"
-          className="z-10 grid h-10 w-10 place-items-center rounded-full bg-white/70 text-ink transition hover:bg-white"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Logo />
-        </div>
-      </header>
+      {/* FloralBackground et MenuDayHeader DOIVENT être enfants directs
+          du flex parent pour que `sticky top-0` du header reste actif
+          tout au long du scroll. */}
+      <FloralBackground />
+      {/* backHref préserve la semaine consultée : si l'utilisatrice avait
+          navigué vers une semaine ancienne via le pager de /menus, la
+          flèche retour la ramène à CETTE semaine et pas à la semaine la
+          plus récente (idx=0 par défaut). Cf. MenusPagerView qui lit
+          `?w=<weekStart>` au mount. */}
+      <MenuDayHeader backHref={`/menus?w=${menu.weekStart}`} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-md xl:max-w-lg print:m-0 print:max-w-none print:p-0">
         <h1 className="mb-4 text-center font-script text-3xl text-coral lg:text-4xl print:hidden">
@@ -67,15 +68,16 @@ export default async function MenuDayPage({
         </h1>
 
         {/* Carrousel des fiches recettes du jour (lunch + dinner).
-            Réservé aux abonnés. Pour les visiteurs : message
-            d'incitation. Actions sur la liste de courses globale
-            désormais sur la page main /menus. */}
+            Accessible aux abonnées OU si menu.isPublic (mode
+            découverte) — on passe canSeeFullMenu comme isSubscriber
+            au composant pour qu'il affiche les recettes complètes
+            plutôt que le placeholder upsell. */}
         <MenuDayMealsCarousel
           menuTitle={menu.title}
           weekStart={menu.weekStart}
           defaultDayIndex={today}
           mealSheetsByDay={mealSheetsByDay}
-          isSubscriber={isSubscriber}
+          isSubscriber={canSeeFullMenu}
           isAuthenticated={user.isAuthenticated}
         />
       </main>

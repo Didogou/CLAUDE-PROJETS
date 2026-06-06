@@ -62,6 +62,9 @@ export async function PATCH(
     const aliments = splitList(form.get('aliments') as string | null);
     const isSeasonal = form.get('isSeasonal') === 'on' || form.get('isSeasonal') === 'true';
     const isFeatured = form.get('isFeatured') === 'on' || form.get('isFeatured') === 'true';
+    // is_public = "Tout le monde" — accessible aux visiteurs non
+    // abonnés. Default false (réservé aux abonnées/patientes).
+    const isPublic = form.get('isPublic') === 'on' || form.get('isPublic') === 'true';
     const prepTimeRaw = String(form.get('prepTimeMin') || '').trim();
     const cookTimeRaw = String(form.get('cookTimeMin') || '').trim();
     const servingsRaw = String(form.get('servings') || '').trim();
@@ -170,6 +173,7 @@ export async function PATCH(
       calories: number | null;
       is_seasonal: boolean;
       is_featured: boolean;
+      is_public: boolean;
       status: string;
       slides: string[];
       prep_photos: string[];
@@ -191,6 +195,7 @@ export async function PATCH(
       calories: caloriesRaw ? Number(caloriesRaw) : null,
       is_seasonal: isSeasonal,
       is_featured: isFeatured,
+      is_public: isPublic,
       status,
       slides: finalSlides,
       prep_photos: finalPrepPhotos,

@@ -7,6 +7,8 @@ export type Tip = {
   tags: string[];
   likesCount: number;
   status: TipStatus;
+  /** "Tout le monde" : accessible aux visiteuses non abonnées. */
+  isPublic: boolean;
   publishedAt: string | null;
   createdAt: string;
 };

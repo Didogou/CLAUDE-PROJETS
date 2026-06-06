@@ -63,6 +63,7 @@ export async function PATCH(
   const body = await request.json().catch(() => ({}));
   const meal = body?.mealCategory;
   const kcal = body?.kcal;
+  const label = body?.label;
 
   const update: Record<string, unknown> = {};
   if (meal !== undefined) {
@@ -77,6 +78,12 @@ export async function PATCH(
     }
     update.kcal = kcal;
     update.portions = 1;
+  }
+  if (label !== undefined) {
+    if (typeof label !== 'string' || !label.trim() || label.length > 160) {
+      return NextResponse.json({ error: 'label invalide (1-160 chars)' }, { status: 400 });
+    }
+    update.label = label.trim();
   }
 
   if (Object.keys(update).length === 0) {

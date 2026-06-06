@@ -8,14 +8,26 @@ import {
   type ActivityLevel,
 } from '@/lib/nutrition-calc';
 
+type HorizonMonths = 3 | 6 | 12;
+
 type Profile = {
   sex: Sex | null;
   ageYears: number | null;
   weightKg: number | null;
   heightCm: number | null;
   activityLevel: ActivityLevel | null;
-  /** Objectif de perte sur 3 mois (1-9 kg). Null = maintenance. */
+  /** Horizon de l'objectif : 3, 6 ou 12 mois. Default 3. */
+  targetHorizonMonths: HorizonMonths;
+  /** Objectif de perte sur l'horizon. Null = maintenance.
+   *  Fourchette : 0..9 (3m), 0..15 (6m), 0..30 (12m). */
   weightLossKg: number | null;
+};
+
+/** Borne max de la liste "Perdre X kg" selon l'horizon. */
+const MAX_LOSS_BY_HORIZON: Record<HorizonMonths, number> = {
+  3: 9,
+  6: 15,
+  12: 30,
 };
 
 type Targets = {
@@ -46,6 +58,7 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
     weightKg: null,
     heightCm: null,
     activityLevel: null,
+    targetHorizonMonths: 3,
     weightLossKg: null,
   });
 
@@ -61,14 +74,22 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
             weightKg: number | null;
             heightCm: number | null;
             activityLevel: ActivityLevel | null;
+            targetHorizonMonths?: number | null;
             weightLossKg: number | null;
           };
+          const horizon: HorizonMonths =
+            raw.targetHorizonMonths === 6
+              ? 6
+              : raw.targetHorizonMonths === 12
+                ? 12
+                : 3;
           const p: Profile = {
             sex: raw.sex,
             ageYears: raw.ageYears,
             weightKg: raw.weightKg,
             heightCm: raw.heightCm,
             activityLevel: raw.activityLevel,
+            targetHorizonMonths: horizon,
             weightLossKg: raw.weightLossKg,
           };
           // Si pas de sexe enregistré mais OAuth en suggère un, on
@@ -214,12 +235,47 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
         </select>
       </div>
 
-      {/* Objectif de perte de poids — sur 3 mois fixes. Si "Maintenir"
-          (null), la formule de besoin reste = TDEE sans déficit. */}
+      {/* Objectif de perte de poids. Si "Maintenir" (null), la formule
+          de besoin reste = TDEE sans déficit. L'horizon (3 / 6 / 12
+          mois) module la fourchette max de la liste. */}
       <div>
-        <p className="mb-1 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
-          Objectif sur 3 mois
+        <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-soft">
+          Objectif
         </p>
+
+        {/* Segmented buttons d'horizon — pattern iOS Segmented Control. */}
+        <div className="mb-2 flex gap-1.5 rounded-full border border-coral-soft bg-coral-soft/20 p-1">
+          {([3, 6, 12] as HorizonMonths[]).map((m) => {
+            const active = profile.targetHorizonMonths === m;
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  // Quand on change d'horizon, on borne aussi le
+                  // weightLossKg pour rester dans la nouvelle fourchette.
+                  const newMax = MAX_LOSS_BY_HORIZON[m];
+                  setProfile((p) => ({
+                    ...p,
+                    targetHorizonMonths: m,
+                    weightLossKg:
+                      p.weightLossKg !== null && p.weightLossKg > newMax
+                        ? newMax
+                        : p.weightLossKg,
+                  }));
+                }}
+                className={`flex-1 rounded-full py-1.5 text-xs font-semibold transition ${
+                  active
+                    ? 'bg-coral text-white shadow-sm'
+                    : 'text-coral-dark hover:bg-coral-soft/40'
+                }`}
+              >
+                {m} mois
+              </button>
+            );
+          })}
+        </div>
+
         <select
           value={profile.weightLossKg ?? ''}
           onChange={(e) => {
@@ -229,9 +285,12 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
           className="w-full rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
         >
           <option value="">Maintenir mon poids</option>
-          {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((k) => (
+          {Array.from(
+            { length: MAX_LOSS_BY_HORIZON[profile.targetHorizonMonths] },
+            (_, i) => i + 1,
+          ).map((k) => (
             <option key={k} value={k}>
-              Perdre {k} kg en 3 mois
+              Perdre {k} kg
             </option>
           ))}
         </select>

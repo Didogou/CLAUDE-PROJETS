@@ -38,6 +38,11 @@ export async function PATCH(
   if (typeof body?.notes === 'string') {
     update.notes = body.notes.trim() || null;
   }
+  // aiGenerated : passé à false quand Karine sauvegarde une ligne
+  // (= validation explicite). Le badge IA disparaît alors.
+  if (typeof body?.aiGenerated === 'boolean') {
+    update.ai_generated = body.aiGenerated;
+  }
   const supabase = createServiceClient();
   const { error } = await (supabase as any)
     .from('portion_foods')

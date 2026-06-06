@@ -197,6 +197,27 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
         </span>
       </label>
 
+      {/* Toggle "Tout le monde" : visibilité publique. Quand coché,
+          la recette est accessible aux visiteurs non abonnés (mode
+          découverte). Par défaut décoché → réservée aux abonnées. */}
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-sage/40 bg-sage/5 p-3">
+        <input
+          type="checkbox"
+          name="isPublic"
+          defaultChecked={recipe.isPublic}
+          className="mt-0.5 h-4 w-4 accent-sage"
+        />
+        <span>
+          <span className="block text-sm font-semibold text-admin-ink">
+            🌍 Tout le monde
+          </span>
+          <span className="block text-xs text-admin-ink-soft">
+            Recette accessible aux visiteuses non abonnées (mode
+            découverte). Sinon, réservée aux abonnées et patientes.
+          </span>
+        </span>
+      </label>
+
       <Field label="Statut">
         <select name="status" defaultValue={recipe.status} className="input">
           <option value="draft">Brouillon</option>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ChevronLeft,
   ChevronRight,
@@ -117,6 +118,7 @@ export function SheetCarousel({
 
   // Explosion de cœurs déclenchée à chaque like (UX feedback)
   const [likeBursts, fireLikeBurst] = useHeartBurst();
+  const router = useRouter();
 
   async function toggleLike() {
     // Optimistic update : on change le state immédiatement, on rollback
@@ -134,9 +136,16 @@ export function SheetCarousel({
     try {
       const res = await fetch(`/api/sheets/${sheet.id}/like`, { method: 'POST' });
       if (res.status === 401) {
-        // Non connecté : rollback silencieux (le like est réservé aux users).
+        // Non connecté : rollback de l'optimistic + redirection vers
+        // /login avec next pour revenir ici après auth. Avant on faisait
+        // un rollback silencieux → le cœur s'animait puis disparaissait
+        // sans aucun feedback, donnant l'impression d'un bug.
         setLikedBySheet((s) => ({ ...s, [sheet.id]: prevLiked }));
         setLikesBySheet((c) => ({ ...c, [sheet.id]: prevCount }));
+        if (typeof window !== 'undefined') {
+          const here = window.location.pathname + window.location.search;
+          router.push(`/login?next=${encodeURIComponent(here)}`);
+        }
         return;
       }
       if (!res.ok) throw new Error();

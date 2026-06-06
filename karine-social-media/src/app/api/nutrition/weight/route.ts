@@ -34,8 +34,12 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .gte('weighed_at', since.toISOString())
       .order('weighed_at', { ascending: true }),
+    // Bug fix : le profil canonique est dans user_nutrition_targets
+    // (table utilisée par /api/nutrition/profile). user_nutrition_profile
+    // est une ancienne table vide → targetKg sortait toujours null,
+    // donc la ligne objectif n'apparaissait jamais sur le graphe.
     (supabase as any)
-      .from('user_nutrition_profile')
+      .from('user_nutrition_targets')
       .select('weight_kg, weight_loss_kg')
       .eq('user_id', user.id)
       .maybeSingle(),

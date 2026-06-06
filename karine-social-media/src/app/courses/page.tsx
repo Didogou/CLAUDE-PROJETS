@@ -26,10 +26,14 @@ export default async function CoursesPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
-      <div className="print:hidden">
-        <FloralBackground />
-        <AppHeader />
-      </div>
+      {/* FloralBackground et AppHeader DOIVENT être enfants directs du
+          flex parent pour que `sticky top-0` du header reste actif tout
+          au long du scroll. Avant : ils étaient dans un wrapper
+          print:hidden qui scopait le sticky → l'header décollait dès
+          qu'on dépassait sa propre hauteur (~80 px). On garde le
+          print:hidden directement sur chaque enfant. */}
+      <FloralBackground />
+      <AppHeader />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl print:max-w-none print:px-0 print:pb-0">
         <div className="mb-4 flex items-center justify-between gap-2 print:hidden">
           <h1 className="font-script text-4xl text-coral lg:text-5xl">

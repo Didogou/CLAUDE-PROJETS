@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { AppHeader } from './AppHeader';
+import { BottomNav } from './BottomNav';
 import { FloralBackground } from './FloralBackground';
 import { LegalFooter } from './LegalFooter';
 
@@ -47,6 +48,13 @@ export function LegalLayout({
       </main>
 
       <LegalFooter />
+
+      {/* BottomNav fixed (Accueil / Courses / Recettes / Menu / Favoris) :
+          présent comme sur toutes les autres pages user pour que la
+          patiente ne se sente jamais "perdue" dans une page sans
+          repère de navigation. Le padding-bottom global du body
+          réserve déjà la place. */}
+      <BottomNav />
 
       <style>{`
         .legal-prose h2 {

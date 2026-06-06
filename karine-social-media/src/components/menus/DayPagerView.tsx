@@ -337,7 +337,15 @@ function MealTile({
       <div className="relative overflow-visible">
         <FireworkBurst category={burstCat} count={6} />
         {recipe ? (
-          <RecipeCard recipe={recipe} isFavorite={isFavorite} onToggleFavorite={onToggleFavorite} />
+          // userHasPlan : la page /menus/[id]/jour est déjà protégée
+          // par auth abonnée. Si la patiente y accède, elle a forcément
+          // un plan actif → accès libre à toutes les recettes.
+          <RecipeCard
+            recipe={recipe}
+            isFavorite={isFavorite}
+            onToggleFavorite={onToggleFavorite}
+            userHasPlan
+          />
         ) : (
           <div className="overflow-hidden rounded-[var(--radius-tile)] bg-white/85 shadow-sm">
             {imageUrl ? (

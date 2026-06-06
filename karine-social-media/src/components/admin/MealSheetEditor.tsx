@@ -229,9 +229,16 @@ export function MealSheetEditor({
   if (persisted) {
     return (
       <div className="overflow-hidden rounded-xl border border-admin-border bg-white">
-        <header
-          className="flex cursor-pointer items-center gap-3 p-3"
+        {/* button type="button" obligatoire : sans ça (1) le <header>
+            est parfois ignoré au tap sur iOS Safari quand il est dans
+            un <form>, et (2) le browser pouvait submit le form parent
+            au moindre clic. type=button bloque les deux pièges. */}
+        <button
+          type="button"
           onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={`sheet-${persisted.id}-detail`}
+          className="flex w-full cursor-pointer items-center gap-3 p-3 text-left transition hover:bg-admin-soft/20 active:bg-admin-soft/30"
         >
           <div
             className="h-12 w-12 shrink-0 rounded-lg bg-admin-soft/50 bg-cover bg-center"
@@ -250,13 +257,16 @@ export function MealSheetEditor({
             </p>
           </div>
           {open ? (
-            <ChevronUp className="h-4 w-4 text-admin-ink-soft" />
+            <ChevronUp className="h-4 w-4 shrink-0 text-admin-ink-soft" />
           ) : (
-            <ChevronDown className="h-4 w-4 text-admin-ink-soft" />
+            <ChevronDown className="h-4 w-4 shrink-0 text-admin-ink-soft" />
           )}
-        </header>
+        </button>
         {open && (
-          <div className="border-t border-admin-border p-3">
+          <div
+            id={`sheet-${persisted.id}-detail`}
+            className="border-t border-admin-border p-3"
+          >
             <PreviewForm
               data={{
                 tempPath: '',
@@ -388,7 +398,7 @@ function PreviewForm({
             disabled={readOnly}
             className="input h-8 text-sm"
           />
-          <div className="grid gap-1.5 grid-cols-4">
+          <div className="grid min-w-0 grid-cols-4 gap-1.5 [&>*]:min-w-0">
             <Stat
               label="Pers"
               value={data.servings}
@@ -417,7 +427,7 @@ function PreviewForm({
             />
           </div>
           {/* Macros : Protéines / Lipides / Glucides */}
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid min-w-0 grid-cols-3 gap-1.5 [&>*]:min-w-0">
             <Stat
               label="Prot"
               suffix="g"

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 
 export function RecipeRowActions({
@@ -39,15 +39,6 @@ export function RecipeRowActions({
   return (
     <>
       <div className="flex shrink-0 items-center gap-1">
-        <Link
-          href={`/recettes/${slug}`}
-          aria-label="Voir côté abonné"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="grid h-9 w-9 place-items-center rounded-full bg-admin-soft text-admin-primary-dark transition hover:bg-admin-soft/80"
-        >
-          <Eye className="h-4 w-4" />
-        </Link>
         <Link
           href={`/admin/recettes/${slug}`}
           aria-label="Modifier"

@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Eye, EyeOff, Heart, KeyRound, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { BrandHeader } from '@/components/brand/BrandHeader';
-import { AuthFooter } from '@/components/brand/AuthFooter';
+import { authErrorFr } from '@/lib/auth-error-fr';
+import { AuthHeader } from '@/components/brand/AuthHeader';
 import { OAuthButton } from '@/components/auth/OAuthButtons';
 
 export default function LoginForm() {
@@ -41,14 +41,16 @@ export default function LoginForm() {
       // se ferme proprement et la session refresh est complète.
       window.location.assign(redirect);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur de connexion');
+      // Traduit les messages Supabase ("Invalid login credentials" etc.)
+      // en français lisible pour l'utilisatrice.
+      setError(authErrorFr(err instanceof Error ? err.message : ''));
       setLoading(false);
     }
   }
 
   return (
     <main className="relative flex min-h-screen flex-col overflow-x-hidden">
-      <BrandHeader />
+      <AuthHeader />
 
       <div className="flex flex-1 items-center justify-center px-3 py-5 sm:px-5 sm:py-6">
         <div className="w-full max-w-md">
@@ -64,7 +66,7 @@ export default function LoginForm() {
                 Connexion
               </h1>
               <p className="mt-1 flex items-center justify-center gap-1.5 text-sm text-ink-soft">
-                Ravie de vous retrouver !
+                Ravie de te retrouver&nbsp;!
                 <Heart className="h-3.5 w-3.5 fill-coral-soft text-coral" />
               </p>
             </header>
@@ -149,19 +151,24 @@ export default function LoginForm() {
             </div>
           </section>
 
-          <p className="mt-5 px-2 text-center text-xs text-ink-soft sm:text-sm">
-            Pas encore de compte ?{' '}
+          {/* CTA inscription — version "abonnement" : on monte d'un cran
+              en hiérarchie (lien petit gris → CTA pleine largeur bouton-like)
+              parce qu'à ce stade, créer un compte est l'action la plus
+              probable pour les visiteuses arrivées sur ce mur. */}
+          <div className="mt-6 text-center">
+            <p className="mb-2 text-sm font-semibold text-ink-soft">
+              Pas encore de compte&nbsp;?
+            </p>
             <Link
               href={`/signup${redirect !== '/' ? `?next=${encodeURIComponent(redirect)}` : ''}`}
-              className="font-semibold text-coral hover:text-coral-dark hover:underline"
+              className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-coral bg-white px-6 py-3 text-base font-bold text-coral shadow-sm transition hover:bg-coral-soft/30 hover:shadow active:scale-[0.98] sm:text-lg"
             >
               Créer mon compte 🌸
             </Link>
-          </p>
+          </div>
         </div>
       </div>
 
-      <AuthFooter />
 
       <style>{`
         .input-pill {

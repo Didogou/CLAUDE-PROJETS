@@ -50,11 +50,29 @@ html {
      peut faire glisser le footer vers le haut et voir le fond rose
      transparaître derrière. */
   overscroll-behavior-y: none;
+  /* Verrouille tout scroll latéral : si un élément déborde (header
+     trop large sur petit écran, image plein cadre, etc.), le viewport
+     ne se laisse pas tirer à gauche/droite révélant l'arrière-plan.
+     `clip` (mieux que `hidden`) n'introduit pas de nouveau scroll
+     container et ne casse pas le `position: sticky` des enfants. */
+  overflow-x: clip;
 }
 body {
-  /* Idem : on cascade sur body car sur certains navigateurs c'est lui
-     le scrollport effectif. */
   overscroll-behavior-y: none;
+  /* Idem html : pas de scroll horizontal possible quel que soit le
+     contenu. Double couche au cas où un fragment de page set
+     overflow-x: visible sur html. */
+  overflow-x: clip;
+  /* iOS Safari : la barre d'URL en bas peut se rétracter et révéler la
+     safe-area. On force le body à couvrir toute la viewport dynamique
+     (100dvh). PAS de background ici : il masquerait le FloralBackground
+     (qui est en fixed inset-0 -z-10). Le gradient blush du html prend
+     le relais en arrière-plan global. */
+  min-height: 100dvh;
+  /* BottomNav est position:fixed → réserver l'équivalent de sa hauteur
+     en padding-bottom pour que le contenu de fin de page ne disparaisse
+     pas dessous. ~64px (icone 20 + label + py-2) + safe-area-inset. */
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
 
 /* Animations d'ouverture/fermeture pour TOUTES les lightboxes d'images

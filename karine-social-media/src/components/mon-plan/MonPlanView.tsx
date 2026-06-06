@@ -1,13 +1,16 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   AlertTriangle,
+  ArrowLeft,
   CheckCircle2,
   CreditCard,
   HeartHandshake,
   Lock,
+  LogIn,
   Pause,
   Play,
   Sparkles,
@@ -198,22 +201,121 @@ export function MonPlanView({
 
   return (
     <div className="space-y-5">
+      {/* Flèche retour : router.back() ramène à la page précédente
+          (l'utilisatrice est venue ici en cliquant sur un cadenas ou
+          un CTA "S'abonner"). Pattern identique à MenuDayHeader /
+          /recettes/[id]. */}
+      <button
+        type="button"
+        onClick={() => router.back()}
+        aria-label="Retour à la page précédente"
+        className="grid h-10 w-10 place-items-center rounded-full bg-white/70 text-ink transition hover:bg-white"
+      >
+        <ArrowLeft className="h-5 w-5" />
+      </button>
+
       <header className="text-center">
         <p className="text-xs font-bold uppercase tracking-[0.3em] text-coral">
           Mon compte
         </p>
         <h1 className="font-script text-5xl text-coral-dark">Mon plan</h1>
-        <p className="mt-1 text-sm text-ink-soft">{email}</p>
+        {isAuthenticated && (
+          <p className="mt-1 text-sm text-ink-soft">{email}</p>
+        )}
       </header>
 
-      {forbiddenNext && !hasActiveSub && !patientActive && (
+      {/* ============================================================
+          SECTION "BIENVENUE" — VISITEUSE UNIQUEMENT.
+          Porte d'entrée à 2 choix : créer un compte (primaire) ou se
+          connecter (secondaire). On NE montre PAS les plans à ce stade :
+          c'est seulement quand l'utilisatrice sera connectée sans abo
+          que les cartes Mensuel/Annuel s'afficheront.
+
+          Le bandeau "forbiddenNext" (cadenas) reste utile aussi en
+          visiteuse pour expliquer POURQUOI elle est ici (ex: elle a
+          cliqué sur une recette verrouillée). Le texte est adapté
+          pour ne plus dire "Choisis un plan ci-dessous" (faux pour
+          la visiteuse) mais "Connecte-toi ou crée ton compte".
+
+          Le `next` préserve la destination d'origine — si elle est
+          en fait déjà abonnée, le post-login l'enverra directement
+          sur la recette/menu qu'elle voulait.
+          ============================================================ */}
+      {!isAuthenticated && (
+        <>
+          {forbiddenNext && (
+            <div className="flex items-start gap-3 rounded-2xl border border-coral-soft bg-coral-soft/30 px-4 py-3 text-sm text-ink shadow-sm">
+              <Lock className="mt-0.5 h-5 w-5 shrink-0 text-coral-dark" />
+              {(() => {
+                const f = humanizeForbiddenPath(forbiddenNext);
+                return (
+                  <p>
+                    <span className="font-semibold">{f.label}</span> {f.verb} aux
+                    abonnées et aux patientes de Karine. Connecte-toi ou crée
+                    ton compte ci-dessous pour y accéder.
+                  </p>
+                );
+              })()}
+            </div>
+          )}
+
+          <section className="rounded-3xl border border-coral-soft bg-white/85 p-6 shadow-sm">
+            <header className="text-center">
+              <h2 className="font-script text-3xl text-coral-dark">Bienvenue</h2>
+              <p className="mt-1 text-sm text-ink-soft">
+                Connecte-toi ou crée ton compte pour accéder à ton plan.
+              </p>
+            </header>
+            {/* Empilé mobile / 50-50 desktop. Primaire = créer un compte
+                (acquisition), secondaire = se connecter (abonnée qui revient).
+                Aligné sur le pattern de SubscribeAuthGate. */}
+            <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              {/* Fond légèrement adouci (bg-coral/80 + ombre allégée)
+                  pour casser l'effet "rose vif agressif" tout en gardant
+                  la hiérarchie primaire face au bouton "Me connecter"
+                  (outline blanc). Le hover ramène au coral plein =
+                  feedback tactile sans dévaler la rampe. */}
+              <Link
+                href={`/signup?next=${encodeURIComponent(forbiddenNext ?? '/mon-plan')}`}
+                className="rounded-full bg-coral/80 py-3.5 text-center text-base font-bold text-white shadow-[0_4px_14px_-8px_rgba(226,120,141,0.55)] transition hover:bg-coral hover:shadow-[0_6px_18px_-8px_rgba(226,120,141,0.7)] active:scale-[0.98]"
+              >
+                Créer mon compte 🌸
+              </Link>
+              <Link
+                href={`/login?next=${encodeURIComponent(forbiddenNext ?? '/mon-plan')}`}
+                className="rounded-full border-2 border-coral bg-white py-3.5 text-center text-base font-bold text-coral-dark transition hover:bg-coral-soft/30 active:scale-[0.98]"
+              >
+                <span className="inline-flex items-center gap-1.5">
+                  <LogIn className="h-4 w-4" />
+                  Me connecter
+                </span>
+              </Link>
+            </div>
+            <p className="mt-3 text-center text-xs italic text-ink-soft">
+              Patiente de Karine&nbsp;? Coche l&apos;option lors de
+              l&apos;inscription pour demander un accès gratuit.
+            </p>
+          </section>
+        </>
+      )}
+
+      {/* Bandeau cadenas standard pour les UTILISATRICES CONNECTÉES
+          arrivant ici depuis un paywall (cas : connectée sans abo ni
+          statut patiente actif). Le texte garde "Choisis un plan
+          ci-dessous" car les plans s'afficheront juste après. */}
+      {isAuthenticated && forbiddenNext && !hasActiveSub && !patientActive && (
         <div className="flex items-start gap-3 rounded-2xl border border-coral-soft bg-coral-soft/30 px-4 py-3 text-sm text-ink shadow-sm">
           <Lock className="mt-0.5 h-5 w-5 shrink-0 text-coral-dark" />
-          <p>
-            La page <span className="font-semibold">{forbiddenNext}</span> est
-            réservée aux abonnées et aux patientes de Karine. Choisis un plan
-            ci-dessous pour y accéder.
-          </p>
+          {(() => {
+            const f = humanizeForbiddenPath(forbiddenNext);
+            return (
+              <p>
+                <span className="font-semibold">{f.label}</span> {f.verb} aux
+                abonnées et aux patientes de Karine. Choisis un plan ci-dessous
+                pour y accéder.
+              </p>
+            );
+          })()}
         </div>
       )}
 
@@ -324,8 +426,12 @@ export function MonPlanView({
         </section>
       )}
 
-      {/* === BLOC PLANS (visiteur OU sans abo actif) === */}
-      {!hasActiveSub && !patientActive && (
+      {/* === BLOC PLANS — utilisatrice CONNECTÉE sans abo actif ===
+          On ne montre PAS les plans à une visiteuse : elle doit d'abord
+          passer par la section "Bienvenue" (créer un compte ou se
+          connecter). Cette séparation évite de la noyer sous le pricing
+          avant qu'elle ait choisi son chemin d'auth. */}
+      {isAuthenticated && !hasActiveSub && !patientActive && (
         <section className="space-y-3">
           <p className="text-center text-sm text-ink-soft">
             Choisis un plan pour accéder à toutes les recettes, menus et conseils.
@@ -406,15 +512,26 @@ export function MonPlanView({
             </button>
           )}
 
-          {!isAuthenticated && (
-            <p className="text-center text-xs text-ink-soft">
-              Patiente de Karine ?{' '}
-              <a href="/signup" className="font-semibold text-coral underline">
-                Crée un compte avec l&apos;option « patiente »
-              </a>{' '}
-              pour demander un accès gratuit.
-            </p>
+          {/* Duplicat du message d'erreur juste sous le bouton Continuer.
+              Avant : l'erreur n'apparaissait QU'EN HAUT de page (autour
+              ligne 335) — invisible pour une utilisatrice scrollée en bas
+              au moment du clic, qui avait l'impression que "rien ne se
+              passe". Ici on l'affiche aussi en bas, exactement là où le
+              clic vient de se produire → feedback immédiat. */}
+          {error && selectedPlan && (
+            <div
+              role="alert"
+              className="rounded-2xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700"
+            >
+              {error}
+            </div>
           )}
+
+          {/* Le bloc "Patiente de Karine ? Créer mon compte" qui était
+              ici a été remonté dans la section "Bienvenue" en haut de
+              page. Le bloc plans n'est désormais affiché qu'aux
+              utilisatrices connectées sans abo, donc isAuthenticated
+              est forcément vrai à ce stade — pas besoin de CTA signup. */}
         </section>
       )}
 
@@ -488,12 +605,70 @@ function PlanCard({
             : 'border border-coral bg-white text-coral-dark hover:bg-coral-soft/30'
         }`}
       >
+        {/* "Choisir le mensuel" / "Choisir le annuel" était fautif
+            (élision manquante devant voyelle + tournure sèche).
+            On insère "plan" devant : "Choisir le plan mensuel /
+            le plan annuel" — grammatical et cohérent avec
+            "Continuer avec le plan…" plus bas. */}
         {selected
           ? `✓ Plan ${cfg.label.toLowerCase()} sélectionné`
           : busy
             ? 'Redirection…'
-            : `Choisir le ${cfg.label.toLowerCase()}`}
+            : `Choisir le plan ${cfg.label.toLowerCase()}`}
       </button>
     </div>
   );
+}
+
+/**
+ * Convertit une URL brute (souvent passée en ?next=) en libellé lisible
+ * + l'accord du verbe « réservé(e)(s) » qui va avec, pour la bannière
+ * "section réservée".
+ *
+ * On renvoie `verb` complet (ex: « sont réservées ») plutôt qu'un « est
+ * réservé(e) » figé : le sujet peut être singulier/pluriel et
+ * masculin/féminin (« Les astuces… sont réservées », « Le menu… est
+ * réservé »).
+ *
+ * Sans ce mapping, on affichait des URLs avec UUID brut du type
+ * "/menus/f3affd56-…/jour" — illisible pour la visiteuse.
+ *
+ * Si le path ne correspond à aucun pattern connu : fallback "Cette page".
+ */
+function humanizeForbiddenPath(rawPath: string): { label: string; verb: string } {
+  // Nettoyage : retire query / hash, force minuscules
+  const path = rawPath.split('?')[0].split('#')[0].toLowerCase();
+
+  // Mapping ordonné du plus spécifique au plus générique
+  if (path === '/' || path === '')
+    return { label: 'La page d’accueil', verb: 'est réservée' };
+
+  if (/^\/menus\/[^/]+\/liste-courses\/?$/.test(path))
+    return { label: 'La liste de courses du menu', verb: 'est réservée' };
+  if (/^\/menus\/[^/]+\/jour\/?$/.test(path))
+    return { label: 'Le menu de la semaine', verb: 'est réservé' };
+  if (/^\/menus(\/[^/]+)?\/?$/.test(path))
+    return { label: 'Les menus de la semaine', verb: 'sont réservés' };
+
+  if (/^\/recettes\/[^/]+\/?$/.test(path))
+    return { label: 'Cette recette', verb: 'est réservée' };
+  if (path.startsWith('/recettes'))
+    return { label: 'Les recettes', verb: 'sont réservées' };
+
+  if (path.startsWith('/conseils'))
+    return { label: 'Les conseils santé', verb: 'sont réservés' };
+  if (path.startsWith('/astuces'))
+    return { label: 'Les astuces diététiques', verb: 'sont réservées' };
+  if (path.startsWith('/favoris'))
+    return { label: 'Tes favoris', verb: 'sont réservés' };
+  if (path.startsWith('/courses'))
+    return { label: 'Tes courses', verb: 'sont réservées' };
+  if (path.startsWith('/mes-repas'))
+    return { label: 'Ton suivi de repas', verb: 'est réservé' };
+  if (path.startsWith('/notifications'))
+    return { label: 'Tes notifications', verb: 'sont réservées' };
+  if (path.startsWith('/profil'))
+    return { label: 'Ton profil', verb: 'est réservé' };
+
+  return { label: 'Cette page', verb: 'est réservée' };
 }

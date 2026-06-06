@@ -15,8 +15,10 @@ import {
   User,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { BrandHeader } from '@/components/brand/BrandHeader';
-import { AuthFooter } from '@/components/brand/AuthFooter';
+import { authErrorFr } from '@/lib/auth-error-fr';
+import { stashPendingPatientRequest } from '@/lib/pending-patient-request';
+import { AuthHeader } from '@/components/brand/AuthHeader';
+import { OAuthButton } from '@/components/auth/OAuthButtons';
 
 export default function SignupForm() {
   const router = useRouter();
@@ -103,14 +105,14 @@ export default function SignupForm() {
       router.push(redirect);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
+      setError(authErrorFr(err instanceof Error ? err.message : ''));
       setLoading(false);
     }
   }
 
   return (
     <main className="relative flex min-h-screen flex-col overflow-x-hidden">
-      <BrandHeader />
+      <AuthHeader />
 
       <div className="flex flex-1 items-center justify-center px-3 py-5 sm:px-5 sm:py-6">
         <div className="w-full max-w-md">
@@ -265,6 +267,62 @@ export default function SignupForm() {
                 {loading ? 'Création…' : 'Créer mon compte'}
               </button>
             </form>
+
+            {/* Séparateur + OAuth Google / Facebook — pattern miroir de /login.
+                Supabase `signInWithOAuth` fait login ET signup en une seule
+                action : si l'utilisatrice n'a pas encore de compte, il est
+                créé automatiquement lors du retour du callback OAuth.
+                ⚠️ OAuth saute le formulaire → la case "patiente de Karine"
+                n'est pas posée. Si l'utilisatrice veut ce statut, elle doit
+                soit utiliser le formulaire au-dessus, soit le demander
+                ensuite depuis /mon-plan. On l'indique discrètement. */}
+            <div className="my-5 flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-ink-soft">
+              <span className="h-px flex-1 bg-coral-soft/60" />
+              <span>ou</span>
+              <span className="h-px flex-1 bg-coral-soft/60" />
+            </div>
+
+            {/* Si la case "patiente" est cochée juste avant un clic
+                Google/Facebook, on stash le message en sessionStorage.
+                Au retour OAuth, PostAuthPatientRequestEffect (monté
+                global dans le RootLayout) consomme ce stash, POST
+                /api/patient-requests, et affiche un toast :
+                « Karine est prévenue de ta demande, elle te répondra
+                bientôt. » Pas besoin d'un message d'avertissement
+                spécifique ici — le toast post-auth fait le job. */}
+            <div className="space-y-3">
+              <OAuthButton
+                provider="google"
+                redirect={redirect}
+                onBeforeRedirect={
+                  isPatient
+                    ? () => stashPendingPatientRequest(patientMessage)
+                    : undefined
+                }
+              />
+              <OAuthButton
+                provider="facebook"
+                redirect={redirect}
+                onBeforeRedirect={
+                  isPatient
+                    ? () => stashPendingPatientRequest(patientMessage)
+                    : undefined
+                }
+              />
+            </div>
+
+            {!isPatient && (
+              <p className="mt-3 text-center text-[0.7rem] italic leading-relaxed text-ink-soft">
+                Patiente de Karine&nbsp;? Coche la case ci-dessus avant
+                de cliquer sur Google/Facebook — on transmettra ta demande.
+              </p>
+            )}
+            {isPatient && (
+              <p className="mt-3 text-center text-[0.7rem] italic leading-relaxed text-coral-dark">
+                Ta demande patiente sera transmise à Karine après
+                connexion Google ou Facebook.
+              </p>
+            )}
           </section>
           )}
 
@@ -282,7 +340,6 @@ export default function SignupForm() {
         </div>
       </div>
 
-      <AuthFooter />
 
       <style>{`
         .input-pill {

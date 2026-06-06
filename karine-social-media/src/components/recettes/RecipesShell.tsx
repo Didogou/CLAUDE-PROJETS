@@ -17,10 +17,12 @@ export function RecipesShell({
   appHeader,
   recipes,
   decks,
+  userHasPlan,
 }: {
   appHeader: ReactNode;
   recipes: Recipe[];
   decks: Record<RecipeCategory, CategoryDeckData>;
+  userHasPlan: boolean;
 }) {
   const [query, setQuery] = useState('');
 
@@ -46,7 +48,7 @@ export function RecipesShell({
       </div>
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 pt-6 lg:max-w-7xl lg:px-10">
-        <RecipesView recipes={recipes} decks={decks} query={query} />
+        <RecipesView recipes={recipes} decks={decks} query={query} userHasPlan={userHasPlan} />
       </main>
     </>
   );

@@ -25,7 +25,13 @@ export type ActivityLevel =
 export type Goal = 'lose' | 'maintain' | 'gain';
 
 /** Objectif de perte sur 3 mois fixes. 1-9 kg ou null = maintenance. */
-export type WeightLossKg = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+// Range élargi : 3 mois max 9, 6 mois max 15, 12 mois max 30.
+export type WeightLossKg =
+  | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9
+  | 10 | 11 | 12 | 13 | 14 | 15
+  | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24 | 25 | 26 | 27 | 28 | 29 | 30;
+
+export type TargetHorizonMonths = 3 | 6 | 12;
 
 export type NutritionProfile = {
   sex: Sex;
@@ -35,7 +41,10 @@ export type NutritionProfile = {
   activityLevel: ActivityLevel;
   /** Legacy — toujours présent mais ignoré au calcul si weightLossKg est posé. */
   goal: Goal;
-  /** Objectif de perte sur 3 mois (1-9 kg). Null = maintenance. */
+  /** Horizon (en mois) sur lequel l'objectif est planifié. */
+  targetHorizonMonths?: TargetHorizonMonths;
+  /** Objectif de perte sur l'horizon. Null = maintenance.
+   *  Fourchette : 0..9 (3m), 0..15 (6m), 0..30 (12m). */
   weightLossKg?: WeightLossKg | null;
 };
 
@@ -125,8 +134,13 @@ export function calculateNutritionTargets(
 
   let dailyKcal: number;
   if (typeof profile.weightLossKg === 'number' && profile.weightLossKg > 0) {
-    const rawDeficit =
-      (profile.weightLossKg * KCAL_PER_KG_FAT) / WEIGHT_LOSS_WINDOW_DAYS;
+    // Fenêtre = horizon réel × 30 jours (3, 6 ou 12 mois). Default
+    // 90j (3 mois) pour rétro-compat. La cohérence santé est garantie
+    // par le cap MAX_DAILY_DEFICIT_KCAL — perdre 9 kg en 3 mois donne
+    // déjà 770 kcal/j de déficit, pas viable de pousser plus.
+    const horizonDays = (profile.targetHorizonMonths ?? 3) * 30;
+    const windowDays = horizonDays > 0 ? horizonDays : WEIGHT_LOSS_WINDOW_DAYS;
+    const rawDeficit = (profile.weightLossKg * KCAL_PER_KG_FAT) / windowDays;
     const cappedDeficit = Math.min(rawDeficit, MAX_DAILY_DEFICIT_KCAL);
     dailyKcal = Math.max(FLOOR_DAILY_KCAL, Math.round(tdee - cappedDeficit));
   } else {

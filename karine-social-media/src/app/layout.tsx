@@ -6,6 +6,7 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister';
 import { DebugConsole } from '@/components/debug/DebugConsole';
 import { SubscriberFloatingTools } from '@/components/nutrition/SubscriberFloatingTools';
 import { ToastHost } from '@/components/ui/ToastHost';
+import { PostAuthPatientRequestEffect } from '@/components/auth/PostAuthPatientRequestEffect';
 import './globals.css';
 
 const nunito = Nunito({
@@ -33,7 +34,10 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // PAS de maximumScale ni de userScalable=no : on laisse le pinch-to-zoom
+  // (accessibilité WCAG — les utilisatrices presbytes / malvoyantes y
+  // tiennent). Sans maximumScale fixe, iOS gère le scale au pinch et
+  // remet à 1 quand on relâche.
   viewportFit: 'cover',
   themeColor: '#fdf2f3',
 };
@@ -63,6 +67,10 @@ export default function RootLayout({
         {children}
         <SubscriberFloatingTools />
         <ToastHost />
+        {/* Finalise une demande "patiente de Karine" stashée juste avant un
+            round-trip OAuth (cf. /signup → cocher la case + Continuer avec
+            Google). Aucun rendu visible — toast au retour si applicable. */}
+        <PostAuthPatientRequestEffect />
         <SpeedInsights />
       </body>
     </html>

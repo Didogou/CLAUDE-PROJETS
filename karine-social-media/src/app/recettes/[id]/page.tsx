@@ -1,9 +1,7 @@
-import Link from 'next/link';
-import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
+import { notFound, redirect } from 'next/navigation';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
-import { Logo } from '@/components/brand/Logo';
+import { MenuDayHeader } from '@/components/menus/MenuDayHeader';
 import { TrackView } from '@/components/garde/TrackView';
 import { RecipeDetailView } from '@/components/recettes/RecipeDetailView';
 import { SheetCarousel } from '@/components/recettes/SheetCarousel';
@@ -13,6 +11,7 @@ import { getCurrentUser } from '@/lib/current-user';
 import { isFavorited } from '@/lib/favorites';
 import { getUserLikedSheetIds } from '@/lib/sheet-likes';
 import { CATEGORY_SLUG } from '@/data/recipes';
+import { userHasPlanAccess } from '@/lib/user-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,6 +23,15 @@ export default async function RecipeDetailPage({
   const { id } = await params;
   const recipe = await getRecipeBySlug(id);
   if (!recipe || recipe.coverImage === '') notFound();
+
+  // Gate accès : si la recette n'est PAS publique et que l'utilisatrice
+  // n'a pas de plan actif → redirect vers /mon-plan avec next préservé.
+  // Évite que la page rende du contenu inaccessible (et limite le
+  // contournement via URL directe).
+  const userHasPlan = await userHasPlanAccess();
+  if (!recipe.isPublic && !userHasPlan) {
+    redirect(`/mon-plan?next=/recettes/${recipe.id}`);
+  }
 
   const images = [recipe.coverImage, ...recipe.slides];
 
@@ -42,28 +50,12 @@ export default async function RecipeDetailPage({
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
-      <div className="print:hidden">
-        <FloralBackground />
-      </div>
-
-      {/* Header simplifié : retour + logo + spacer. Le Logo est en flow
-          normal (pas absolute) pour éviter tout clipping du titre par
-          overflow ou hauteur insuffisante du header. Le bouton "Ajouter
-          aux favoris" est désormais en overlay sur l'image de la fiche
-          (SheetCarousel). */}
-      <header className="flex items-center justify-between gap-4 px-5 py-6 lg:py-8 print:hidden">
-        <Link
-          href={`/recettes/${CATEGORY_SLUG[recipe.category]}`}
-          aria-label={`Retour aux ${recipe.category}`}
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/70 text-ink transition hover:bg-white"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="min-w-0 flex-1">
-          <Logo />
-        </div>
-        <span aria-hidden className="h-10 w-10 shrink-0" />
-      </header>
+      {/* FloralBackground et MenuDayHeader DOIVENT être enfants directs
+          du flex parent pour que `sticky top-0` du header reste actif
+          tout au long du scroll. Le back arrow ramène à la catégorie
+          parente (ex. "Plats") plutôt qu'à la liste générale. */}
+      <FloralBackground />
+      <MenuDayHeader backHref={`/recettes/${CATEGORY_SLUG[recipe.category]}`} />
 
       <TrackView
         type="recipe"

@@ -91,11 +91,13 @@ export function SubscribeAuthGate({
         </p>
 
         <div className="mt-5 space-y-2">
+          {/* CTA principal : créer un compte. Agrandi (text-base, py-3.5)
+              pour rester cohérent avec /login et la modale de tuile verrouillée. */}
           <Link
             href={`/signup?next=${next}`}
-            className="block w-full rounded-full bg-coral py-3 text-center text-sm font-bold text-white shadow-[0_6px_18px_-8px_rgba(226,120,141,0.8)] transition hover:bg-coral-dark"
+            className="block w-full rounded-full bg-coral py-3.5 text-center text-base font-bold text-white shadow-[0_6px_18px_-8px_rgba(226,120,141,0.8)] transition hover:bg-coral-dark active:scale-[0.98]"
           >
-            Créer un compte
+            Créer mon compte 🌸
           </Link>
           <Link
             href={`/login?next=${next}`}

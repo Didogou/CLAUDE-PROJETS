@@ -46,6 +46,7 @@ function mapMenu(row: any, days: any[]): WeeklyMenu {
     shoppingListItems: items,
     status: row.status,
     publishedAt: row.published_at,
+    isPublic: row.is_public ?? false,
     days: days
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .map((d: any): WeeklyMenuDay => ({

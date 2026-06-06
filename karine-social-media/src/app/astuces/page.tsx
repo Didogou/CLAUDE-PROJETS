@@ -7,27 +7,28 @@ import { getPublishedTips } from '@/lib/tips';
 import { getTipCommentCounts } from '@/lib/comments';
 import { getCurrentUser } from '@/lib/current-user';
 import { getUserFavorites } from '@/lib/favorites';
+import { userHasPlanAccess } from '@/lib/user-access';
 
 export const dynamic = 'force-dynamic';
 
 export default async function AstucesPage() {
   const user = await getCurrentUser();
   const tips = await getPublishedTips();
-  const [commentCounts, favRows] = await Promise.all([
+  const [commentCounts, favRows, userHasPlan] = await Promise.all([
     getTipCommentCounts(tips.map((t) => t.id)),
     user.id ? getUserFavorites(user.id) : Promise.resolve([]),
+    userHasPlanAccess(),
   ]);
   const favoritedSlugs = new Set(
     favRows.filter((r) => r.targetType === 'tip').map((r) => r.targetId),
   );
   return (
     <div className="relative flex min-h-screen flex-col print:hidden">
-      <div className="print:hidden">
-        <FloralBackground variant="astuces" />
-      </div>
-      <div className="print:hidden">
-        <AppHeader />
-      </div>
+      {/* AppHeader DOIT être enfant direct du flex parent (sinon le
+          wrapper scope son sticky et il décolle au scroll). Le parent
+          a déjà print:hidden au niveau racine. */}
+      <FloralBackground variant="astuces" />
+      <AppHeader />
       <main className="relative mx-auto w-full max-w-md flex-1 overflow-x-clip px-2 pb-8 sm:max-w-2xl sm:px-4 md:max-w-4xl md:px-6 lg:max-w-7xl lg:px-10 print:hidden">
         <div className="relative">
           <h1 className="mb-2 text-center font-script text-4xl text-coral lg:text-5xl">Astuces</h1>
@@ -41,6 +42,7 @@ export default async function AstucesPage() {
           commentCounts={commentCounts}
           isAuthenticated={user.isAuthenticated}
           favoritedSlugs={favoritedSlugs}
+          userHasPlan={userHasPlan}
         />
       </main>
       <div className="print:hidden">

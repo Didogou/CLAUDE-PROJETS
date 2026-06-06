@@ -21,12 +21,12 @@ export default async function MenusPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
-      <div className="print:hidden">
-        <FloralBackground />
-      </div>
-      <div className="print:hidden">
-        <AppHeader />
-      </div>
+      {/* Pas de wrapper print:hidden ici : il scoperait le sticky du
+          AppHeader et le ferait disparaître dès qu'on scroll au-delà
+          de sa propre hauteur. FloralBackground et BottomNav ont déjà
+          leur propre print:hidden via classes directes plus loin. */}
+      <FloralBackground />
+      <AppHeader />
       <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-8 print:m-0 print:max-w-none print:p-0">
         <h1 className="mb-3 font-script text-4xl text-coral lg:mb-2 lg:text-3xl print:hidden">
           Mes menus

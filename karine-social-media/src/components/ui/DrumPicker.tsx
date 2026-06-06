@@ -79,16 +79,21 @@ export function DrumPicker<T extends string | number>({
     if (clamped !== selectedIdx) setSelectedIdx(clamped);
   }
 
+  // Tap sur un item = scroll-snap dessus + validation immédiate.
+  // Pattern iOS Forms : on n'a pas besoin de bouton Valider — taper
+  // une valeur EST l'action de validation.
+  function onItemTap(idx: number) {
+    const el = listRef.current;
+    if (el) el.scrollTo({ top: idx * ITEM_HEIGHT_PX, behavior: 'smooth' });
+    onPick(options[idx]);
+  }
+
   const highlightColor =
     accent === 'blue'
       ? 'border-blue-400/40 bg-blue-50/40'
       : 'border-coral/40 bg-coral-soft/30';
-  const validBgColor =
-    accent === 'blue' ? 'bg-blue-500' : 'bg-coral';
   const titleColor =
     accent === 'blue' ? 'text-blue-900' : 'text-coral-dark';
-  const cancelBorder =
-    accent === 'blue' ? 'border-blue-200 text-blue-700' : 'border-coral-soft text-coral';
 
   if (typeof document === 'undefined') return null;
 
@@ -136,6 +141,14 @@ export function DrumPicker<T extends string | number>({
               scrollSnapType: 'y mandatory',
               scrollbarWidth: 'none',
               WebkitOverflowScrolling: 'touch',
+              // touch-action: pan-y interdit au navigateur d'interpréter
+              // un swipe horizontal comme un scroll. Sans ça, sur iOS,
+              // un drag latéral pendant qu'on scrolle verticalement fait
+              // bouger les chiffres horizontalement → impression de bug.
+              touchAction: 'pan-y',
+              // overscrollBehavior contain : le scroll dans le drum ne
+              // remonte pas au parent (sheet) si on dépasse le bord.
+              overscrollBehavior: 'contain',
             }}
           >
             {options.map((opt, idx) => {
@@ -143,11 +156,12 @@ export function DrumPicker<T extends string | number>({
               return (
                 <li
                   key={String(opt)}
+                  onClick={() => onItemTap(idx)}
                   style={{
                     height: `${ITEM_HEIGHT_PX}px`,
                     scrollSnapAlign: 'center',
                   }}
-                  className={`flex items-center justify-center text-xl font-bold transition-all ${
+                  className={`flex cursor-pointer items-center justify-center text-xl font-bold transition-all ${
                     isSelected
                       ? accent === 'blue'
                         ? 'scale-110 text-blue-700'
@@ -160,23 +174,6 @@ export function DrumPicker<T extends string | number>({
               );
             })}
           </ul>
-        </div>
-
-        <div className="flex justify-end gap-2 pt-1">
-          <button
-            type="button"
-            onClick={onClose}
-            className={`rounded-full border px-4 py-1.5 text-xs font-semibold ${cancelBorder}`}
-          >
-            Annuler
-          </button>
-          <button
-            type="button"
-            onClick={() => onPick(options[selectedIdx])}
-            className={`rounded-full px-5 py-1.5 text-xs font-semibold text-white shadow ${validBgColor}`}
-          >
-            Valider
-          </button>
         </div>
       </div>
     </div>,

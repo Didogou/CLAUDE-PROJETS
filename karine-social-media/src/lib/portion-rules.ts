@@ -9,6 +9,9 @@ export type PortionFood = {
   portionG: number;
   sizeVariability: SizeVariability;
   notes: string | null;
+  /** true = entrée créée automatiquement par Mistral lors d'un parse,
+   *  en attente de validation par Karine. */
+  aiGenerated: boolean;
 };
 
 export type PortionModifier = {
@@ -39,7 +42,7 @@ export async function getPortionRules(): Promise<PortionRules> {
     const [foodsRes, modsRes] = await Promise.all([
       (supabase as any)
         .from('portion_foods')
-        .select('id, name, portion_g, size_variability, notes')
+        .select('id, name, portion_g, size_variability, notes, ai_generated')
         .order('name', { ascending: true }),
       (supabase as any)
         .from('portion_modifiers')
@@ -55,6 +58,7 @@ export async function getPortionRules(): Promise<PortionRules> {
         portionG: Number(r.portion_g),
         sizeVariability: (r.size_variability as SizeVariability) || 'medium',
         notes: (r.notes as string | null) ?? null,
+        aiGenerated: Boolean(r.ai_generated),
       }),
     );
 

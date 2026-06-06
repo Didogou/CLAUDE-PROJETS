@@ -7,6 +7,8 @@ export type Advice = {
   tags: string[];
   likesCount: number;
   status: AdviceStatus;
+  /** "Tout le monde" : accessible aux visiteuses non abonnées. */
+  isPublic: boolean;
   publishedAt: string | null;
   createdAt: string;
 };

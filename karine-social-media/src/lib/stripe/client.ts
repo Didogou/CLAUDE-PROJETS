@@ -3,13 +3,31 @@ import Stripe from 'stripe';
 import type { PlanKind } from '@/data/plans';
 
 /**
- * Instance Stripe singleton côté serveur. Importée par les routes API,
- * le webhook et le portail client.
+ * Instance Stripe singleton côté serveur, en lazy-init via Proxy.
+ *
+ * Init au top-level cassait l'import de toute la chaîne quand
+ * STRIPE_SECRET_KEY n'était pas définie (env dev incomplète) — la
+ * simple visite de /profil throwait au module evaluation. Avec ce
+ * Proxy, l'init n'arrive que lors d'un accès effectif à une méthode
+ * Stripe, et l'erreur "config manquante" est levée avec un message
+ * compréhensible plutôt que par Stripe lui-même.
  */
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
-  // On laisse Stripe choisir la version par défaut du SDK pour éviter
-  // les mismatches au pin manuel (le typage du SDK la résout).
-  typescript: true,
+let _stripe: Stripe | null = null;
+function getStripeInstance(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    throw new Error(
+      'STRIPE_SECRET_KEY est manquante. Configure-la dans .env.local pour utiliser une fonctionnalité Stripe.',
+    );
+  }
+  _stripe = new Stripe(key, { typescript: true });
+  return _stripe;
+}
+export const stripe = new Proxy({} as Stripe, {
+  get(_t, prop) {
+    return Reflect.get(getStripeInstance(), prop);
+  },
 });
 
 /** Mapping kind → price ID Stripe (configuré dans le dashboard). */

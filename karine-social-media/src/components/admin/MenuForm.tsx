@@ -9,7 +9,7 @@ import {
   type FormEvent,
   type ChangeEvent,
 } from 'react';
-import { Trash2, X } from 'lucide-react';
+import { Trash2, Upload, X } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import { ShoppingListEditor } from './ShoppingListEditor';
 import { MealSheetEditor } from './MealSheetEditor';
@@ -377,7 +377,12 @@ export function MenuForm({ menu, recipeOptions }: Props) {
           const lunchKey = `lunch_${i}`;
           const dinnerKey = `dinner_${i}`;
           return (
-            <div key={i} className="space-y-3 rounded-xl border border-admin-border p-3">
+            <section
+              key={i}
+              // Même className que <section> de ShoppingListEditor qui
+              // gère parfaitement la largeur mobile (PAIN & AUTRES).
+              className="min-w-0 space-y-3 rounded-2xl border border-admin-border bg-admin-surface/40 p-4"
+            >
               <p className="text-sm font-bold uppercase tracking-wide text-admin-primary-dark">
                 {label}
               </p>
@@ -388,31 +393,33 @@ export function MenuForm({ menu, recipeOptions }: Props) {
                 onImageChange={(e) => onDayImageChange(coverKey, e)}
                 onDelete={isEdit ? () => handleDelete('day_cover', { dayIndex: i }) : undefined}
               />
-              <MealRow
-                kind="Déjeuner"
-                idx={i}
-                fieldLabel="lunch"
-                required={i === 0}
-                initialLabel={initial?.lunchLabel ?? ''}
-                initialRecipe={initial?.lunchRecipeSlug ?? ''}
-                initialImage={initial?.lunchImageUrl ?? ''}
-                preview={dayPreviews[lunchKey]}
-                onImageChange={(e) => onDayImageChange(lunchKey, e)}
-                onDelete={isEdit ? () => handleDelete('day_lunch', { dayIndex: i }) : undefined}
-                recipeOptions={recipeOptions}
+              {/* MealRow Déjeuner/Dîner retirés : depuis le refactor
+                  Vision, ce sont les "Fiches recettes (Vision)" plus bas
+                  qui font autorité (titre, image, ingrédients lus par
+                  Haiku). Les champs lunch_label/dinner_label/etc. en
+                  BDD restent acceptés vides — la migration ultérieure
+                  remplacera leur lecture front par mealSheets[].title.
+                  Les inputs hidden préservent les valeurs existantes
+                  côté édition pour ne pas écraser un menu legacy. */}
+              <input
+                type="hidden"
+                name={`day-${i}-lunch-label`}
+                defaultValue={initial?.lunchLabel ?? ''}
               />
-              <MealRow
-                kind="Dîner"
-                idx={i}
-                fieldLabel="dinner"
-                required={i === 0}
-                initialLabel={initial?.dinnerLabel ?? ''}
-                initialRecipe={initial?.dinnerRecipeSlug ?? ''}
-                initialImage={initial?.dinnerImageUrl ?? ''}
-                preview={dayPreviews[dinnerKey]}
-                onImageChange={(e) => onDayImageChange(dinnerKey, e)}
-                onDelete={isEdit ? () => handleDelete('day_dinner', { dayIndex: i }) : undefined}
-                recipeOptions={recipeOptions}
+              <input
+                type="hidden"
+                name={`day-${i}-lunch-recipe`}
+                defaultValue={initial?.lunchRecipeSlug ?? ''}
+              />
+              <input
+                type="hidden"
+                name={`day-${i}-dinner-label`}
+                defaultValue={initial?.dinnerLabel ?? ''}
+              />
+              <input
+                type="hidden"
+                name={`day-${i}-dinner-recipe`}
+                defaultValue={initial?.dinnerRecipeSlug ?? ''}
               />
 
               {/* Fiches Vision : upload image fiche déjeuner et fiche
@@ -420,7 +427,7 @@ export function MenuForm({ menu, recipeOptions }: Props) {
                   + calories + temps. Visible en édition uniquement
                   (besoin de menuId pour appeler l API). */}
               {isEdit && menu && (
-                <div className="space-y-2 rounded-xl border border-admin-border bg-admin-soft/30 p-3">
+                <div className="min-w-0 space-y-2 overflow-hidden rounded-xl border border-admin-border bg-admin-soft/30 p-3">
                   <p className="text-[0.65rem] font-bold uppercase tracking-wider text-admin-primary-dark">
                     🍽 Fiches recettes (Vision)
                   </p>
@@ -448,7 +455,7 @@ export function MenuForm({ menu, recipeOptions }: Props) {
                     : undefined
                 }
               />
-            </div>
+            </section>
           );
         })}
       </fieldset>
@@ -571,13 +578,17 @@ function PrepPhotosRow({
           ))}
         </div>
       )}
-      <input
-        name={`prep_photos_${idx}`}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
-        multiple
-        className="file-input"
-      />
+      <label className="flex w-fit cursor-pointer items-center gap-1.5 rounded-full bg-admin-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-admin-primary-dark">
+        <Upload className="h-3.5 w-3.5" strokeWidth={2.4} />
+        Sélect. fichiers
+        <input
+          name={`prep_photos_${idx}`}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+          multiple
+          className="hidden"
+        />
+      </label>
       <p className="text-[0.65rem] text-admin-ink-soft">
         Plusieurs photos possibles. Les nouvelles s&apos;ajoutent à la pellicule existante.
       </p>
@@ -600,7 +611,10 @@ function CoverRow({
 }) {
   const bg = preview || initialImage || '';
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-admin-soft/40 p-2">
+    // flex-wrap : si "Cover du jour" + thumbnail + bouton "Choisir"
+    // dépasse la largeur dispo (~265px sur mobile étroit), le bouton
+    // passe à la ligne au lieu de pousser tout hors viewport.
+    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-admin-soft/40 p-2">
       <p className="w-20 shrink-0 text-xs font-semibold text-admin-ink-soft">Cover du jour</p>
       <span className="relative block h-12 w-12 shrink-0">
         <span
@@ -622,13 +636,20 @@ function CoverRow({
           </button>
         )}
       </span>
-      <input
-        name={`cover_image_${idx}`}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
-        onChange={onImageChange}
-        className="file-input"
-      />
+      {/* Pattern label-stylisé + input caché, copié sur
+          ShoppingListEditor. L'input natif iOS faisait ~250px et
+          débordait du viewport mobile. */}
+      <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-admin-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-admin-primary-dark">
+        <Upload className="h-3.5 w-3.5" strokeWidth={2.4} />
+        Choisir
+        <input
+          name={`cover_image_${idx}`}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+          onChange={onImageChange}
+          className="hidden"
+        />
+      </label>
     </div>
   );
 }
@@ -762,14 +783,18 @@ function ImagePickup({
             </button>
           )}
         </span>
-        <input
-          name={name}
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
-          required={required}
-          onChange={onChange}
-          className="file-input"
-        />
+        <label className="ml-auto flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-admin-primary px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-admin-primary-dark">
+          <Upload className="h-3.5 w-3.5" strokeWidth={2.4} />
+          Choisir
+          <input
+            name={name}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+            required={required}
+            onChange={onChange}
+            className="hidden"
+          />
+        </label>
       </div>
       {hint && <p className="text-xs text-admin-ink-soft">{hint}</p>}
     </div>

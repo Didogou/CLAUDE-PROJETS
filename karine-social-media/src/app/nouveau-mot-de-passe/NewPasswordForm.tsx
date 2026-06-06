@@ -4,8 +4,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Heart, KeyRound } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { BrandHeader } from '@/components/brand/BrandHeader';
-import { AuthFooter } from '@/components/brand/AuthFooter';
+import { authErrorFr } from '@/lib/auth-error-fr';
+import { AuthHeader } from '@/components/brand/AuthHeader';
 
 export default function NewPasswordForm() {
   const router = useRouter();
@@ -49,7 +49,7 @@ export default function NewPasswordForm() {
         router.refresh();
       }, 1500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
+      setError(authErrorFr(err instanceof Error ? err.message : ''));
     } finally {
       setLoading(false);
     }
@@ -57,7 +57,7 @@ export default function NewPasswordForm() {
 
   return (
     <main className="relative flex min-h-screen flex-col overflow-x-hidden">
-      <BrandHeader />
+      <AuthHeader />
 
       <div className="flex flex-1 items-center justify-center px-3 py-5 sm:px-5 sm:py-6">
         <div className="w-full max-w-md">
@@ -146,7 +146,6 @@ export default function NewPasswordForm() {
         </div>
       </div>
 
-      <AuthFooter />
 
       <style>{`
         .input-pill {

@@ -161,8 +161,12 @@ export function AdminChrome({ children }: { children: React.ReactNode }) {
         </>
       )}
 
-      {/* Contenu */}
-      <main className="mx-auto w-full max-w-5xl px-4 py-6 lg:px-8">{children}</main>
+      {/* Contenu — overflow-x:clip empêche tout débordement horizontal
+          d'un descendant de créer un scroll latéral parasite. Patch
+          défensif, pas la solution idéale, à creuser plus tard. */}
+      <main className="mx-auto w-full max-w-5xl overflow-x-clip px-4 py-6 lg:px-8">
+        {children}
+      </main>
     </div>
   );
 }

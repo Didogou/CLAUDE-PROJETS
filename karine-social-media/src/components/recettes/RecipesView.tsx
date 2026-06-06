@@ -17,10 +17,15 @@ export function RecipesView({
   recipes,
   decks,
   query,
+  userHasPlan,
 }: {
   recipes: Recipe[];
   decks: Record<RecipeCategory, CategoryDeckData>;
   query: string;
+  /** Threading depuis le Server Component parent. Si false, les
+   *  recettes non is_public seront affichées avec un cadenas et
+   *  un clic qui redirige vers /mon-plan. */
+  userHasPlan: boolean;
 }) {
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
   const toggleFavorite = (id: string) =>
@@ -41,6 +46,7 @@ export function RecipesView({
         filtered={filtered}
         favorites={favorites}
         onToggleFavorite={toggleFavorite}
+        userHasPlan={userHasPlan}
       />
     );
   }
@@ -64,11 +70,13 @@ function SearchResults({
   filtered,
   favorites,
   onToggleFavorite,
+  userHasPlan,
 }: {
   q: string;
   filtered: Recipe[];
   favorites: Set<string>;
   onToggleFavorite: (id: string) => void;
+  userHasPlan: boolean;
 }) {
   if (filtered.length === 0) {
     return (
@@ -95,6 +103,7 @@ function SearchResults({
                   recipe={recipe}
                   isFavorite={favorites.has(recipe.id)}
                   onToggleFavorite={onToggleFavorite}
+                  userHasPlan={userHasPlan}
                 />
               ))}
             </div>

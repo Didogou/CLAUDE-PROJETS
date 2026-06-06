@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check } from 'lucide-react';
+import { X, Check, History } from 'lucide-react';
 import { NutritionProfileForm } from './NutritionProfileForm';
+import { WeightHistoryPanel } from './WeightHistoryPanel';
 
 type Props = {
   open: boolean;
@@ -29,6 +30,8 @@ export function MyInfoModal({
   onError,
   profileComplete,
 }: Props) {
+  const [historyOpen, setHistoryOpen] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -80,6 +83,24 @@ export function MyInfoModal({
             journaliers (calories, protéines, lipides, glucides) selon
             la formule Mifflin-St Jeor.
           </p>
+
+          {/* Lien rapide vers l'historique des pesées — utile dans le
+              contexte "Mes repas" pour consulter la trajectoire sans
+              fermer cette modale. */}
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="mb-4 flex w-full items-center justify-between gap-2 rounded-xl bg-coral-soft/30 px-3 py-2.5 text-sm font-semibold text-coral-dark transition hover:bg-coral-soft/50"
+          >
+            <span className="flex items-center gap-2">
+              <History className="size-4" />
+              Historique des pesées
+            </span>
+            <span aria-hidden className="text-coral-dark/60">
+              →
+            </span>
+          </button>
+
           <NutritionProfileForm
             onSaved={() => {
               onSaved();
@@ -89,6 +110,11 @@ export function MyInfoModal({
           />
         </div>
       </div>
+
+      <WeightHistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+      />
     </div>,
     document.body,
   );

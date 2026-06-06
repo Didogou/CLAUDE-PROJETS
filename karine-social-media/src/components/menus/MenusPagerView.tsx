@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 /* eslint-disable @next/next/no-img-element */
 import {
   ChevronLeft,
@@ -11,6 +12,7 @@ import {
   Printer,
   Share2,
   ShoppingCart,
+  Sparkles,
 } from 'lucide-react';
 import type { WeeklyMenu, ShoppingListItem } from '@/data/menus';
 import { formatWeekTitle } from '@/data/menus';
@@ -43,10 +45,41 @@ export function MenusPagerView({
   menus: WeeklyMenu[];
   isSubscriber: boolean;
 }) {
-  const [idx, setIdx] = useState(0);
+  // === Persistance de l'index de semaine dans l'URL ===
+  // Le pager garde l'index courant dans `?w=<YYYY-MM-DD>` (weekStart du
+  // menu). Permet à l'utilisatrice de :
+  //  - faire un round-trip (cover non publique → /mon-plan → OAuth →
+  //    /menus/[id]/jour → back) sans perdre la semaine consultée
+  //  - bookmarker ou partager l'URL d'une semaine précise
+  //  - utiliser le bouton ← du navigateur de manière prévisible
+  // Fallback : idx 0 (semaine la plus récente) si pas de `w` dans l'URL
+  // ou si le `w` ne matche aucun menu.
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialIdx = useMemo(() => {
+    const w = searchParams.get('w');
+    if (!w) return 0;
+    const found = menus.findIndex((m) => m.weekStart === w);
+    return found >= 0 ? found : 0;
+  }, [searchParams, menus]);
+
+  const [idx, setIdx] = useState(initialIdx);
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(0);
   const [floatingHearts, setFloatingHearts] = useState<number[]>([]);
+
+  // Sync URL ←→ state : à chaque changement d'idx, replace (pas push) le
+  // query `w` pour ne pas polluer l'historique. `router.replace` est OK
+  // côté Next.js App Router pour mettre à jour le query sans recharger.
+  useEffect(() => {
+    const target = menus[idx]?.weekStart;
+    if (!target) return;
+    const current = searchParams.get('w');
+    if (current === target) return;
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.set('w', target);
+    router.replace(`/menus?${sp.toString()}`, { scroll: false });
+  }, [idx, menus, router, searchParams]);
 
   if (menus.length === 0) {
     return (
@@ -141,30 +174,66 @@ export function MenusPagerView({
         </div>
 
         {/* Image cover du menu — centrée, agrandie, cliquable.
-            Click → ouvre la page jour (comportement déjà attendu). */}
-        <div className="relative mx-auto w-full max-w-md">
-          <FireworkBurst category="plat" count={8} />
-          <Link
-            href={`/menus/${current.id}/jour`}
-            aria-label="Voir le détail du jour"
-            className="group relative block overflow-hidden rounded-[var(--radius-card)] shadow-lg ring-1 ring-white transition hover:-translate-y-0.5 hover:shadow-xl"
-          >
-            <img
-              src={current.coverImageUrl}
-              alt={current.title || 'Menu de la semaine'}
-              className="block w-full object-contain"
-            />
-          </Link>
-          <p className="mt-2 text-center font-script text-base text-coral">
-            Menu de la semaine
-          </p>
-        </div>
+            - Si abonnée OU menu is_public : ouvre la page jour
+            - Sinon : badge "Aperçu gratuit" (is_public) OU cadenas
+              + redirect /mon-plan au clic. */}
+        {(() => {
+          const isAccessible = isSubscriber || current.isPublic;
+          const showFreeBadge = !isSubscriber && current.isPublic;
+          const showLock = !isAccessible;
+          const href = isAccessible
+            ? `/menus/${current.id}/jour`
+            : `/mon-plan?next=/menus/${current.id}/jour`;
+          return (
+            <div className="relative mx-auto w-full max-w-md">
+              <FireworkBurst category="plat" count={8} />
+              <Link
+                href={href}
+                aria-label={
+                  isAccessible
+                    ? 'Voir le détail du jour'
+                    : 'Menu réservé aux abonnées — voir les plans'
+                }
+                className="group relative block overflow-hidden rounded-[var(--radius-card)] shadow-lg ring-1 ring-white transition hover:-translate-y-0.5 hover:shadow-xl"
+              >
+                <img
+                  src={current.coverImageUrl}
+                  alt={current.title || 'Menu de la semaine'}
+                  className={`block w-full object-contain transition ${
+                    showLock ? 'opacity-60 saturate-50 group-hover:opacity-75' : ''
+                  }`}
+                />
+                {/* Badge "Aperçu gratuit" sur cover si visiteuse non
+                    abonnée + menu is_public. */}
+                {showFreeBadge && (
+                  <span className="pointer-events-none absolute left-3 top-3 flex items-center gap-1 rounded-full bg-sage px-2.5 py-1 text-[0.7rem] font-bold uppercase tracking-wide text-white shadow-md">
+                    <Sparkles className="h-3 w-3" strokeWidth={2.4} />
+                    Aperçu gratuit
+                  </span>
+                )}
+                {/* Cadenas central si menu non accessible. */}
+                {showLock && (
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                    <span className="grid h-16 w-16 place-items-center rounded-full bg-white/90 text-coral-dark shadow-md">
+                      <Lock className="h-7 w-7" strokeWidth={2.4} />
+                    </span>
+                  </span>
+                )}
+              </Link>
+              <p className="mt-2 text-center font-script text-base text-coral">
+                Menu de la semaine
+              </p>
+            </div>
+          );
+        })()}
 
         {/* Bouton "Ajouter au menu" + PortionsStepper, comme pour les
-            fiches recettes. Seul l'abonné/patient/admin peut ajouter.
-            Le `key` force le remount au change de semaine pour reset
-            le PortionsStepper sur la nouvelle valeur basePortions. */}
-        {isSubscriber ? (
+            fiches recettes. Accessible à l'abonné/patient/admin OU si
+            le menu courant est is_public (mode découverte — la
+            visiteuse peut explorer la liste comme une abonnée). Les
+            actions internes (POST liste) géreront elles-mêmes le 401
+            si la visiteuse n'est pas authentifiée. */}
+        {isSubscriber || current.isPublic ? (
           <MenuShoppingActions
             key={current.id}
             menuId={current.id}

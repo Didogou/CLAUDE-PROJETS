@@ -4,8 +4,8 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Heart, Mail } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import { BrandHeader } from '@/components/brand/BrandHeader';
-import { AuthFooter } from '@/components/brand/AuthFooter';
+import { authErrorFr } from '@/lib/auth-error-fr';
+import { AuthHeader } from '@/components/brand/AuthHeader';
 
 export default function ForgotPasswordForm() {
   const [email, setEmail] = useState('');
@@ -25,7 +25,7 @@ export default function ForgotPasswordForm() {
       if (error) throw error;
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
+      setError(authErrorFr(err instanceof Error ? err.message : ''));
     } finally {
       setLoading(false);
     }
@@ -33,7 +33,7 @@ export default function ForgotPasswordForm() {
 
   return (
     <main className="relative flex min-h-screen flex-col overflow-x-hidden">
-      <BrandHeader />
+      <AuthHeader />
 
       <div className="flex flex-1 items-center justify-center px-3 py-5 sm:px-5 sm:py-6">
         <div className="w-full max-w-md">
@@ -107,7 +107,6 @@ export default function ForgotPasswordForm() {
         </div>
       </div>
 
-      <AuthFooter />
 
       <style>{`
         .input-pill {

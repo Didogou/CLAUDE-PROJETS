@@ -17,6 +17,7 @@ import {
   LogIn,
   LogOut,
   Flame,
+  PieChart,
 } from 'lucide-react';
 import { RecentViewsList } from './RecentViewsList';
 
@@ -25,11 +26,12 @@ type Section = { href: string; label: string; icon: typeof Home };
 const SECTIONS: Section[] = [
   { href: '/', label: 'Accueil', icon: Home },
   { href: '/recettes', label: 'Recettes', icon: UtensilsCrossed },
-  { href: '/menus', label: 'Les menus de la semaine', icon: NotebookText },
-  { href: '/conseils', label: 'Conseils', icon: Leaf },
+  { href: '/menus', label: 'Menus semaine', icon: NotebookText },
+  { href: '/conseils', label: 'Conseils santé', icon: Leaf },
   { href: '/astuces', label: 'Astuces', icon: Sparkles },
   { href: '/favoris', label: 'Mes favoris', icon: Heart },
   { href: '/mes-repas', label: 'Mes repas', icon: Flame },
+  { href: '/mes-stats', label: 'Mes stats', icon: PieChart },
   { href: '/profil', label: 'Profil', icon: User },
 ];
 
@@ -100,18 +102,27 @@ export function MainDrawer({
           style={{ scrollbarColor: 'var(--color-coral) transparent' }}
         >
           <ul className="flex flex-col gap-0.5">
-            {SECTIONS.map(({ href, label, icon: Icon }) => (
-              <li key={href}>
-                <Link
-                  href={href}
-                  onClick={() => setOpen(false)}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-ink transition hover:bg-coral-soft/40"
-                >
-                  <Icon className="h-5 w-5 text-coral" />
-                  {label}
-                </Link>
-              </li>
-            ))}
+            {SECTIONS.map(({ href, label, icon: Icon }) => {
+              // La home /app/page.tsx redirige automatiquement les admins
+              // vers /admin. Quand un admin clique "Accueil" dans le burger
+              // depuis /admin, sans ce bypass il resterait coincé sur /admin.
+              // ?as=visitor désactive l'auto-redirect côté page.tsx → l'admin
+              // voit la vraie home utilisatrice (ses propres tuiles).
+              const effectiveHref =
+                href === '/' && isAdmin ? '/?as=visitor' : href;
+              return (
+                <li key={href}>
+                  <Link
+                    href={effectiveHref}
+                    onClick={() => setOpen(false)}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold text-ink transition hover:bg-coral-soft/40"
+                  >
+                    <Icon className="h-5 w-5 text-coral" />
+                    {label}
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
 
           <div className="border-t border-coral-soft/40 pt-3">
@@ -169,9 +180,12 @@ export function MainDrawer({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Ouvrir le menu"
-        className="grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink backdrop-blur transition hover:bg-white/80"
+        // Taille alignée sur TrackingPill et le bouton Profil (h-8 w-8).
+        // Sinon en mode header compact le burger paraissait "trop grand"
+        // par rapport aux icones droite, comme s'il changeait de forme.
+        className="grid h-8 w-8 place-items-center rounded-full bg-white/50 text-ink backdrop-blur transition hover:bg-white/80"
       >
-        <Menu className="h-6 w-6" strokeWidth={2} />
+        <Menu className="h-4 w-4" strokeWidth={2} />
       </button>
 
       {mounted ? createPortal(drawer, document.body) : null}

@@ -24,6 +24,8 @@ function mapRow(row: TipRow): Tip {
     tags: row.tags ?? [],
     likesCount: row.likes_count ?? 0,
     status: row.status,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    isPublic: ((row as any).is_public ?? false) as boolean,
     publishedAt: row.published_at,
     createdAt: row.created_at,
   };

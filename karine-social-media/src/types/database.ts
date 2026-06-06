@@ -214,6 +214,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: number
+          is_public: boolean
           published_at: string | null
           scheduled_for: string | null
           slides: string[]
@@ -231,6 +232,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: number
+          is_public?: boolean
           published_at?: string | null
           scheduled_for?: string | null
           slides?: string[]
@@ -248,6 +250,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: number
+          is_public?: boolean
           published_at?: string | null
           scheduled_for?: string | null
           slides?: string[]

@@ -60,6 +60,9 @@ export type Recipe = {
   slides: string[];
   isSeasonal: boolean;
   isFeatured: boolean;
+  /** "Tout le monde" : true = accessible aux visiteurs non abonnés,
+   *  false = réservée aux abonnées / patientes. */
+  isPublic: boolean;
   likesCount: number;
   prepPhotos: string[];
   /** Fiches détaillées (toujours au moins 1 après création). */

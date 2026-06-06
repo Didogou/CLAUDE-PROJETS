@@ -132,12 +132,15 @@ function VisitorBlock({ onClose }: { onClose: () => void }) {
         >
           J&apos;ai déjà un compte — Se connecter
         </Link>
+        {/* CTA "patiente de Karine" : agrandi pour le mettre au même
+            niveau de visibilité que les autres CTA d'abonnement de l'app
+            (cohérence avec /login et /mon-plan). */}
         <Link
           href="/signup"
-          className="flex items-center justify-center gap-2 rounded-full py-2 text-xs font-semibold text-coral transition hover:text-coral-dark hover:underline"
+          className="flex items-center justify-center gap-2 rounded-full border-2 border-coral bg-white py-3 text-base font-bold text-coral shadow-sm transition hover:bg-coral-soft/30 hover:shadow active:scale-[0.98]"
         >
-          <HeartHandshake className="h-3.5 w-3.5" />
-          Je suis patiente de Karine
+          <HeartHandshake className="h-4 w-4" />
+          Je suis patiente — Créer mon compte
         </Link>
         <button
           type="button"

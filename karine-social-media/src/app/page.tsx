@@ -6,6 +6,7 @@ import { SaviezVousFil } from '@/components/garde/SaviezVousFil';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { LegalFooter } from '@/components/garde/LegalFooter';
+import { IdeasFloatingButton } from '@/components/ideas/IdeasFloatingButton';
 import { getPublishedFeaturedPhotos } from '@/lib/featured-photos';
 import { getUserFavorites } from '@/lib/favorites';
 import { discoverPages } from '@/lib/discover-pages';
@@ -113,10 +114,18 @@ export default async function Home({
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
 
-      <div className="relative">
-        <AppHeader />
-        <WelcomeBlock />
-      </div>
+      {/* AppHeader DOIT être enfant direct du flex parent <div.min-h-screen>
+          pour que `sticky top-0` fonctionne tout au long du scroll.
+          Avant : il était dans un sous-<div relative> qui scopait le
+          sticky → l'header décollait dès que WelcomeBlock sortait de
+          la viewport (= quand les premières tuiles arrivaient à son
+          niveau). Le WelcomeBlock reste à son tour enfant direct, il
+          n'a pas besoin du wrapper. */}
+      {/* "Une idée ?" est maintenant un FAB flottant en bas à droite
+          (cf. <IdeasFloatingButton variant="fab" /> plus bas), donc le
+          header n'a plus besoin de la 2e ligne. AppHeader sans withIdeas. */}
+      <AppHeader />
+      <WelcomeBlock />
 
       <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 pb-6 lg:max-w-7xl lg:px-10 lg:pb-4">
         <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-4">
@@ -154,6 +163,13 @@ export default async function Home({
       </main>
 
       <LegalFooter />
+
+      {/* FAB "Une idée" flottant en bas-droite, au-dessus de la
+          BottomNav. Toujours visible, persistant au scroll, mais
+          discret (icone seule). Remplace l'ancien pill en 2e ligne
+          du header. Réservé à la home (canal feedback principal). */}
+      <IdeasFloatingButton variant="fab" />
+
       <BottomNav />
     </div>
   );

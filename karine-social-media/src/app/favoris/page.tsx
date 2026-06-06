@@ -1,5 +1,5 @@
-import Link from 'next/link';
-import { Heart, HeartHandshake } from 'lucide-react';
+import { redirect } from 'next/navigation';
+import { HeartHandshake } from 'lucide-react';
 import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
@@ -18,29 +18,7 @@ export default async function FavorisPage() {
   const user = await getCurrentUser();
 
   if (!user.isAuthenticated || !user.id) {
-    return (
-      <div className="relative flex min-h-screen flex-col">
-        <FloralBackground />
-        <AppHeader />
-        <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8">
-          <h1 className="mb-5 font-script text-4xl text-coral lg:text-5xl">Favoris</h1>
-          <div className="space-y-4 rounded-2xl bg-white/85 p-6 shadow-sm">
-            <Heart className="mx-auto h-10 w-10 text-coral" />
-            <p className="text-center text-sm text-ink">
-              Pour retrouver tes recettes, menus, astuces et conseils préférés,
-              connecte-toi.
-            </p>
-            <Link
-              href="/login"
-              className="block rounded-full bg-coral py-3 text-center text-sm font-bold text-white shadow-sm transition hover:bg-coral-dark"
-            >
-              Se connecter
-            </Link>
-          </div>
-        </main>
-        <BottomNav />
-      </div>
-    );
+    redirect('/login?next=/favoris');
   }
 
   const rows = await getUserFavorites(user.id);

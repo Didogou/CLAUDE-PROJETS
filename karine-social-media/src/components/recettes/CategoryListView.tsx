@@ -20,9 +20,11 @@ function matches(recipe: Recipe, q: string) {
 export function CategoryListView({
   category,
   recipes,
+  userHasPlan,
 }: {
   category: RecipeCategory;
   recipes: Recipe[];
+  userHasPlan: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -76,6 +78,7 @@ export function CategoryListView({
               recipe={recipe}
               isFavorite={favorites.has(recipe.id)}
               onToggleFavorite={toggleFavorite}
+              userHasPlan={userHasPlan}
             />
           ))}
         </div>

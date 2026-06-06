@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Heart, Flame } from 'lucide-react';
+import { Heart, Flame, Lock, Sparkles } from 'lucide-react';
 import type { Recipe } from '@/data/recipes';
 import { SeasonChip } from './SeasonChip';
 import { RealBadge } from './RealBadge';
@@ -10,19 +10,39 @@ type RecipeCardProps = {
   recipe: Recipe;
   isFavorite: boolean;
   onToggleFavorite: (id: string) => void;
+  /** L'utilisatrice a-t-elle un plan actif (abonnée/patiente/admin) ?
+   *  Si oui : accès libre à toutes les recettes. Sinon : seules les
+   *  recettes is_public sont accessibles (badge "Aperçu gratuit"),
+   *  les autres affichent un cadenas et redirigent vers /mon-plan. */
+  userHasPlan: boolean;
 };
 
-export function RecipeCard({ recipe, isFavorite, onToggleFavorite }: RecipeCardProps) {
+export function RecipeCard({
+  recipe,
+  isFavorite,
+  onToggleFavorite,
+  userHasPlan,
+}: RecipeCardProps) {
+  const isAccessible = userHasPlan || recipe.isPublic;
+  const showFreeBadge = !userHasPlan && recipe.isPublic;
+  const showLock = !isAccessible;
+
+  const href = isAccessible
+    ? `/recettes/${recipe.id}`
+    : `/mon-plan?next=/recettes/${recipe.id}`;
+
   return (
     <div className="group mx-auto w-full max-w-[14rem]">
       <div className="relative">
         <Link
-          href={`/recettes/${recipe.id}`}
+          href={href}
           className="block overflow-hidden rounded-[var(--radius-tile)] shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
         >
           <span
             aria-hidden
-            className="block aspect-square bg-cover bg-center"
+            className={`block aspect-square bg-cover bg-center transition ${
+              showLock ? 'opacity-60 saturate-50 group-hover:opacity-75' : ''
+            }`}
             style={{ backgroundImage: `url(${recipe.coverImage})` }}
           />
           <span className="sr-only">{recipe.title}</span>
@@ -41,6 +61,26 @@ export function RecipeCard({ recipe, isFavorite, onToggleFavorite }: RecipeCardP
           </span>
         )}
 
+        {/* Badge "Aperçu gratuit" : visible uniquement pour les
+            visiteuses/connectées-sans-plan sur une recette is_public.
+            Encourage à découvrir avant de s'abonner. */}
+        {showFreeBadge && (
+          <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-sage px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-white shadow-sm">
+            <Sparkles className="h-3 w-3" strokeWidth={2.4} />
+            Aperçu gratuit
+          </span>
+        )}
+
+        {/* Cadenas central : recette réservée aux abonnées (le clic
+            redirige automatiquement vers /mon-plan via href dynamique). */}
+        {showLock && (
+          <span className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-white/90 text-coral-dark shadow-md">
+              <Lock className="h-5 w-5" strokeWidth={2.4} />
+            </span>
+          </span>
+        )}
+
         {/* Badge "Réel" si Karine a publié des photos de prépa */}
         {recipe.prepPhotos.length > 0 && (
           <span className="pointer-events-none absolute bottom-2 right-2 z-10">
@@ -54,7 +94,7 @@ export function RecipeCard({ recipe, isFavorite, onToggleFavorite }: RecipeCardP
           onClick={() => onToggleFavorite(recipe.id)}
           aria-label={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
           aria-pressed={isFavorite}
-          className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/90 shadow-sm transition hover:scale-110"
+          className="absolute right-2 top-2 z-20 grid h-8 w-8 place-items-center rounded-full bg-white/90 shadow-sm transition hover:scale-110"
         >
           <Heart className={isFavorite ? 'h-4 w-4 fill-coral text-coral' : 'h-4 w-4 text-coral'} strokeWidth={2} />
         </button>

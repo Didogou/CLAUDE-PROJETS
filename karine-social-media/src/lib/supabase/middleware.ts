@@ -100,6 +100,23 @@ function shouldCheckPermissions(pathname: string): boolean {
   if (pathname === '/favicon.ico') return false;
   if (pathname === '/robots.txt') return false;
   if (pathname === '/sitemap.xml') return false;
+  // Section recettes ouverte aux visiteuses pour la découverte :
+  //  - /recettes (catégories) → liste visible avec cadenas/badges
+  //  - /recettes/[categorie] → grille avec cadenas sur les non-publiques
+  //  - /recettes/[slug]      → la page détail redirige elle-même vers
+  //    /mon-plan si la recette n'est pas is_public et que l'utilisatrice
+  //    n'a pas de plan (gate côté server component, plus précis qu'un
+  //    check capability générique).
+  if (pathname.startsWith('/recettes')) return false;
+  // Section menus : même logique. La liste affiche cadenas/badge sur
+  // la cover des menus selon menu.is_public, et /menus/[id]/jour
+  // redirige vers /mon-plan si non public + sans plan.
+  if (pathname.startsWith('/menus')) return false;
+  // Sections astuces et conseils : pareil. Liste avec voile cadenas
+  // sur les non-publiques, modale ouvre uniquement si is_public OU
+  // utilisatrice avec plan.
+  if (pathname.startsWith('/astuces')) return false;
+  if (pathname.startsWith('/conseils')) return false;
   return true;
 }
 

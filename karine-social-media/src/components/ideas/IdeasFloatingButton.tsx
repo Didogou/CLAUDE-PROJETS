@@ -43,7 +43,17 @@ const TYPES: {
   },
 ];
 
-export function IdeasFloatingButton() {
+export function IdeasFloatingButton({
+  variant = 'pill',
+}: {
+  /** Forme du bouton trigger.
+   *  - 'pill'  : pastille blanche "💡 Une idée ?" en flow inline.
+   *              Utilisée dans la ligne du header (legacy).
+   *  - 'fab'   : bouton rond flottant en bas-droite, au-dessus de la
+   *              BottomNav. Pattern Material/Action Button. Plus
+   *              discret mais persistent sur toute la page. */
+  variant?: 'pill' | 'fab';
+} = {}) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<IdeaType>('recette');
   const [title, setTitle] = useState('');
@@ -112,23 +122,36 @@ export function IdeasFloatingButton() {
 
   return (
     <>
-      {/* Bouton "Une idée ?" — en haut de page (placé par le composant
-          appelant). Pill blanc avec l'icone PNG + label en font-script
-          coral pour rester chaleureux. Mis en avant pour pousser les
-          utilisatrices a proposer. */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Soumettre une idée à Karine"
-        className="group flex items-center gap-1.5 rounded-full bg-white py-1 pl-1 pr-3 shadow-md ring-2 ring-coral-soft/60 transition hover:scale-105 active:scale-95"
-      >
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-amber-400 shadow-sm ring-1 ring-coral-soft/40">
-          <Lightbulb className="h-3.5 w-3.5 fill-amber-400" strokeWidth={2.2} />
-        </span>
-        <span className="font-script text-base text-coral-dark sm:text-lg">
-          Une idée&nbsp;?
-        </span>
-      </button>
+      {variant === 'fab' ? (
+        /* FAB rond flottant : ancré bottom-right au-dessus de la
+           BottomNav (qui fait ~4rem + safe-area). Toujours visible
+           même au scroll. Pattern Material Action Button.
+           bottom-20 = 5rem = au-dessus de la BottomNav fixed. */
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Soumettre une idée à Karine"
+          className="fixed bottom-20 right-4 z-30 grid h-12 w-12 place-items-center rounded-full bg-white text-amber-400 shadow-lg ring-2 ring-coral-soft transition hover:scale-110 active:scale-95"
+          style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <Lightbulb className="h-5 w-5 fill-amber-400" strokeWidth={2.2} />
+        </button>
+      ) : (
+        /* Pill blanc inline (legacy) — utilisé dans le header. */
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Soumettre une idée à Karine"
+          className="group flex items-center gap-1.5 rounded-full bg-white py-1 pl-1 pr-3 shadow-md ring-2 ring-coral-soft/60 transition hover:scale-105 active:scale-95"
+        >
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-white text-amber-400 shadow-sm ring-1 ring-coral-soft/40">
+            <Lightbulb className="h-3.5 w-3.5 fill-amber-400" strokeWidth={2.2} />
+          </span>
+          <span className="font-script text-base text-coral-dark sm:text-lg">
+            Une idée&nbsp;?
+          </span>
+        </button>
+      )}
 
       {mounted &&
         open &&

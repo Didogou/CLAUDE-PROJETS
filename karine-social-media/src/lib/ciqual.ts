@@ -118,14 +118,20 @@ export async function searchCiqualFoods(
   const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const wordRe = new RegExp(`\\b${escape(qNorm)}\\b`, 'i');
 
+  // Scoring ordonné. Distingue préfixe AVEC VIRGULE (= variante
+  // stricte du même aliment : "banane, chair sans peau, crue") du
+  // préfixe AVEC ESPACE (= variété/qualificatif : "banane plantain"
+  // qui est un aliment différent). Sans ça, "banane plantain" gagnait
+  // à tort sur "banane" tout court.
   const score = (name: string): number => {
     const n = normalize(name);
     if (n === qNorm) return 0;
-    if (n.startsWith(qNorm + ',') || n.startsWith(qNorm + ' ')) return 1;
-    if (n.startsWith(qNorm)) return 2;
-    if (wordRe.test(n)) return 3;
-    if (searchTokens.length > 1) return 4;
-    return 5;
+    if (n.startsWith(qNorm + ',')) return 1; // variante stricte
+    if (n.startsWith(qNorm + ' ')) return 2; // variété (banane plantain)
+    if (n.startsWith(qNorm)) return 3;
+    if (wordRe.test(n)) return 4;
+    if (searchTokens.length > 1) return 5;
+    return 6;
   };
 
   rows.sort((a, b) => {

@@ -63,6 +63,7 @@ export function RecipeFormUnified() {
   const [status, setStatus] = useState<'draft' | 'published'>('draft');
   const [isSeasonal, setIsSeasonal] = useState(false);
   const [isFeatured, setIsFeatured] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
   const [sheets, setSheets] = useState<SheetData[]>([]);
   const [busy, setBusy] = useState<
     'idle' | 'main' | 'sheets' | 'saving'
@@ -207,6 +208,7 @@ export function RecipeFormUnified() {
           status,
           isSeasonal,
           isFeatured,
+          isPublic,
           mainTempPath: mainData.tempPath,
           mainAsSheet,
           sheets: sheets.map((s) => ({
@@ -357,6 +359,15 @@ export function RecipeFormUnified() {
                   className="h-4 w-4 accent-coral"
                 />
                 <span>⭐ Mettre à la une</span>
+              </label>
+              <label className="flex cursor-pointer items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={isPublic}
+                  onChange={(e) => setIsPublic(e.target.checked)}
+                  className="h-4 w-4 accent-sage"
+                />
+                <span>🌍 Tout le monde (recette accessible aux non abonnées)</span>
               </label>
             </div>
           </div>

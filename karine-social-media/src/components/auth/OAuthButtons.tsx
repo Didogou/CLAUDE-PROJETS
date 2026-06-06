@@ -56,9 +56,21 @@ const LOGOS: Record<Provider, () => React.ReactElement> = {
 export function OAuthButton({
   provider,
   redirect = '/',
+  onBeforeRedirect,
 }: {
   provider: Provider;
   redirect?: string;
+  /**
+   * Hook synchrone exécuté juste avant `signInWithOAuth`. Utile pour
+   * persister un état dans sessionStorage avant la redirection vers
+   * Google/Facebook — par exemple stocker une demande d'accès patiente
+   * qui sera finalisée au retour OAuth (cf. /signup).
+   *
+   * Volontairement synchrone : une fois la promesse `signInWithOAuth`
+   * appelée, le navigateur est redirigé hors de l'app, donc tout
+   * effet asynchrone serait perdu.
+   */
+  onBeforeRedirect?: () => void;
 }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,6 +80,10 @@ export function OAuthButton({
     setLoading(true);
     setError(null);
     try {
+      // Avant la redirection externe — chance de persister un état
+      // qui devra survivre au round-trip OAuth (sessionStorage, etc.).
+      onBeforeRedirect?.();
+
       const supabase = createClient();
       const { error } = await supabase.auth.signInWithOAuth({
         provider,

@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
     const status = body.status === 'published' ? 'published' : 'draft';
     const isSeasonal = body.isSeasonal === true;
     const isFeatured = body.isFeatured === true;
+    const isPublic = body.isPublic === true;
     const mainTempPath =
       typeof body.mainTempPath === 'string' ? body.mainTempPath.trim() : '';
     const mainAsSheet =
@@ -136,6 +137,7 @@ export async function POST(request: NextRequest) {
       aliments: [],
       is_seasonal: isSeasonal,
       is_featured: isFeatured,
+      is_public: isPublic,
       prep_photos: [],
       status,
       published_at: status === 'published' ? new Date().toISOString() : null,

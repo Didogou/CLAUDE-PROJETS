@@ -74,6 +74,10 @@ export type WeeklyMenu = {
   shoppingListItems: ShoppingListItem[] | null;
   status: 'draft' | 'published';
   publishedAt: string | null;
+  /** "Tout le monde" : true = accessible aux visiteuses non abonnées,
+   *  false = réservé aux abonnées / patientes. Toggle géré uniquement
+   *  depuis la liste admin (pas dans la page édition/création). */
+  isPublic: boolean;
   days: WeeklyMenuDay[];
   /** Fiches recettes par jour × repas, extraites par Vision.
    *  Indexé par dayIndex (0-6) → { lunch, dinner }. */

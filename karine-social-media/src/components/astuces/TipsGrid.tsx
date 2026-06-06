@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
+import { Lock, Sparkles } from 'lucide-react';
 import type { Tip } from '@/data/tips';
 import { TipDetailModal } from './TipDetailModal';
 import { PolaroidActions } from './PolaroidActions';
@@ -30,12 +32,17 @@ export function TipsGrid({
   commentCounts,
   isAuthenticated = false,
   favoritedSlugs = new Set<string>(),
+  userHasPlan = false,
 }: {
   tips: Tip[];
   commentCounts: Record<string, number>;
   isAuthenticated?: boolean;
   favoritedSlugs?: Set<string>;
+  /** Si false, les astuces non is_public sont voilées avec cadenas
+   *  et clic redirige vers /mon-plan. */
+  userHasPlan?: boolean;
 }) {
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [activeSlug, setActiveSlug] = useState<string | null>(null);
   const [commentsSlug, setCommentsSlug] = useState<string | null>(null);
@@ -81,6 +88,10 @@ export function TipsGrid({
           {tips.map((t) => {
             const rot = rotationFor(t.id);
             const ty = translateYFor(t.id);
+            // Gate accès : userHasPlan OU astuce is_public.
+            const isAccessible = userHasPlan || t.isPublic;
+            const showFreeBadge = !userHasPlan && t.isPublic;
+            const showLock = !isAccessible;
             return (
               <li
                 key={t.id}
@@ -95,8 +106,15 @@ export function TipsGrid({
                 <div className="rounded-sm bg-white pb-2 pt-1.5 shadow-[0_6px_18px_-6px_rgba(0,0,0,0.25)] ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-coral sm:pb-3 sm:pt-2">
                   <button
                     type="button"
-                    onClick={() => setActiveSlug(t.id)}
-                    aria-label={`Ouvrir l’astuce : ${t.label}`}
+                    onClick={() => {
+                      if (isAccessible) setActiveSlug(t.id);
+                      else router.push(`/mon-plan?next=/astuces`);
+                    }}
+                    aria-label={
+                      isAccessible
+                        ? `Ouvrir l’astuce : ${t.label}`
+                        : `Astuce réservée aux abonnées — voir les plans`
+                    }
                     className="block w-full cursor-pointer focus:outline-none"
                   >
                     <div className="relative px-1.5 sm:px-2">
@@ -105,11 +123,29 @@ export function TipsGrid({
                         src={t.slides[0] ?? ''}
                         alt={t.label}
                         loading="lazy"
-                        className="aspect-square w-full rounded-[0.125rem] object-cover"
+                        className={`aspect-square w-full rounded-[0.125rem] object-cover transition ${
+                          showLock ? 'opacity-50 blur-sm saturate-50' : ''
+                        }`}
                       />
                       {t.slides.length > 1 && (
                         <span className="absolute right-2 top-0.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[0.55rem] font-bold text-white sm:right-3 sm:top-1 sm:text-[0.6rem]">
                           +{t.slides.length - 1}
+                        </span>
+                      )}
+                      {/* Badge "Aperçu gratuit" pour les visiteuses sur
+                          les astuces is_public. */}
+                      {showFreeBadge && (
+                        <span className="pointer-events-none absolute left-1 top-1 flex items-center gap-0.5 rounded-full bg-sage px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wide text-white shadow-sm sm:px-2 sm:text-[0.6rem]">
+                          <Sparkles className="h-2.5 w-2.5" strokeWidth={2.4} />
+                          Aperçu
+                        </span>
+                      )}
+                      {/* Voile + cadenas sur les astuces réservées. */}
+                      {showLock && (
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center px-1.5 sm:px-2">
+                          <span className="grid h-10 w-10 place-items-center rounded-full bg-white/95 text-coral-dark shadow-md">
+                            <Lock className="h-4 w-4" strokeWidth={2.4} />
+                          </span>
                         </span>
                       )}
                     </div>

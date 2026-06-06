@@ -1,112 +1,72 @@
-import Link from 'next/link';
-import { Bell, HeartHandshake, Sparkles, User } from 'lucide-react';
-import { Logo } from '@/components/brand/Logo';
-import { MainDrawer } from './MainDrawer';
-import { IdeasFloatingButton } from '@/components/ideas/IdeasFloatingButton';
-import { TrackingPill } from '@/components/nutrition/TrackingPill';
 import { getAppSettings } from '@/lib/app-settings';
 import { getCurrentUser } from '@/lib/current-user';
 import { getMyUnreadCount } from '@/lib/notifications';
+import { AppHeaderInner } from './AppHeaderInner';
 
+/**
+ * AppHeader (Server Component) — fait les fetches user/notifications/
+ * settings puis délègue le rendu à AppHeaderInner (client) qui gère
+ * la détection scroll et le collapse du titre.
+ *
+ * Props :
+ *  - withSlogan : affiche "prenons soin de vous !" sous le logo (au
+ *    repos uniquement, masqué quand scrolled).
+ *  - withIdeas  : affiche le bouton "Une idée ?" sur la 2e ligne.
+ *    Réservé à la page d'accueil. Sur les autres pages, on ne propose
+ *    pas cette action (sinon redondant avec les CTA dédiés).
+ *
+ * L'icône Flame de suivi calorique est TOUJOURS visible dès lors que
+ * la feature est activée globalement (settings.calorieTrackerEnabled
+ * ou admin). Le comportement au clic s'adapte au statut :
+ *  - 'sheet' : abonnée/patiente/admin → ouvre la sheet calorie
+ *  - 'plan'  : connectée sans abonnement → /mon-plan
+ *  - 'login' : visiteuse non connectée → /login
+ *  - undefined → icône cachée (feature OFF globalement)
+ */
 export async function AppHeader({
   withSlogan = false,
+  withIdeas = false,
 }: {
   withSlogan?: boolean;
+  withIdeas?: boolean;
 }) {
   const user = await getCurrentUser();
   const unreadCount =
     user.isAuthenticated && user.id ? await getMyUnreadCount(user.id) : 0;
-  // Pill "Mon suivi" : visible pour patient/subscriber/admin si
-  // le toggle global calorie est ON (ou admin bypass).
+
+  const isAdmin = user.effectiveRole === 'admin';
   const allowedTracking =
     user.effectiveRole === 'patient' ||
     user.effectiveRole === 'subscriber' ||
-    user.effectiveRole === 'admin';
-  const isAdmin = user.effectiveRole === 'admin';
-  const settings = allowedTracking ? await getAppSettings() : null;
-  const showTracking =
-    allowedTracking && (isAdmin || settings?.calorieTrackerEnabled);
+    isAdmin;
+
+  // On lit toujours les settings : même les visitor doivent voir
+  // l'icône calorie si Karine a activé la feature globalement.
+  const settings = await getAppSettings();
+  const featureEnabledGlobal = isAdmin || settings?.calorieTrackerEnabled;
+
+  // Toute utilisatrice authentifiée peut OUVRIR la sheet calorie
+  // (mode découverte). Les actions d'ajout de repas / eau seront
+  // ensuite bloquées dans la sheet elle-même via le prop `canEdit`
+  // (cf. CalorieCounterSheetV2). Visiteuse non connectée → /login.
+  let trackingBehavior: 'sheet' | 'plan' | 'login' | null = null;
+  if (featureEnabledGlobal) {
+    if (user.isAuthenticated) trackingBehavior = 'sheet';
+    else trackingBehavior = 'login';
+  }
 
   return (
-    <header className="sticky top-0 z-40 flex flex-col bg-transparent px-5 py-3 lg:py-5">
-      <div className="flex items-center justify-between">
-        <MainDrawer
-          isAdmin={user.isAdmin}
-          isAuthenticated={user.isAuthenticated}
-        />
-
-        <Logo slogan={withSlogan} />
-
-        <div className="flex items-center gap-2">
-        {/* Bouton "S'abonner" — visible AUTOMATIQUEMENT pour quiconque n'a
-            pas d'accès actif (visiteur non connecté OU connecté sans abo /
-            patient expiré). Masqué seulement pour patient/subscriber/admin
-            actif. C'est notre principal point d'entrée commercial. */}
-        {user.effectiveRole === 'visitor' && (
-          <Link
-            href="/mon-plan"
-            aria-label="Voir les abonnements"
-            className="inline-flex h-10 items-center gap-1.5 rounded-full bg-coral px-3 text-xs font-bold text-white shadow-md ring-1 ring-coral-dark/30 transition hover:scale-105 hover:bg-coral-dark sm:text-sm"
-          >
-            <Sparkles className="h-4 w-4" strokeWidth={2.2} />
-            S&apos;abonner
-          </Link>
-        )}
-
-        {user.isAuthenticated ? (
-          <>
-            {showTracking && <TrackingPill />}
-            <Link
-              href="/notifications"
-              aria-label={
-                unreadCount > 0
-                  ? `Notifications (${unreadCount} non lues)`
-                  : 'Notifications'
-              }
-              className="relative grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink ring-2 ring-coral-soft backdrop-blur transition hover:bg-white/80"
-            >
-              <Bell className="h-6 w-6" strokeWidth={2} />
-              {unreadCount > 0 && (
-                <span className="absolute right-0 top-0 grid h-4 min-w-4 place-items-center rounded-full bg-coral px-1 text-[0.6rem] font-bold text-white ring-2 ring-white/80">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
-            </Link>
-            {/* Profil — déplacé depuis BottomNav (qui héberge maintenant
-                Courses à la place de Profil). */}
-            <Link
-              href="/profil"
-              aria-label="Mon profil"
-              className="grid h-10 w-10 place-items-center rounded-full bg-white/50 text-ink ring-2 ring-coral-soft backdrop-blur transition hover:bg-white/80"
-            >
-              <User className="h-5 w-5" strokeWidth={2} />
-            </Link>
-          </>
-        ) : (
-          <Link
-            href="/login"
-            aria-label="Se connecter"
-            className="group flex h-10 items-center gap-1.5 rounded-full border border-coral-soft bg-white px-3 text-xs font-semibold text-coral-dark shadow-sm transition hover:bg-coral-soft/30 sm:text-sm"
-          >
-            <HeartHandshake
-              className="h-4 w-4 transition-transform group-hover:rotate-12"
-              strokeWidth={2.2}
-            />
-            <span className="hidden sm:inline">Se connecter</span>
-            <span className="sm:hidden">Login</span>
-          </Link>
-        )}
-        </div>
-      </div>
-
-      {/* Ligne 2 : bouton "Une idée ?" aligné à gauche. Le suivi
-          nutrition est accessible via le petit bouton 🔥 à gauche
-          du Bell ci-dessus, plus discret. */}
-      {user.isAuthenticated && (
-        <div className="mt-2 flex justify-start">
-          <IdeasFloatingButton />
-        </div>
-      )}
-    </header>
+    <AppHeaderInner
+      isAuthenticated={user.isAuthenticated}
+      isAdmin={user.isAdmin}
+      unreadCount={unreadCount}
+      trackingBehavior={trackingBehavior}
+      // canEditTracking : seul un patient/abonné/admin peut ajouter
+      // un repas ou de l'eau. Les autres voient la sheet en lecture
+      // seule avec un CTA "S'abonner" en place du bouton Envoyer.
+      canEditTracking={allowedTracking}
+      withSlogan={withSlogan}
+      withIdeas={withIdeas}
+    />
   );
 }

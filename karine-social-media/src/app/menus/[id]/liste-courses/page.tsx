@@ -1,9 +1,7 @@
-import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from 'lucide-react';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { BottomNav } from '@/components/garde/BottomNav';
-import { Logo } from '@/components/brand/Logo';
+import { MenuDayHeader } from '@/components/menus/MenuDayHeader';
 import { ShoppingListView } from '@/components/menus/ShoppingListView';
 import { getPublishedMenuById } from '@/lib/menus';
 import { formatWeekTitle } from '@/data/menus';
@@ -25,21 +23,8 @@ export default async function MenuShoppingListPage({
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
-      <div className="print:hidden">
-        <FloralBackground />
-      </div>
-      <header className="relative flex items-center px-5 py-6 lg:py-8 print:hidden">
-        <Link
-          href={`/menus/${id}/jour`}
-          aria-label="Retour au menu"
-          className="z-10 grid h-10 w-10 place-items-center rounded-full bg-white/70 text-ink transition hover:bg-white"
-        >
-          <ArrowLeft className="h-5 w-5" />
-        </Link>
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <Logo />
-        </div>
-      </header>
+      <FloralBackground />
+      <MenuDayHeader backHref={`/menus/${id}/jour`} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl print:m-0 print:max-w-none print:p-0">
         <h1 className="mb-2 text-center font-script text-3xl text-coral lg:text-4xl print:hidden">

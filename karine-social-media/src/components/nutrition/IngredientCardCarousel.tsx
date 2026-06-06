@@ -1,16 +1,18 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, Check, ChevronLeft, ChevronRight, Loader2, Plus } from 'lucide-react';
 import { DrumPicker } from '@/components/ui/DrumPicker';
 
-// Options pour le drum picker grammes : pas de 25g de 25 à 500g.
-// Couvre les usages courants (25-50g = portion légère, 100-150g =
-// portion normale, 200g+ = grosse portion). Si l'utilisatrice a besoin
-// d'une valeur intermédiaire, elle prend la plus proche.
+// Options pour le drum picker grammes :
+//   1 → 20 g par pas de 1 (poids minuscules : épices, huile, parmesan…)
+//   25 → 500 g par pas de 5 (grand catalogue, du snack à la grosse portion)
+// Pattern Apple : on densifie là où l'utilisateur a besoin de précision
+// (petites quantités d'assaisonnement) et on relâche la maille au-delà.
 const GRAMS_OPTIONS = [
-  25, 50, 75, 100, 125, 150, 175, 200, 250, 300, 350, 400, 450, 500,
+  ...Array.from({ length: 20 }, (_, i) => i + 1), // 1..20
+  ...Array.from({ length: (500 - 25) / 5 + 1 }, (_, i) => 25 + i * 5), // 25..500 step 5
 ];
 
 // Options pour le drum picker quantité (nombre de portions).
@@ -157,6 +159,139 @@ function imageUrlFor(candidate: CiqualCandidate): string {
 }
 
 /**
+ * Anime un compteur de 0 vers `target` en `durationMs`. Easing
+ * ease-out pour un effet "compte vite, ralentit à la fin", typique
+ * des apps fitness.
+ */
+function useCountUp(target: number, durationMs = 700): number {
+  const [value, setValue] = useState(target);
+  useEffect(() => {
+    if (target === 0 || !Number.isFinite(target)) {
+      setValue(0);
+      return;
+    }
+    let raf = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const elapsed = now - start;
+      const progress = Math.min(1, elapsed / durationMs);
+      const eased = 1 - (1 - progress) ** 2;
+      setValue(Math.round(target * eased));
+      if (progress < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs]);
+  return value;
+}
+
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
+/**
+ * Calcule les valeurs d'une portion à partir du candidat + grammes.
+ * c.kcalPer100g * (grammes / 100) → kcal absolus pour cette portion.
+ * Idem pour les macros.
+ */
+function portionValuesFor(
+  candidate: CiqualCandidate,
+  approxGrams: number,
+): {
+  kcal: number | null;
+  proteinsG: number | null;
+  lipidsG: number | null;
+  carbsG: number | null;
+} {
+  const factor = approxGrams / 100;
+  return {
+    kcal:
+      candidate.kcalPer100g != null
+        ? Math.round(candidate.kcalPer100g * factor)
+        : null,
+    proteinsG:
+      candidate.proteinsG != null ? round1(candidate.proteinsG * factor) : null,
+    lipidsG:
+      candidate.lipidsG != null ? round1(candidate.lipidsG * factor) : null,
+    carbsG:
+      candidate.carbsG != null ? round1(candidate.carbsG * factor) : null,
+  };
+}
+
+/**
+ * Affiche les valeurs CALCULÉES POUR LA PORTION : grosse kcal animée
+ * + macros (P / L / G) en grammes réels. C'est la donnée qui sera
+ * enregistrée en BDD à la validation (cf. handleConfirmSingle →
+ * p.kcalPerPortion / proteinsPerPortion / etc. côté CalorieCounterSheetV2).
+ *
+ * - kcal portion = candidate.kcalPer100g × (approxGrams / 100)
+ * - macros portion = candidate.{prot/lip/carbs}G × factor
+ * Le compteur démarre à 0 et compte jusqu'à la valeur cible en ~700 ms
+ * (ease-out), effet "calculatrice qui défile" type apps fitness.
+ */
+function PortionSummary({
+  candidate,
+  approxGrams,
+}: {
+  candidate: CiqualCandidate;
+  approxGrams: number;
+}) {
+  const portion = portionValuesFor(candidate, approxGrams);
+  const kcalAnimated = useCountUp(portion.kcal ?? 0);
+
+  return (
+    // -mt-16 fait remonter la valeur kcal pour qu'elle chevauche le
+    // bas de l'image. Le drop-shadow blanc garantit la lisibilité
+    // du gros chiffre coral par-dessus l'image. z-10 pour rester
+    // au-dessus de l'img.
+    <div className="relative z-10 -mt-16 w-full text-center">
+      {portion.kcal != null && (
+        <p className="leading-none [filter:drop-shadow(0_0_6px_rgba(255,255,255,0.95))_drop-shadow(0_0_2px_rgba(255,255,255,0.95))]">
+          <span className="text-6xl font-extrabold text-coral-dark tabular-nums">
+            {kcalAnimated}
+          </span>
+          <span className="ml-1.5 text-base font-semibold text-ink-soft">
+            kcal
+          </span>
+        </p>
+      )}
+      <p className="mt-1 text-[0.65rem] font-medium text-ink-soft">
+        pour cette portion de {Math.round(approxGrams)} g
+      </p>
+      <div className="mt-2 flex items-center justify-center gap-3 text-[0.7rem] font-semibold">
+        {portion.proteinsG != null && (
+          <span className="flex items-center gap-1">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            <span className="text-emerald-700">
+              {portion.proteinsG.toFixed(1).replace('.', ',')} g
+            </span>
+            <span className="text-ink-soft">P</span>
+          </span>
+        )}
+        {portion.lipidsG != null && (
+          <span className="flex items-center gap-1">
+            <span className="size-1.5 rounded-full bg-amber-500" />
+            <span className="text-amber-700">
+              {portion.lipidsG.toFixed(1).replace('.', ',')} g
+            </span>
+            <span className="text-ink-soft">L</span>
+          </span>
+        )}
+        {portion.carbsG != null && (
+          <span className="flex items-center gap-1">
+            <span className="size-1.5 rounded-full bg-rose-500" />
+            <span className="text-rose-700">
+              {portion.carbsG.toFixed(1).replace('.', ',')} g
+            </span>
+            <span className="text-ink-soft">G</span>
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
  * Carrousel horizontal de cards candidats Ciqual pour un aliment
  * parsé par Mistral.
  *
@@ -211,6 +346,20 @@ export function IngredientCardCarousel({
     );
     return idx >= 0 ? idx : 0;
   });
+
+  // Au mount : si le candidat sélectionné n'est PAS le 1er, le
+  // scroll-snap par défaut reste à 0 → la carte physiquement visible
+  // est candidates[0] alors qu'activeIdx pointe ailleurs. Résultat :
+  // les nutritionnels affichés (de la carte visible) ne correspondent
+  // pas au titre ni au candidat sélectionné. On force le scroll
+  // immédiatement.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || activeIdx === 0) return;
+    // Pas d'animation au mount — on saute direct à la bonne carte.
+    el.scrollLeft = activeIdx * el.clientWidth;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [gramsPickerOpen, setGramsPickerOpen] = useState(false);
   const [qtyPickerOpen, setQtyPickerOpen] = useState(false);
   const [sizePickerOpen, setSizePickerOpen] = useState(false);
@@ -273,18 +422,27 @@ export function IngredientCardCarousel({
         </div>
       )}
 
-      {/* Header : titre = nom du candidat Ciqual SÉLECTIONNÉ.
-          Change quand on swipe le carrousel. Wrap sur 2 lignes max
-          pour ne pas tronquer les noms longs ("Banane, chair sans
-          peau, crue" ne tient pas sur 1 ligne). */}
+      {/* Header : titre = nom du candidat VISIBLE dans le carrousel
+          + valeur de référence "X kcal / 100 g" en petit (info densité
+          énergétique, utile pour comparer rapidement). La grosse kcal
+          de la portion (= X × grammes / 100) s'affiche plus bas sous
+          l'image avec une animation de comptage. */}
       <div className="flex items-center justify-between gap-2">
-        <h4 className="min-w-0 flex-1 line-clamp-2 text-base font-bold leading-tight text-ink">
-          {item.match?.name ??
-            (item.foodKeyword
-              ? item.foodKeyword.charAt(0).toUpperCase() +
-                item.foodKeyword.slice(1)
-              : item.label)}
-        </h4>
+        <div className="min-w-0 flex-1">
+          <h4 className="line-clamp-2 text-base font-bold leading-tight text-ink">
+            {candidates[activeIdx]?.name ??
+              item.match?.name ??
+              (item.foodKeyword
+                ? item.foodKeyword.charAt(0).toUpperCase() +
+                  item.foodKeyword.slice(1)
+                : item.label)}
+          </h4>
+          {candidates[activeIdx]?.kcalPer100g != null && (
+            <p className="mt-0.5 text-xs font-medium text-ink-soft">
+              {Math.round(candidates[activeIdx]!.kcalPer100g!)} kcal pour 100 g
+            </p>
+          )}
+        </div>
         {(onConfirmAll || onCancelAll) && (
           <div className="flex shrink-0 gap-2">
             {onConfirmAll && (
@@ -355,37 +513,11 @@ export function IngredientCardCarousel({
                     className="size-52 object-contain"
                   />
                 </div>
-                {/* KCAL + "pour 100 g" groupés sur une ligne. */}
-                {c.kcalPer100g != null && (
-                  <p className="mt-2 text-center leading-tight">
-                    <span className="text-2xl font-extrabold text-coral-dark">
-                      {Math.round(c.kcalPer100g)} kcal
-                    </span>
-                    <span className="ml-2 text-xs font-semibold text-ink-soft">
-                      pour 100&nbsp;g
-                    </span>
-                  </p>
-                )}
-                {/* Macros P / L / G en 3 colonnes — toujours sur
-                    UNE seule ligne pour comparaison visuelle directe.
-                    Texte rétréci pour que ça tienne sans wrap. */}
-                <div className="mt-1 grid grid-cols-3 gap-x-1 text-[0.6rem]">
-                  <div className="flex justify-center">
-                    {c.proteinsG != null && (
-                      <MacroBadge kind="P" value={c.proteinsG} />
-                    )}
-                  </div>
-                  <div className="flex justify-center">
-                    {c.lipidsG != null && (
-                      <MacroBadge kind="L" value={c.lipidsG} />
-                    )}
-                  </div>
-                  <div className="flex justify-center">
-                    {c.carbsG != null && (
-                      <MacroBadge kind="G" value={c.carbsG} />
-                    )}
-                  </div>
-                </div>
+                {/* Valeurs DE LA PORTION (= kcalPer100g × grammes/100).
+                    Compteur animé pour le kcal portion + macros portion
+                    en grammes réels. C'est CE QU'ON ENREGISTRE en BDD
+                    quand l'utilisatrice valide. */}
+                <PortionSummary candidate={c} approxGrams={item.approxGrams} />
               </div>
             );
           })}
