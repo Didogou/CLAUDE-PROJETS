@@ -83,8 +83,7 @@ const TABS: Tab[] = [
   {
     id: 'sur-le-pouce',
     label: 'Sur le pouce',
-    // Emoji placeholder en attendant que Karine livre sur_le_pouce.png
-    icon: { type: 'emoji', value: '🥪' },
+    icon: { type: 'image', src: '/recettes/onglets/sur-le-pouce.webp' },
     categories: ['sur_le_pouce'],
   },
   {
@@ -108,22 +107,19 @@ const TABS: Tab[] = [
   {
     id: 'repas-fete',
     label: 'Repas de fête',
-    // Emoji placeholder en attendant que Karine livre repas_fete.png
-    icon: { type: 'emoji', value: '🎉' },
+    icon: { type: 'image', src: '/recettes/onglets/repas-fete.webp' },
     categories: ['repas_fete'],
   },
   {
     id: 'repas-famille',
     label: 'Repas de famille',
-    // Emoji placeholder en attendant que Karine livre repas_famille.png
-    icon: { type: 'emoji', value: '🍲' },
+    icon: { type: 'image', src: '/recettes/onglets/repas-famille.webp' },
     categories: ['repas_famille'],
   },
   {
     id: 'apero-dinatoire',
     label: 'Apéro dînatoire',
-    // Emoji placeholder en attendant que Karine livre aperitif.png
-    icon: { type: 'emoji', value: '🍷' },
+    icon: { type: 'image', src: '/recettes/onglets/apero-dinatoire.webp' },
     categories: ['aperitif'],
   },
 ];
