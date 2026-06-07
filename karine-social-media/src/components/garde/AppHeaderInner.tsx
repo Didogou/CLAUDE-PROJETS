@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Bell, LogIn, User } from 'lucide-react';
+import { ArrowLeft, Bell, LogIn, User } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { MainDrawer } from './MainDrawer';
 import { IdeasFloatingButton } from '@/components/ideas/IdeasFloatingButton';
@@ -28,6 +28,8 @@ export function AppHeaderInner({
   canEditTracking,
   withSlogan,
   withIdeas,
+  pageTitle,
+  backHref,
 }: {
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -42,6 +44,11 @@ export function AppHeaderInner({
   /** Affiche le bouton "Une idée ?" sur la deuxième ligne. Réservé
    *  à la page d'accueil. */
   withIdeas: boolean;
+  /** Titre de la page courante. Quand fourni, Logo passe en
+   *  forceCompact et le titre s'affiche à la place du slogan. */
+  pageTitle?: string;
+  /** Si fourni, REMPLACE le burger menu par une flèche retour. */
+  backHref?: string;
 }) {
   const [scrolled, setScrolled] = useState(false);
 
@@ -78,9 +85,52 @@ export function AppHeaderInner({
       }`}
     >
       <div className="flex items-center justify-between">
-        <MainDrawer isAdmin={isAdmin} isAuthenticated={isAuthenticated} />
+        {/* Si backHref fourni, on REMPLACE le burger par une flèche
+            retour (Option B nav 2026-06-08). Choix volontaire vs
+            l'ajout en plus : sur mobile, le slot gauche est restreint,
+            et "sur cette sous-page, le geste principal à gauche c'est
+            revenir, pas naviguer ailleurs". Le burger reste accessible
+            via la page parente. */}
+        {backHref ? (
+          <Link
+            href={backHref}
+            aria-label="Retour"
+            className="grid h-9 w-9 place-items-center rounded-full bg-white/70 text-coral-dark ring-1 ring-coral-soft/40 backdrop-blur transition hover:bg-white"
+          >
+            <ArrowLeft className="h-4 w-4" strokeWidth={2.4} />
+          </Link>
+        ) : (
+          <MainDrawer isAdmin={isAdmin} isAuthenticated={isAuthenticated} />
+        )}
 
-        <Logo slogan={withSlogan} compact={scrolled} />
+        {/* Logo : sur les pages avec pageTitle, forceCompact=true
+            → wordmark mini en permanence, le titre prend la place
+            visuelle du slogan. */}
+        <div className="flex flex-col items-center leading-none">
+          <Logo
+            slogan={withSlogan}
+            compact={scrolled}
+            forceCompact={Boolean(pageTitle)}
+          />
+          {/* Titre de page (Option C). Même style script-coral que le
+              slogan pour préserver l'identité, mais légèrement plus
+              petit pour ne pas dominer le wordmark. Collapse au scroll
+              comme le faisait le slogan. */}
+          {pageTitle && (
+            <span
+              className={`mt-1 overflow-hidden font-script text-coral-dark transition-all duration-300 ease-out ${
+                scrolled
+                  ? 'max-h-0 text-base opacity-0'
+                  : 'max-h-12 text-2xl opacity-100 sm:text-3xl'
+              }`}
+              style={{
+                textShadow: '0 1px 2px rgba(255,255,255,0.6)',
+              }}
+            >
+              {pageTitle}
+            </span>
+          )}
+        </div>
 
         <div className="flex items-center gap-2">
           {/* Flame de suivi calorique : toujours visible si la feature

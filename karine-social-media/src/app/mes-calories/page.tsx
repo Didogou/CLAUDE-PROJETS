@@ -40,7 +40,7 @@ export default async function MesCaloriesPage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Mes calories" />
       <main className="relative mx-auto w-full max-w-lg flex-1">
         <MesCaloriesPageClient />
       </main>

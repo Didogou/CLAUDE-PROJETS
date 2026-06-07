@@ -33,12 +33,9 @@ export default async function CoursesPage() {
           qu'on dépassait sa propre hauteur (~80 px). On garde le
           print:hidden directement sur chaque enfant. */}
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Mes courses" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl print:max-w-none print:px-0 print:pb-0">
-        <div className="mb-4 flex items-center justify-between gap-2 print:hidden">
-          <h1 className="font-script text-4xl text-coral lg:text-5xl">
-            🛒 Mes courses
-          </h1>
+        <div className="mb-4 flex items-center justify-end gap-2 print:hidden">
           <Link
             href="/courses/historique"
             className="rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-coral-dark shadow-sm transition hover:bg-white"

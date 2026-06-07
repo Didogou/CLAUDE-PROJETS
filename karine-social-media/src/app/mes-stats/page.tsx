@@ -24,11 +24,8 @@ export default async function MesStatsPage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Mes stats" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl">
-        <h1 className="mb-4 font-script text-4xl text-coral lg:text-5xl">
-          Mes stats
-        </h1>
         <MesStatsView />
       </main>
       <BottomNav />

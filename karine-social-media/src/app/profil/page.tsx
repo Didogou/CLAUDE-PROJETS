@@ -61,9 +61,8 @@ export default async function ProfilPage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Profil" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-md xl:max-w-lg">
-        <h1 className="mb-5 font-script text-4xl text-coral lg:text-5xl">Profil</h1>
 
         {/* Bloc utilisatrice connectée — la branche visiteuse a été
             traitée plus haut par redirect('/login?next=/profil'), donc

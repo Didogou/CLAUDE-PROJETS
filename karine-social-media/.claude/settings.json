@@ -192,7 +192,9 @@
       "Bash(sort -k9)",
       "Bash(echo \"EXIT:$?\")",
       "Bash(rm -rf src/app/recettes-v2 src/app/recettes/aperos-dinatoires src/app/recettes/boissons src/app/recettes/desserts src/app/recettes/gouters src/app/recettes/petits-dejeuners src/app/recettes/plats src/app/recettes/repas-de-fete src/app/recettes/salades src/app/recettes/sauces)",
-      "Bash(rm -f src/components/recettes/RecipesShell.tsx src/components/recettes/RecipesView.tsx src/components/recettes/CategoryListView.tsx src/components/recettes/CategoryDeck.tsx src/components/recettes/FeeEditor.tsx)"
+      "Bash(rm -f src/components/recettes/RecipesShell.tsx src/components/recettes/RecipesView.tsx src/components/recettes/CategoryListView.tsx src/components/recettes/CategoryDeck.tsx src/components/recettes/FeeEditor.tsx)",
+      "Bash(grep -v \".webp\\\\|.png\\\\|//\")",
+      "Bash(grep -rn \"CATEGORY_SLUG\\\\|categorySlug\\\\|categoryUrl\\\\|recettes/\\\\${\\\\|recettes/' \\\\+ \\\\|recettes\\\\\\\\/desserts\\\\|recettes\\\\\\\\/petits\" src --include=\"*.ts\" --include=\"*.tsx\")"
     ],
     "additionalDirectories": [
       "\\tmp"

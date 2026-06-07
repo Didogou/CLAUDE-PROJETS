@@ -37,10 +37,9 @@ export default async function FavorisPage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Mes favoris" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-4xl xl:max-w-5xl">
-        <h1 className="mb-2 font-script text-4xl text-coral lg:text-5xl">Mes favoris</h1>
-        <p className="mb-5 text-xs italic text-ink-soft lg:text-sm">
+        <p className="mb-5 mt-2 text-xs italic text-ink-soft lg:text-sm">
           Tout ce que tu as mis de côté, classé par catégorie.
         </p>
 

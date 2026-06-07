@@ -17,11 +17,8 @@ export default async function MesRepasPage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Mes repas" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-24">
-        <h1 className="mb-5 font-script text-4xl text-coral lg:text-5xl">
-          Mes repas
-        </h1>
         <HistoryView />
       </main>
       <BottomNav />

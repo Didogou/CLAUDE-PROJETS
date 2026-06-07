@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
+import { AppHeader } from '@/components/garde/AppHeader';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { BottomNav } from '@/components/garde/BottomNav';
-import { MenuDayHeader } from '@/components/menus/MenuDayHeader';
 import { ShoppingListView } from '@/components/menus/ShoppingListView';
 import { getPublishedMenuById } from '@/lib/menus';
 import { formatWeekTitle } from '@/data/menus';
@@ -24,13 +24,15 @@ export default async function MenuShoppingListPage({
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
       <FloralBackground />
-      <MenuDayHeader backHref={`/menus/${id}/jour`} />
+      <AppHeader pageTitle="🛒 Liste de courses" backHref={`/menus/${id}/jour`} />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl print:m-0 print:max-w-none print:p-0">
-        <h1 className="mb-2 text-center font-script text-3xl text-coral lg:text-4xl print:hidden">
+        {/* H1 affiché UNIQUEMENT à l'impression. À l'écran, c'est
+            l'AppHeader qui porte le titre via pageTitle. */}
+        <h1 className="mb-2 hidden text-center font-script text-3xl text-coral lg:text-4xl print:block">
           🛒 Liste de courses
         </h1>
-        <p className="mb-5 text-center text-sm text-ink-soft print:hidden">
+        <p className="mb-5 text-center text-sm text-ink-soft">
           {menu.title || formatWeekTitle(menu.weekStart)}
         </p>
 

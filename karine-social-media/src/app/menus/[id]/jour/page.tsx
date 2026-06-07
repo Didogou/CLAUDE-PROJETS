@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
+import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
-import { MenuDayHeader } from '@/components/menus/MenuDayHeader';
 import { MenuDayMealsCarousel } from '@/components/menus/MenuDayMealsCarousel';
 import { getPublishedMenuById, getMenuMealSheets } from '@/lib/menus';
 import { getCurrentUser } from '@/lib/current-user';
@@ -60,10 +60,16 @@ export default async function MenuDayPage({
           flèche retour la ramène à CETTE semaine et pas à la semaine la
           plus récente (idx=0 par défaut). Cf. MenusPagerView qui lit
           `?w=<weekStart>` au mount. */}
-      <MenuDayHeader backHref={`/menus?w=${menu.weekStart}`} />
+      <AppHeader
+        pageTitle={menu.title || formatWeekTitle(menu.weekStart)}
+        backHref={`/menus?w=${menu.weekStart}`}
+      />
 
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-md xl:max-w-lg print:m-0 print:max-w-none print:p-0">
-        <h1 className="mb-4 text-center font-script text-3xl text-coral lg:text-4xl print:hidden">
+        {/* H1 affiché UNIQUEMENT à l'impression (pour avoir le titre
+            sur la version papier). À l'écran, c'est l'AppHeader qui
+            porte le titre via pageTitle. */}
+        <h1 className="mb-4 hidden text-center font-script text-3xl text-coral lg:text-4xl print:block">
           {menu.title || formatWeekTitle(menu.weekStart)}
         </h1>
 

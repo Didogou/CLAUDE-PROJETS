@@ -63,7 +63,10 @@ export default async function MesCaloriesMealPage({
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader
+        pageTitle={SLUG_TO_LABEL[meal as MealSlug] ?? 'Mes calories'}
+        backHref="/mes-calories"
+      />
       <main className="relative mx-auto w-full max-w-lg flex-1">
         <MesCaloriesMealPageClient slug={meal as MealSlug} mode={mode} />
       </main>

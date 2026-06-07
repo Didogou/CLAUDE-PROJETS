@@ -65,7 +65,7 @@ export function RecipeCard({
             visiteuses/connectées-sans-plan sur une recette is_public.
             Encourage à découvrir avant de s'abonner. */}
         {showFreeBadge && (
-          <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-sage px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-white shadow-sm">
+          <span className="pointer-events-none absolute left-1.5 top-1 z-10 flex items-center gap-1 rounded-full bg-sage px-2 py-0.5 text-[0.65rem] font-bold uppercase tracking-wide text-white shadow-sm">
             <Sparkles className="h-3 w-3" strokeWidth={2.4} />
             Aperçu gratuit
           </span>

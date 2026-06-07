@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Heart, Sparkles } from 'lucide-react';
 import { SaviezVousLightbox } from './SaviezVousLightbox';
@@ -45,6 +45,42 @@ export function SaviezVousFil({
   favoritedIds?: Set<string>;
 }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  // Index du polaroid actuellement le plus proche du centre du scroller
+  // — sert à afficher son caption en grand sous le titre de la section.
+  const [activeIdx, setActiveIdx] = useState(0);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+
+  // Détecte quel polaroid est centré dans la viewport scrollable.
+  // Approche : à chaque scroll, on calcule la distance au centre de
+  // chaque <li> et on garde le plus proche. Pas de IntersectionObserver
+  // parce qu'on veut LE plus proche, pas tous ceux qui débordent.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const update = () => {
+      const scrollerRect = el.getBoundingClientRect();
+      const centerX = scrollerRect.left + scrollerRect.width / 2;
+      const lis = el.querySelectorAll('li');
+      let closestIdx = 0;
+      let closestDist = Infinity;
+      lis.forEach((li, i) => {
+        const r = (li as HTMLElement).getBoundingClientRect();
+        const dist = Math.abs(r.left + r.width / 2 - centerX);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closestIdx = i;
+        }
+      });
+      setActiveIdx(closestIdx);
+    };
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      el.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [items.length]);
 
   if (items.length === 0) return null;
 
@@ -58,12 +94,23 @@ export function SaviezVousFil({
   return (
     <>
       <section className="relative rounded-[var(--radius-card)] bg-gradient-to-br from-cream via-blush/40 to-peach/30 px-3 pb-6 pt-4 shadow-sm lg:px-5 lg:pb-7 lg:pt-5">
-        <header className="mb-3 flex items-center justify-between px-2">
+        <header className="mb-1 flex items-center justify-between px-2">
           <h2 className="flex items-center gap-1.5 font-script text-3xl text-coral lg:text-4xl">
             Le saviez-vous&nbsp;?
           </h2>
           <Sparkles className="h-5 w-5 text-tangerine" aria-hidden />
         </header>
+
+        {/* Caption du polaroid actuellement centré dans le scroller.
+            Permet de lire le sujet en grand AVANT de cliquer pour
+            ouvrir la lightbox. Hauteur réservée (min-h-6) pour éviter
+            le saut de layout quand un item n'a pas de caption. */}
+        <p
+          aria-live="polite"
+          className="mb-3 min-h-[1.5rem] px-2 text-center font-script text-xl text-coral-dark lg:text-2xl"
+        >
+          {items[activeIdx]?.caption ?? ''}
+        </p>
 
         {/* Wrapper relatif qui ancre le fil au niveau des pinces. */}
         <div className="relative">
@@ -101,8 +148,10 @@ export function SaviezVousFil({
 
           {/* Polaroids — scrollable horizontal si overflow.
               justify-start sur mobile (sinon le 1er polaroid est tronqué).
-              sm:justify-center pour centrer quand pas d'overflow. */}
-          <div className="-mx-3 overflow-x-auto lg:-mx-5">
+              sm:justify-center pour centrer quand pas d'overflow.
+              ref={scrollerRef} : nécessaire pour calculer le polaroid
+              le plus proche du centre (cf. useEffect au mount). */}
+          <div ref={scrollerRef} className="-mx-3 overflow-x-auto lg:-mx-5">
             <ul className="flex items-start justify-start gap-3 px-3 pb-2 pt-1 sm:justify-center sm:gap-4 lg:px-5">
               {items.map((item, i) => (
                 <li key={item.id} className="shrink-0">
@@ -181,8 +230,13 @@ function Polaroid({
             className="select-none object-cover"
           />
         </div>
+        {/* Caption sous le polaroid, dans la marge blanche du papier
+            photo. Doublé volontairement avec le caption en grand au-
+            dessus de la rangée — ici c'est l'étiquette manuscrite type
+            "photo de famille", là-haut c'est le focus sur l'élément
+            centré. */}
         {caption && (
-          <figcaption className="mt-1 line-clamp-2 px-0.5 text-center font-script text-[0.7rem] leading-tight text-ink-soft">
+          <figcaption className="mt-1 line-clamp-2 px-0.5 text-center text-[0.75rem] font-semibold leading-tight text-ink">
             {caption}
           </figcaption>
         )}

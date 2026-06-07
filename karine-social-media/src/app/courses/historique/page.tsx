@@ -1,6 +1,5 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ArrowLeft, Archive } from 'lucide-react';
+import { Archive } from 'lucide-react';
 import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
@@ -19,18 +18,8 @@ export default async function CoursesHistoriquePage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Historique" backHref="/courses" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl">
-        <div className="mb-4 flex items-center gap-3">
-          <Link
-            href="/courses"
-            aria-label="Retour aux courses"
-            className="grid h-10 w-10 place-items-center rounded-full bg-white/70 text-ink transition hover:bg-white"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <h1 className="font-script text-3xl text-coral lg:text-4xl">Historique</h1>
-        </div>
 
         {lists.length === 0 ? (
           <p className="rounded-2xl border-2 border-dashed border-coral-soft/60 bg-white/40 px-4 py-8 text-center text-sm text-ink-soft">

@@ -26,11 +26,8 @@ export default async function MenusPage() {
           de sa propre hauteur. FloralBackground et BottomNav ont déjà
           leur propre print:hidden via classes directes plus loin. */}
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Mes menus" />
       <main className="mx-auto w-full max-w-2xl flex-1 px-5 pb-8 print:m-0 print:max-w-none print:p-0">
-        <h1 className="mb-3 font-script text-4xl text-coral lg:mb-2 lg:text-3xl print:hidden">
-          Mes menus
-        </h1>
         <MenusPagerView
           menus={menus}
           isSubscriber={isSubscriber}

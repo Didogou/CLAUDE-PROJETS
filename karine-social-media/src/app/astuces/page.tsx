@@ -28,10 +28,9 @@ export default async function AstucesPage() {
           wrapper scope son sticky et il décolle au scroll). Le parent
           a déjà print:hidden au niveau racine. */}
       <FloralBackground variant="astuces" />
-      <AppHeader />
+      <AppHeader pageTitle="Astuces" />
       <main className="relative mx-auto w-full max-w-md flex-1 overflow-x-clip px-2 pb-8 sm:max-w-2xl sm:px-4 md:max-w-4xl md:px-6 lg:max-w-7xl lg:px-10 print:hidden">
         <div className="relative">
-          <h1 className="mb-2 text-center font-script text-4xl text-coral lg:text-5xl">Astuces</h1>
           <p className="mb-3 text-center text-xs italic text-ink-soft lg:text-sm">
             Les bons réflexes malins de Karine
           </p>

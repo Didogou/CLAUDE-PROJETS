@@ -20,12 +20,9 @@ export default async function NotificationsPage() {
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Notifications" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl lg:px-10">
-        <h1 className="mb-2 font-script text-4xl text-coral lg:text-5xl">
-          Notifications
-        </h1>
-        <p className="mb-5 text-sm text-ink-soft">
+        <p className="mb-5 mt-2 text-sm text-ink-soft">
           Nouveaux contenus, réponses à tes commentaires et à tes idées.
         </p>
         <NotificationsView initial={notifications} />

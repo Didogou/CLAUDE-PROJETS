@@ -217,18 +217,33 @@ export function RecettesOngletsView({
 
   return (
     <div className="space-y-3">
-      {/* Titre principal — script coral-dark (meilleur contraste sur le
-          dégradé rose qu'un simple coral), drop-shadow subtil pour donner
-          du relief sans casser l'esprit aquarelle. */}
-      <h1
-        className="mt-4 text-center font-script text-5xl text-coral-dark lg:text-6xl"
-        style={{
-          textShadow:
-            '0 1px 2px rgba(255,255,255,0.6), 0 2px 4px rgba(226,120,141,0.15)',
-        }}
-      >
-        Idées recettes
-      </h1>
+      {/* Label de l'onglet actif — sous-titre dynamique. Le titre
+          principal "Idées recettes" est remonté dans l'AppHeader.
+          La petite fée se pose en absolute à gauche-haut du label.
+          PAS de key= ni animation ici : Next.js dev (HMR/Fast Refresh)
+          empile des ghosts visuels avec les CSS animations fill-mode
+          both. La sensation de transition vient de la grille en
+          dessous qui garde son fondu. */}
+      <div className="text-center">
+        <div className="relative inline-block px-1">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/recettes/fee.webp"
+            alt=""
+            aria-hidden
+            className="pointer-events-none absolute -left-12 -top-6 w-20 select-none lg:-left-16 lg:-top-10 lg:w-28"
+          />
+          <p
+            className="font-script text-3xl text-coral-dark/90 lg:text-4xl"
+            style={{
+              textShadow: '0 1px 2px rgba(255,255,255,0.6)',
+            }}
+            aria-live="polite"
+          >
+            {activeTabDef.label}
+          </p>
+        </div>
+      </div>
 
       {/* Barre de recherche + bouton filtres — version compacte. La
           recherche filtre UNIQUEMENT dans l'onglet courant (pas
@@ -301,7 +316,7 @@ export function RecettesOngletsView({
                     <span
                       aria-hidden
                       className="mx-1 my-3 w-px self-center bg-coral-soft/50 lg:hidden"
-                      style={{ height: '2.5rem' }}
+                      style={{ height: '3rem' }}
                     />
                   )}
                   <button
@@ -313,12 +328,12 @@ export function RecettesOngletsView({
                       setQuery('');
                     }}
                     aria-pressed={isActive}
-                    className="relative flex w-auto min-w-[5rem] shrink-0 snap-start flex-col items-center gap-1 px-2 py-2 transition active:scale-95 lg:gap-2 lg:py-3"
+                    className="relative flex w-auto min-w-[6rem] shrink-0 snap-start flex-col items-center gap-1 px-2 py-2 transition active:scale-95 lg:gap-2 lg:py-3"
                   >
                     {/* Ordre : label EN HAUT, image en dessous. Inversion
                         demandée par Karine 2026-06-07. */}
                     <span
-                      className={`whitespace-nowrap text-sm transition-all ${
+                      className={`whitespace-nowrap text-base transition-all lg:text-lg ${
                         isActive
                           ? 'font-bold text-coral-dark'
                           : 'font-semibold text-coral-dark/70'
@@ -327,7 +342,7 @@ export function RecettesOngletsView({
                       {tab.label}
                     </span>
                     <span
-                      className="grid size-16 place-items-center text-4xl lg:size-24"
+                      className="grid size-20 place-items-center text-4xl lg:size-28"
                       aria-hidden
                     >
                       {tab.icon.type === 'image' ? (
@@ -335,7 +350,7 @@ export function RecettesOngletsView({
                         <img
                           src={tab.icon.src}
                           alt=""
-                          className="size-16 object-contain lg:size-24"
+                          className="size-20 object-contain lg:size-28"
                         />
                       ) : (
                         tab.icon.value
@@ -354,13 +369,26 @@ export function RecettesOngletsView({
               );
             })}
           </div>
-          <style>{`nav::-webkit-scrollbar { display: none; }`}</style>
+          <style>{`
+            nav::-webkit-scrollbar { display: none; }
+            @keyframes tab-fade-in {
+              from { opacity: 0; transform: translateY(0.25rem); }
+              to   { opacity: 1; transform: translateY(0); }
+            }
+            .tab-fade-in {
+              animation: tab-fade-in 240ms cubic-bezier(0.4, 0, 0.2, 1) both;
+            }
+            @media (prefers-reduced-motion: reduce) {
+              .tab-fade-in { animation: none; }
+            }
+          `}</style>
         </nav>
       </div>
 
       {/* Grille des recettes de la catégorie active. 2 / 3 / 4 colonnes
-          selon viewport. */}
-      <section className="pt-2">
+          selon viewport. key={activeTab} → remount au changement
+          d'onglet, déclenche l'anim tab-fade-in (fondu doux). */}
+      <section key={activeTab} className="tab-fade-in pt-2">
         {visibleRecipes.length === 0 ? (
           <p className="rounded-[var(--radius-tile)] border border-dashed border-coral-soft/60 bg-white/40 px-4 py-10 text-center text-sm text-ink-soft">
             {q

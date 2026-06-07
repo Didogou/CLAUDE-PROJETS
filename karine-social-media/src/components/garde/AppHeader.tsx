@@ -26,9 +26,22 @@ import { AppHeaderInner } from './AppHeaderInner';
 export async function AppHeader({
   withSlogan = false,
   withIdeas = false,
+  pageTitle,
+  backHref,
 }: {
   withSlogan?: boolean;
   withIdeas?: boolean;
+  /** Titre de la page courante (Option C — pattern Hybride 2026-06-08).
+   *  Quand fourni, le Logo passe automatiquement en mode forceCompact
+   *  et le titre s'affiche sous le wordmark (à la place du slogan).
+   *  Sert d'orientation à l'utilisatrice (où suis-je ?). */
+  pageTitle?: string;
+  /** Si fourni, REMPLACE le burger menu par une flèche retour qui
+   *  navigue vers cette URL (Option B nav — 2026-06-08).
+   *  Toujours préférer un href explicite à router.back() : sur deep-
+   *  link WhatsApp, history.length === 1 → router.back() sort de la
+   *  PWA. backHref garantit qu'on reste dans l'app. */
+  backHref?: string;
 }) {
   const user = await getCurrentUser();
   const unreadCount =
@@ -67,6 +80,8 @@ export async function AppHeader({
       canEditTracking={allowedTracking}
       withSlogan={withSlogan}
       withIdeas={withIdeas}
+      pageTitle={pageTitle}
+      backHref={backHref}
     />
   );
 }

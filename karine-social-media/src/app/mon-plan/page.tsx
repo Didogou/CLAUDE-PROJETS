@@ -49,7 +49,7 @@ export default async function MonPlanPage({
     return (
       <div className="relative flex min-h-screen flex-col">
         <FloralBackground />
-        <AppHeader />
+        <AppHeader pageTitle="Mon plan" />
         <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-3xl lg:px-10">
           <MonPlanView
             email=""
@@ -86,7 +86,7 @@ export default async function MonPlanPage({
   return (
     <div className="relative flex min-h-screen flex-col">
       <FloralBackground />
-      <AppHeader />
+      <AppHeader pageTitle="Mon plan" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-3xl lg:px-10">
         <MonPlanView
           email={user.email ?? profile?.email ?? ''}

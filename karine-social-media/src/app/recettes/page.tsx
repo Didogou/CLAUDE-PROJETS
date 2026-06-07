@@ -36,20 +36,7 @@ export default async function RecettesPage() {
           /admin/parametres/fonds, défini dans data/background-images. */}
       <FloralBackground variant="recettes" />
 
-      {/* Petite fée en overlay haut-gauche.
-          Mobile (< 1024px) : left:10.9vw  top:64px  width:31.3vw
-          PC     (≥ 1024px) : left:35.2vw  top:95px  width:12.0vw
-          pointer-events-none : laisse passer le clic vers le burger
-          menu derrière. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="/recettes/fee.webp"
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute left-[10.9vw] top-[64px] z-[1] w-[31.3vw] lg:left-[35.2vw] lg:top-[95px] lg:w-[12vw]"
-      />
-
-      <AppHeader withSlogan />
+      <AppHeader pageTitle="Idées recettes" />
       <main className="mx-auto w-full max-w-md flex-1 px-4 pb-8 sm:max-w-2xl sm:px-6 lg:max-w-5xl lg:px-8">
         <RecettesOngletsView recipes={recipes} userHasPlan={userHasPlan} />
       </main>
