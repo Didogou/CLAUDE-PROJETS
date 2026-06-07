@@ -43,6 +43,9 @@ const ONGLETS = [
   { src: 'Boissons.png', out: 'boissons.webp' },
   { src: 'gouter.png', out: 'gouter.webp' },
   { src: 'sur_le_pouce.png', out: 'sur-le-pouce.webp' },
+  { src: 'repas_fete.png', out: 'repas-fete.webp' },
+  { src: 'repas_famille.png', out: 'repas-famille.webp' },
+  { src: 'aperitif.png', out: 'apero-dinatoire.webp' },
 ];
 
 console.log(`📥 Source : ${SRC_DIR}`);

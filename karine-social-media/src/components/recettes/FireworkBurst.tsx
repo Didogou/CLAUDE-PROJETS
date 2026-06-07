@@ -26,6 +26,7 @@ const PARTICLES: Record<RecipeCategory, string[]> = {
   aperitif: COMMON,
   repas_fete: COMMON,
   sur_le_pouce: COMMON,
+  repas_famille: COMMON,
 };
 
 type Particle = {

@@ -33,13 +33,16 @@ import type { Recipe, RecipeCategory } from '@/data/recipes';
 
 type TabId =
   | 'salades'
+  | 'sauces'
   | 'entrees'
   | 'plats'
-  | 'sauces'
+  | 'sur-le-pouce'
   | 'desserts'
   | 'boissons'
   | 'gouter'
-  | 'sur-le-pouce';
+  | 'repas-fete'
+  | 'repas-famille'
+  | 'apero-dinatoire';
 
 type Tab = {
   id: TabId;
@@ -60,10 +63,16 @@ const TABS: Tab[] = [
     categories: ['salade'],
   },
   {
+    id: 'sauces',
+    label: 'Sauces',
+    icon: { type: 'image', src: '/recettes/onglets/sauces.webp' },
+    categories: ['sauce'],
+  },
+  {
     id: 'entrees',
     label: 'Entrées',
     icon: { type: 'image', src: '/recettes/onglets/entrees.webp' },
-    categories: ['entree', 'aperitif'],
+    categories: ['entree'],
   },
   {
     id: 'plats',
@@ -72,10 +81,11 @@ const TABS: Tab[] = [
     categories: ['plat'],
   },
   {
-    id: 'sauces',
-    label: 'Sauces',
-    icon: { type: 'image', src: '/recettes/onglets/sauces.webp' },
-    categories: ['sauce'],
+    id: 'sur-le-pouce',
+    label: 'Sur le pouce',
+    // Emoji placeholder en attendant que Karine livre sur_le_pouce.png
+    icon: { type: 'emoji', value: '🥪' },
+    categories: ['sur_le_pouce'],
   },
   {
     id: 'desserts',
@@ -91,16 +101,30 @@ const TABS: Tab[] = [
   },
   {
     id: 'gouter',
-    label: 'Goûter',
+    label: 'Goûters',
     icon: { type: 'image', src: '/recettes/onglets/gouter.webp' },
     categories: ['gouter'],
   },
   {
-    id: 'sur-le-pouce',
-    label: 'Sur le pouce',
-    // Emoji placeholder en attendant que Karine livre sur-le-pouce.png
-    icon: { type: 'emoji', value: '🥪' },
-    categories: ['sur_le_pouce'],
+    id: 'repas-fete',
+    label: 'Repas de fête',
+    // Emoji placeholder en attendant que Karine livre repas_fete.png
+    icon: { type: 'emoji', value: '🎉' },
+    categories: ['repas_fete'],
+  },
+  {
+    id: 'repas-famille',
+    label: 'Repas de famille',
+    // Emoji placeholder en attendant que Karine livre repas_famille.png
+    icon: { type: 'emoji', value: '🍲' },
+    categories: ['repas_famille'],
+  },
+  {
+    id: 'apero-dinatoire',
+    label: 'Apéro dînatoire',
+    // Emoji placeholder en attendant que Karine livre aperitif.png
+    icon: { type: 'emoji', value: '🍷' },
+    categories: ['aperitif'],
   },
 ];
 
@@ -174,13 +198,16 @@ export function RecettesOngletsView({
   const countByTab = useMemo(() => {
     const map: Record<TabId, number> = {
       salades: 0,
+      sauces: 0,
       entrees: 0,
       plats: 0,
-      sauces: 0,
+      'sur-le-pouce': 0,
       desserts: 0,
       boissons: 0,
       gouter: 0,
-      'sur-le-pouce': 0,
+      'repas-fete': 0,
+      'repas-famille': 0,
+      'apero-dinatoire': 0,
     };
     for (const tab of TABS) {
       const set = new Set<RecipeCategory>(tab.categories);
