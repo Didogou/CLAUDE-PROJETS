@@ -23,6 +23,7 @@ export function MesCaloriesPageClient() {
   return (
     <CalorieCounterSheetV2
       asPage
+      useUrlNavigation
       onClose={() => router.push('/')}
       onChanged={() => {
         /* refresh local géré par le composant lui-même */

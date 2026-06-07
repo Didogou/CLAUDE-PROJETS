@@ -183,7 +183,11 @@
       "Bash(node scripts/batch-ciqual-aliases.mjs --group=\"viandes, oeufs, poissons|entrées et plats composés|produits sucrés\" --limit=2000 --apply)",
       "Bash(node scripts/mistral-resolve-conflicts.mjs --limit=5)",
       "Bash(node scripts/mistral-resolve-conflicts.mjs --apply)",
-      "Bash(node scripts/batch-ciqual-aliases.mjs --group=\"fruits, légumes, légumineuses et oléagineux|produits laitiers|produits céréaliers|matières grasses|glaces et sorbets\" --limit=2000 --apply)"
+      "Bash(node scripts/batch-ciqual-aliases.mjs --group=\"fruits, légumes, légumineuses et oléagineux|produits laitiers|produits céréaliers|matières grasses|glaces et sorbets\" --limit=2000 --apply)",
+      "WebFetch(domain:www.w3tutorials.net)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:bugs.webkit.org)",
+      "WebFetch(domain:discussions.apple.com)"
     ],
     "additionalDirectories": [
       "\\tmp"

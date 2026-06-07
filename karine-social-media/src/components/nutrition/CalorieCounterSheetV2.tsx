@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   X,
   Trash2,
@@ -37,6 +39,25 @@ const MEAL_LABELS: Record<MealCategory, string> = {
 };
 
 const MEAL_ORDER: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+
+/**
+ * Slugs FR pour les URLs des sub-pages /mes-calories/[meal]. Choisis
+ * pour être lisibles et bookmarkables ("/mes-calories/dejeuner" plutôt
+ * que "/mes-calories/lunch"). Le mapping inverse est utilisé par la
+ * route Next.js pour parser le param.
+ */
+export const MEAL_URL_SLUG: Record<MealCategory, string> = {
+  breakfast: 'petit-dej',
+  lunch: 'dejeuner',
+  snack: 'gouter',
+  dinner: 'diner',
+};
+export const MEAL_FROM_URL_SLUG: Record<string, MealCategory> = {
+  'petit-dej': 'breakfast',
+  dejeuner: 'lunch',
+  gouter: 'snack',
+  diner: 'dinner',
+};
 
 /**
  * Catégorie par défaut selon l'heure courante (Europe/Paris).
@@ -200,6 +221,29 @@ type Props = {
    * Default false (= modal/sheet classique avec portail).
    */
   asPage?: boolean;
+  /**
+   * Catégorie de repas pré-sélectionnée au mount. Quand fournie, le
+   * composant affiche directement la SUB-PAGE de cette catégorie
+   * (drill-down auto-déclenché) au lieu de la home view 4 tuiles.
+   * Utilisé par les routes `/mes-calories/[meal]` pour ouvrir
+   * directement Déjeuner / Petit-déj / etc.
+   */
+  initialMealCategory?: 'breakfast' | 'lunch' | 'snack' | 'dinner';
+  /**
+   * Mode de la sub-page initiale (cf. subPageMode interne) :
+   *  - 'add'  : focus sur l'ajout, liste "Déjà ajouté" cachée
+   *  - 'view' : focus consultation, liste "Déjà ajouté" affichée
+   * Utilisé uniquement si `initialMealCategory` est fourni.
+   * Default 'add'.
+   */
+  initialSubPageMode?: 'add' | 'view';
+  /**
+   * Si true, les boutons "+" et œil sur les tuiles de la home view
+   * deviennent des `<Link>` vers `/mes-calories/[meal]` au lieu
+   * d'appeler les callbacks de drill-down interne. Utilisé sur la
+   * route /mes-calories pour des URLs distinctes par sub-page.
+   */
+  useUrlNavigation?: boolean;
 };
 
 /**
@@ -213,6 +257,9 @@ export function CalorieCounterSheetV2({
   onChanged,
   canEdit = true,
   asPage = false,
+  initialMealCategory,
+  initialSubPageMode = 'add',
+  useUrlNavigation = false,
 }: Props) {
   const [day, setDay] = useState<DayState | null>(null);
   const [naturalText, setNaturalText] = useState('');
@@ -262,9 +309,16 @@ export function CalorieCounterSheetV2({
    *             s'affiche en plus du formulaire d'ajout (toujours
    *             accessible).
    */
-  const [subPageMode, setSubPageMode] = useState<'add' | 'view'>('add');
+  const [subPageMode, setSubPageMode] = useState<'add' | 'view'>(
+    initialMealCategory ? initialSubPageMode : 'add',
+  );
+  // Si initialMealCategory est fourni (route /mes-calories/[meal]),
+  // on ouvre directement la sub-page de cette catégorie. Sinon, home
+  // view classique (4 tuiles).
   const [activeMealCategory, setActiveMealCategory] =
-    useState<MealCategory | null>(null);
+    useState<MealCategory | null>(initialMealCategory ?? null);
+  // Router pour navigation inter-pages (useUrlNavigation=true).
+  const router = useRouter();
   // Garde la dernière catégorie ouverte même quand on referme, pour
   // que le contenu du panel détail reste rendu pendant l'animation de
   // slide (sinon il "tremble" en disparaissant brusquement). Le panel
@@ -985,6 +1039,14 @@ export function CalorieCounterSheetV2({
                         window.location.href = '/mon-plan?next=/';
                         return;
                       }
+                      // Mode URL navigation (page /mes-calories) : on
+                      // navigue vers /mes-calories/<slug> au lieu de
+                      // toggle un state interne. Bénéfice : back natif
+                      // du browser fonctionne, URL bookmarkable.
+                      if (useUrlNavigation) {
+                        router.push(`/mes-calories/${MEAL_URL_SLUG[cat]}`);
+                        return;
+                      }
                       setSubPageMode('add');
                       setActiveMealCategory(cat);
                       setMealCategory(cat);
@@ -993,10 +1055,14 @@ export function CalorieCounterSheetV2({
                       setAccSel(new Map());
                     }}
                     onView={() => {
-                      // Le mode view est aussi accessible aux non-abos :
-                      // ils peuvent consulter ce qu'ils ont ajouté avant
-                      // d'avoir un plan (les entrées sont rares mais
-                      // peuvent exister via démo). Pas de redirect.
+                      // Mode URL navigation : query ?view pour mode
+                      // consultation (liste "Déjà ajouté" affichée).
+                      if (useUrlNavigation) {
+                        router.push(
+                          `/mes-calories/${MEAL_URL_SLUG[cat]}?view`,
+                        );
+                        return;
+                      }
                       setSubPageMode('view');
                       setActiveMealCategory(cat);
                       setMealCategory(cat);
@@ -1048,6 +1114,15 @@ export function CalorieCounterSheetV2({
                   <button
                     type="button"
                     onClick={() => {
+                      // Si la sub-page a été ouverte via URL (route
+                      // /mes-calories/[meal]), on navigue vers la home
+                      // du tracker plutôt que de juste reset le state
+                      // (qui resterait sur /mes-calories/[meal] mais
+                      // afficherait la home — inconsistant).
+                      if (useUrlNavigation) {
+                        router.push('/mes-calories');
+                        return;
+                      }
                       setActiveMealCategory(null);
                       setNaturalText('');
                       setPreview(null);
