@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Flame } from 'lucide-react';
-import { CalorieCounterSheetV2 } from './CalorieCounterSheetV2';
 import { RingProgress } from './RingProgress';
 
 /**
@@ -12,12 +12,12 @@ import { RingProgress } from './RingProgress';
  * Visible uniquement pour les abonnées (le serveur monte ce
  * composant seulement dans ce cas — cf. SubscriberFloatingTools).
  *
- * Masqué sur les pages admin. Au clic, ouvre la sheet V2 (layout
- * Apple Forme drill-down).
+ * Masqué sur les pages admin. Au clic, navigue vers /mes-calories
+ * (page plein écran). Migré 2026-06-07 depuis l'ouverture en sheet
+ * modale qui avait des bugs WebKit iOS.
  */
 export function CalorieFAB() {
   const pathname = usePathname();
-  const [open, setOpen] = useState(false);
   const [todayKcal, setTodayKcal] = useState<number | null>(null);
   const [targetKcal, setTargetKcal] = useState<number>(2000);
 
@@ -49,38 +49,28 @@ export function CalorieFAB() {
       : 0;
 
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Compteur de calories"
-        className="fixed bottom-20 right-2 z-30 flex h-14 w-14 flex-col items-center justify-center rounded-full bg-coral text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
-      >
-        <RingProgress percent={percent} color="white" strokeWidth={6} />
-        <Flame className="relative size-4" />
-        {todayKcal !== null ? (
-          <span
-            className="relative font-bold leading-none"
-            style={{ fontSize: '0.75rem' }}
-          >
-            {todayKcal}
-          </span>
-        ) : (
-          <span
-            className="relative font-bold leading-none"
-            style={{ fontSize: '0.625rem' }}
-          >
-            kcal
-          </span>
-        )}
-      </button>
-
-      {open && (
-        <CalorieCounterSheetV2
-          onClose={() => setOpen(false)}
-          onChanged={refresh}
-        />
+    <Link
+      href="/mes-calories"
+      aria-label="Compteur de calories"
+      className="fixed bottom-20 right-2 z-30 flex h-14 w-14 flex-col items-center justify-center rounded-full bg-coral text-white shadow-lg ring-2 ring-white transition-transform hover:scale-105 active:scale-95 print:hidden"
+    >
+      <RingProgress percent={percent} color="white" strokeWidth={6} />
+      <Flame className="relative size-4" />
+      {todayKcal !== null ? (
+        <span
+          className="relative font-bold leading-none"
+          style={{ fontSize: '0.75rem' }}
+        >
+          {todayKcal}
+        </span>
+      ) : (
+        <span
+          className="relative font-bold leading-none"
+          style={{ fontSize: '0.625rem' }}
+        >
+          kcal
+        </span>
       )}
-    </>
+    </Link>
   );
 }

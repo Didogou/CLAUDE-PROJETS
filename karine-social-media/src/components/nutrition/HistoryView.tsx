@@ -2,8 +2,8 @@
 
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Flame, X, ChevronLeft, ChevronRight } from 'lucide-react';
-import { CalorieCounterSheetV2 } from './CalorieCounterSheetV2';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -71,7 +71,6 @@ export function HistoryView() {
   const [data, setData] = useState<HistoryData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     void load();
@@ -116,47 +115,31 @@ export function HistoryView() {
     );
   }
   if (data.days.length === 0) {
-    // Empty state. La pastille reproduit visuellement la TrackingPill
-    // du header (bg-white + ring-coral + flame remplie) en plus gros
-    // pour servir de CTA. Le clic — sur la pastille comme sur le mot
-    // "Mes calories" dans le texte — ouvre la même sheet calorie
-    // V2 que la pastille du header. Pas d'import de TrackingPill : ce
-    // composant a une taille fixe h-8 w-8 et un comportement variable
-    // (sheet/plan/login) qu'on n'a pas besoin ici (on est connectée
-    // sur /mes-repas, donc forcément 'sheet').
+    // Empty state — pastille flame + texte "Mes calories" en CTA vers
+    // la PAGE /mes-calories (migration 2026-06-07 depuis la sheet
+    // modale qui avait des bugs WebKit iOS).
     return (
-      <>
-        <div
-          className={`space-y-3 rounded-2xl bg-white/85 p-6 text-center ${CARD_SHADOW}`}
+      <div
+        className={`space-y-3 rounded-2xl bg-white/85 p-6 text-center ${CARD_SHADOW}`}
+      >
+        <Link
+          href="/mes-calories"
+          aria-label="Ouvrir Mes calories pour ajouter un repas"
+          className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-coral shadow-md ring-2 ring-coral transition hover:scale-105 active:scale-95"
         >
-          <button
-            type="button"
-            onClick={() => setSheetOpen(true)}
-            aria-label="Ouvrir Mes calories pour ajouter un repas"
-            className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-coral shadow-md ring-2 ring-coral transition hover:scale-105 active:scale-95"
+          <Flame className="h-7 w-7 fill-coral" strokeWidth={2} />
+        </Link>
+        <p className="text-sm text-ink">
+          Pas encore de repas enregistré. Ouvre{' '}
+          <Link
+            href="/mes-calories"
+            className="font-semibold text-coral underline hover:text-coral-dark"
           >
-            <Flame className="h-7 w-7 fill-coral" strokeWidth={2} />
-          </button>
-          <p className="text-sm text-ink">
-            Pas encore de repas enregistré. Ouvre{' '}
-            <button
-              type="button"
-              onClick={() => setSheetOpen(true)}
-              className="font-semibold text-coral underline hover:text-coral-dark"
-            >
-              Mes calories
-            </button>{' '}
-            pour ajouter ton premier plat&nbsp;!
-          </p>
-        </div>
-        {sheetOpen && (
-          <CalorieCounterSheetV2
-            onClose={() => setSheetOpen(false)}
-            onChanged={load}
-            canEdit
-          />
-        )}
-      </>
+            Mes calories
+          </Link>{' '}
+          pour ajouter ton premier plat&nbsp;!
+        </p>
+      </div>
     );
   }
 
