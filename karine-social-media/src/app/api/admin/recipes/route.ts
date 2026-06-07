@@ -29,6 +29,8 @@ const CATEGORIES = new Set([
   'boisson',
   'aperitif',
   'repas_fete',
+  'sur_le_pouce',
+  'repas_famille',
 ]);
 
 type SheetPayload = {

@@ -71,7 +71,7 @@ export async function PATCH(
     const ingredientsText = String(form.get('ingredientsText') || '').trim();
 
     if (!title) return NextResponse.json({ error: 'Titre requis' }, { status: 400 });
-    if (!['petit_dejeuner', 'entree', 'salade', 'plat', 'sauce', 'gouter', 'dessert', 'boisson', 'aperitif', 'repas_fete'].includes(category))
+    if (!['petit_dejeuner', 'entree', 'salade', 'plat', 'sauce', 'gouter', 'dessert', 'boisson', 'aperitif', 'repas_fete', 'sur_le_pouce', 'repas_famille'].includes(category))
       return NextResponse.json({ error: 'Catégorie invalide' }, { status: 400 });
 
     const supabase = createServiceClient();
