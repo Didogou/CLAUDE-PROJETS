@@ -1,9 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import Link from 'next/link';
 import { Flame } from 'lucide-react';
-import { CalorieCounterSheetV2 } from './CalorieCounterSheetV2';
 
 /**
  * Bouton rond "Mon suivi calorique".
@@ -23,15 +21,13 @@ import { CalorieCounterSheetV2 } from './CalorieCounterSheetV2';
  */
 export function TrackingPill({
   behavior = 'sheet',
-  canEdit = true,
 }: {
   behavior?: 'sheet' | 'login' | 'plan';
-  /** Passé à CalorieCounterSheetV2 : si false, les boutons d'ajout
-   *  de repas / eau sont remplacés par un CTA "S'abonner". */
+  /** @deprecated — le contrôle accès est désormais géré par la page
+   *  /mes-calories elle-même. La prop est conservée pour back-compat
+   *  des appels existants (ignorée). */
   canEdit?: boolean;
 } = {}) {
-  const [open, setOpen] = useState(false);
-
   const className =
     'grid h-8 w-8 place-items-center rounded-full bg-white text-coral shadow-md ring-2 ring-coral transition hover:scale-105 active:scale-95';
   const icon = <Flame className="h-4 w-4 fill-coral" strokeWidth={2} />;
@@ -60,24 +56,19 @@ export function TrackingPill({
     );
   }
 
+  // Mode 'sheet' (utilisatrice connectée + abonnée) : on ouvre maintenant
+  // la PAGE /mes-calories au lieu d'une sheet modale, pour contourner
+  // les bugs WebKit iOS sur les `position: fixed` portés dans body
+  // (cf. agent diag 2026-06-07 + decision 2026-06-07 phase 1).
+  // La prop `canEdit` n'a plus besoin d'être transmise — la page gère
+  // ce check via la session côté server component.
   return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-label="Mon suivi nutritionnel"
-        className={className}
-      >
-        {icon}
-      </button>
-
-      {open && (
-        <CalorieCounterSheetV2
-          onClose={() => setOpen(false)}
-          onChanged={() => {}}
-          canEdit={canEdit}
-        />
-      )}
-    </>
+    <Link
+      href="/mes-calories"
+      aria-label="Mon suivi nutritionnel"
+      className={className}
+    >
+      {icon}
+    </Link>
   );
 }

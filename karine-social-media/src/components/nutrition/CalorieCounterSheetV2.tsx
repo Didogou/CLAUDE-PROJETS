@@ -190,6 +190,16 @@ type Props = {
    *  la sheet s'ouvre en lecture seule, les CTA d'ajout sont remplacés
    *  par un CTA "S'abonner". Default true. */
   canEdit?: boolean;
+  /**
+   * Si true, le composant se rend comme une PAGE plein écran
+   * (pas de createPortal, pas de wrapper sheet en `fixed inset-0`).
+   * Utilisé par la route `/mes-calories` pour contourner le bug
+   * iOS Safari qui décale les enfants `position: fixed` du body
+   * (cf. agent diag 2026-06-07).
+   *
+   * Default false (= modal/sheet classique avec portail).
+   */
+  asPage?: boolean;
 };
 
 /**
@@ -202,6 +212,7 @@ export function CalorieCounterSheetV2({
   onClose,
   onChanged,
   canEdit = true,
+  asPage = false,
 }: Props) {
   const [day, setDay] = useState<DayState | null>(null);
   const [naturalText, setNaturalText] = useState('');
@@ -808,18 +819,21 @@ export function CalorieCounterSheetV2({
   const totalsForCat = (cat: MealCategory) =>
     entriesByCat[cat].reduce((a, e) => a + e.kcal * e.portions, 0);
 
-  return createPortal(
+  // === Wrapper conditionnel ===
+  // - asPage=true (route /mes-calories) : on rend juste le contenu dans
+  //   un layout flex column normal, pas de portal, pas de fixed inset-0.
+  //   Évite le bug iOS Safari sur les enfants fixed du body.
+  // - asPage=false (default) : pattern sheet classique avec backdrop
+  //   semi-transparent + slide-up + portail vers document.body.
+  const sheetBody = (
+    <>
     <div
-      className="anim-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-center md:justify-center md:p-4"
-      // Désactive le pinch-to-zoom et autres gestes natifs sur la
-      // sheet, autorise uniquement le scroll vertical.
-      style={{ touchAction: 'pan-y' }}
+      className={
+        asPage
+          ? 'flex min-h-screen w-full flex-col bg-white'
+          : 'anim-slide-up flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:rounded-3xl'
+      }
     >
-      {/* Sheet centrée par le flex parent (items-end justify-center sur
-          mobile, items-center justify-center sur md+). w-full max-w-lg :
-          prend toute la largeur sur mobile (max-w-lg > 100vw), capé à
-          32rem sur desktop pour ne pas étirer. */}
-      <div className="anim-slide-up flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:rounded-3xl">
         {/* === Header transparent sur fond hero ===
             Caché sur la sub-page (drill-down) : c'est le header de
             la sub-page (panel 2) qui prend le relais avec sa propre
@@ -1457,6 +1471,21 @@ export function CalorieCounterSheetV2({
           )}
         </div>
       )}
+    </>
+  );
+
+  // Mode page : pas de portail, le composant est rendu dans le flux DOM
+  // normal de la route /mes-calories.
+  if (asPage) return sheetBody;
+
+  // Mode sheet (default) : portail vers document.body avec backdrop
+  // + flex centrant la sheet.
+  return createPortal(
+    <div
+      className="anim-fade-in fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 print:hidden md:items-center md:justify-center md:p-4"
+      style={{ touchAction: 'pan-y' }}
+    >
+      {sheetBody}
     </div>,
     document.body,
   );
