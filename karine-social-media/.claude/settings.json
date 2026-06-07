@@ -172,7 +172,18 @@
       "Read(//c/c/Users/didie/Documents/Projets/CLAUDE-PROJETS/karine-social-media/supabase/**)",
       "Bash(/c/Users/didie/bin/supabase migration *)",
       "Bash(echo \"EXIT=$?\")",
-      "Bash(grep -E \"\\\\.env|secret|\\\\.key$|password|credential\")"
+      "Bash(grep -E \"\\\\.env|secret|\\\\.key$|password|credential\")",
+      "Bash(xargs grep -l \"image_prompt\")",
+      "Bash(node scripts/batch-ciqual-aliases.mjs)",
+      "Bash(node scripts/batch-ciqual-aliases.mjs --list-groups)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(node scripts/batch-ciqual-aliases.mjs --group=\"viandes, oeufs, poissons\" --limit=5)",
+      "Bash(node scripts/batch-ciqual-aliases.mjs --group=\"entrées et plats composés\" --limit=5)",
+      "Bash(node scripts/batch-ciqual-aliases.mjs --group=\"produits sucrés\" --limit=5)",
+      "Bash(node scripts/batch-ciqual-aliases.mjs --group=\"viandes, oeufs, poissons|entrées et plats composés|produits sucrés\" --limit=2000 --apply)",
+      "Bash(node scripts/mistral-resolve-conflicts.mjs --limit=5)",
+      "Bash(node scripts/mistral-resolve-conflicts.mjs --apply)",
+      "Bash(node scripts/batch-ciqual-aliases.mjs --group=\"fruits, légumes, légumineuses et oléagineux|produits laitiers|produits céréaliers|matières grasses|glaces et sorbets\" --limit=2000 --apply)"
     ],
     "additionalDirectories": [
       "\\tmp"

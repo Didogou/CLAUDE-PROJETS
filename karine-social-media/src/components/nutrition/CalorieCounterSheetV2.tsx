@@ -419,6 +419,62 @@ export function CalorieCounterSheetV2({
    *  - title : `Aliment introuvable : "<terme>"`
    *  - body  : phrase courte + contexte utilisateur
    */
+  /**
+   * Quand l'utilisatrice CLIQUE une suggestion du dropdown autosuggest,
+   * on bypass complètement Mistral et on insère directement l'entrée
+   * dans le food_log avec les data Ciqual (1 portion par défaut).
+   *
+   * Si la portion par défaut ne convient pas, l'utilisatrice peut
+   * supprimer puis resaisir avec une description plus précise — qui
+   * passera par Mistral. Pour 80 % des saisies courantes ("1 banane",
+   * "1 yaourt"), c'est exactement ce qu'on veut : rapide + gratuit.
+   */
+  async function handlePickSuggestion(s: Suggestion) {
+    if (!renderedMealCategory) return;
+    const ratio = s.defaultPortionG / 100;
+    try {
+      const res = await fetch('/api/nutrition/log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entries: [
+            {
+              source: 'ciqual',
+              sourceRefId: String(s.ciqualId),
+              label: s.name,
+              kcal: s.defaultKcalForPortion ?? 0,
+              proteinsG:
+                s.proteinsG !== null
+                  ? Math.round(s.proteinsG * ratio * 10) / 10
+                  : null,
+              lipidsG:
+                s.lipidsG !== null
+                  ? Math.round(s.lipidsG * ratio * 10) / 10
+                  : null,
+              carbsG:
+                s.carbsG !== null
+                  ? Math.round(s.carbsG * ratio * 10) / 10
+                  : null,
+              portions: 1,
+              mealCategory: renderedMealCategory,
+            },
+          ],
+        }),
+      });
+      if (res.ok) {
+        setNaturalText('');
+        setNoResult(null);
+        await refresh();
+        window.dispatchEvent(new Event('nutrition-log-updated'));
+      } else {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        alertError(j?.error || 'Erreur ajout');
+      }
+    } catch (e) {
+      alertError(e instanceof Error ? e.message : 'Erreur');
+    }
+  }
+
   async function notifyKarineMissingFood() {
     if (!noResult || notifyingKarine) return;
     setNotifyingKarine(true);
@@ -748,7 +804,12 @@ export function CalorieCounterSheetV2({
       // sheet, autorise uniquement le scroll vertical.
       style={{ touchAction: 'pan-y' }}
     >
-      <div className="anim-slide-up flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:rounded-3xl">
+      {/* w-screen sur mobile : force 100vw garanti même si Safari iOS
+          a un quirk de centrage du parent flex (cf. bug observé sur
+          karine-social-media.vercel.app — sheet rendue dans la moitié
+          gauche uniquement). Sur md+, on revient au pattern centré
+          avec max-w-lg pour ne pas étirer la sheet sur grand écran. */}
+      <div className="anim-slide-up flex h-[100dvh] w-screen flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:w-full md:max-w-lg md:rounded-3xl">
         {/* === Header transparent sur fond hero ===
             Caché sur la sub-page (drill-down) : c'est le header de
             la sub-page (panel 2) qui prend le relais avec sa propre
@@ -994,6 +1055,7 @@ export function CalorieCounterSheetV2({
                       photoUploading={photoUploading}
                       onPhoto={handlePhoto}
                       onParse={handleParse}
+                      onPickSuggestion={handlePickSuggestion}
                     />
                   </div>
 
@@ -1234,6 +1296,11 @@ export function CalorieCounterSheetV2({
                             onShowPhoto={(url) =>
                               setLightboxState({ url, persisted: true })
                             }
+                            // Sub-page dédiée à `renderedMealCategory` :
+                            // le label « Déjeuner / Dîner / … » sur
+                            // chaque ligne est redondant avec le titre
+                            // de la sub-page.
+                            hideCategoryBadge
                           />
                         ))}
                       </ul>
@@ -2090,6 +2157,56 @@ function MealTile({
  * d'une tuile repas — la catégorie cible est gérée par l'état
  * `activeMealCategory` côté parent.
  */
+/**
+ * Format de réponse de /api/nutrition/suggest. On le re-déclare ici
+ * pour ne pas tirer le type côté server dans le bundle client.
+ */
+type Suggestion = {
+  ciqualId: number;
+  alimCode: number;
+  name: string;
+  groupName: string | null;
+  kcalPer100g: number | null;
+  proteinsG: number | null;
+  lipidsG: number | null;
+  carbsG: number | null;
+  defaultPortionG: number;
+  defaultKcalForPortion: number | null;
+  matchedVia: 'alias_resolved' | 'alias_pending' | 'name';
+  matchedText: string;
+  /** Titre à afficher dans le dropdown. Alias si dispo (plus naturel),
+   *  sinon name Ciqual. */
+  displayText: string;
+};
+
+/** Allège un nom Ciqual pour l'affichage : retire les parenthèses
+ *  ("(aliment moyen)", "(extra ou classique)"), les suffixes type
+ *  "préemballée", "sans précision". Sert quand on n'a pas d'alias
+ *  dispo pour cet aliment et qu'on retombe sur le name Ciqual brut.
+ *  Ne touche PAS au name retourné par l'API (référence stable),
+ *  uniquement à l'affichage en titre. */
+function cleanCiqualNameForDisplay(s: string): string {
+  return s
+    .replace(/\s*\([^)]*\)\s*/g, ' ')
+    .replace(
+      /,\s*(préemballée?s?|aliment moyen|sans précision(?: sur le rayon)?|tout type de fruits|type[^,]+,?)/gi,
+      '',
+    )
+    .replace(/\s+/g, ' ')
+    .replace(/\s*,\s*$/, '')
+    .trim();
+}
+
+/** Détection "texte complexe" : si l'utilisatrice tape déjà une phrase
+ *  multi-items ou avec quantités, on cache l'autosuggest car Mistral
+ *  fera mieux que nous (parsing structuré). */
+function isComplexQuery(s: string): boolean {
+  if (s.length > 30) return true;
+  if (/\d/.test(s)) return true; // chiffres = quantité explicite
+  if (/\b(et|avec|sans|sauf|puis|plus|et un|et une|et des)\b/i.test(s)) return true;
+  return false;
+}
+
 function InlineMealInvite({
   naturalText,
   onTextChange,
@@ -2098,6 +2215,7 @@ function InlineMealInvite({
   onPhoto,
   onParse,
   multiline = false,
+  onPickSuggestion,
 }: {
   naturalText: string;
   onTextChange: (v: string) => void;
@@ -2109,7 +2227,58 @@ function InlineMealInvite({
    *  Utilisé sur la sub-page V2 pour pouvoir saisir plus confortablement
    *  une description longue type "pâtes carbonara avec parmesan". */
   multiline?: boolean;
+  /**
+   * Callback déclenchée quand l'utilisatrice CLIQUE une suggestion du
+   * dropdown autosuggest. Le parent doit POST /api/nutrition/log avec
+   * cet aliment Ciqual + 1 portion par défaut, puis refresh.
+   *
+   * Si non fournie, l'autosuggest est désactivée (back-compat pour les
+   * appels existants).
+   */
+  onPickSuggestion?: (s: Suggestion) => void;
 }) {
+  // ─── Autosuggest ────────────────────────────────────────────────────
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [selectedIdx, setSelectedIdx] = useState(-1);
+  const enabled = !!onPickSuggestion;
+
+  useEffect(() => {
+    if (!enabled) return;
+    const trimmed = naturalText.trim();
+    if (trimmed.length < 2 || isComplexQuery(trimmed)) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+    const ctrl = new AbortController();
+    const t = window.setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/nutrition/suggest?q=${encodeURIComponent(trimmed)}`,
+          { signal: ctrl.signal, cache: 'no-store' },
+        );
+        if (!res.ok) return;
+        const j = (await res.json()) as { suggestions: Suggestion[] };
+        setSuggestions(j.suggestions ?? []);
+        setShowDropdown((j.suggestions ?? []).length > 0);
+        setSelectedIdx(-1);
+      } catch {
+        // abort silencieux
+      }
+    }, 250);
+    return () => {
+      window.clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [naturalText, enabled]);
+
+  function pickSuggestion(s: Suggestion) {
+    setShowDropdown(false);
+    setSuggestions([]);
+    onPickSuggestion?.(s);
+  }
+
   const SharedTextareaProps = {
     value: naturalText,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -2117,7 +2286,30 @@ function InlineMealInvite({
     onKeyDown: (
       e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
     ) => {
-      // Sur l'input simple : Enter = lance.
+      // Si dropdown ouvert : flèches + Enter = navigation suggestions.
+      if (enabled && showDropdown && suggestions.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          setSelectedIdx((i) => Math.min(suggestions.length - 1, i + 1));
+          return;
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          setSelectedIdx((i) => Math.max(-1, i - 1));
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setShowDropdown(false);
+          return;
+        }
+        if (e.key === 'Enter' && selectedIdx >= 0) {
+          e.preventDefault();
+          pickSuggestion(suggestions[selectedIdx]);
+          return;
+        }
+      }
+      // Sur l'input simple : Enter = lance parse Mistral.
       // Sur le textarea : Cmd/Ctrl+Enter = lance (Enter seul = saut de ligne).
       const isModEnter =
         e.key === 'Enter' && (e.metaKey || e.ctrlKey);
@@ -2129,64 +2321,147 @@ function InlineMealInvite({
         onParse();
       }
     },
+    onBlur: () => {
+      // Petit délai pour que le clic sur une suggestion soit pris en
+      // compte AVANT que le blur ferme le dropdown.
+      window.setTimeout(() => setShowDropdown(false), 150);
+    },
+    onFocus: () => {
+      if (enabled && suggestions.length > 0) setShowDropdown(true);
+    },
     maxLength: 500,
     autoFocus: true,
     placeholder: 'ex. un yaourt nature et une pomme',
   };
+
   return (
-    <div className={multiline ? 'space-y-2' : 'flex gap-2'}>
-      {multiline ? (
-        <textarea
-          {...SharedTextareaProps}
-          rows={2}
-          className="w-full resize-none rounded-lg border border-coral-soft px-3 py-2 text-sm leading-relaxed"
-        />
-      ) : (
-        <input
-          type="text"
-          {...SharedTextareaProps}
-          className="flex-1 rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
-        />
-      )}
-      <div className={multiline ? 'flex justify-end gap-2' : 'contents'}>
-        <label
-          className={`flex size-9 cursor-pointer items-center justify-center rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
-            photoUploading ? 'cursor-wait opacity-50' : ''
-          }`}
-          title="Prendre une photo du plat"
-        >
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            disabled={photoUploading}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) onPhoto(f);
-              e.target.value = '';
-            }}
-            className="sr-only"
+    <div className="relative">
+      <div className={multiline ? 'space-y-2' : 'flex gap-2'}>
+        {multiline ? (
+          <textarea
+            {...SharedTextareaProps}
+            rows={2}
+            className="w-full resize-none rounded-lg border border-coral-soft px-3 py-2 text-sm leading-relaxed"
           />
-          {photoUploading ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Camera className="size-4" />
-          )}
-        </label>
-        <button
-          type="button"
-          onClick={onParse}
-          disabled={parsing || naturalText.trim().length < 3}
-          aria-label="Analyser"
-          className="flex size-9 items-center justify-center rounded-full bg-coral text-white disabled:opacity-50"
-        >
-          {parsing ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Send className="size-4" />
-          )}
-        </button>
+        ) : (
+          <input
+            type="text"
+            {...SharedTextareaProps}
+            className="flex-1 rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
+          />
+        )}
+        <div className={multiline ? 'flex justify-end gap-2' : 'contents'}>
+          <label
+            className={`flex size-9 cursor-pointer items-center justify-center rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
+              photoUploading ? 'cursor-wait opacity-50' : ''
+            }`}
+            title="Prendre une photo du plat"
+          >
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              disabled={photoUploading}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onPhoto(f);
+                e.target.value = '';
+              }}
+              className="sr-only"
+            />
+            {photoUploading ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Camera className="size-4" />
+            )}
+          </label>
+          <button
+            type="button"
+            onClick={onParse}
+            disabled={parsing || naturalText.trim().length < 3}
+            aria-label="Analyser"
+            className="flex size-9 items-center justify-center rounded-full bg-coral text-white disabled:opacity-50"
+          >
+            {parsing ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Send className="size-4" />
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* Dropdown autosuggest. Positionné absolute relatif au wrapper.
+          Ne s'affiche que si suggestions disponibles ET enabled.
+          Le mouseDown sur item = pick (mouseDown avant blur, sinon
+          le blur ferme le dropdown avant que le click ne soit reçu). */}
+      {enabled && showDropdown && suggestions.length > 0 && (
+        <ul className="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-coral-soft bg-white shadow-lg">
+          {suggestions.map((s, i) => {
+            // Affichage : displayText en titre (alias si dispo, sinon
+            // name). Quand on retombe sur le name Ciqual brut (pas
+            // d'alias), on le nettoie pour la lecture (suppression
+            // "(aliment moyen)", "préemballée", etc.). Le sous-titre
+            // garde la référence Ciqual non altérée pour transparence.
+            const showNameSubtitle = s.displayText !== s.name;
+            const titleText = showNameSubtitle
+              ? s.displayText
+              : cleanCiqualNameForDisplay(s.displayText);
+            return (
+              <li key={s.ciqualId}>
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pickSuggestion(s);
+                  }}
+                  onMouseEnter={() => setSelectedIdx(i)}
+                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition ${
+                    i === selectedIdx ? 'bg-coral-soft/40' : 'hover:bg-coral-soft/20'
+                  }`}
+                >
+                  <span className="min-w-0 flex-1">
+                    {/* Titre : wrap sur 2 lignes max (line-clamp-2)
+                        au lieu de tronquer en 1 ligne — sinon les noms
+                        Ciqual longs deviennent illisibles ("Purée De
+                        Pomme De Terre, Avec L..."). */}
+                    <span className="line-clamp-2 font-semibold capitalize leading-tight text-ink">
+                      {titleText}
+                    </span>
+                    {/* Sous-titre : 1 ligne, tronqué. Contient le
+                        name Ciqual si on a un displayText différent
+                        (référence stable), sinon juste les infos kcal. */}
+                    <span className="mt-0.5 block truncate text-xs text-ink-soft">
+                      {showNameSubtitle ? (
+                        <>
+                          {s.name}
+                          {s.kcalPer100g !== null
+                            ? ` · ${s.kcalPer100g} kcal/100 g`
+                            : ''}
+                        </>
+                      ) : (
+                        <>
+                          {s.kcalPer100g !== null
+                            ? `${s.kcalPer100g} kcal/100 g`
+                            : 'kcal inconnue'}
+                          {s.defaultPortionG !== 100
+                            ? ` · 1 portion ≈ ${s.defaultPortionG} g`
+                            : ''}
+                        </>
+                      )}
+                    </span>
+                  </span>
+                  {s.defaultKcalForPortion !== null && (
+                    <span className="shrink-0 rounded-full bg-coral px-2.5 py-0.5 text-xs font-bold text-white">
+                      {s.defaultKcalForPortion} kcal
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
@@ -2346,6 +2621,7 @@ function EntryRow({
   onChangeKcal,
   onChangeLabel,
   onShowPhoto,
+  hideCategoryBadge = false,
 }: {
   entry: FoodLogEntry;
   onDelete: () => void;
@@ -2358,6 +2634,14 @@ function EntryRow({
   /** Si fourni ET entry.photoUrl existe, affiche une mini-vignette
    *  cliquable à droite. Le parent gère le lightbox. */
   onShowPhoto?: (url: string) => void;
+  /**
+   * Cache la pastille "Déjeuner / Dîner / …" à gauche. Utilisé sur
+   * les sub-pages dédiées à une catégorie (ex: sub-page Déjeuner),
+   * où le label est redondant — on est déjà dans le contexte de
+   * cette catégorie. Sur la home view (toutes catégories mélangées),
+   * laisser false pour conserver la distinction visuelle.
+   */
+  hideCategoryBadge?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // editOpen remplace kcalPickerOpen : ouvre une fiche d'édition
@@ -2381,14 +2665,16 @@ function EntryRow({
       ref={wrapperRef}
       className="relative flex items-center gap-2 rounded-lg border border-coral-soft/30 bg-white px-2.5 py-1.5"
     >
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="shrink-0 rounded-full bg-coral-soft/40 px-2 py-0.5 text-[0.6rem] font-semibold text-coral-dark hover:bg-coral-soft/60"
-        aria-label="Changer la catégorie"
-      >
-        {MEAL_LABELS[cat]}
-      </button>
+      {!hideCategoryBadge && (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          className="shrink-0 rounded-full bg-coral-soft/40 px-2 py-0.5 text-[0.6rem] font-semibold text-coral-dark hover:bg-coral-soft/60"
+          aria-label="Changer la catégorie"
+        >
+          {MEAL_LABELS[cat]}
+        </button>
+      )}
       <div className="min-w-0 flex-1">
         {onChangeKcal ? (
           // Toute la zone nom + kcal devient cliquable → ouvre la fiche

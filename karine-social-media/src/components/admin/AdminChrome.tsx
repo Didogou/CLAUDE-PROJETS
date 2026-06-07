@@ -26,6 +26,7 @@ import {
   Apple,
   Scale,
   FlaskConical,
+  Tag,
 } from 'lucide-react';
 
 type Section = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -45,6 +46,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/permissions', label: 'Permissions', icon: Shield },
   { href: '/admin/informations-legales', label: 'Infos légales & banque', icon: FileText },
   { href: '/admin/ciqual', label: 'Base Ciqual', icon: Apple },
+  { href: '/admin/ciqual-aliases', label: 'Aliases Ciqual', icon: Tag },
   { href: '/admin/portions', label: 'Portions', icon: Scale },
   { href: '/admin/parse-tests', label: 'Tests parsing', icon: FlaskConical },
   { href: '/admin/parametres', label: 'Paramètres', icon: SlidersHorizontal },

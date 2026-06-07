@@ -96,13 +96,39 @@ export async function searchCiqualFoods(
 
   const searchTokens = tokens.length > 0 ? tokens : [q.toLowerCase()];
   const POOL = 60;
+  const qNorm = normalize(q);
 
-  const { data, error } = await (supabase as any).rpc('search_ciqual_foods', {
-    query_tokens: searchTokens,
-    limit_n: POOL,
-  });
-  if (error) return [];
-  const rows = ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+  // === Recherche en parallèle dans 2 sources ===
+  //  (1) RPC search_ciqual_foods : matche les tokens contre name/group/subgroup
+  //  (2) Table ciqual_aliases : matche la query normalisée contre les
+  //      aliases (expressions naturelles générées par Mistral + validées
+  //      par Karine).
+  //
+  // Pourquoi 2 queries au lieu d'une RPC unique : la RPC actuelle ne
+  // sait pas joindre `ciqual_aliases`. À optimiser plus tard via RPC
+  // étendue. Pour l'instant 2 round-trips Supabase = ~50 ms, OK.
+  //
+  // Filtre alias : on prend status='resolved' (validé par Karine) +
+  // status='pending' (pas encore trié). On EXCLUT status='rejected'
+  // (alias explicitement écarté par Karine).
+  const [rpcResult, aliasResult] = await Promise.all([
+    (supabase as any).rpc('search_ciqual_foods', {
+      query_tokens: searchTokens,
+      limit_n: POOL,
+    }),
+    (supabase as any)
+      .from('ciqual_aliases')
+      .select(
+        'alias, ciqual_id, status, ciqual_foods!inner(id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g)',
+      )
+      .neq('status', 'rejected')
+      .or(`alias.eq.${qNorm},alias.like.${qNorm}%,alias.like.%${qNorm}%`)
+      .limit(30),
+  ]);
+
+  if (rpcResult.error) return [];
+
+  const rows = ((rpcResult.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
     id: Number(r.id),
     alim_code: Number(r.alim_code),
     name: String(r.name),
@@ -114,7 +140,62 @@ export async function searchCiqualFoods(
     carbs_g: r.carbs_g === null ? null : Number(r.carbs_g),
   })) as CiqualSearchResult[];
 
-  const qNorm = normalize(q);
+  // Indexe les rows actuelles par id pour dedup vs aliases.
+  const byId = new Map<number, CiqualSearchResult>();
+  for (const r of rows) byId.set(r.id, r);
+
+  // Pour chaque match alias, on récupère l'aliment Ciqual associé.
+  // Si pas déjà dans byId, on l'ajoute. On note aussi le meilleur alias
+  // matché (qualité du match) pour le scoring.
+  type AliasHit = { alias: string; aliasScore: number; status: string };
+  const aliasHitsByFoodId = new Map<number, AliasHit>();
+  if (!aliasResult.error && Array.isArray(aliasResult.data)) {
+    for (const row of aliasResult.data as Array<{
+      alias: string;
+      ciqual_id: number;
+      status: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ciqual_foods: any;
+    }>) {
+      const food = row.ciqual_foods;
+      if (!food) continue;
+      const foodId = Number(food.id);
+      // Score d'alias (plus bas = meilleur) :
+      //   0 = alias exact, 1 = startsWith, 2 = substring
+      const a = row.alias;
+      let aScore: number;
+      if (a === qNorm) aScore = 0;
+      else if (a.startsWith(qNorm)) aScore = 1;
+      else aScore = 2;
+
+      // On garde le meilleur alias par aliment (si plusieurs matchent)
+      const prev = aliasHitsByFoodId.get(foodId);
+      if (!prev || aScore < prev.aliasScore) {
+        aliasHitsByFoodId.set(foodId, {
+          alias: a,
+          aliasScore: aScore,
+          status: row.status,
+        });
+      }
+
+      if (!byId.has(foodId)) {
+        byId.set(foodId, {
+          id: foodId,
+          alim_code: Number(food.alim_code),
+          name: String(food.name),
+          group_name: (food.group_name as string | null) ?? null,
+          kcal_per_100g:
+            food.kcal_per_100g === null ? null : Number(food.kcal_per_100g),
+          proteins_g: food.proteins_g === null ? null : Number(food.proteins_g),
+          lipids_g: food.lipids_g === null ? null : Number(food.lipids_g),
+          carbs_g: food.carbs_g === null ? null : Number(food.carbs_g),
+        });
+      }
+    }
+  }
+
+  const allRows = [...byId.values()];
+
   const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const wordRe = new RegExp(`\\b${escape(qNorm)}\\b`, 'i');
 
@@ -123,24 +204,36 @@ export async function searchCiqualFoods(
   // préfixe AVEC ESPACE (= variété/qualificatif : "banane plantain"
   // qui est un aliment différent). Sans ça, "banane plantain" gagnait
   // à tort sur "banane" tout court.
-  const score = (name: string): number => {
-    const n = normalize(name);
-    if (n === qNorm) return 0;
-    if (n.startsWith(qNorm + ',')) return 1; // variante stricte
-    if (n.startsWith(qNorm + ' ')) return 2; // variété (banane plantain)
-    if (n.startsWith(qNorm)) return 3;
-    if (wordRe.test(n)) return 4;
-    if (searchTokens.length > 1) return 5;
-    return 6;
+  //
+  // Les aliases (resolved/pending) BOOSTENT le score : un alias exact
+  // se voit attribuer score 0 (top), startsWith → 1, substring → 2.
+  // Si le name a un meilleur score que l'alias, on prend le name.
+  const score = (r: CiqualSearchResult): number => {
+    const n = normalize(r.name);
+    let nameScore: number;
+    if (n === qNorm) nameScore = 0;
+    else if (n.startsWith(qNorm + ',')) nameScore = 1;
+    else if (n.startsWith(qNorm + ' ')) nameScore = 2;
+    else if (n.startsWith(qNorm)) nameScore = 3;
+    else if (wordRe.test(n)) nameScore = 4;
+    else if (searchTokens.length > 1) nameScore = 5;
+    else nameScore = 6;
+
+    const aliasHit = aliasHitsByFoodId.get(r.id);
+    if (!aliasHit) return nameScore;
+    // Alias resolved = priorité absolue (Karine a validé).
+    // Alias pending = légère pénalité (pas encore trié, peut être un conflit).
+    const penalty = aliasHit.status === 'pending' ? 0.5 : 0;
+    return Math.min(nameScore, aliasHit.aliasScore + penalty);
   };
 
-  rows.sort((a, b) => {
-    const sa = score(a.name);
-    const sb = score(b.name);
+  allRows.sort((a, b) => {
+    const sa = score(a);
+    const sb = score(b);
     if (sa !== sb) return sa - sb;
     if (a.name.length !== b.name.length) return a.name.length - b.name.length;
     return a.name.localeCompare(b.name, 'fr');
   });
 
-  return rows.slice(0, limit);
+  return allRows.slice(0, limit);
 }
