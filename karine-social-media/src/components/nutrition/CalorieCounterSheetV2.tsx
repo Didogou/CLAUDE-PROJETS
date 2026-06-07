@@ -17,6 +17,7 @@ import {
   UtensilsCrossed,
   Cookie,
   Moon,
+  Eye,
 } from 'lucide-react';
 import { MyInfoModal } from './MyInfoModal';
 import { LongPressSlider } from '@/components/ui/LongPressSlider';
@@ -241,6 +242,16 @@ export function CalorieCounterSheetV2({
   // défaut — l'écran montre alors juste les tuiles compactes. Quand
   // l'abonnée clique le + d'une tuile, on set la catégorie ici et le
   // bloc saisie + photo + preview s'affiche sous cette tuile.
+  /**
+   * Mode d'affichage de la sub-page repas, choisi par l'utilisatrice
+   * via les boutons + / œil de la tuile correspondante :
+   *  - 'add'  : focus sur l'ajout — la liste "Déjà ajouté" est cachée
+   *             pour ne pas noyer l'utilisatrice sous l'historique.
+   *  - 'view' : focus sur la consultation — la liste "Déjà ajouté"
+   *             s'affiche en plus du formulaire d'ajout (toujours
+   *             accessible).
+   */
+  const [subPageMode, setSubPageMode] = useState<'add' | 'view'>('add');
   const [activeMealCategory, setActiveMealCategory] =
     useState<MealCategory | null>(null);
   // Garde la dernière catégorie ouverte même quand on referme, pour
@@ -804,12 +815,28 @@ export function CalorieCounterSheetV2({
       // sheet, autorise uniquement le scroll vertical.
       style={{ touchAction: 'pan-y' }}
     >
-      {/* w-screen sur mobile : force 100vw garanti même si Safari iOS
-          a un quirk de centrage du parent flex (cf. bug observé sur
-          karine-social-media.vercel.app — sheet rendue dans la moitié
-          gauche uniquement). Sur md+, on revient au pattern centré
-          avec max-w-lg pour ne pas étirer la sheet sur grand écran. */}
-      <div className="anim-slide-up flex h-[100dvh] w-screen flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:w-full md:max-w-lg md:rounded-3xl">
+      {/* Mobile : sheet positionnée en FIXED direct (pas via flex parent)
+          pour bypasser tout containing block créé par un ancêtre avec
+          transform/filter/backdrop-filter. Sur md+, on revient au flex
+          du parent centré avec max-w-lg.
+
+          Pourquoi cette stratégie : le portail React est monté sur
+          document.body, mais Safari iOS a un quirk avec position:fixed
+          dans certains contextes — la sheet finit rendue dans la moitié
+          gauche du viewport. En la positionnant elle-même en fixed
+          inset-0, on force l'ancrage au viewport sans dépendre du flex
+          du wrapper portail.
+
+          Sur md+ on relâche le fixed (md:relative) et on laisse le
+          flex centrer la sheet avec max-w-lg comme avant. */}
+      <div
+        className="anim-slide-up fixed inset-x-0 bottom-0 flex h-[100dvh] flex-col overflow-hidden bg-white shadow-2xl md:relative md:inset-x-auto md:bottom-auto md:h-[min(95vh,840px)] md:w-full md:max-w-lg md:rounded-3xl"
+        style={{
+          // Override defensive : largeur explicite 100% du viewport sur
+          // mobile, indépendamment de tout containing block parasite.
+          // Sur md+ (768px+), la prop max-width Tailwind reprend la main.
+        }}
+      >
         {/* === Header transparent sur fond hero ===
             Caché sur la sub-page (drill-down) : c'est le header de
             la sub-page (panel 2) qui prend le relais avec sa propre
@@ -952,7 +979,7 @@ export function CalorieCounterSheetV2({
                     count={entries.length}
                     totalKcal={totalsForCat(cat)}
                     mealTargetKcal={mealTarget}
-                    onClick={() => {
+                    onAdd={() => {
                       // Si canEdit=false (utilisatrice connectée sans
                       // abonnement), on bloque l'ajout : on l'envoie
                       // vers /mon-plan plutôt que d'ouvrir la sub-page
@@ -961,6 +988,19 @@ export function CalorieCounterSheetV2({
                         window.location.href = '/mon-plan?next=/';
                         return;
                       }
+                      setSubPageMode('add');
+                      setActiveMealCategory(cat);
+                      setMealCategory(cat);
+                      setNaturalText('');
+                      setPreview(null);
+                      setAccSel(new Map());
+                    }}
+                    onView={() => {
+                      // Le mode view est aussi accessible aux non-abos :
+                      // ils peuvent consulter ce qu'ils ont ajouté avant
+                      // d'avoir un plan (les entrées sont rares mais
+                      // peuvent exister via démo). Pas de redirect.
+                      setSubPageMode('view');
                       setActiveMealCategory(cat);
                       setMealCategory(cat);
                       setNaturalText('');
@@ -1274,10 +1314,12 @@ export function CalorieCounterSheetV2({
             </ul>
                   )}
 
-                  {/* Plats déjà saisis pour cette catégorie — en BAS
-                      de la sub-page : on arrive sur la zone d'action,
-                      le contexte (ce qu'on a déjà mangé) reste sous. */}
-                  {entriesByCat[renderedMealCategory].length > 0 && (
+                  {/* Plats déjà saisis pour cette catégorie — visible
+                      UNIQUEMENT en mode "view" (clic œil depuis la
+                      home view). En mode "add" (clic +), on cache la
+                      liste pour ne pas noyer l'utilisatrice sous
+                      l'historique : focus sur l'ajout. */}
+                  {subPageMode === 'view' && entriesByCat[renderedMealCategory].length > 0 && (
                     <div className="rounded-2xl bg-white shadow-sm ring-1 ring-coral-soft/30">
                       <h4 className="border-b border-coral-soft/20 px-4 py-2 text-[0.7rem] font-bold uppercase tracking-wider text-coral-dark">
                         Déjà ajouté ({Math.round(totalsForCat(renderedMealCategory))} kcal)
@@ -1955,7 +1997,8 @@ function MealTileApple({
   count,
   totalKcal,
   mealTargetKcal,
-  onClick,
+  onAdd,
+  onView,
 }: {
   category: MealCategory;
   count: number;
@@ -1963,7 +2006,13 @@ function MealTileApple({
   /** Objectif kcal calculé pour ce repas (ex: petit dej = 20% du
    *  daily target). 0 ou null si profil incomplet. */
   mealTargetKcal: number;
-  onClick: () => void;
+  /** Ouvre la sub-page en mode "add" : focus sur l'ajout, l'historique
+   *  est caché. Dispatched par le bouton "+" en haut à gauche. */
+  onAdd: () => void;
+  /** Ouvre la sub-page en mode "view" : affiche l'historique des repas
+   *  ajoutés à cette catégorie (le formulaire d'ajout reste dispo en
+   *  haut). Dispatched par le bouton œil en bas à droite. */
+  onView: () => void;
 }) {
   const pct =
     mealTargetKcal > 0
@@ -1972,13 +2021,16 @@ function MealTileApple({
   // Overshoot : on garde la barre rouge si on dépasse la cible
   const overshoot = mealTargetKcal > 0 && totalKcal > mealTargetKcal;
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="relative flex min-h-[8.5rem] flex-col items-start justify-end gap-1 overflow-hidden rounded-2xl bg-white p-4 pb-3 text-left shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-95"
+    // Wrapper passé en <div> (pas <button>) : on a maintenant 2 boutons
+    // explicites (+ / œil), un wrapper cliquable serait ambigu côté
+    // accessibilité (event bubbling sur les 2 boutons internes).
+    <div
+      className="relative flex min-h-[8.5rem] flex-col items-start justify-end gap-1 overflow-hidden rounded-2xl bg-white p-4 pb-3 text-left shadow-sm ring-1 ring-coral-soft/30"
     >
-      {/* Icône en haut à droite, grande, transparente sans fond. */}
-      <span className="absolute right-2 top-2">
+      {/* Icône repas en haut à droite — décorative, grande, sans fond.
+          pointer-events-none pour ne pas bloquer le tap sur l'œil
+          juste en dessous. */}
+      <span className="pointer-events-none absolute right-2 top-2">
         <MealCategoryAvatar
           category={category}
           wrapperSize="size-20"
@@ -2019,15 +2071,29 @@ function MealTileApple({
           }}
         />
       </div>
-      {/* + en HAUT À GAUCHE — affordance "ajouter" toujours visible
-          avec une petite marge confortable. */}
-      <span
-        aria-hidden
-        className="absolute left-2 top-2 grid size-9 place-items-center rounded-full bg-coral text-white shadow"
+      {/* Bouton + en HAUT À GAUCHE — ajoute un plat (sub-page sans
+          historique). Coral plein, identique à l'ancien design. */}
+      <button
+        type="button"
+        onClick={onAdd}
+        aria-label={`Ajouter à ${MEAL_LABELS[category]}`}
+        className="absolute left-2 top-2 grid size-9 place-items-center rounded-full bg-coral text-white shadow transition hover:bg-coral-dark active:scale-95"
       >
         <Plus className="size-4" />
-      </span>
-    </button>
+      </button>
+      {/* Bouton œil en BAS À DROITE — visualise l'historique de ce
+          repas (sub-page avec liste "Déjà ajouté"). Cercle blanc avec
+          ring coral, plus discret que le + pour respecter la hiérarchie
+          (l'action principale d'une tuile = ajouter). */}
+      <button
+        type="button"
+        onClick={onView}
+        aria-label={`Voir l'historique de ${MEAL_LABELS[category]}`}
+        className="absolute bottom-2 right-2 grid size-9 place-items-center rounded-full bg-white text-coral shadow ring-1 ring-coral-soft/60 transition hover:bg-coral-soft/30 active:scale-95"
+      >
+        <Eye className="size-4" />
+      </button>
+    </div>
   );
 }
 
