@@ -8,7 +8,8 @@ export type RecipeCategory =
   | 'dessert'
   | 'boisson'
   | 'aperitif'
-  | 'repas_fete';
+  | 'repas_fete'
+  | 'sur_le_pouce';
 
 /** Structure d'un ingrédient (réutilise la même shape que les items de
  *  liste de courses pour pouvoir agréger sans conversion). */
@@ -102,6 +103,7 @@ export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
   boisson: 'Boissons',
   aperitif: 'Apéros dînatoires',
   repas_fete: 'Repas de fête',
+  sur_le_pouce: 'Sur le pouce',
 };
 
 export const CATEGORY_SINGULAR: Record<RecipeCategory, string> = {
@@ -115,6 +117,7 @@ export const CATEGORY_SINGULAR: Record<RecipeCategory, string> = {
   boisson: 'boisson',
   aperitif: 'apéro dînatoire',
   repas_fete: 'repas de fête',
+  sur_le_pouce: 'sur le pouce',
 };
 
 export const CATEGORY_ORDER: RecipeCategory[] = [
@@ -128,6 +131,7 @@ export const CATEGORY_ORDER: RecipeCategory[] = [
   'boisson',
   'aperitif',
   'repas_fete',
+  'sur_le_pouce',
 ];
 
 export const CATEGORY_SLUG: Record<RecipeCategory, string> = {
@@ -141,4 +145,5 @@ export const CATEGORY_SLUG: Record<RecipeCategory, string> = {
   boisson: 'boissons',
   aperitif: 'aperos-dinatoires',
   repas_fete: 'repas-de-fete',
+  sur_le_pouce: 'sur-le-pouce',
 };

@@ -158,6 +158,7 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
           <option value="boisson">Boisson</option>
           <option value="aperitif">Apéro dînatoire</option>
           <option value="repas_fete">Repas de fête</option>
+          <option value="sur_le_pouce">Sur le pouce</option>
         </select>
       </Field>
 

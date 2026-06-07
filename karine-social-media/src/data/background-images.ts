@@ -4,7 +4,8 @@ export type BackgroundVariantKey =
   | 'conseils'
   | 'salade'
   | 'dessert'
-  | 'accueil';
+  | 'accueil'
+  | 'recettes';
 
 export type BackgroundOverride = {
   variant: BackgroundVariantKey;
@@ -61,5 +62,12 @@ export const BACKGROUND_VARIANTS: {
     description: 'Catégorie de recettes « Desserts »',
     fallbackPortrait: '/images/fond-dessert-portrait.webp',
     fallbackPaysage: '/images/fond-dessert-paysage.webp',
+  },
+  {
+    key: 'recettes',
+    label: 'Recettes (home)',
+    description: 'Page d’accueil « Idées recettes » (dégradé rose Karine)',
+    fallbackPortrait: '/images/fond-recettes-portrait.webp',
+    fallbackPaysage: '/images/fond-recettes-paysage.webp',
   },
 ];

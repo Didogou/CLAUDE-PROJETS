@@ -187,7 +187,9 @@
       "WebFetch(domain:www.w3tutorials.net)",
       "WebFetch(domain:medium.com)",
       "WebFetch(domain:bugs.webkit.org)",
-      "WebFetch(domain:discussions.apple.com)"
+      "WebFetch(domain:discussions.apple.com)",
+      "Bash(node scripts/regen-tab-icons.mjs)",
+      "Bash(sort -k9)"
     ],
     "additionalDirectories": [
       "\\tmp"

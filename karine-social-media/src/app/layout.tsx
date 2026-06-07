@@ -25,6 +25,24 @@ const sacramento = Sacramento({
 export const metadata: Metadata = {
   title: 'Karine Diététique',
   description: 'Prenons soin de vous — menus, recettes, conseils et astuces.',
+  // Icônes pour favoris navigateur ET "Ajouter à l'écran d'accueil".
+  //
+  // ⚠️ iOS (Safari ET Chrome iOS qui utilise WebKit) IGNORE le manifest
+  // pour l'icône d'écran d'accueil — il ne lit QUE `<link rel=apple-touch-icon>`.
+  // Sans cette ligne explicite, iOS prend un screenshot de la page comme
+  // icône → l'utilisatrice qui "Ajoute à l'écran d'accueil" voit un truc
+  // bizarre au lieu du logo Karine.
+  //
+  // Tous générés depuis assets-source/06_ICONES_ET_UI/Icon.png (1024×1024)
+  // via sharp aux tailles standards Apple/Google. Cf. scripts/regen-icons.mjs.
+  icons: {
+    icon: [
+      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    ],
+    apple: { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+  },
 };
 
 // Sans <meta viewport>, Safari iOS rend l'app dans un canvas virtuel de
