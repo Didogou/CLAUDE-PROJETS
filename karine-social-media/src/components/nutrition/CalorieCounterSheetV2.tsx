@@ -815,28 +815,11 @@ export function CalorieCounterSheetV2({
       // sheet, autorise uniquement le scroll vertical.
       style={{ touchAction: 'pan-y' }}
     >
-      {/* Mobile : sheet positionnée en FIXED direct (pas via flex parent)
-          pour bypasser tout containing block créé par un ancêtre avec
-          transform/filter/backdrop-filter. Sur md+, on revient au flex
-          du parent centré avec max-w-lg.
-
-          Pourquoi cette stratégie : le portail React est monté sur
-          document.body, mais Safari iOS a un quirk avec position:fixed
-          dans certains contextes — la sheet finit rendue dans la moitié
-          gauche du viewport. En la positionnant elle-même en fixed
-          inset-0, on force l'ancrage au viewport sans dépendre du flex
-          du wrapper portail.
-
-          Sur md+ on relâche le fixed (md:relative) et on laisse le
-          flex centrer la sheet avec max-w-lg comme avant. */}
-      <div
-        className="anim-slide-up fixed inset-x-0 bottom-0 flex h-[100dvh] flex-col overflow-hidden bg-white shadow-2xl md:relative md:inset-x-auto md:bottom-auto md:h-[min(95vh,840px)] md:w-full md:max-w-lg md:rounded-3xl"
-        style={{
-          // Override defensive : largeur explicite 100% du viewport sur
-          // mobile, indépendamment de tout containing block parasite.
-          // Sur md+ (768px+), la prop max-width Tailwind reprend la main.
-        }}
-      >
+      {/* Sheet centrée par le flex parent (items-end justify-center sur
+          mobile, items-center justify-center sur md+). w-full max-w-lg :
+          prend toute la largeur sur mobile (max-w-lg > 100vw), capé à
+          32rem sur desktop pour ne pas étirer. */}
+      <div className="anim-slide-up flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:rounded-3xl">
         {/* === Header transparent sur fond hero ===
             Caché sur la sub-page (drill-down) : c'est le header de
             la sub-page (panel 2) qui prend le relais avec sa propre

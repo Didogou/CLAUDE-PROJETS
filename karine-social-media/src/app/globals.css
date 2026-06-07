@@ -50,19 +50,24 @@ html {
      peut faire glisser le footer vers le haut et voir le fond rose
      transparaître derrière. */
   overscroll-behavior-y: none;
-  /* Verrouille tout scroll latéral : si un élément déborde (header
-     trop large sur petit écran, image plein cadre, etc.), le viewport
-     ne se laisse pas tirer à gauche/droite révélant l'arrière-plan.
-     `clip` (mieux que `hidden`) n'introduit pas de nouveau scroll
-     container et ne casse pas le `position: sticky` des enfants. */
-  overflow-x: clip;
+  /* ⚠️ PAS de overflow-x ici (ni clip, ni hidden). iOS Safari implémente
+     `overflow-x: clip` en clippant aussi l'axe Y et CORROMPT le
+     containing block des enfants `position: fixed` sous le html.
+     Symptômes observés : sheet calorie rendue dans la moitié gauche +
+     bande blanche en haut. Cf. Apple Developer Forums thread/745729.
+     Le verrouillage horizontal est assuré par overflow-x:hidden sur
+     body uniquement. */
 }
 body {
   overscroll-behavior-y: none;
-  /* Idem html : pas de scroll horizontal possible quel que soit le
-     contenu. Double couche au cas où un fragment de page set
-     overflow-x: visible sur html. */
-  overflow-x: clip;
+  /* `hidden` (au lieu de `clip`) pour contourner le bug iOS Safari
+     décrit ci-dessus. Conséquence : body devient un scroll container,
+     ce qui PEUT casser un `position: sticky` posé sur un enfant DIRECT
+     de body (le sticky devient sticky par rapport au scroll container
+     body, pas par rapport au viewport).
+     → Le sticky de AppHeaderInner survit car il est posé sur un enfant
+       du `<div>` page racine, pas directement sur body. */
+  overflow-x: hidden;
   /* iOS Safari : la barre d'URL en bas peut se rétracter et révéler la
      safe-area. On force le body à couvrir toute la viewport dynamique
      (100dvh). PAS de background ici : il masquerait le FloralBackground
