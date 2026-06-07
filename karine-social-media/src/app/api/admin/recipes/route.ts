@@ -20,7 +20,6 @@ function slugify(input: string): string {
 
 const CATEGORIES = new Set([
   'petit_dejeuner',
-  'entree',
   'salade',
   'plat',
   'sauce',
@@ -30,7 +29,7 @@ const CATEGORIES = new Set([
   'aperitif',
   'repas_fete',
   'sur_le_pouce',
-  'repas_famille',
+  'tradition',
 ]);
 
 type SheetPayload = {

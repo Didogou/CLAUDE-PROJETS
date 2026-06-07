@@ -1,7 +1,6 @@
 import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
-  CATEGORY_ORDER,
   type Recipe,
   type RecipeCategory,
   type RecipeIngredient,
@@ -144,54 +143,6 @@ export async function getRecipeBySlug(slug: string): Promise<Recipe | null> {
   return buildRecipe(data, sheets.get(Number(data.id)) ?? []);
 }
 
-// Pour chaque catégorie : la recette épinglée la plus récente (ou la dernière publiée
-// à défaut) + les N suivantes par date pour former la pile derrière.
-export type CategoryDeckData = {
-  featured: Recipe | null;
-  stack: Recipe[];
-  totalCount: number;
-};
-
-export async function getCategoryDecks(
-  stackSize = 3,
-): Promise<Record<RecipeCategory, CategoryDeckData>> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from('recipes')
-    .select('*')
-    .eq('status', 'published')
-    .order('published_at', { ascending: false });
-  if (error) throw error;
-  const rows = data ?? [];
-  const sheetMap = await fetchSheetsFor(supabase, rows.map((r) => Number(r.id)));
-  const all = rows.map((r) => buildRecipe(r, sheetMap.get(Number(r.id)) ?? []));
-
-  const out = {} as Record<RecipeCategory, CategoryDeckData>;
-  for (const cat of CATEGORY_ORDER) {
-    const inCat = all.filter((r) => r.category === cat);
-    const pinned = inCat.find((r) => r.isFeatured);
-    const featured = pinned ?? inCat[0] ?? null;
-    const stack = featured
-      ? inCat.filter((r) => r.id !== featured.id).slice(0, stackSize)
-      : [];
-    out[cat] = { featured, stack, totalCount: inCat.length };
-  }
-  return out;
-}
-
-export async function getRecipesByCategory(category: RecipeCategory): Promise<Recipe[]> {
-  const supabase = createServiceClient();
-  const { data, error } = await supabase
-    .from('recipes')
-    .select('*')
-    .eq('status', 'published')
-    .eq('category', category)
-    .order('published_at', { ascending: false });
-  if (error) throw error;
-  const rows = data ?? [];
-  const sheets = await fetchSheetsFor(supabase, rows.map((r) => Number(r.id)));
-  return rows.map((r) => buildRecipe(r, sheets.get(Number(r.id)) ?? []));
-}
 
 // =============================================================
 // Reads admin

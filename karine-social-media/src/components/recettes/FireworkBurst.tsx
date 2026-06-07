@@ -16,7 +16,6 @@ const COMMON = [
 
 const PARTICLES: Record<RecipeCategory, string[]> = {
   petit_dejeuner: COMMON,
-  entree: COMMON,
   salade: COMMON,
   plat: COMMON,
   sauce: COMMON,
@@ -26,7 +25,7 @@ const PARTICLES: Record<RecipeCategory, string[]> = {
   aperitif: COMMON,
   repas_fete: COMMON,
   sur_le_pouce: COMMON,
-  repas_famille: COMMON,
+  tradition: COMMON,
 };
 
 type Particle = {

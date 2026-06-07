@@ -36,15 +36,15 @@ mkdirSync(OUT_DIR, { recursive: true });
 // (majuscules incluses : Sauce.png, Boissons.png).
 const ONGLETS = [
   { src: 'salade.png', out: 'salades.webp' },
-  { src: 'Entrée.png', out: 'entrees.webp' },
   { src: 'plat.png', out: 'plats.webp' },
   { src: 'Sauce.png', out: 'sauces.webp' },
   { src: 'dessert.png', out: 'desserts.webp' },
   { src: 'Boissons.png', out: 'boissons.webp' },
   { src: 'gouter.png', out: 'gouter.webp' },
+  { src: 'Pdej.png', out: 'petit-dej.webp' },
   { src: 'Pouce.png', out: 'sur-le-pouce.webp' },
   { src: 'Fete.png', out: 'repas-fete.webp' },
-  { src: 'famille.png', out: 'repas-famille.webp' },
+  { src: 'famille.png', out: 'tradition.webp' },
   { src: 'apero.png', out: 'apero-dinatoire.webp' },
 ];
 

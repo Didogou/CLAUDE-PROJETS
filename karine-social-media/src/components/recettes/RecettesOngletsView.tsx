@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
   ChevronLeft,
   ChevronRight,
@@ -9,52 +8,49 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import type { Recipe, RecipeCategory } from '@/data/recipes';
+import { RecipeCard } from './RecipeCard';
 
 /**
- * Vue recettes V2 — POC validé sur maquette Karine 2026-06-07.
+ * Vue principale de la page /recettes — onglets horizontaux par
+ * catégorie + grille de recettes filtrée par l'onglet actif.
  *
  * Structure :
  *   1. Titre "Idées recettes" (script coral, centré)
- *   2. Barre de recherche + icône filtres
- *   3. Onglets horizontaux scrollables (tuile carrée icône + label)
- *      → Salades, Plats, Desserts, Boissons, Snacks
- *   4. Section "Collections Karine" (groupes thématiques)
- *      → Grille 2 colonnes de cartes (image + nom + sous-titre + chevron)
+ *   2. Barre de recherche + icône filtres (recherche dans l'onglet)
+ *   3. Onglets horizontaux scrollables (illustration aquarelle + label)
+ *   4. Grille des recettes de la catégorie active (RecipeCard)
  *
- * À itérer avec Karine :
- *  - icônes des onglets : actuellement emoji placeholder, à remplacer
- *    par illustrations aquarelle Karine (assets-source/06_ICONES_ET_UI)
- *  - images des collections : idem
- *  - logique click onglet : actuellement "filtre visuel" du POC, à
- *    décider — page dédiée ou filtre des Collections affichées ?
- *  - logique click collection : actuellement Link désactivé, à brancher
- *    sur une page collection ou un filtre Recipes
+ * Onglet par défaut au mount : Salades.
+ *
+ * Favoris : state local `Set<string>` toggleable, pas de persistance
+ * BDD côté V1 (le cœur sur la tuile est purement visuel).
  */
 
 type TabId =
   | 'salades'
   | 'sauces'
-  | 'entrees'
   | 'plats'
   | 'sur-le-pouce'
   | 'desserts'
   | 'boissons'
   | 'gouter'
+  | 'petit-dej'
   | 'repas-fete'
-  | 'repas-famille'
+  | 'tradition'
   | 'apero-dinatoire';
 
 type Tab = {
   id: TabId;
   label: string;
-  /** Soit une image (chemin /recettes/onglets/X.webp), soit un emoji
-   *  placeholder en attendant l'illustration Karine.
-   *  Mémoire format : 1024×1024 PNG transparent en source, converti
-   *  en WebP 256×256 via scripts/regen-tab-icons.mjs. */
+  /** Chemin /recettes/onglets/X.webp (256×256 généré depuis le PNG
+   *  1024×1024 source via scripts/regen-tab-icons.mjs). */
   icon: { type: 'image'; src: string } | { type: 'emoji'; value: string };
   categories: RecipeCategory[];
 };
 
+// Ordre validé avec Karine 2026-06-07 : Salades / Sauces / Plats /
+// Sur le pouce / Desserts / Boissons / Goûters / Petit déj / Repas de
+// fête / Tradition / Apéro dînatoire. Onglet par défaut = Salades.
 const TABS: Tab[] = [
   {
     id: 'salades',
@@ -67,12 +63,6 @@ const TABS: Tab[] = [
     label: 'Sauces',
     icon: { type: 'image', src: '/recettes/onglets/sauces.webp' },
     categories: ['sauce'],
-  },
-  {
-    id: 'entrees',
-    label: 'Entrées',
-    icon: { type: 'image', src: '/recettes/onglets/entrees.webp' },
-    categories: ['entree'],
   },
   {
     id: 'plats',
@@ -105,16 +95,22 @@ const TABS: Tab[] = [
     categories: ['gouter'],
   },
   {
+    id: 'petit-dej',
+    label: 'Petit déj',
+    icon: { type: 'image', src: '/recettes/onglets/petit-dej.webp' },
+    categories: ['petit_dejeuner'],
+  },
+  {
     id: 'repas-fete',
     label: 'Repas de fête',
     icon: { type: 'image', src: '/recettes/onglets/repas-fete.webp' },
     categories: ['repas_fete'],
   },
   {
-    id: 'repas-famille',
-    label: 'Repas de famille',
-    icon: { type: 'image', src: '/recettes/onglets/repas-famille.webp' },
-    categories: ['repas_famille'],
+    id: 'tradition',
+    label: 'Tradition',
+    icon: { type: 'image', src: '/recettes/onglets/tradition.webp' },
+    categories: ['tradition'],
   },
   {
     id: 'apero-dinatoire',
@@ -124,23 +120,27 @@ const TABS: Tab[] = [
   },
 ];
 
-type Collection = {
-  id: string;
-  name: string;
-  subtitle: string;
-  emoji: string; // placeholder — à remplacer par image
-};
+/**
+ * Construit la valeur CSS `mask-image` pour fondre les bords gauche/droite
+ * des onglets scrollables. Le fondu n'est appliqué que si on peut
+ * effectivement scroller dans la direction concernée — sinon on garde
+ * le 1er/dernier onglet pleinement opaque. Fade ~36px.
+ */
+function buildFadeMask(left: boolean, right: boolean): string {
+  const start = left ? 'transparent 0, black 36px' : 'black 0';
+  const end = right
+    ? 'black calc(100% - 36px), transparent 100%'
+    : 'black 100%';
+  return `linear-gradient(to right, ${start}, ${end})`;
+}
 
-const COLLECTIONS: Collection[] = [
-  { id: 'cerises', name: 'Cerises', subtitle: 'dans tous leurs états', emoji: '🍒' },
-  { id: 'aubergines', name: 'Aubergines', subtitle: 'healthy', emoji: '🍆' },
-  { id: 'crevettes', name: 'Crevettes', subtitle: 'à la fête', emoji: '🦐' },
-  { id: 'oeufs', name: 'Œufs', subtitle: 'cocotte', emoji: '🍳' },
-  { id: 'cookies', name: 'Cookies', subtitle: 'gourmands', emoji: '🍪' },
-  { id: 'pains-pita', name: 'Pains pita', subtitle: 'du monde', emoji: '🥙' },
-  { id: 'tomates', name: 'Tomates', subtitle: 'farcies', emoji: '🍅' },
-  { id: 'salades-pates', name: 'Salades', subtitle: 'de pâtes', emoji: '🥗' },
-];
+function matchesQuery(recipe: Recipe, q: string): boolean {
+  if (!q) return true;
+  const haystack = [recipe.title, ...recipe.tags, ...recipe.aliments]
+    .join(' ')
+    .toLowerCase();
+  return haystack.includes(q);
+}
 
 export function RecettesOngletsView({
   recipes,
@@ -151,6 +151,7 @@ export function RecettesOngletsView({
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('salades');
   const [query, setQuery] = useState('');
+  const [favorites, setFavorites] = useState<Set<string>>(new Set());
   // Chevrons de scroll horizontal : indiquent à l'utilisatrice qu'il y
   // a plus d'onglets à voir dans une direction. Visible UNIQUEMENT si
   // on peut effectivement scroller dans cette direction.
@@ -179,71 +180,66 @@ export function RecettesOngletsView({
   }, []);
 
   // Scroll programmatique de ~70 % de la largeur visible → expose
-  // 2-3 onglets supplémentaires par clic.
+  // 2-3 onglets supplémentaires par clic. On utilise scrollTo (absolu)
+  // plutôt que scrollBy (relatif) : snap propre à 0 ou à scrollMax même
+  // avec un scroll smooth en cours.
   function scrollBy(direction: 'left' | 'right') {
     const el = scrollerRef.current;
     if (!el) return;
     const delta = el.clientWidth * 0.7;
-    el.scrollBy({
-      left: direction === 'left' ? -delta : delta,
-      behavior: 'smooth',
-    });
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const target =
+      direction === 'left'
+        ? Math.max(0, el.scrollLeft - delta)
+        : Math.min(maxScroll, el.scrollLeft + delta);
+    el.scrollTo({ left: target, behavior: 'smooth' });
   }
 
-  // Compteur par onglet (utile pour l'affordance visuelle)
-  const countByTab = useMemo(() => {
-    const map: Record<TabId, number> = {
-      salades: 0,
-      sauces: 0,
-      entrees: 0,
-      plats: 0,
-      'sur-le-pouce': 0,
-      desserts: 0,
-      boissons: 0,
-      gouter: 0,
-      'repas-fete': 0,
-      'repas-famille': 0,
-      'apero-dinatoire': 0,
-    };
-    for (const tab of TABS) {
-      const set = new Set<RecipeCategory>(tab.categories);
-      map[tab.id] = recipes.filter((r) => set.has(r.category)).length;
-    }
-    return map;
-  }, [recipes]);
+  // Favoris : toggle in-memory.
+  const toggleFavorite = (id: string) =>
+    setFavorites((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
-  // Filtre Collections selon onglet actif (placeholder — toutes
-  // affichées tant qu'on n'a pas de vraie association collection↔onglet)
-  const visibleCollections = COLLECTIONS;
-  // userHasPlan + recipes sont passés au composant mais pas utilisés
-  // dans cette V1 (le POC est UI-only, sans branchement data réel).
-  // On les garde dans la signature pour éviter une migration ultérieure.
-  void userHasPlan;
-  void countByTab;
+  // Recettes affichées : filtrées par catégorie de l'onglet actif,
+  // puis par la recherche dans cet onglet uniquement (pas cross-tab).
+  const activeTabDef = TABS.find((t) => t.id === activeTab)!;
+  const q = query.trim().toLowerCase();
+  const visibleRecipes = useMemo(() => {
+    const set = new Set<RecipeCategory>(activeTabDef.categories);
+    return recipes
+      .filter((r) => set.has(r.category))
+      .filter((r) => matchesQuery(r, q));
+  }, [recipes, activeTabDef, q]);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* Titre principal — script coral-dark (meilleur contraste sur le
           dégradé rose qu'un simple coral), drop-shadow subtil pour donner
           du relief sans casser l'esprit aquarelle. */}
       <h1
         className="mt-4 text-center font-script text-5xl text-coral-dark lg:text-6xl"
         style={{
-          textShadow: '0 1px 2px rgba(255,255,255,0.6), 0 2px 4px rgba(226,120,141,0.15)',
+          textShadow:
+            '0 1px 2px rgba(255,255,255,0.6), 0 2px 4px rgba(226,120,141,0.15)',
         }}
       >
         Idées recettes
       </h1>
 
-      {/* Barre de recherche + bouton filtres — version compacte
-          (h-9 → h-10 total) pour ne pas voler trop d'espace vertical. */}
-      <div className="flex items-center gap-1.5 rounded-full bg-white px-2 py-1 shadow-sm ring-1 ring-coral-soft/40">
-        <Search className="ml-1 size-4 shrink-0 text-ink-soft" />
+      {/* Barre de recherche + bouton filtres — version compacte. La
+          recherche filtre UNIQUEMENT dans l'onglet courant (pas
+          cross-catégorie). */}
+      <div className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1 shadow-sm ring-1 ring-coral-soft/40">
+        <Search className="size-4 shrink-0 text-ink-soft" />
         <input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Rechercher une recette…"
+          placeholder={`Rechercher dans « ${activeTabDef.label} »…`}
           className="min-w-0 flex-1 bg-transparent py-1 text-sm text-ink outline-none placeholder:text-ink-soft"
         />
         <button
@@ -258,152 +254,133 @@ export function RecettesOngletsView({
       {/* Conteneur relatif pour positionner les chevrons gauche/droite
           en absolute par-dessus la nav scrollable. */}
       <div className="relative">
-        {/* Chevron GAUCHE — apparaît seulement si on peut scroller à
-            gauche (= si on a déjà scrollé vers la droite). */}
         {canScrollLeft && (
           <button
             type="button"
             onClick={() => scrollBy('left')}
             aria-label="Voir les onglets précédents"
-            className="pointer-events-auto absolute left-0 top-1/2 z-10 grid size-7 -translate-y-1/2 place-items-center rounded-full bg-white/40 text-coral-dark/80 backdrop-blur-sm transition hover:bg-white/70"
+            className="pointer-events-auto absolute left-0 top-1/2 z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/80 text-coral-dark shadow-sm ring-1 ring-coral-soft/50 backdrop-blur-sm transition hover:bg-white"
           >
             <ChevronLeft className="size-4" strokeWidth={2.5} />
           </button>
         )}
-        {/* Chevron DROITE — apparaît seulement s'il reste des onglets
-            à voir à droite. */}
         {canScrollRight && (
           <button
             type="button"
             onClick={() => scrollBy('right')}
             aria-label="Voir les onglets suivants"
-            className="pointer-events-auto absolute right-0 top-1/2 z-10 grid size-7 -translate-y-1/2 place-items-center rounded-full bg-white/40 text-coral-dark/80 backdrop-blur-sm transition hover:bg-white/70"
+            className="pointer-events-auto absolute right-0 top-1/2 z-10 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/80 text-coral-dark shadow-sm ring-1 ring-coral-soft/50 backdrop-blur-sm transition hover:bg-white"
           >
             <ChevronRight className="size-4" strokeWidth={2.5} />
           </button>
         )}
-      {/* Onglets horizontaux scrollables. Style "fondu" : pas de pastille
-          blanche, l'illustration aquarelle est posée directement sur le
-          fond rose. Petits séparateurs verticaux entre les onglets.
-          L'onglet actif est marqué par un point coral sous le label
-          (pas de ring ni de fond — c'est l'illustration qui parle). */}
-      <nav
-        ref={scrollerRef as React.RefObject<HTMLElement>}
-        aria-label="Catégorie de recette"
-        className="-mx-3 overflow-x-auto px-3 pb-2 lg:overflow-visible"
-        style={{ scrollbarWidth: 'none' }}
-      >
-        {/* Sur PC (lg+) : on distribue les 7 onglets sur toute la
-            largeur dispo (justify-between) et on garantit que chaque
-            onglet prend une part équitable (flex-1). Sur mobile, on
-            garde le scroll horizontal avec largeur fixe. */}
-        <div className="flex items-stretch gap-0 snap-x snap-mandatory lg:justify-between lg:gap-2">
-          {TABS.map((tab, i) => {
-            const isActive = tab.id === activeTab;
-            return (
-              <div key={tab.id} className="flex items-stretch">
-                {/* Séparateur vertical entre onglets (sauf avant le 1er
-                    et sur lg+ où les onglets sont distribués). */}
-                {i > 0 && (
-                  <span
-                    aria-hidden
-                    className="mx-1 my-3 w-px self-center bg-coral-soft/50 lg:hidden"
-                    style={{ height: '2.5rem' }}
-                  />
-                )}
-                <button
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  aria-pressed={isActive}
-                  className="relative flex w-[5rem] shrink-0 snap-start flex-col items-center gap-1 px-1 py-2 transition active:scale-95 lg:w-auto lg:flex-1 lg:gap-2 lg:py-3"
-                >
-                  {/* Ordre : label EN HAUT, image en dessous. Inversion
-                      demandée par Karine 2026-06-07 — l'œil voit d'abord
-                      le mot, puis confirme avec l'illustration. */}
-                  <span
-                    className={`text-sm transition-all ${
-                      isActive
-                        ? 'font-bold text-coral-dark'
-                        : 'font-semibold text-coral-dark/70'
-                    }`}
-                  >
-                    {tab.label}
-                  </span>
-                  <span
-                    className="grid size-16 place-items-center text-4xl lg:size-24"
-                    aria-hidden
-                  >
-                    {tab.icon.type === 'image' ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={tab.icon.src}
-                        alt=""
-                        className="size-16 object-contain lg:size-24"
-                      />
-                    ) : (
-                      tab.icon.value
-                    )}
-                  </span>
-                  {/* Point coral sous l'onglet actif. Toujours rendu,
-                      opacity-0 quand inactif → transition douce. */}
-                  <span
-                    aria-hidden
-                    className={`block size-1.5 rounded-full bg-coral transition-opacity ${
-                      isActive ? 'opacity-100' : 'opacity-0'
-                    }`}
-                  />
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <style>{`nav::-webkit-scrollbar { display: none; }`}</style>
-      </nav>
-      </div>
-
-      {/* Section "Collections Karine". */}
-      <section className="space-y-4 pt-4">
-        <h2
-          className="text-center font-script text-4xl text-coral-dark lg:text-5xl"
+        {/* Onglets horizontaux scrollables. Style "fondu" : pas de
+            pastille blanche, l'illustration est posée directement sur
+            le fond rose. Séparateurs verticaux entre onglets (mobile).
+            Point coral sous le label = onglet actif. */}
+        <nav
+          ref={scrollerRef as React.RefObject<HTMLElement>}
+          aria-label="Catégorie de recette"
+          className="overflow-x-auto pb-2"
           style={{
-            textShadow:
-              '0 1px 2px rgba(255,255,255,0.6), 0 2px 4px rgba(226,120,141,0.15)',
+            scrollbarWidth: 'none',
+            WebkitMaskImage: buildFadeMask(canScrollLeft, canScrollRight),
+            maskImage: buildFadeMask(canScrollLeft, canScrollRight),
           }}
         >
-          Collections Karine
-        </h2>
+          {/* Pas de `lg:justify-center` : ça empêche scrollLeft de
+              revenir à 0 dans un flex container scrollable quand le
+              contenu déborde (bug WebKit/Blink). Le `lg:mx-auto` centre
+              uniquement quand le contenu tient (chevrons cachés). */}
+          <div className="flex w-max items-stretch gap-0 snap-x snap-mandatory lg:mx-auto lg:gap-3">
+            {TABS.map((tab, i) => {
+              const isActive = tab.id === activeTab;
+              return (
+                <div key={tab.id} className="flex items-stretch">
+                  {i > 0 && (
+                    <span
+                      aria-hidden
+                      className="mx-1 my-3 w-px self-center bg-coral-soft/50 lg:hidden"
+                      style={{ height: '2.5rem' }}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveTab(tab.id);
+                      // Vide la recherche en changeant d'onglet : la
+                      // requête en cours porte sur l'ancien contexte.
+                      setQuery('');
+                    }}
+                    aria-pressed={isActive}
+                    className="relative flex w-auto min-w-[5rem] shrink-0 snap-start flex-col items-center gap-1 px-2 py-2 transition active:scale-95 lg:gap-2 lg:py-3"
+                  >
+                    {/* Ordre : label EN HAUT, image en dessous. Inversion
+                        demandée par Karine 2026-06-07. */}
+                    <span
+                      className={`whitespace-nowrap text-sm transition-all ${
+                        isActive
+                          ? 'font-bold text-coral-dark'
+                          : 'font-semibold text-coral-dark/70'
+                      }`}
+                    >
+                      {tab.label}
+                    </span>
+                    <span
+                      className="grid size-16 place-items-center text-4xl lg:size-24"
+                      aria-hidden
+                    >
+                      {tab.icon.type === 'image' ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={tab.icon.src}
+                          alt=""
+                          className="size-16 object-contain lg:size-24"
+                        />
+                      ) : (
+                        tab.icon.value
+                      )}
+                    </span>
+                    {/* Point coral sous l'onglet actif. Toujours rendu,
+                        opacity-0 quand inactif → transition douce. */}
+                    <span
+                      aria-hidden
+                      className={`block size-1.5 rounded-full bg-coral transition-opacity ${
+                        isActive ? 'opacity-100' : 'opacity-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <style>{`nav::-webkit-scrollbar { display: none; }`}</style>
+        </nav>
+      </div>
 
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
-          {visibleCollections.map((c) => (
-            <CollectionCard key={c.id} collection={c} />
-          ))}
-        </div>
+      {/* Grille des recettes de la catégorie active. 2 / 3 / 4 colonnes
+          selon viewport. */}
+      <section className="pt-2">
+        {visibleRecipes.length === 0 ? (
+          <p className="rounded-[var(--radius-tile)] border border-dashed border-coral-soft/60 bg-white/40 px-4 py-10 text-center text-sm text-ink-soft">
+            {q
+              ? `Aucun résultat pour « ${q} » dans « ${activeTabDef.label} »`
+              : `Bientôt de nouvelles recettes dans « ${activeTabDef.label} »`}
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {visibleRecipes.map((recipe) => (
+              <RecipeCard
+                key={recipe.id}
+                recipe={recipe}
+                isFavorite={favorites.has(recipe.id)}
+                onToggleFavorite={toggleFavorite}
+                userHasPlan={userHasPlan}
+              />
+            ))}
+          </div>
+        )}
       </section>
     </div>
-  );
-}
-
-function CollectionCard({ collection }: { collection: Collection }) {
-  return (
-    <Link
-      // Stub : route /recettes/collection/[id] à créer en phase 2.
-      // Pour l'instant on pointe vers /recettes pour ne pas casser.
-      href={`/recettes?collection=${collection.id}`}
-      className="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-coral-soft/30 transition hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98]"
-    >
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-base font-bold text-ink">{collection.name}</p>
-        <p className="truncate text-xs italic text-ink-soft">
-          {collection.subtitle}
-        </p>
-      </div>
-      <span
-        className="grid size-14 shrink-0 place-items-center rounded-xl bg-coral-soft/20 text-4xl"
-        aria-hidden
-      >
-        {collection.emoji}
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-coral" />
-    </Link>
   );
 }

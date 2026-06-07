@@ -326,7 +326,7 @@ function MealTile({
   const imageUrl = isLunch ? day.lunchImageUrl : day.dinnerImageUrl;
   const title = isLunch ? 'Déjeuner' : 'Dîner';
   const Icon = isLunch ? Sun : Moon;
-  const burstCat = isLunch ? 'plat' : 'entree';
+  const burstCat = isLunch ? 'plat' : 'salade';
 
   return (
     <div className="space-y-1.5">

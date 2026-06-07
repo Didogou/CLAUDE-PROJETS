@@ -1,6 +1,5 @@
 export type RecipeCategory =
   | 'petit_dejeuner'
-  | 'entree'
   | 'salade'
   | 'plat'
   | 'sauce'
@@ -10,7 +9,7 @@ export type RecipeCategory =
   | 'aperitif'
   | 'repas_fete'
   | 'sur_le_pouce'
-  | 'repas_famille';
+  | 'tradition';
 
 /** Structure d'un ingrédient (réutilise la même shape que les items de
  *  liste de courses pour pouvoir agréger sans conversion). */
@@ -95,7 +94,6 @@ export type Recipe = {
 
 export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
   petit_dejeuner: 'Petits déjeuners',
-  entree: 'Entrées',
   salade: 'Salades',
   plat: 'Plats',
   sauce: 'Sauces',
@@ -105,12 +103,11 @@ export const CATEGORY_LABELS: Record<RecipeCategory, string> = {
   aperitif: 'Apéros dînatoires',
   repas_fete: 'Repas de fête',
   sur_le_pouce: 'Sur le pouce',
-  repas_famille: 'Repas de famille',
+  tradition: 'Tradition',
 };
 
 export const CATEGORY_SINGULAR: Record<RecipeCategory, string> = {
   petit_dejeuner: 'petit déjeuner',
-  entree: 'entrée',
   salade: 'salade',
   plat: 'plat',
   sauce: 'sauce',
@@ -120,12 +117,13 @@ export const CATEGORY_SINGULAR: Record<RecipeCategory, string> = {
   aperitif: 'apéro dînatoire',
   repas_fete: 'repas de fête',
   sur_le_pouce: 'sur le pouce',
-  repas_famille: 'repas de famille',
+  tradition: 'tradition',
 };
 
+// Ordre par défaut côté admin / liste — l'ordre des onglets côté
+// /recettes (utilisatrice) est défini dans RecettesOngletsView.
 export const CATEGORY_ORDER: RecipeCategory[] = [
   'petit_dejeuner',
-  'entree',
   'salade',
   'plat',
   'sauce',
@@ -135,12 +133,11 @@ export const CATEGORY_ORDER: RecipeCategory[] = [
   'aperitif',
   'repas_fete',
   'sur_le_pouce',
-  'repas_famille',
+  'tradition',
 ];
 
 export const CATEGORY_SLUG: Record<RecipeCategory, string> = {
   petit_dejeuner: 'petits-dejeuners',
-  entree: 'entrees',
   salade: 'salades',
   plat: 'plats',
   sauce: 'sauces',
@@ -150,5 +147,5 @@ export const CATEGORY_SLUG: Record<RecipeCategory, string> = {
   aperitif: 'aperos-dinatoires',
   repas_fete: 'repas-de-fete',
   sur_le_pouce: 'sur-le-pouce',
-  repas_famille: 'repas-de-famille',
+  tradition: 'tradition',
 };

@@ -189,7 +189,10 @@
       "WebFetch(domain:bugs.webkit.org)",
       "WebFetch(domain:discussions.apple.com)",
       "Bash(node scripts/regen-tab-icons.mjs)",
-      "Bash(sort -k9)"
+      "Bash(sort -k9)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(rm -rf src/app/recettes-v2 src/app/recettes/aperos-dinatoires src/app/recettes/boissons src/app/recettes/desserts src/app/recettes/gouters src/app/recettes/petits-dejeuners src/app/recettes/plats src/app/recettes/repas-de-fete src/app/recettes/salades src/app/recettes/sauces)",
+      "Bash(rm -f src/components/recettes/RecipesShell.tsx src/components/recettes/RecipesView.tsx src/components/recettes/CategoryListView.tsx src/components/recettes/CategoryDeck.tsx src/components/recettes/FeeEditor.tsx)"
     ],
     "additionalDirectories": [
       "\\tmp"

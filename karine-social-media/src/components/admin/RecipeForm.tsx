@@ -160,7 +160,6 @@ export function RecipeForm() {
             Choisir…
           </option>
           <option value="petit_dejeuner">Petit déjeuner</option>
-          <option value="entree">Entrée</option>
           <option value="salade">Salade</option>
           <option value="plat">Plat</option>
           <option value="sauce">Sauce</option>
@@ -170,7 +169,7 @@ export function RecipeForm() {
           <option value="aperitif">Apéro dînatoire</option>
           <option value="repas_fete">Repas de fête</option>
           <option value="sur_le_pouce">Sur le pouce</option>
-          <option value="repas_famille">Repas de famille</option>
+          <option value="tradition">Tradition</option>
         </select>
       </Field>
 
