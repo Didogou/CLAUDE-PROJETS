@@ -21,9 +21,15 @@ export type WeeklyMenuDay = {
   lunchLabel: string;
   lunchRecipeSlug: string | null;
   lunchImageUrl: string | null;
+  /** Nutri-Score de la recette liée au déjeuner (null si pas de
+   *  recette OU si score non calculable / confiance < 50 %).
+   *  Hydraté côté serveur via join sur recipe_sheets[0]. */
+  lunchNutriscoreGrade: 'A' | 'B' | 'C' | 'D' | 'E' | null;
   dinnerLabel: string;
   dinnerRecipeSlug: string | null;
   dinnerImageUrl: string | null;
+  /** Idem pour le dîner. */
+  dinnerNutriscoreGrade: 'A' | 'B' | 'C' | 'D' | 'E' | null;
   prepPhotos: string[]; // pellicule "en vrai" pour ce jour
 };
 

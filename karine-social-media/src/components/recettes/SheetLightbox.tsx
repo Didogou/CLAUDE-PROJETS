@@ -12,9 +12,7 @@ import {
 } from 'lucide-react';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
 import { useLightboxAnim } from '@/lib/use-lightbox-anim';
-import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
 import { HeartBurst, useHeartBurst } from '@/components/ui/HeartBurst';
-import { PortionsStepper } from './PortionsStepper';
 import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
 import { scaleIngredients } from '@/lib/recipe-portions';
 
@@ -246,24 +244,20 @@ export function SheetLightbox({
         </button>
       </header>
 
-      {/* Body : image + panneau ingrédients.
-          Mobile : empilés verticalement, image flex-1 prend tout l espace
-                   restant, panneau cale en bas (max-h-[40vh]).
-          PC : alignés horizontalement, centrés (justify-center), marge
-               agréable entre image et panneau (lg:gap-6). */}
+      {/* Body : image en mode zoom plein écran. Pas de panneau
+          ingrédients ni bouton "Mes courses" — la lightbox est dédiée
+          à la lecture pure de la fiche (UX 2026-06-08). Les actions
+          restent disponibles dans la vue détail. */}
       <div
         key={sheet.id}
-        className={`absolute inset-0 flex flex-col gap-3 px-4 pb-24 pt-16 sm:px-8 sm:pt-20 lg:flex-row lg:items-center lg:justify-center lg:gap-6 lg:px-4 ${
+        className={`absolute inset-0 flex items-center justify-center px-2 pb-12 pt-16 sm:px-6 sm:pb-16 sm:pt-20 ${
           phase === 'exit' ? 'ie-lightbox-content-out' : 'ie-lightbox-content-in'
         }`}
       >
-        {/* Image — pinch-to-zoom + swipe inter-fiche.
-            Mobile : flex-1 prend tout l'espace vertical disponible.
-            PC : carré fixe via h/w simples (Tailwind peut mal parser
-            min() avec virgule dans arbitrary values). aspect-square +
-            max-h-[85vh] s'assure que l'image reste dans le viewport
-            même sur petits écrans PC. */}
-        <div className="relative min-h-0 flex-1 self-stretch lg:aspect-square lg:flex-none lg:h-[32rem] lg:w-[32rem] lg:max-h-[85vh] lg:max-w-[85vh] lg:self-auto xl:h-[38rem] xl:w-[38rem]">
+        {/* Image — pinch-to-zoom + swipe inter-fiche. Occupe tout
+            l'espace disponible (pas de cadre artificiel : la lightbox
+            EST le cadre). */}
+        <div className="relative h-full w-full max-w-[min(100vw,100vh)]">
           <ZoomableImage
             src={sheet.coverImageUrl}
             alt={sheet.title ?? ''}
@@ -273,43 +267,6 @@ export function SheetLightbox({
             onSwipeRight={multi ? prev : undefined}
           />
         </div>
-
-        {/* Panneau ingrédients + actions — sous l'image en mobile,
-            collé à droite de l'image en PC. bg-white/80 + backdrop-blur
-            pour un fond doucement transparent (laisse percevoir l image
-            zoomée derriere). */}
-        <aside className="mx-auto flex max-h-[40vh] w-full max-w-md flex-col gap-3 overflow-y-auto rounded-2xl bg-white/80 p-4 shadow-2xl backdrop-blur-md lg:mx-0 lg:max-h-[85vh] lg:w-[22rem] lg:p-5 print:hidden">
-          {/* Bloc Portions + bouton "Mes courses" PLACE EN HAUT du panneau
-              (au-dessus des ingredients) pour etre visible immediatement
-              sans scroller (UX demandee 2026-06-03) — sinon l user ne sait
-              pas qu il peut ajouter la fiche a sa liste de courses.
-              Sticky pour rester visible meme quand on scroll les ingredients. */}
-          {isAuthenticated && (
-            <div className="sticky -top-4 -mx-4 -mt-4 flex items-end gap-3 border-b border-cream bg-white/95 px-4 pb-3 pt-4 backdrop-blur-md lg:-top-5 lg:-mx-5 lg:-mt-5 lg:px-5 lg:pt-5">
-              <PortionsStepper
-                value={portionsBySheet[sheet.id] ?? sheet.servings}
-                onChange={(v) =>
-                  setPortionsBySheet((prev) => ({ ...prev, [sheet.id]: v }))
-                }
-              />
-              <div className="min-w-0 flex-1">
-                <AddSheetToListButton
-                  sheetId={sheet.id}
-                  hasIngredients={sheet.ingredients.length > 0}
-                  portionsOverride={
-                    portionsBySheet[sheet.id] ?? sheet.servings
-                  }
-                />
-              </div>
-            </div>
-          )}
-
-          <IngredientsPanel
-            ingredients={sheet.ingredients}
-            baseServings={sheet.servings}
-            customPortions={portionsBySheet[sheet.id] ?? sheet.servings}
-          />
-        </aside>
       </div>
 
       {/* Flèches latérales — proches de l'image+panneau (pas aux bords).

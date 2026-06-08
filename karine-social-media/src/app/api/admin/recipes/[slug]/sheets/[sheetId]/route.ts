@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { persistNutriscoreForSheet } from '@/lib/nutriscore-persist';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -78,6 +79,13 @@ export async function PATCH(
       .select()
       .single();
     if (error) throw error;
+
+    // Si on a touché aux ingrédients, on recalcule le Nutri-Score et
+    // on persiste les colonnes nutriscore_*. Tolérant aux erreurs : si
+    // ça échoue, le save de la sheet a déjà réussi en amont.
+    if (patch.ingredients !== undefined) {
+      await persistNutriscoreForSheet(sheetId);
+    }
 
     return NextResponse.json({ ok: true, sheet: data });
   } catch (e) {
@@ -172,6 +180,13 @@ function sanitizeIngredients(v: unknown): RecipeIngredient[] {
       quantity: typeof obj.quantity === 'number' ? obj.quantity : null,
       unit: typeof obj.unit === 'string' ? obj.unit.trim() || null : null,
       note: typeof obj.note === 'string' ? obj.note.trim() || null : null,
+      // Lien vers la table Ciqual posé par Karine via la page admin
+      // Nutri-Score. Optionnel, persiste tel quel quand fourni.
+      ciqual_food_id:
+        typeof obj.ciqual_food_id === 'number' &&
+        Number.isFinite(obj.ciqual_food_id)
+          ? obj.ciqual_food_id
+          : null,
     });
   }
   return out;

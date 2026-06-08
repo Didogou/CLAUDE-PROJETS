@@ -27,6 +27,7 @@ import {
   Scale,
   FlaskConical,
   Tag,
+  Award,
 } from 'lucide-react';
 
 type Section = { href: string; label: string; icon: typeof LayoutDashboard };
@@ -34,6 +35,7 @@ type Section = { href: string; label: string; icon: typeof LayoutDashboard };
 const SECTIONS: Section[] = [
   { href: '/admin', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/admin/recettes', label: 'Recettes', icon: ChefHat },
+  { href: '/admin/recettes/nutriscore', label: 'Nutri-Score', icon: Award },
   { href: '/admin/menus', label: 'Menus', icon: ClipboardList },
   { href: '/admin/conseils', label: 'Conseils', icon: Leaf },
   { href: '/admin/astuces', label: 'Astuces', icon: Sparkles },

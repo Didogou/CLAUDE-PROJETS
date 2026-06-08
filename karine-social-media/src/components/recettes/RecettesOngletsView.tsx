@@ -145,9 +145,13 @@ function matchesQuery(recipe: Recipe, q: string): boolean {
 export function RecettesOngletsView({
   recipes,
   userHasPlan,
+  recipeScores = {},
 }: {
   recipes: Recipe[];
   userHasPlan: boolean;
+  /** Score Nutri-Score moyen PAR recette (moyenne de ses sheets enfants).
+   *  Affiché sous chaque tuile RecipeCard. Optionnel. */
+  recipeScores?: Record<string, { grade: 'A' | 'B' | 'C' | 'D' | 'E'; confidence: number }>;
 }) {
   const [activeTab, setActiveTab] = useState<TabId>('salades');
   const [query, setQuery] = useState('');
@@ -408,6 +412,7 @@ export function RecettesOngletsView({
                 isFavorite={favorites.has(recipe.id)}
                 onToggleFavorite={toggleFavorite}
                 userHasPlan={userHasPlan}
+                nutriScore={recipeScores[recipe.id] ?? null}
               />
             ))}
           </div>

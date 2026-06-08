@@ -5,6 +5,12 @@ import { Heart, Flame, Lock, Sparkles } from 'lucide-react';
 import type { Recipe } from '@/data/recipes';
 import { SeasonChip } from './SeasonChip';
 import { RealBadge } from './RealBadge';
+import { NutriScoreBadge } from './NutriScoreBadge';
+
+export type RecipeAvgScore = {
+  grade: 'A' | 'B' | 'C' | 'D' | 'E';
+  confidence: number;
+};
 
 type RecipeCardProps = {
   recipe: Recipe;
@@ -15,6 +21,10 @@ type RecipeCardProps = {
    *  recettes is_public sont accessibles (badge "Aperçu gratuit"),
    *  les autres affichent un cadenas et redirigent vers /mon-plan. */
   userHasPlan: boolean;
+  /** Moyenne du Nutri-Score des sheets de la recette. Affiché sous la
+   *  tuile au layout emballage (rangée A-E). Optionnel : si null ou
+   *  confiance < 50 %, on n'affiche rien. */
+  nutriScore?: RecipeAvgScore | null;
 };
 
 export function RecipeCard({
@@ -22,6 +32,7 @@ export function RecipeCard({
   isFavorite,
   onToggleFavorite,
   userHasPlan,
+  nutriScore,
 }: RecipeCardProps) {
   const isAccessible = userHasPlan || recipe.isPublic;
   const showFreeBadge = !userHasPlan && recipe.isPublic;
@@ -100,8 +111,17 @@ export function RecipeCard({
         </button>
       </div>
 
-      {/* Titre + compteur de likes centrés sous la tuile */}
+      {/* Titre + Nutri-Score moyen + compteur de likes centrés sous la tuile */}
       <p className="mt-2 text-center text-sm font-bold leading-tight text-ink">{recipe.title}</p>
+      {nutriScore && nutriScore.confidence >= 0.5 && (
+        <div className="mt-1.5 flex justify-center">
+          <NutriScoreBadge
+            grade={nutriScore.grade}
+            size="sm"
+            headerVariant="karine"
+          />
+        </div>
+      )}
       <p className="mt-0.5 flex items-center justify-center gap-1 text-xs font-semibold text-coral-dark">
         <Heart className="h-3.5 w-3.5 fill-coral text-coral" />
         {recipe.likesCount}

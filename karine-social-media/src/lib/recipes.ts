@@ -40,6 +40,22 @@ function mapSheetRow(row: any): RecipeSheet {
     ingredientsText:
       typeof row.ingredients_text === 'string' ? row.ingredients_text : null,
     likesCount: typeof row.likes_count === 'number' ? row.likes_count : 0,
+    // Colonnes Nutri-Score persistées (migration 20260608120000).
+    // Calculées par persistNutriscoreForSheet au save admin.
+    nutriscoreGrade:
+      row.nutriscore_grade === 'A' ||
+      row.nutriscore_grade === 'B' ||
+      row.nutriscore_grade === 'C' ||
+      row.nutriscore_grade === 'D' ||
+      row.nutriscore_grade === 'E'
+        ? row.nutriscore_grade
+        : null,
+    nutriscoreConfidence:
+      typeof row.nutriscore_confidence === 'number'
+        ? row.nutriscore_confidence
+        : row.nutriscore_confidence !== null && row.nutriscore_confidence !== undefined
+          ? Number(row.nutriscore_confidence)
+          : null,
   };
 }
 

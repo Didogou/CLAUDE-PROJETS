@@ -1,5 +1,6 @@
 import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
+import { getRecipeScoresBySlug } from '@/lib/menu-nutriscore';
 import type {
   WeeklyMenu,
   WeeklyMenuDay,
@@ -7,6 +8,26 @@ import type {
   MenuMealSheet,
   MealKind,
 } from '@/data/menus';
+
+/** Récupère les scores des recettes référencées dans un tableau de
+ *  jours (lunch + dinner). Retourne une Map slug → score utilisable
+ *  par mapMenu. */
+async function fetchScoresForDays(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  dayRows: any[],
+): Promise<Map<string, ScoreLite>> {
+  const slugs = new Set<string>();
+  for (const d of dayRows) {
+    if (d.lunch_recipe_slug) slugs.add(d.lunch_recipe_slug);
+    if (d.dinner_recipe_slug) slugs.add(d.dinner_recipe_slug);
+  }
+  const raw = await getRecipeScoresBySlug(Array.from(slugs));
+  const out = new Map<string, ScoreLite>();
+  for (const [slug, score] of raw) {
+    out.set(slug, { grade: score.grade, confidence: score.confidence });
+  }
+  return out;
+}
 
 function isMissingTable(err: unknown): boolean {
   return (
@@ -17,8 +38,17 @@ function isMissingTable(err: unknown): boolean {
   );
 }
 
+type ScoreLite = { grade: 'A' | 'B' | 'C' | 'D' | 'E' | null; confidence: number | null };
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapMenu(row: any, days: any[]): WeeklyMenu {
+function mapMenu(row: any, days: any[], scoresMap?: Map<string, ScoreLite>): WeeklyMenu {
+  const lookupGrade = (slug: string | null): 'A' | 'B' | 'C' | 'D' | 'E' | null => {
+    if (!slug || !scoresMap) return null;
+    const s = scoresMap.get(slug);
+    if (!s || !s.grade) return null;
+    if ((s.confidence ?? 0) < 0.5) return null;
+    return s.grade;
+  };
   // shopping_list_items en DB est jsonb : peut être null, [] ou un array
   // d'objets. On filtre les entrées malformées par sécurité.
   const rawItems = row.shopping_list_items;
@@ -55,9 +85,11 @@ function mapMenu(row: any, days: any[]): WeeklyMenu {
         lunchLabel: d.lunch_label ?? '',
         lunchRecipeSlug: d.lunch_recipe_slug,
         lunchImageUrl: d.lunch_image_url,
+        lunchNutriscoreGrade: lookupGrade(d.lunch_recipe_slug),
         dinnerLabel: d.dinner_label ?? '',
         dinnerRecipeSlug: d.dinner_recipe_slug,
         dinnerImageUrl: d.dinner_image_url,
+        dinnerNutriscoreGrade: lookupGrade(d.dinner_recipe_slug),
         prepPhotos: d.prep_photos ?? [],
       }))
       .sort((a, b) => a.dayIndex - b.dayIndex),
@@ -94,7 +126,10 @@ export async function getPublishedMenus(): Promise<WeeklyMenu[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dayRows = (days ?? []) as any[];
 
-  return menuRows.map((m) => mapMenu(m, dayRows.filter((d) => d.menu_id === m.id)));
+  const scores = await fetchScoresForDays(dayRows);
+  return menuRows.map((m) =>
+    mapMenu(m, dayRows.filter((d) => d.menu_id === m.id), scores),
+  );
 }
 
 // Public : un menu publié par id
@@ -118,7 +153,9 @@ export async function getPublishedMenuById(id: string): Promise<WeeklyMenu | nul
     .select('*')
     .eq('menu_id', (menu as unknown as { id: string }).id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return mapMenu(menu, (days ?? []) as any[]);
+  const dayRows = (days ?? []) as any[];
+  const scores = await fetchScoresForDays(dayRows);
+  return mapMenu(menu, dayRows, scores);
 }
 
 // Admin : tous les menus (draft + published)
@@ -149,7 +186,10 @@ export async function getAllMenusAdmin(): Promise<WeeklyMenu[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const dayRows = (days ?? []) as any[];
 
-  return menuRows.map((m) => mapMenu(m, dayRows.filter((d) => d.menu_id === m.id)));
+  const scores = await fetchScoresForDays(dayRows);
+  return menuRows.map((m) =>
+    mapMenu(m, dayRows.filter((d) => d.menu_id === m.id), scores),
+  );
 }
 
 export async function getMenuAdminById(id: string): Promise<WeeklyMenu | null> {
@@ -171,7 +211,9 @@ export async function getMenuAdminById(id: string): Promise<WeeklyMenu | null> {
     .select('*')
     .eq('menu_id', (menu as unknown as { id: string }).id);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = mapMenu(menu, (days ?? []) as any[]);
+  const dayRows = (days ?? []) as any[];
+  const scores = await fetchScoresForDays(dayRows);
+  const result = mapMenu(menu, dayRows, scores);
   // Hydrate les meal sheets (admin a besoin pour l'éditeur)
   const sheetsMap = await getMenuMealSheets(result.id);
   const sheetsObj: Record<number, { lunch: MenuMealSheet | null; dinner: MenuMealSheet | null }> = {};

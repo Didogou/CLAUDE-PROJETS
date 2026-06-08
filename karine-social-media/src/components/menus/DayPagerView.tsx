@@ -324,6 +324,7 @@ function MealTile({
   const isLunch = kind === 'lunch';
   const label = isLunch ? day.lunchLabel : day.dinnerLabel;
   const imageUrl = isLunch ? day.lunchImageUrl : day.dinnerImageUrl;
+  const nutriGrade = isLunch ? day.lunchNutriscoreGrade : day.dinnerNutriscoreGrade;
   const title = isLunch ? 'Déjeuner' : 'Dîner';
   const Icon = isLunch ? Sun : Moon;
   const burstCat = isLunch ? 'plat' : 'salade';
@@ -345,6 +346,11 @@ function MealTile({
             isFavorite={isFavorite}
             onToggleFavorite={onToggleFavorite}
             userHasPlan
+            nutriScore={
+              nutriGrade
+                ? { grade: nutriGrade, confidence: 1 }
+                : null
+            }
           />
         ) : (
           <div className="overflow-hidden rounded-[var(--radius-tile)] bg-white/85 shadow-sm">

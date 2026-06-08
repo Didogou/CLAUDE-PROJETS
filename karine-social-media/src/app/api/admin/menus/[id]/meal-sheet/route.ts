@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { persistNutriscoreForMenuMealSheet } from '@/lib/nutriscore-persist';
 import type { ShoppingListItem } from '@/data/menus';
 
 const BUCKET = 'content-images';
@@ -106,6 +107,13 @@ export async function POST(
       .select()
       .single();
     if (error) throw error;
+
+    // Recalcul + persistance du Nutri-Score sur la sheet nouvellement
+    // créée. Tolérant aux erreurs : si la migration n'est pas appliquée
+    // ou si le calcul échoue, le POST reste OK (mais sans grade).
+    if (data?.id) {
+      await persistNutriscoreForMenuMealSheet(data.id as string);
+    }
 
     return NextResponse.json({ ok: true, sheet: data });
   } catch (e) {

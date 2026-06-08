@@ -11,6 +11,12 @@ import { getCurrentUser } from '@/lib/current-user';
 import { isFavorited } from '@/lib/favorites';
 import { getUserLikedSheetIds } from '@/lib/sheet-likes';
 import { userHasPlanAccess } from '@/lib/user-access';
+import { createServiceClient } from '@/lib/supabase/server';
+import {
+  quickMatchCiqual,
+  type CiqualFoodLite,
+} from '@/lib/nutriscore-aggregate';
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const dynamic = 'force-dynamic';
 
@@ -46,6 +52,88 @@ export default async function RecipeDetailPage({
     ...all.filter((r) => r.id !== recipe.id && r.category === recipe.category),
     ...all.filter((r) => r.id !== recipe.id && r.category !== recipe.category),
   ].slice(0, 8);
+
+  // Le Nutri-Score est lu PAR SHEET via les colonnes BDD. Pour la
+  // modale "Détail nutritionnel", on a besoin des Ciqual liés.
+  //
+  // Cas 1 (idéal, ingrédients déjà liés par Karine ou batch nouveau) :
+  //   on fetch les Ciqual des ids présents (1 query IN).
+  //
+  // Cas 2 (transitoire, sheets héritées du batch ancien sans liens) :
+  //   on fetch tout Ciqual (paginé), on résout les matches en mémoire,
+  //   on collecte les Ciqual matchés. Lent (~4 queries) mais évite à
+  //   l'utilisatrice d'attendre le re-run du batch admin.
+  const linkedCiqualIds = new Set<number>();
+  let hasUnlinkedIngredients = false;
+  for (const sheet of recipe.sheets) {
+    for (const ing of sheet.ingredients) {
+      if (typeof ing.ciqual_food_id === 'number') {
+        linkedCiqualIds.add(ing.ciqual_food_id);
+      } else if (typeof ing.quantity === 'number' && ing.quantity > 0) {
+        hasUnlinkedIngredients = true;
+      }
+    }
+  }
+  let ciqualByIdEntries: Array<[number, CiqualFoodLite]> = [];
+  const supa = createServiceClient() as any;
+  if (hasUnlinkedIngredients) {
+    // Fetch complet Ciqual (paginé, PostgREST max 1000/req) pour pouvoir
+    // matcher en mémoire les ingrédients sans lien.
+    const ciqualAll: CiqualFoodLite[] = [];
+    for (let offset = 0; offset < 10000; offset += 1000) {
+      const { data: page } = await supa
+        .from('ciqual_foods')
+        .select(
+          'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg',
+        )
+        .order('id', { ascending: true })
+        .range(offset, offset + 999);
+      const arr = (page ?? []) as CiqualFoodLite[];
+      if (arr.length === 0) break;
+      ciqualAll.push(...arr);
+      if (arr.length < 1000) break;
+    }
+    const collected = new Map<number, CiqualFoodLite>();
+    // Garde tous les liens explicites
+    for (const id of linkedCiqualIds) {
+      const c = ciqualAll.find((f) => f.id === id);
+      if (c) collected.set(id, c);
+    }
+    // Match auto pour les orphelins
+    for (const sheet of recipe.sheets) {
+      for (const ing of sheet.ingredients) {
+        if (typeof ing.ciqual_food_id === 'number') continue;
+        if (typeof ing.quantity !== 'number' || ing.quantity <= 0) continue;
+        const m = quickMatchCiqual(ing.label, ciqualAll);
+        if (m && !collected.has(m.id)) collected.set(m.id, m);
+      }
+    }
+    ciqualByIdEntries = Array.from(collected.entries());
+  } else if (linkedCiqualIds.size > 0) {
+    const { data } = await supa
+      .from('ciqual_foods')
+      .select(
+        'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg',
+      )
+      .in('id', Array.from(linkedCiqualIds));
+    const arr = (data ?? []) as CiqualFoodLite[];
+    ciqualByIdEntries = arr.map((c) => [c.id, c]);
+  }
+
+  // Patch des ingrédients pour que la modale retrouve le ciqual_food_id
+  // par label même quand il n'est pas persisté. On enrichit la sheet
+  // en mémoire seulement (pas d'écriture BDD côté lecture).
+  if (hasUnlinkedIngredients && ciqualByIdEntries.length > 0) {
+    const ciqualPool = ciqualByIdEntries.map(([, c]) => c);
+    for (const sheet of recipe.sheets) {
+      sheet.ingredients = sheet.ingredients.map((ing) => {
+        if (typeof ing.ciqual_food_id === 'number') return ing;
+        if (typeof ing.quantity !== 'number' || ing.quantity <= 0) return ing;
+        const m = quickMatchCiqual(ing.label, ciqualPool);
+        return m ? { ...ing, ciqual_food_id: m.id } : ing;
+      });
+    }
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
@@ -84,6 +172,7 @@ export default async function RecipeDetailPage({
             favoritedInitial={favorited}
             likesCountInitial={recipe.likesCount}
             initialLikedSheetIds={[...likedSheetIds]}
+            ciqualByIdEntries={ciqualByIdEntries}
           />
 
           {/* Aside commentaires PC uniquement (colonne droite) */}
@@ -115,6 +204,10 @@ export default async function RecipeDetailPage({
           </div>
         </div>
       )}
+
+      {/* Le bandeau Nutri-Score est désormais rendu DANS SheetCarousel
+          (juste sous l'image), via la prop `nutriscoreGrade` calculée
+          côté serveur ci-dessus. Plus de block séparé en fin de page. */}
 
       <RecipeDetailView
         slug={recipe.id}

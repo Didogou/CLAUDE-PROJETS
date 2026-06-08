@@ -128,6 +128,11 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
             ingredients: sheet.ingredients ?? [],
             ingredientsText: sheet.ingredients_text,
             likesCount: typeof sheet.likes_count === 'number' ? sheet.likes_count : 0,
+            nutriscoreGrade: sheet.nutriscore_grade ?? null,
+            nutriscoreConfidence:
+              typeof sheet.nutriscore_confidence === 'number'
+                ? sheet.nutriscore_confidence
+                : null,
           },
         ].sort((a, b) => a.sheetIndex - b.sheetIndex),
       );

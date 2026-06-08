@@ -20,6 +20,8 @@ import { FavoriteButton } from '@/components/favorites/FavoriteButton';
 import { SheetLightbox } from './SheetLightbox';
 import { PortionsStepper } from './PortionsStepper';
 import { HeartBurst, useHeartBurst } from '@/components/ui/HeartBurst';
+import { RecipeNutriScorePanel } from './RecipeNutriScorePanel';
+import type { CiqualFoodLite } from '@/lib/nutriscore-aggregate';
 
 type Props = {
   sheets: RecipeSheet[];
@@ -35,6 +37,10 @@ type Props = {
   likesCountInitial?: number;
   /** Sheet IDs déjà likés par l'utilisateur (hydratation depuis le serveur). */
   initialLikedSheetIds?: string[];
+  /** Liste sérialisable [id, ciqualFood] des Ciqual liés aux ingrédients
+   *  de toutes les sheets. Utilisée par la modale "Détail nutritionnel"
+   *  pour afficher le breakdown ingrédient × valeurs. */
+  ciqualByIdEntries?: Array<[number, CiqualFoodLite]>;
 };
 
 /**
@@ -57,6 +63,7 @@ export function SheetCarousel({
   recipeTitle,
   favoritedInitial = false,
   initialLikedSheetIds,
+  ciqualByIdEntries,
 }: Props) {
   const [active, setActive] = useState(0);
   /** Likes PAR sheet (pas par recette mère) : la fiche n°1 et la fiche
@@ -305,6 +312,18 @@ export function SheetCarousel({
         />
       )}
 
+      {/* Bandeau Nutri-Score : suit la sheet active (pas la sheet 0).
+          Quand l'utilisatrice slide entre les fiches d'une recette comme
+          "4 Salades de Pâtes", le grade s'adapte à chaque variante.
+          Visible si la confiance persistée en BDD ≥ 0.5. */}
+      {sheet.nutriscoreGrade && (sheet.nutriscoreConfidence ?? 0) >= 0.5 && (
+        <RecipeNutriScorePanel
+          grade={sheet.nutriscoreGrade}
+          ingredients={sheet.ingredients}
+          ciqualByIdEntries={ciqualByIdEntries ?? []}
+        />
+      )}
+
       {/* Actions DIRECTEMENT sous l'image (UX mobile demandee Didier 2026-
           06-03 : footer remonte en tete pour eviter le scroll). Layout
           compact : items-start aligne en haut pour que "Voir mes courses"
@@ -343,9 +362,11 @@ export function SheetCarousel({
         />
       </div>
 
-      {/* Titre variante */}
+      {/* Titre variante — mt-4 pour laisser de l'espace au lien
+          "Voir mes courses →" qui flotte en absolute sous le bouton
+          d'action courses (sinon le titre vient se coller dessus). */}
       {sheet.title && (
-        <h2 className="text-center font-script text-2xl text-coral-dark sm:text-3xl lg:text-4xl">
+        <h2 className="mt-10 text-center font-script text-2xl text-coral-dark sm:text-3xl lg:text-4xl">
           {sheet.title}
         </h2>
       )}

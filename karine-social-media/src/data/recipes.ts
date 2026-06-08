@@ -12,13 +12,19 @@ export type RecipeCategory =
   | 'tradition';
 
 /** Structure d'un ingrédient (réutilise la même shape que les items de
- *  liste de courses pour pouvoir agréger sans conversion). */
+ *  liste de courses pour pouvoir agréger sans conversion).
+ *
+ *  `ciqual_food_id` : lien vers la table Ciqual pour le calcul
+ *  Nutri-Score. Ajouté 2026-06-08, optionnel — vaut null sur les
+ *  recettes existantes tant que Karine ne l'a pas renseigné via la
+ *  page admin Nutri-Score. */
 export type RecipeIngredient = {
   category: string;
   label: string;
   quantity: number | null;
   unit: string | null;
   note: string | null;
+  ciqual_food_id?: number | null;
 };
 
 /**
@@ -49,6 +55,12 @@ export type RecipeSheet = {
   ingredientsText: string | null;
   /** Compteur de likes (dénormalisé sur recipe_sheets.likes_count). */
   likesCount: number;
+  /** Nutri-Score persisté en BDD (calculé à la sauvegarde admin).
+   *  Null si la recette n'a pas encore été passée par la page admin
+   *  Nutri-Score OU si la confiance était trop basse pour produire un
+   *  grade fiable. Les pages publiques l'affichent si ≥ 0.5 confiance. */
+  nutriscoreGrade: 'A' | 'B' | 'C' | 'D' | 'E' | null;
+  nutriscoreConfidence: number | null;
 };
 
 export type Recipe = {

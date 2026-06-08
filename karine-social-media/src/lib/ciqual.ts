@@ -50,6 +50,13 @@ export type CiqualSearchResult = {
   proteins_g: number | null;
   lipids_g: number | null;
   carbs_g: number | null;
+  /** Champs supplémentaires nécessaires au calcul Nutri-Score
+   *  (ajoutés 2026-06-08). La RPC retourne setof ciqual_foods donc
+   *  les a déjà — c'est juste le mapping qui ne les remontait pas. */
+  fibers_g: number | null;
+  sugars_g: number | null;
+  salt_g: number | null;
+  sodium_mg: number | null;
 };
 
 /**
@@ -119,7 +126,7 @@ export async function searchCiqualFoods(
     (supabase as any)
       .from('ciqual_aliases')
       .select(
-        'alias, ciqual_id, status, ciqual_foods!inner(id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g)',
+        'alias, ciqual_id, status, ciqual_foods!inner(id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg)',
       )
       .neq('status', 'rejected')
       .or(`alias.eq.${qNorm},alias.like.${qNorm}%,alias.like.%${qNorm}%`)
@@ -138,6 +145,11 @@ export async function searchCiqualFoods(
     proteins_g: r.proteins_g === null ? null : Number(r.proteins_g),
     lipids_g: r.lipids_g === null ? null : Number(r.lipids_g),
     carbs_g: r.carbs_g === null ? null : Number(r.carbs_g),
+    // Champs Nutri-Score (la RPC les retourne tous, on les map maintenant)
+    fibers_g: r.fibers_g === null ? null : Number(r.fibers_g),
+    sugars_g: r.sugars_g === null ? null : Number(r.sugars_g),
+    salt_g: r.salt_g === null ? null : Number(r.salt_g),
+    sodium_mg: r.sodium_mg === null ? null : Number(r.sodium_mg),
   })) as CiqualSearchResult[];
 
   // Indexe les rows actuelles par id pour dedup vs aliases.
@@ -189,6 +201,10 @@ export async function searchCiqualFoods(
           proteins_g: food.proteins_g === null ? null : Number(food.proteins_g),
           lipids_g: food.lipids_g === null ? null : Number(food.lipids_g),
           carbs_g: food.carbs_g === null ? null : Number(food.carbs_g),
+          fibers_g: food.fibers_g === null ? null : Number(food.fibers_g),
+          sugars_g: food.sugars_g === null ? null : Number(food.sugars_g),
+          salt_g: food.salt_g === null ? null : Number(food.salt_g),
+          sodium_mg: food.sodium_mg === null ? null : Number(food.sodium_mg),
         });
       }
     }
