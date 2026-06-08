@@ -36,6 +36,7 @@ const SECTIONS: Section[] = [
   { href: '/admin', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/admin/recettes', label: 'Recettes', icon: ChefHat },
   { href: '/admin/recettes/nutriscore', label: 'Nutri-Score', icon: Award },
+  { href: '/admin/recettes/ciqual-base', label: 'Base Ciqual', icon: Apple },
   { href: '/admin/menus', label: 'Menus', icon: ClipboardList },
   { href: '/admin/conseils', label: 'Conseils', icon: Leaf },
   { href: '/admin/astuces', label: 'Astuces', icon: Sparkles },
