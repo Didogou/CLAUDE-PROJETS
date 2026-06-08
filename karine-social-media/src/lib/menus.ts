@@ -96,6 +96,60 @@ function mapMenu(row: any, days: any[], scoresMap?: Map<string, ScoreLite>): Wee
   };
 }
 
+/**
+ * Version "lite" pour la PAGE LISTE /menus.
+ *
+ * SÉCURITÉ : avant ce helper, getPublishedMenus faisait select('*') qui
+ * inclut `shopping_list_items` (jsonb avec tous les ingrédients pour
+ * cuisiner les 7 jours). Tout était sérialisé dans le payload RSC
+ * envoyé au navigateur — un non-abonné pouvait ouvrir DevTools et
+ * récupérer la liste de courses de tous les menus.
+ *
+ * Cette version :
+ *  - SELECT explicite EXCLUANT shopping_list_items et shopping_list_portions
+ *  - mapMenu fait un Array.isArray(undefined) → [] → shoppingListItems=[]
+ *  - les labels des jours (lunch_label, dinner_label) restent visibles —
+ *    ce sont des intitulés courts, pas la recette
+ */
+export async function getPublishedMenusLite(): Promise<WeeklyMenu[]> {
+  const supabase = createServiceClient();
+  const { data: menus, error } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('weekly_menus' as any)
+    .select(
+      // PAS de "shopping_list_items" : la liste de courses détaillée
+      // reste confidentielle tant qu'on n'a pas l'abonnement.
+      'id, week_start, title, cover_image_url, shopping_list_image_url, status, published_at, is_public',
+    )
+    .eq('status', 'published')
+    .order('week_start', { ascending: false })
+    .limit(100);
+  if (error) {
+    if (isMissingTable(error)) {
+      console.warn('[menus] tables absentes — migration 20260530240100_weekly_menus.sql à appliquer');
+      return [];
+    }
+    throw error;
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const menuRows = (menus ?? []) as any[];
+  if (menuRows.length === 0) return [];
+
+  const { data: days, error: dErr } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .from('weekly_menu_days' as any)
+    .select('*')
+    .in('menu_id', menuRows.map((m) => m.id));
+  if (dErr) throw dErr;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dayRows = (days ?? []) as any[];
+
+  const scores = await fetchScoresForDays(dayRows);
+  return menuRows.map((m) =>
+    mapMenu(m, dayRows.filter((d) => d.menu_id === m.id), scores),
+  );
+}
+
 // Public : liste des menus publiés, du plus récent au plus ancien
 export async function getPublishedMenus(): Promise<WeeklyMenu[]> {
   const supabase = createServiceClient();

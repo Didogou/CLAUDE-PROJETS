@@ -2,14 +2,18 @@ import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { MenusPagerView } from '@/components/menus/MenusPagerView';
-import { getPublishedMenus } from '@/lib/menus';
+import { getPublishedMenusLite } from '@/lib/menus';
 import { getCurrentUser } from '@/lib/current-user';
 
 export const dynamic = 'force-dynamic';
 
 export default async function MenusPage() {
   const [menus, user] = await Promise.all([
-    getPublishedMenus(),
+    // Lite : exclut shopping_list_items du payload envoyé au navigateur.
+    // Un non-abonné voit les vignettes des menus mais pas la liste de
+    // courses détaillée. Elle est chargée uniquement au clic, et seulement
+    // si l'utilisatrice a un plan actif (gate /menus/[id]/liste-courses).
+    getPublishedMenusLite(),
     getCurrentUser(),
   ]);
   // Tuile image de la liste cachée pour les abonnés (la liste passe

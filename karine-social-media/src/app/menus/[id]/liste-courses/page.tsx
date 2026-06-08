@@ -1,9 +1,10 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { AppHeader } from '@/components/garde/AppHeader';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { ShoppingListView } from '@/components/menus/ShoppingListView';
 import { getPublishedMenuById } from '@/lib/menus';
+import { getCurrentUser } from '@/lib/current-user';
 import { formatWeekTitle } from '@/data/menus';
 
 export const dynamic = 'force-dynamic';
@@ -14,8 +15,23 @@ export default async function MenuShoppingListPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const menu = await getPublishedMenuById(id);
+  const [menu, user] = await Promise.all([
+    getPublishedMenuById(id),
+    getCurrentUser(),
+  ]);
   if (!menu) notFound();
+
+  // Gate accès : la liste de courses détaillée (avec ingredients
+  // structurés) est réservée aux abonnées + admin. Sinon redirect vers
+  // /mon-plan. Évite qu'un visiteur reconstitue les recettes en
+  // listant TOUS les ingrédients de la semaine en un seul écran.
+  const isSubscriber =
+    user.effectiveRole === 'patient' ||
+    user.effectiveRole === 'subscriber' ||
+    user.effectiveRole === 'admin';
+  if (!menu.isPublic && !isSubscriber) {
+    redirect(`/mon-plan?next=/menus/${menu.id}/liste-courses`);
+  }
 
   const items = menu.shoppingListItems ?? [];
   const basePortions = menu.shoppingListPortions ?? 4;
