@@ -320,6 +320,15 @@ function SheetCard({
             {sheet.calories ? ` · ${sheet.calories} kcal` : ''}
           </p>
         </div>
+        {/* Badge Nutri-Score par SHEET : calcule au save admin Nutri-Score
+            puis persiste sur recipe_sheets.nutriscore_grade. Affiche "?" si
+            pas encore calcule (confiance < 50% ou aucun ingredient matche
+            Ciqual). Cliquer pour aller dans /admin/recettes/nutriscore avec
+            cette sheet pre-selectionnee = nice-to-have a faire ulterieurement. */}
+        <SheetGradeBadge
+          grade={sheet.nutriscoreGrade}
+          confidence={sheet.nutriscoreConfidence}
+        />
         {open ? (
           <ChevronUp className="h-4 w-4 text-admin-ink-soft" />
         ) : (
@@ -572,3 +581,45 @@ function CsvField({
 // IngredientsChecklist + IngredientChecklistRow ont été extraits dans
 // le fichier dédié IngredientsChecklist.tsx pour partage avec
 // RecipeFormUnified.
+
+/**
+ * Mini-badge Nutri-Score affiche dans le header de chaque SheetCard.
+ * Reprend les couleurs officielles Sante publique France 2024.
+ * "?" quand la sheet n'a pas encore de grade calcule (confiance trop
+ * basse ou ingredients pas encore lies a Ciqual). Couleurs en hex
+ * direct (pas de Tailwind dynamique inline-safe).
+ */
+function SheetGradeBadge({
+  grade,
+  confidence,
+}: {
+  grade: 'A' | 'B' | 'C' | 'D' | 'E' | null | undefined;
+  confidence: number | null;
+}) {
+  if (!grade || (confidence ?? 0) < 0.5) {
+    return (
+      <span
+        title="Score non calcule (confiance trop basse ou ingredients pas encore lies a Ciqual)"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded bg-gray-200 text-xs font-bold text-gray-500"
+      >
+        ?
+      </span>
+    );
+  }
+  const colors: Record<'A' | 'B' | 'C' | 'D' | 'E', string> = {
+    A: '#038141',
+    B: '#85bb2f',
+    C: '#fecb02',
+    D: '#ee8100',
+    E: '#e63e11',
+  };
+  return (
+    <span
+      title={`Nutri-Score ${grade} (confiance ${Math.round((confidence ?? 0) * 100)}%)`}
+      className="grid h-7 w-7 shrink-0 place-items-center rounded text-xs font-extrabold text-white"
+      style={{ backgroundColor: colors[grade] }}
+    >
+      {grade}
+    </span>
+  );
+}
