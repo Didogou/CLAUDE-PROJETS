@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { persistNutriscoreForSheet } from '@/lib/nutriscore-persist';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
-export const maxDuration = 60;
+// Création multi-sheets + résolution poids Mistral peut prendre du
+// temps : on monte le timeout pour ne pas tomber sur upload important.
+export const maxDuration = 120;
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -188,7 +191,10 @@ export async function POST(request: NextRequest) {
       sheetsToInsert.push({ payload: mainAsSheet, coverUrl });
     }
 
-    // Insert chaque sheet
+    // Insert chaque sheet. On garde les ids pour pouvoir recalculer
+    // le Nutri-Score juste après (sequentially, pour respecter le
+    // throttle Mistral 1 req/s sur les poids unitaires).
+    const insertedSheetIds: string[] = [];
     for (let i = 0; i < sheetsToInsert.length; i++) {
       const { payload, coverUrl: shCover } = sheetsToInsert[i];
       const sheetPayload = {
@@ -205,11 +211,26 @@ export async function POST(request: NextRequest) {
         aliments: stringArray(payload.aliments),
         ingredients: sanitizeIngredients(payload.ingredients),
       };
-      const { error: shErr } = await (supabase as any)
+      const { data: insertedSheet, error: shErr } = await (supabase as any)
         .from('recipe_sheets')
-        .insert(sheetPayload);
+        .insert(sheetPayload)
+        .select('id')
+        .single();
       if (shErr) {
         console.warn(`[recipes POST] insert sheet ${i} failed:`, shErr);
+        continue;
+      }
+      if (insertedSheet?.id) insertedSheetIds.push(insertedSheet.id as string);
+    }
+
+    // Calcul + persist Nutri-Score pour chaque sheet créée.
+    // Tolérant aux erreurs : si Mistral / migration absente, on log
+    // mais l'upload reste OK (Karine peut compléter plus tard).
+    for (const sheetId of insertedSheetIds) {
+      try {
+        await persistNutriscoreForSheet(sheetId);
+      } catch (e) {
+        console.warn(`[recipes POST] persistNutriscore sheet ${sheetId} failed:`, e);
       }
     }
 

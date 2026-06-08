@@ -1,9 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { persistNutriscoreForSheet } from '@/lib/nutriscore-persist';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
+// Création d'une sheet + résolution Mistral peut prendre du temps.
+export const maxDuration = 60;
 
 /**
  * POST /api/admin/recipes/[slug]/sheets — crée une fiche détaillée
@@ -100,6 +103,18 @@ export async function POST(
       .select()
       .single();
     if (error) throw error;
+
+    // Calcul + persist Nutri-Score (auto-link Ciqual + Mistral pour
+    // poids unitaires manquants). Tolérant aux erreurs : si Mistral
+    // tombe ou si la migration n'est pas appliquée, on log et on
+    // retourne quand même OK — Karine peut compléter via l'éditeur.
+    if (sheetData?.id) {
+      try {
+        await persistNutriscoreForSheet(sheetData.id as string);
+      } catch (e) {
+        console.warn('[admin/recipes sheets POST] persistNutriscore failed:', e);
+      }
+    }
 
     return NextResponse.json({ ok: true, sheet: sheetData });
   } catch (e) {
