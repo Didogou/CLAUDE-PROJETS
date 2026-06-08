@@ -104,6 +104,19 @@ function quickMatchCiqual(label, ciqualFoods) {
   return bestScore >= 6 ? best : null;
 }
 
+// Règle ANSES "sel par défaut" : qty=null + label contient "sel" → 0.5g.
+function applySaltDefault(ingredients) {
+  let mutated = false;
+  const out = ingredients.map((ing) => {
+    if (typeof ing.quantity === 'number' && ing.quantity > 0) return ing;
+    const lower = (ing.label ?? '').toLowerCase().trim();
+    if (!/\bsel\b/.test(lower)) return ing;
+    mutated = true;
+    return { ...ing, quantity: 0.5, unit: 'g' };
+  });
+  return { resolved: out, mutated };
+}
+
 function autoLinkCiqual(ingredients, ciqualFoods) {
   let mutated = false;
   const out = ingredients.map((ing) => {
@@ -210,7 +223,10 @@ for (const sheet of sheets ?? []) {
     skipped++;
     continue;
   }
-  const { resolved, mutated } = autoLinkCiqual(ingredients, ciqualAll);
+  const salted = applySaltDefault(ingredients);
+  const linked = autoLinkCiqual(salted.resolved, ciqualAll);
+  const resolved = linked.resolved;
+  const mutated = salted.mutated || linked.mutated;
   const agg = aggregateIngredients(resolved, ciqualAll, ciqualGroups, ciqualUnitWeights);
   if (!agg.per100g) {
     await supa.from('menu_meal_sheets').update({

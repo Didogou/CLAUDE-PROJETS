@@ -124,6 +124,38 @@ function normalize(s: string): string {
  *   - Apostrophes séparatrices (d'ail → "d" + "ail")
  *   - Bonus si nom Ciqual commence par un token (match exact préféré)
  *   - Malus longueur plus fort pour préférer les noms courts/génériques */
+/**
+ * Règle ANSES sel par défaut.
+ *
+ * Quand une recette mentionne "sel" sans quantité (« sel, poivre »,
+ * « une pincée de sel », « sel à votre goût »…), Vision n'a aucun
+ * nombre à mettre dans `quantity` → l'ingrédient était jusqu'ici
+ * ignoré du calcul Nutri-Score, ce qui sous-estime l'apport sodium.
+ *
+ * Reco ANSES : objectif 5 g sel/jour adulte, ~1-1,5 g par repas.
+ * On considère qu'une recette mentionnant le sel apporte au moins
+ * **0,5 g** (≈ 1 pincée) — valeur prudente, validée Didier 2026-06-08.
+ *
+ * Karine peut toujours surcharger en saisissant une quantité précise
+ * dans l'éditeur Nutri-Score (override total).
+ */
+export function applySaltDefault<T extends RecipeIngredientLite>(
+  ingredients: T[],
+): { resolved: T[]; mutated: boolean } {
+  let mutated = false;
+  const out = ingredients.map((ing) => {
+    // Si Karine a déjà saisi une qty → on respecte son choix.
+    if (typeof ing.quantity === 'number' && ing.quantity > 0) return ing;
+    const lower = (ing.label ?? '').toLowerCase().trim();
+    // Catche "sel", "sel marin", "sel et poivre", "sel, poivre, herbes",
+    // "une pincée de sel", "fleur de sel"… Le \b évite "selle", "selvage"…
+    if (!/\bsel\b/.test(lower)) return ing;
+    mutated = true;
+    return { ...ing, quantity: 0.5, unit: 'g' } as T;
+  });
+  return { resolved: out, mutated };
+}
+
 export function quickMatchCiqual(
   label: string,
   ciqualFoods: CiqualFoodLite[],

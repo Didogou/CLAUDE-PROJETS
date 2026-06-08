@@ -2,6 +2,7 @@ import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
   aggregateIngredients,
+  applySaltDefault,
   quickMatchCiqual,
   type CiqualFoodLite,
 } from '@/lib/nutriscore-aggregate';
@@ -81,18 +82,25 @@ export async function persistNutriscoreForSheet(sheetId: string): Promise<void> 
       ciqualFoods.map((c) => [c.id, (c as any).group_name ?? '']),
     );
 
+    // Règle ANSES "sel sans qty" : on force 0.5g pour que l'apport
+    // sodium soit pris en compte. À faire AVANT l'auto-link Ciqual
+    // pour que le sel par défaut puisse aussi se lier à "Sel marin".
+    const { resolved: saltNormalized, mutated: saltMutated } =
+      applySaltDefault(ingredients);
+
     // Auto-link Ciqual : pour chaque ingrédient sans ciqual_food_id,
     // on tente un quickMatch et on persiste le lien. Permet à la modale
     // "Détail nutritionnel" de retrouver les valeurs nutritionnelles par
     // ingrédient sans devoir relancer le matching côté client.
-    let mutated = false;
-    const resolvedIngredients = ingredients.map((ing) => {
+    let linkMutated = false;
+    const resolvedIngredients = saltNormalized.map((ing) => {
       if (typeof ing.ciqual_food_id === 'number') return ing;
       const match = quickMatchCiqual(ing.label, ciqualFoods);
       if (!match) return ing;
-      mutated = true;
+      linkMutated = true;
       return { ...ing, ciqual_food_id: match.id };
     });
+    const mutated = saltMutated || linkMutated;
 
     // Pour les ingrédients sans unit de poids/volume mais avec un
     // Ciqual lié, on a besoin du poids unitaire (« 1 tomate cerise ≈ 15g »).
@@ -198,15 +206,18 @@ export async function persistNutriscoreForMenuMealSheet(
       ciqualFoods.map((c) => [c.id, (c as any).group_name ?? '']),
     );
 
-    // Auto-link Ciqual sur ingrédients sans ciqual_food_id (cf. helper recipe).
-    let mutated = false;
-    const resolvedIngredients = ingredients.map((ing) => {
+    // Règle ANSES "sel par défaut" + auto-link Ciqual (cf. helper recipe).
+    const { resolved: saltNormalized, mutated: saltMutated } =
+      applySaltDefault(ingredients);
+    let linkMutated = false;
+    const resolvedIngredients = saltNormalized.map((ing) => {
       if (typeof ing.ciqual_food_id === 'number') return ing;
       const match = quickMatchCiqual(ing.label, ciqualFoods);
       if (!match) return ing;
-      mutated = true;
+      linkMutated = true;
       return { ...ing, ciqual_food_id: match.id };
     });
+    const mutated = saltMutated || linkMutated;
 
     // Résolution poids unitaire pour ingrédients sans unit (cf. helper recipe).
     const needWeight = resolvedIngredients
