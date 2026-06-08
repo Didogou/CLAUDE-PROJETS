@@ -146,6 +146,61 @@ export async function getPublishedRecipes(): Promise<Recipe[]> {
   return rows.map((r) => buildRecipe(r, sheets.get(Number(r.id)) ?? []));
 }
 
+/**
+ * Version "lite" pour la PAGE LISTE /recettes.
+ *
+ * SÉCURITÉ : les utilisatrices non-abonnées ne doivent JAMAIS recevoir
+ * le contenu détaillé des recettes (ingredients + ingredients_text +
+ * prep). Sinon il suffit d'ouvrir les DevTools du navigateur pour
+ * récupérer toutes les recettes en clair.
+ *
+ * Ce helper ne fait PAS `select('*')` : on liste explicitement les
+ * colonnes à ramener. Sur `recipe_sheets`, on EXCLUT volontairement
+ * `ingredients` et `ingredients_text`. mapSheetRow est tolérant à
+ * l'absence de ces champs (ingredients = [], ingredientsText = null).
+ *
+ * Le détail complet n'est fetché qu'au clic sur une recette via
+ * `getRecipeBySlug`, et seulement si l'utilisatrice a un plan actif
+ * (gate dans /recettes/[id]/page.tsx).
+ */
+export async function getPublishedRecipesLite(): Promise<Recipe[]> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from('recipes')
+    .select(
+      'id, slug, title, category, cover_image_url, slides, is_public, is_seasonal, is_featured, prep_photos, likes_count, published_at, status',
+    )
+    .eq('status', 'published')
+    .order('published_at', { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? []) as any[];
+  const recipeIds = rows.map((r) => Number(r.id));
+
+  const sheetsMap = new Map<number, any[]>();
+  if (recipeIds.length > 0) {
+    const { data: sheetRows, error: shErr } = await (supabase as any)
+      .from('recipe_sheets')
+      .select(
+        // PAS de "ingredients" ni "ingredients_text" : le détail reste
+        // confidentiel tant qu'on n'a pas l'abonnement.
+        'id, recipe_id, sheet_index, title, cover_image_url, servings, calories, prep_time_min, cook_time_min, tags, aliments, likes_count, nutriscore_grade, nutriscore_confidence',
+      )
+      .in('recipe_id', recipeIds)
+      .order('sheet_index', { ascending: true });
+    if (!shErr) {
+      for (const r of sheetRows ?? []) {
+        const rid = Number((r as any).recipe_id);
+        if (!sheetsMap.has(rid)) sheetsMap.set(rid, []);
+        sheetsMap.get(rid)!.push(r);
+      }
+    }
+  }
+
+  return rows.map((r) =>
+    buildRecipe(r as RecipeRow, sheetsMap.get(Number(r.id)) ?? []),
+  );
+}
+
 export async function getRecipeBySlug(slug: string): Promise<Recipe | null> {
   const supabase = createServiceClient();
   const { data, error } = await supabase

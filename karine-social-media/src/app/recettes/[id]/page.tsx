@@ -5,7 +5,7 @@ import { FloralBackground } from '@/components/garde/FloralBackground';
 import { TrackView } from '@/components/garde/TrackView';
 import { RecipeDetailView } from '@/components/recettes/RecipeDetailView';
 import { SheetCarousel } from '@/components/recettes/SheetCarousel';
-import { getPublishedRecipes, getRecipeBySlug } from '@/lib/recipes';
+import { getPublishedRecipesLite, getRecipeBySlug } from '@/lib/recipes';
 import { getVisibleCommentsForRecipe } from '@/lib/comments';
 import { getCurrentUser } from '@/lib/current-user';
 import { isFavorited } from '@/lib/favorites';
@@ -44,7 +44,10 @@ export default async function RecipeDetailPage({
   const sheetIds = recipe.sheets.map((s) => s.id);
   const [comments, all, favorited, likedSheetIds] = await Promise.all([
     getVisibleCommentsForRecipe(recipe.id),
-    getPublishedRecipes(),
+    // Suggestions : Lite suffit (cartes affichant cover/titre/grade
+    // uniquement). On évite de sérialiser les ingredients des 20+ autres
+    // recettes dans le payload du browser.
+    getPublishedRecipesLite(),
     user.id ? isFavorited(user.id, 'recipe', recipe.id) : Promise.resolve(false),
     getUserLikedSheetIds(user.id, sheetIds),
   ]);

@@ -3,7 +3,7 @@ import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { RecettesOngletsView } from '@/components/recettes/RecettesOngletsView';
-import { getPublishedRecipes } from '@/lib/recipes';
+import { getPublishedRecipesLite } from '@/lib/recipes';
 import { getCurrentUser } from '@/lib/current-user';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +37,10 @@ export const metadata: Metadata = {
  */
 export default async function RecettesPage() {
   const [recipes, user] = await Promise.all([
-    getPublishedRecipes(),
+    // Lite : exclut ingredients + ingredients_text du payload envoyé au
+    // navigateur. Le détail n'est fetché qu'au clic, et seulement si
+    // l'utilisatrice a un plan actif (gate dans /recettes/[id]/page.tsx).
+    getPublishedRecipesLite(),
     getCurrentUser(),
   ]);
   const userHasPlan =
