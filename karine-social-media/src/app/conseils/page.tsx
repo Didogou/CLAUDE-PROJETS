@@ -28,7 +28,7 @@ export default async function ConseilsPage() {
           a déjà print:hidden au niveau racine donc tout est masqué
           à l'impression. */}
       <FloralBackground variant="conseils" />
-      <AppHeader pageTitle="Conseils santé" />
+      <AppHeader pageTitle="Conseils santé" backHref="/" />
       <main className="relative mx-auto w-full max-w-md flex-1 overflow-x-clip px-2 pb-8 sm:max-w-2xl sm:px-4 md:max-w-4xl md:px-6 lg:max-w-7xl lg:px-10 print:hidden">
         <div className="relative">
           <p className="mb-3 text-center text-xs italic text-ink-soft lg:text-sm">

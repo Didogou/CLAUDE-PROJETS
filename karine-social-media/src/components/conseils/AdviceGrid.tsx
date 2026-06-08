@@ -129,7 +129,7 @@ export function AdviceGrid({
                         </span>
                       )}
                     </div>
-                    <p className="mt-1.5 line-clamp-2 px-1.5 text-center font-script text-xs leading-tight text-ink sm:mt-2.5 sm:px-2 sm:text-base lg:text-lg">
+                    <p className="mt-1.5 line-clamp-2 px-1.5 text-center text-sm font-semibold leading-tight text-ink sm:mt-2.5 sm:px-2 sm:text-base lg:text-lg">
                       {t.label}
                     </p>
                   </button>

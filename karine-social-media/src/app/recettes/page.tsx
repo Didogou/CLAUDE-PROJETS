@@ -36,7 +36,7 @@ export default async function RecettesPage() {
           /admin/parametres/fonds, défini dans data/background-images. */}
       <FloralBackground variant="recettes" />
 
-      <AppHeader pageTitle="Idées recettes" />
+      <AppHeader pageTitle="Idées recettes" backHref="/" />
       <main className="mx-auto w-full max-w-md flex-1 px-4 pb-8 sm:max-w-2xl sm:px-6 lg:max-w-5xl lg:px-8">
         <RecettesOngletsView recipes={recipes} userHasPlan={userHasPlan} />
       </main>

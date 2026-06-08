@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { Heart, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart, Sparkles } from 'lucide-react';
 import { SaviezVousLightbox } from './SaviezVousLightbox';
 
 /**
@@ -49,11 +49,16 @@ export function SaviezVousFil({
   // — sert à afficher son caption en grand sous le titre de la section.
   const [activeIdx, setActiveIdx] = useState(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
+  // Chevrons gauche/droite : visibles uniquement si on peut scroller
+  // dans la direction concernée (sinon overlay inutile sur les bords).
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
 
-  // Détecte quel polaroid est centré dans la viewport scrollable.
-  // Approche : à chaque scroll, on calcule la distance au centre de
-  // chaque <li> et on garde le plus proche. Pas de IntersectionObserver
-  // parce qu'on veut LE plus proche, pas tous ceux qui débordent.
+  // Détecte quel polaroid est centré dans la viewport scrollable +
+  // recalcule la visibilité des chevrons. Approche : à chaque scroll,
+  // distance au centre de chaque <li>, le plus proche gagne. Pas
+  // d'IntersectionObserver car on veut LE plus proche, pas tous ceux
+  // qui débordent.
   useEffect(() => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -72,6 +77,10 @@ export function SaviezVousFil({
         }
       });
       setActiveIdx(closestIdx);
+      setCanScrollLeft(el.scrollLeft > 4);
+      setCanScrollRight(
+        el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+      );
     };
     update();
     el.addEventListener('scroll', update, { passive: true });
@@ -81,6 +90,21 @@ export function SaviezVousFil({
       window.removeEventListener('resize', update);
     };
   }, [items.length]);
+
+  // Scroll programmatique de ~70 % de la largeur visible → expose
+  // 1-2 polaroids supplémentaires par clic. scrollTo (absolu) + clamp
+  // pour snap propre au début/fin même avec smooth scroll en cours.
+  function scrollBy(direction: 'left' | 'right') {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const delta = el.clientWidth * 0.7;
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const target =
+      direction === 'left'
+        ? Math.max(0, el.scrollLeft - delta)
+        : Math.min(maxScroll, el.scrollLeft + delta);
+    el.scrollTo({ left: target, behavior: 'smooth' });
+  }
 
   if (items.length === 0) return null;
 
@@ -145,6 +169,30 @@ export function SaviezVousFil({
               transform="translate(0,-0.4)"
             />
           </svg>
+
+          {/* Chevron GAUCHE — apparaît seulement si on peut scroller à
+              gauche. z-20 pour passer au-dessus du fil et des pinces. */}
+          {canScrollLeft && (
+            <button
+              type="button"
+              onClick={() => scrollBy('left')}
+              aria-label="Polaroids précédents"
+              className="pointer-events-auto absolute left-1 top-1/2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-coral-dark shadow-md ring-1 ring-coral-soft/50 backdrop-blur-sm transition hover:bg-white"
+            >
+              <ChevronLeft className="size-4" strokeWidth={2.5} />
+            </button>
+          )}
+          {/* Chevron DROITE — apparaît seulement s'il reste à voir. */}
+          {canScrollRight && (
+            <button
+              type="button"
+              onClick={() => scrollBy('right')}
+              aria-label="Polaroids suivants"
+              className="pointer-events-auto absolute right-1 top-1/2 z-20 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-white/85 text-coral-dark shadow-md ring-1 ring-coral-soft/50 backdrop-blur-sm transition hover:bg-white"
+            >
+              <ChevronRight className="size-4" strokeWidth={2.5} />
+            </button>
+          )}
 
           {/* Polaroids — scrollable horizontal si overflow.
               justify-start sur mobile (sinon le 1er polaroid est tronqué).

@@ -336,7 +336,7 @@ export function RecettesOngletsView({
                       className={`whitespace-nowrap text-base transition-all lg:text-lg ${
                         isActive
                           ? 'font-bold text-coral-dark'
-                          : 'font-semibold text-coral-dark/70'
+                          : 'font-medium text-coral-dark/60'
                       }`}
                     >
                       {tab.label}
@@ -350,7 +350,11 @@ export function RecettesOngletsView({
                         <img
                           src={tab.icon.src}
                           alt=""
-                          className="size-20 object-contain lg:size-28"
+                          // Onglet non sélectionné = image atténuée pour
+                          // que l'œil aille naturellement sur l'actif.
+                          className={`size-20 object-contain transition-opacity lg:size-28 ${
+                            isActive ? 'opacity-100' : 'opacity-55'
+                          }`}
                         />
                       ) : (
                         tab.icon.value
