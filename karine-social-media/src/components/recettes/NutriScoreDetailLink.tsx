@@ -32,39 +32,35 @@ const UNIT_TO_GRAMS: Record<string, number> = {
   tasse: 200, bol: 250, verre: 200,
 };
 
-// Pluriel-friendly : `tomate[s]?`, `cerise[s]?`, etc.
-// Tous les patterns acceptent le pluriel implicitement via /[s]?/ et
-// utilisent \b pour éviter les faux positifs.
-function estimateGramsFromLabel(label: string, qty: number): number {
-  const lower = label.toLowerCase();
-  // Assaisonnements : poids négligeable → 0g, ne pèsent pas dans le score
-  if (/\b(sel|poivre|épice|herbes?|piment)\b/i.test(lower)) return 0;
-  // Ordre : du plus spécifique au plus générique
-  if (/\boeufs?\b|\bœufs?\b/.test(lower)) return qty * 60;
-  if (/\btomates?\s+cerises?\b/.test(lower)) return qty * 15;
-  if (/\btomates?\b/.test(lower)) return qty * 100;
-  if (/\boignons?\b|\béchalotes?\b/.test(lower)) return qty * 80;
-  if (/\bcarottes?\b/.test(lower)) return qty * 100;
-  if (/\bcourgettes?\b/.test(lower)) return qty * 200;
-  if (/\bpommes?\s+de\s+terre\b/.test(lower)) return qty * 150;
-  if (/\bpommes?\b|\bpoires?\b/.test(lower)) return qty * 150;
-  if (/\bcitrons?\b/.test(lower)) return qty * 80;
-  if (/\bavocats?\b/.test(lower)) return qty * 200;
-  if (/\bconcombres?\b/.test(lower)) return qty * 200;
-  if (/\bpoivrons?\b/.test(lower)) return qty * 150;
-  if (/\baubergines?\b/.test(lower)) return qty * 250;
-  if (/\bbananes?\b/.test(lower)) return qty * 120;
-  if (/\bgousses?\b/.test(lower)) return qty * 5;
-  if (/\bfeuilles?\b/.test(lower)) return qty * 2;
-  return qty * 50;
-}
-
-function unitToGrams(qty: number | null, unit: string | null, label: string): number {
+/**
+ * Conversion (qty, unit, ciqual.avg_unit_weight_g) → grammes.
+ *
+ * Aligné sur le backend (src/lib/nutriscore-aggregate.ts) :
+ *  - Unité de masse/volume connue → conversion directe
+ *  - Pas d'unité MAIS Ciqual lié avec poids unitaire → qty × weight
+ *    (la valeur vient de Mistral, persistée sur ciqual_foods)
+ *  - Sinon → 0 (affiché "Poids inconnu" dans la modale)
+ *
+ * Plus de table hardcodée : la modale reflète exactement ce qui a
+ * servi à calculer le score persisté en BDD.
+ */
+function unitToGrams(
+  qty: number | null,
+  unit: string | null,
+  ciqualUnitWeight: number | null | undefined,
+): number {
   if (typeof qty !== 'number' || qty <= 0) return 0;
   const u = (unit ?? '').trim().toLowerCase();
-  if (!u) return estimateGramsFromLabel(label, qty);
-  const factor = UNIT_TO_GRAMS[u];
-  return typeof factor === 'number' ? qty * factor : estimateGramsFromLabel(label, qty);
+  if (u) {
+    const factor = UNIT_TO_GRAMS[u];
+    if (typeof factor === 'number') return qty * factor;
+  }
+  // Sentinel ~0.0001 = "1 unité n'a pas de sens pour cet aliment"
+  // (huile, sel, farine…). Mistral a explicitement renvoyé null.
+  if (typeof ciqualUnitWeight === 'number' && ciqualUnitWeight > 0.01) {
+    return qty * ciqualUnitWeight;
+  }
+  return 0;
 }
 
 type Row = {
@@ -131,11 +127,19 @@ export function NutriScoreDetailLink({
       tFibers = 0,
       tSalt = 0;
     for (const ing of ingredients) {
-      const grams = unitToGrams(ing.quantity, ing.unit, ing.label);
       const ciqual =
         typeof ing.ciqual_food_id === 'number'
           ? ciqualMap.get(ing.ciqual_food_id)
           : null;
+      // On lit le poids unitaire (avg_unit_weight_g) directement sur
+      // le Ciqual lié. Si absent ou sentinel "pas de sens", grams = 0
+      // pour les ingrédients sans unit explicite — la modale affichera
+      // "Poids inconnu" plutôt qu'une valeur bidon.
+      const grams = unitToGrams(
+        ing.quantity,
+        ing.unit,
+        ciqual?.avg_unit_weight_g ?? null,
+      );
       const kcal = ciqual ? ((ciqual.kcal_per_100g ?? 0) * grams) / 100 : 0;
       const proteins = ciqual ? ((ciqual.proteins_g ?? 0) * grams) / 100 : 0;
       // Ciqual ne fournit pas les AGS — on prend 30% des lipides comme
@@ -237,7 +241,10 @@ export function NutriScoreDetailLink({
                   )}
                 </header>
                 <dl className="grid grid-cols-3 gap-2 text-[0.7rem]">
-                  <Cell label="Poids" value={`${Math.round(r.grams)} g`} />
+                  <Cell
+                    label="Poids"
+                    value={r.grams > 0 ? `${Math.round(r.grams)} g` : '—'}
+                  />
                   <Cell label="Énergie" value={`${Math.round(r.kcal)} kcal`} />
                   <Cell label="Protéines" value={`${r.proteins.toFixed(1)} g`} />
                   <Cell label="AGS" value={`${r.ags.toFixed(1)} g`} />
@@ -284,7 +291,7 @@ export function NutriScoreDetailLink({
                       )}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs">
-                      {Math.round(r.grams)} g
+                      {r.grams > 0 ? `${Math.round(r.grams)} g` : '—'}
                     </td>
                     <td className="px-3 py-2 text-right font-mono text-xs">
                       {Math.round(r.kcal)}

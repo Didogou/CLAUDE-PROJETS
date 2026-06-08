@@ -239,6 +239,23 @@ Règles :
 - Pour "250 g de tomates cerises" : quantity=250, unit="g", label="tomates cerises". (PAS label="g tomates cerises".)
 - Pour "120 g de poulet haché" : quantity=120, unit="g", label="poulet haché".
 - Si un ingrédient n'a pas de quantité ("sel, poivre", "persil frais"), quantity=null, unit=null.
+
+⚠️ FRACTIONS EN TOUTES LETTRES : tu DOIS aussi reconnaître les
+écritures littérales et les convertir en décimal dans quantity, JAMAIS
+les recopier dans le label :
+- "un demi chou-fleur" / "demi chou-fleur" / "la moitié d'un chou-fleur" / "½ chou-fleur"
+   → quantity=0.5, unit=null, label="chou-fleur".
+- "un quart de citron" / "1/4 de citron" / "¼ de citron"
+   → quantity=0.25, unit=null, label="citron".
+- "un tiers de concombre" / "1/3 de concombre"
+   → quantity=0.33, unit=null, label="concombre".
+- "trois quarts d'avocat" / "3/4 d'avocat" / "¾ d'avocat"
+   → quantity=0.75, unit=null, label="avocat".
+- "une pincée de sel" → quantity=1, unit="pincée", label="sel".
+- "deux gousses d'ail" → quantity=2, unit=null, label="gousses d'ail".
+INTERDIT : label="demi chou-fleur", label="moitié de chou-fleur",
+label="1/2 chou-fleur". La fraction va TOUJOURS dans quantity (en
+décimal), jamais dans le label.
 - Cherche temps prep + cuisson dans les pictos ⏱️ / ⏲️ ou texte "préparation : X min".
 - Calories : "kcal par portion" est le format standard ; renvoie le nombre.
 - Macros : si tu vois "Protéines : 25 g", "Lipides : 12 g", "Glucides : 40 g" (par portion), renseigne proteinsG/lipidsG/carbsG. Cherche aussi des icônes nutritionnelles (camembert macros) ou pavé "Pour 1 portion : 25g P / 12g L / 40g G". null si non visible.

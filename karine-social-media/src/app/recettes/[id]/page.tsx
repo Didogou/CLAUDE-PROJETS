@@ -84,7 +84,7 @@ export default async function RecipeDetailPage({
       const { data: page } = await supa
         .from('ciqual_foods')
         .select(
-          'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg',
+          'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
         )
         .order('id', { ascending: true })
         .range(offset, offset + 999);
@@ -113,7 +113,7 @@ export default async function RecipeDetailPage({
     const { data } = await supa
       .from('ciqual_foods')
       .select(
-        'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg',
+        'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
       )
       .in('id', Array.from(linkedCiqualIds));
     const arr = (data ?? []) as CiqualFoodLite[];
