@@ -302,7 +302,78 @@ Dashboard Supabase → **Storage**. Vérifier que les buckets utilisés par l'ap
 
 ---
 
-## 8. Monitoring post-launch
+## 8. Démarches juridiques (à confier au juriste / avocat)
+
+À traiter AVANT mise en production publique. Cf. audit sécurité
+2026-06-08 + sessions de cadrage juridique.
+
+### 8.1 Structures & contrats
+
+- [ ] **Choix de la structure juridique** (toi = éditeur logiciel) :
+      EI / EURL / SASU selon situation perso → valider avec
+      expert-comptable
+- [ ] **Choix de la structure de Karine** : EI auto-entrepreneur ou
+      réel BNC selon CA prévisionnel
+- [ ] **Contrat de licence d'utilisation de l'application** entre toi
+      (éditeur) et Karine (licenciée) : 12 points clés cf. brief
+      avocat (objet, durée, rémunération 2€/abonné, propriété
+      intellectuelle, maintenance, évolutions, exclusivité, sortie,
+      non-concurrence, confidentialité, juridiction)
+- [ ] **DPA RGPD Art. 28** (Data Processing Agreement) annexé au
+      contrat de licence : Karine = responsable de traitement,
+      toi = sous-traitant technique
+- [ ] **CGU + CGV** adaptées au contexte santé + abonnement Stripe +
+      droit de rétractation 14 jours (Karine = professionnelle santé,
+      patients = consommateurs)
+- [ ] **Politique de confidentialité** : déjà complétée côté code
+      (sous-traitants Vercel/Supabase/Stripe/Resend/Anthropic/Mistral/
+      Google OAuth + transferts hors UE encadrés). À valider par
+      l'avocat avant publication.
+
+### 8.2 Conformité réglementaire
+
+- [ ] **Mentions légales** : remplir `legal_settings` en admin avec
+      SIRET réel, raison sociale, contact RGPD valide. Sans ça, les
+      placeholders `[NOM SOCIÉTÉ]` apparaissent sur les pages légales.
+- [ ] **Question des mineures 15-17 ans** : validé par l'avocat ?
+      Pour l'instant code = blocage strict < 15 ans (majorité
+      numérique FR Art. 8 RGPD), pas de consentement parental géré.
+- [ ] **Responsabilité diététique** : clause limitative au profit de
+      Karine en cas de suivi alimentaire ayant des conséquences
+      (TCA notamment).
+- [ ] **Déclaration CNIL** : registre Art. 30 RGPD à constituer
+      (activités de traitement, sous-traitants, durées de conservation).
+- [ ] **DPO** : Karine doit-elle désigner un Délégué à la Protection
+      des Données ? Pas obligatoire si activité non massive, mais
+      recommandé vu la nature santé.
+
+### 8.3 Marques et propriété intellectuelle
+
+- [ ] **Charte d'engagement Nutri-Score** auprès de Santé publique
+      France (gratuite, en ligne via santepubliquefrance.fr) — pour
+      utiliser légalement le logo officiel Nutri-Score sur les fiches
+      recettes. Documents à fournir : SIRET, raison sociale, identité
+      du responsable, description du service.
+- [ ] **Dépôt INPI** de la marque « Karine Diététique » si on veut
+      protéger le nom à terme.
+- [ ] **Mentions de copyright** sur les images et contenus créés par
+      Karine (textes, photos de recettes).
+
+### 8.4 Préparation du rendez-vous avocat
+
+Documents à apporter :
+- Politique de confidentialité actuelle (`/confidentialite`)
+- CGU / CGV actuelles
+- Schéma de fonctionnement (qui collecte quoi, qui paie qui)
+- Liste des sous-traitants (cf. section 5 de la politique)
+- Rapport d'audit sécurité (résumé du Workflow Claude 2026-06-08)
+
+Coût indicatif : 150-250€/h conseil ponctuel, pack complet
+(CGU + CGV + Confidentialité + DPA + contrat licence) ≈ 1500-3000€.
+
+---
+
+## 9. Monitoring post-launch
 
 À configurer / surveiller la première semaine :
 
