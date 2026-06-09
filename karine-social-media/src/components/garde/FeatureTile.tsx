@@ -127,7 +127,11 @@ export function FeatureTile({
     </>
   );
 
-  const baseClass = `group relative flex h-full flex-col items-center rounded-[var(--radius-tile)] p-3 pb-7 shadow-sm transition ${bgClass} ${className}`;
+  // Forme RONDE : seul changement par rapport a la version d'hier.
+  // aspect-square + rounded-full transforme la tuile en cercle.
+  // Le contenu interne (image medaillon + titre + sous-titre + fleche)
+  // est conserve a l'identique.
+  const baseClass = `group relative flex aspect-square h-full flex-col items-center rounded-full p-3 pb-7 shadow-sm transition ${bgClass} ${className}`;
   const lockedClass = locked
     ? 'opacity-65 saturate-75 hover:opacity-80 hover:shadow-md'
     : 'hover:-translate-y-0.5 hover:shadow-md';
