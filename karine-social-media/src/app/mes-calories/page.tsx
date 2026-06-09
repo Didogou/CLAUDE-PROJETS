@@ -39,9 +39,31 @@ export default async function MesCaloriesPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col">
+      {/* Pattern standard reprise des autres pages (/recettes, /menus,
+          /astuces) : FloralBackground + AppHeader + main + BottomNav.
+          Sur cette page on superpose un degrade rose -> bleu pastel
+          pour signifier "tracker calories" sans rompre l'identite. */}
       <FloralBackground />
-      <AppHeader pageTitle="Mes calories" />
-      <main className="relative mx-auto w-full max-w-lg flex-1">
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10"
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(255, 218, 224, 0.45) 0%, rgba(225, 235, 255, 0.55) 80%, rgba(190, 215, 245, 0.65) 100%)',
+        }}
+      />
+
+      {/* AppHeader meme pattern que /recettes, /menus, /astuces :
+          pageTitle + backHref (fleche retour, pas de burger). C'est le
+          titre script-coral sous le wordmark "Karine Dietetique" qui
+          fait office de titre de page — pas besoin d'en mettre un autre
+          dans le contenu. */}
+      <AppHeader pageTitle="Mes calories" backHref="/" hideTracking />
+      {/* Layout standard /recettes /menus /astuces : main avec
+          flex-1 pour respecter le pattern, contenu en flow normal
+          (le scroll du document declenche le mode compact du
+          AppHeader sticky automatiquement). */}
+      <main className="mx-auto w-full max-w-md flex-1 px-4 pb-8 sm:max-w-2xl sm:px-6">
         <MesCaloriesPageClient />
       </main>
       <BottomNav />

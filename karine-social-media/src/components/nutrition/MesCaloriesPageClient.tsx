@@ -1,33 +1,18 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { CalorieCounterSheetV2 } from './CalorieCounterSheetV2';
+import { MesCaloriesView } from './MesCaloriesView';
 
 /**
  * Wrapper client pour la route /mes-calories.
  *
- * Réutilise le composant `CalorieCounterSheetV2` existant en mode page
- * (prop `asPage` = true) : pas de createPortal, pas de wrapper sheet
- * `fixed inset-0`. Le contenu est rendu directement dans le flow DOM
- * de la page, sous le AppHeader.
+ * Branchement 2026-06-09 v2 : on utilise `MesCaloriesView` (rendu propre
+ * en flow normal) au lieu de `CalorieCounterSheetV2 asPage` (gros
+ * composant sheet legacy avec scroll interne qui empêchait le header
+ * de se compacter au scroll).
  *
- * Les callbacks `onClose` et `onChanged` :
- *  - `onClose` : redirige vers la home (le user a cliqué la flèche
- *    back du header sub-page, équivalent à "fermer la sheet"). En
- *    pratique Phase 2, on remplacera par une vraie navigation
- *    inter-pages drill-down.
- *  - `onChanged` : pas d'action — la page se rafraîchit toute seule.
+ * Le composant `CalorieCounterSheetV2` reste disponible pour les
+ * usages SHEET (CalorieFAB, etc.).
  */
 export function MesCaloriesPageClient() {
-  const router = useRouter();
-  return (
-    <CalorieCounterSheetV2
-      asPage
-      useUrlNavigation
-      onClose={() => router.push('/')}
-      onChanged={() => {
-        /* refresh local géré par le composant lui-même */
-      }}
-    />
-  );
+  return <MesCaloriesView />;
 }

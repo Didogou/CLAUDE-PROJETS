@@ -64,6 +64,7 @@ export async function PATCH(
   const meal = body?.mealCategory;
   const kcal = body?.kcal;
   const label = body?.label;
+  const portions = body?.portions;
 
   const update: Record<string, unknown> = {};
   if (meal !== undefined) {
@@ -72,12 +73,30 @@ export async function PATCH(
     }
     update.meal_category = meal;
   }
+  if (portions !== undefined) {
+    if (
+      typeof portions !== 'number' ||
+      !Number.isFinite(portions) ||
+      portions <= 0 ||
+      portions > 50
+    ) {
+      return NextResponse.json({ error: 'portions hors bornes (0-50)' }, { status: 400 });
+    }
+    // Quantize a 2 decimales pour eviter les flottants type 0.3000000001
+    update.portions = Math.round(portions * 100) / 100;
+  }
   if (kcal !== undefined) {
     if (typeof kcal !== 'number' || !Number.isFinite(kcal) || kcal < 0 || kcal > 5000) {
       return NextResponse.json({ error: 'kcal hors bornes (0-5000)' }, { status: 400 });
     }
     update.kcal = kcal;
-    update.portions = 1;
+    // Ancien comportement : si SEUL kcal est fourni (pas portions),
+    // on force portions=1 pour eviter la surprise "x portions
+    // memorisees + nouvelle kcal = total inattendu". Si portions est
+    // aussi fourni dans le meme PATCH, on respecte les 2 valeurs.
+    if (portions === undefined) {
+      update.portions = 1;
+    }
   }
   if (label !== undefined) {
     if (typeof label !== 'string' || !label.trim() || label.length > 160) {

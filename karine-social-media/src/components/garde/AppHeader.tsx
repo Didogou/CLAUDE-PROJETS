@@ -28,6 +28,7 @@ export async function AppHeader({
   withIdeas = false,
   pageTitle,
   backHref,
+  hideTracking = false,
 }: {
   withSlogan?: boolean;
   withIdeas?: boolean;
@@ -42,6 +43,10 @@ export async function AppHeader({
    *  link WhatsApp, history.length === 1 → router.back() sort de la
    *  PWA. backHref garantit qu'on reste dans l'app. */
   backHref?: string;
+  /** Si true, cache l'icone flamme de suivi calorique. Utilise sur
+   *  /mes-calories ou on est deja sur cette feature → pas besoin de
+   *  redondance dans le header. */
+  hideTracking?: boolean;
 }) {
   const user = await getCurrentUser();
   const unreadCount =
@@ -63,7 +68,7 @@ export async function AppHeader({
   // ensuite bloquées dans la sheet elle-même via le prop `canEdit`
   // (cf. CalorieCounterSheetV2). Visiteuse non connectée → /login.
   let trackingBehavior: 'sheet' | 'plan' | 'login' | null = null;
-  if (featureEnabledGlobal) {
+  if (featureEnabledGlobal && !hideTracking) {
     if (user.isAuthenticated) trackingBehavior = 'sheet';
     else trackingBehavior = 'login';
   }

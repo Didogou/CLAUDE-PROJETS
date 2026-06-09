@@ -28,17 +28,18 @@ import { MealCategoryAvatar } from './MealIcon';
 import { WaterSection } from './WaterSection';
 import { showToast } from '@/lib/toast';
 import { IngredientCardCarousel } from './IngredientCardCarousel';
+import { MacroRing } from './MacroRing';
 
-type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
+export type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
-const MEAL_LABELS: Record<MealCategory, string> = {
+export const MEAL_LABELS: Record<MealCategory, string> = {
   breakfast: "P'tit dej",
   lunch: 'Déjeuner',
   snack: 'Goûter',
   dinner: 'Dîner',
 };
 
-const MEAL_ORDER: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
+export const MEAL_ORDER: MealCategory[] = ['breakfast', 'lunch', 'snack', 'dinner'];
 
 /**
  * Slugs FR pour les URLs des sub-pages /mes-calories/[meal]. Choisis
@@ -86,7 +87,27 @@ function categoryOf(entry: FoodLogEntry): MealCategory {
   return defaultMealForHour(new Date(entry.loggedAt));
 }
 
-type FoodLogEntry = {
+/**
+ * Format affichage compact « portions + grammes » pour une ligne de
+ * repas. Exemples :
+ *   - 1 portion (95 g)        ← cas standard avec poids unitaire connu
+ *   - 2.5 portions (237 g)    ← portions decimales
+ *   - 1 portion               ← pas de poids unitaire (huile, sel, …)
+ *   - 3 portions              ← idem
+ */
+function formatPortionsAndGrams(entry: { portions: number; unitWeightG: number | null }): string {
+  const p = entry.portions;
+  // Affichage des portions : entier sans decimale, sinon 1 decimale
+  const portionsStr = Number.isInteger(p) ? `${p}` : p.toFixed(1).replace('.', ',');
+  const portionLabel = p > 1 ? 'portions' : 'portion';
+  if (entry.unitWeightG && entry.unitWeightG > 0) {
+    const grams = Math.round(p * entry.unitWeightG);
+    return `${portionsStr} ${portionLabel} (${grams} g)`;
+  }
+  return `${portionsStr} ${portionLabel}`;
+}
+
+export type FoodLogEntry = {
   id: string;
   loggedAt: string;
   source: 'ciqual' | 'recipe' | 'menu' | 'free';
@@ -102,9 +123,18 @@ type FoodLogEntry = {
    *  d'une analyse photo (toutes les entries d'un même batch POST
    *  partagent la même photo_url). null si saisie texte. */
   photoUrl: string | null;
+  /** Vignette Ciqual (bucket ciqual-images), recuperee via JOIN sur
+   *  source_ref_id quand source='ciqual'. Utilisée comme fallback
+   *  d'affichage quand l'utilisatrice n'a pas pris sa propre photo. */
+  ciqualImageUrl: string | null;
+  /** Poids unitaire d'1 portion en grammes (avg_unit_weight_g Ciqual).
+   *  Permet d'afficher "X g" sur chaque ligne et de calculer le poids
+   *  total = portions * unitWeightG. Null si l'aliment n'a pas de
+   *  poids unitaire connu (ex. huile, sel) ou source != ciqual. */
+  unitWeightG: number | null;
 };
 
-type DayState = {
+export type DayState = {
   target: {
     dailyKcal: number;
     dailyWaterMl: number;
@@ -790,24 +820,28 @@ export function CalorieCounterSheetV2({
 
   /** Modifie le total kcal d'une entrée du journal (sécurise portions=1
    *  côté API). Refresh local + propagation aux autres composants. */
-  async function changeEntryKcal(id: string, kcal: number) {
+  async function changeEntryKcal(id: string, kcal: number, portions?: number) {
     const prev = day;
-    // Optimistic update : la sub-page totalise les entrées via leurs
-    // kcal × portions. On set kcal = new + portions = 1.
+    // Optimistic update : si portions explicite, on patche les 2 ;
+    // sinon ancien comportement (set portions=1 cote serveur, on suit).
     setDay((d) =>
       d
         ? {
             ...d,
             entries: d.entries.map((e) =>
-              e.id === id ? { ...e, kcal, portions: 1 } : e,
+              e.id === id
+                ? { ...e, kcal, portions: portions ?? 1 }
+                : e,
             ),
           }
         : d,
     );
+    const body: Record<string, number> = { kcal };
+    if (portions !== undefined) body.portions = portions;
     const res = await fetch(`/api/nutrition/log/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kcal }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
       setDay(prev);
@@ -848,7 +882,13 @@ export function CalorieCounterSheetV2({
     }
   }
 
-  if (typeof document === 'undefined') return null;
+  // Guard SSR : en mode SHEET (default), le composant utilise
+  // createPortal(document.body) qui crash en SSR → on retourne null.
+  // En mode PAGE (/mes-calories), pas de portal → on peut rendre en
+  // SSR normalement. Sans cette distinction, le check creait un
+  // hydration mismatch sur la route /mes-calories (server: null,
+  // client: sheetBody).
+  if (!asPage && typeof document === 'undefined') return null;
 
   const totals = day?.totals.kcal ?? 0;
   const target = day?.target.dailyKcal ?? 2000;
@@ -873,6 +913,20 @@ export function CalorieCounterSheetV2({
   const totalsForCat = (cat: MealCategory) =>
     entriesByCat[cat].reduce((a, e) => a + e.kcal * e.portions, 0);
 
+  /** Totaux DETAILLES (kcal + macros) pour un repas donne. Utilise
+   *  par le bandeau anneaux nutritionnels en bas de la sub-page :
+   *  on montre les valeurs du REPAS EN COURS (pas du jour entier). */
+  const macrosForCat = (cat: MealCategory) =>
+    entriesByCat[cat].reduce(
+      (a, e) => ({
+        kcal: a.kcal + e.kcal * e.portions,
+        proteinsG: a.proteinsG + (e.proteinsG ?? 0) * e.portions,
+        lipidsG: a.lipidsG + (e.lipidsG ?? 0) * e.portions,
+        carbsG: a.carbsG + (e.carbsG ?? 0) * e.portions,
+      }),
+      { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 },
+    );
+
   // === Wrapper conditionnel ===
   // - asPage=true (route /mes-calories) : on rend juste le contenu dans
   //   un layout flex column normal, pas de portal, pas de fixed inset-0.
@@ -884,52 +938,72 @@ export function CalorieCounterSheetV2({
     <div
       className={
         asPage
-          ? 'flex min-h-screen w-full flex-col bg-white'
+          ? // Mode page : fond TRANSPARENT (laisse passer le degrade
+            // rose->bleu de /mes-calories) + flex-1 pour s'etirer dans
+            // le main parent qui est lui-meme flex-col + flex-1. Sans
+            // ce flex-1, le panel interne `absolute inset-0` ne
+            // s'affiche pas (hauteur = 0).
+            'flex w-full flex-1 flex-col'
           : 'anim-slide-up flex h-[100dvh] w-full max-w-lg flex-col overflow-hidden bg-white shadow-2xl md:h-[min(95vh,840px)] md:rounded-3xl'
       }
     >
-        {/* === Header transparent sur fond hero ===
-            Caché sur la sub-page (drill-down) : c'est le header de
-            la sub-page (panel 2) qui prend le relais avec sa propre
-            grosse flèche back et titre de catégorie. */}
-        <header
-          className={`flex shrink-0 items-center justify-between gap-2 bg-coral/95 px-4 py-4 text-white ${
-            activeMealCategory ? 'hidden' : ''
-          }`}
-        >
-          <div className="flex items-center gap-2.5">
-            <Flame className="size-6" />
-            <h2 className="font-script text-3xl">Mes calories</h2>
-          </div>
-          <div className="flex items-center gap-1">
+        {/* === Header rose : reserve a la version SHEET (asPage=false)
+            En mode page, on n'a plus besoin de ce bandeau : la fleche
+            retour est dans AppHeader, et "Mes infos" devient un lien
+            discret cliquable dans le body. */}
+        {!asPage && (
+          <header
+            className={`flex shrink-0 items-center justify-between gap-2 bg-coral/95 px-4 py-4 text-white ${
+              activeMealCategory ? 'hidden' : ''
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              <Flame className="size-6" />
+              <h2 className="font-script text-3xl">Mes calories</h2>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setMyInfoOpen(true)}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                  day?.profileComplete
+                    ? 'bg-white/90 text-coral-dark hover:bg-white'
+                    : 'bg-coral-soft/40 text-white hover:bg-coral-soft/60'
+                }`}
+              >
+                {day?.profileComplete && (
+                  <Check className="size-4" strokeWidth={3} />
+                )}
+                <span>Mes infos</span>
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Fermer"
+                className="rounded-full p-1.5 hover:bg-white/10"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* Mode PAGE : le titre est porte par AppHeader (pageTitle).
+            "Mes infos" en pill discret mais visible, aligne a droite. */}
+        {asPage && !activeMealCategory && (
+          <div className="flex justify-end px-1 pb-1 pt-1">
             <button
               type="button"
               onClick={() => setMyInfoOpen(true)}
-              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors ${
-                day?.profileComplete
-                  ? 'bg-white/90 text-coral-dark hover:bg-white'
-                  : 'bg-coral-soft/40 text-white hover:bg-coral-soft/60'
-              }`}
+              className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-sm font-semibold text-coral-dark shadow-sm ring-1 ring-coral-soft/40 backdrop-blur-sm transition hover:bg-white"
             >
-              {/* Wrap "Mes infos" dans un <span> pour stabiliser la
-                  réconciliation React : sans ça, l'apparition du <Check>
-                  cassait l'insertBefore quand le hot-reload Turbopack
-                  refresh le button (bug NotFoundError). */}
               {day?.profileComplete && (
-                <Check className="size-4" strokeWidth={3} />
+                <Check className="size-4 text-sage" strokeWidth={3} />
               )}
-              <span>Mes infos</span>
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Fermer"
-              className="rounded-full p-1.5 hover:bg-white/10"
-            >
-              <X className="size-5" />
+              Mes infos
             </button>
           </div>
-        </header>
+        )}
 
         {error && (
           <div className="shrink-0 border-b border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-800">
@@ -958,9 +1032,20 @@ export function CalorieCounterSheetV2({
             aria-hidden={!!activeMealCategory}
           >
           {/* === HERO : cercle + kcal dépensées ===
-              Fond dégradé coral, paddings horizontaux + verticaux
-              généreux pour que le cercle ne touche jamais les bords. */}
-          <section className="bg-gradient-to-b from-coral via-coral/90 to-coral/50 px-4 pt-10 pb-12 text-white">
+              Fond dégradé coral en mode SHEET, transparent en mode
+              PAGE (le degrade rose->bleu de la page parente prend le
+              relais). Padding vertical reduit en mode page pour
+              "relever" les infos juste sous le AppHeader. */}
+          <section
+            className={
+              asPage
+                ? // Mode page : panneau coral renforce (bg-coral/35),
+                  // degrade vers transparent en bas pour adoucir la
+                  // transition vers les cards macros qui chevauchent.
+                  'relative rounded-3xl bg-gradient-to-b from-coral/40 via-coral/30 to-coral/5 px-4 pt-4 pb-8 text-coral-dark shadow-sm'
+                : 'bg-gradient-to-b from-coral via-coral/90 to-coral/50 px-4 pt-10 pb-12 text-white'
+            }
+          >
             <div className="flex items-center justify-center gap-4">
               <CircularProgress
                 value={Math.max(0, net)}
@@ -997,19 +1082,31 @@ export function CalorieCounterSheetV2({
                 />
               </div>
             </div>
+
+            {/* Mode PAGE : cards macros INTEGREES dans le panneau hero,
+                sous le cercle/depensees. Plus d'effet chevauchement,
+                tout est dans le meme panneau. */}
+            {asPage && (
+              <div className="mt-4">
+                <MacrosTiles
+                  consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
+                  target={day?.target ?? null}
+                />
+              </div>
+            )}
           </section>
 
-          {/* === MACROS : fond fondu depuis le coral vers blanc ===
-              Le gradient demarre en coral/30 pour faire la continuite
-              avec la section hero, puis fond en blanc. Les tuiles
-              sont decalees vers le haut pour mordre sur la fin du
-              hero (effet flottant). */}
-          <section className="bg-gradient-to-b from-coral/30 via-emerald-50/40 to-white px-4 pb-3 -mt-6">
-            <MacrosTiles
-              consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
-              target={day?.target ?? null}
-            />
-          </section>
+          {/* === MACROS : section standalone reservee au mode SHEET ===
+              En mode page, les macros sont integrees dans le panneau
+              hero ci-dessus (cf demande user 2026-06-09). */}
+          {!asPage && (
+            <section className="-mt-14 px-4 pb-3 relative z-10">
+              <MacrosTiles
+                consumed={day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 }}
+                target={day?.target ?? null}
+              />
+            </section>
+          )}
 
           {/* === TUILES REPAS en grid 2x2 (style Apple) ===
               Click sur tuile = drill-down vers Panel 2 (meal detail). */}
@@ -1099,26 +1196,31 @@ export function CalorieCounterSheetV2({
           {/* === PANEL 2 : MEAL DETAIL ===
               Affiche header (back + nom catégorie) + entries + invite
               + preview. Slide depuis la droite quand activeMealCategory
-              est posé. */}
+              est posé.
+              Fond transparent en mode page+URL pour laisser passer le
+              degrade rose->bleu de la page parente (uniformite avec
+              /mes-calories). Mode sheet : gradient propre. */}
           <div
-            className={`absolute inset-0 flex flex-col overflow-hidden bg-gradient-to-br from-coral-soft/30 via-pink-50/40 to-sky-100/60 transition-transform duration-300 ease-out ${
-              activeMealCategory ? 'translate-x-0' : 'translate-x-full'
-            }`}
+            className={`absolute inset-0 flex flex-col overflow-hidden transition-transform duration-300 ease-out ${
+              asPage && useUrlNavigation
+                ? ''
+                : 'bg-gradient-to-br from-coral-soft/30 via-pink-50/40 to-sky-100/60'
+            } ${activeMealCategory ? 'translate-x-0' : 'translate-x-full'}`}
             aria-hidden={!activeMealCategory}
           >
             {renderedMealCategory && (
               <>
-                {/* Header sub-page : flèche back BIEN GROSSE +
-                    titre catégorie BIEN GROS. Seul header visible. */}
+                {/* Header coral interne : AFFICHÉ uniquement en mode
+                    SHEET (asPage=false) ou page sans nav URL.
+                    En mode route /mes-calories/[meal], l'AppHeader
+                    fournit deja la fleche retour + titre, donc on
+                    cache ce bandeau redondant pour uniformiser la
+                    page avec /mes-calories. */}
+                {!(asPage && useUrlNavigation) && (
                 <div className="flex shrink-0 items-center gap-4 bg-coral/95 px-4 py-5 text-white">
                   <button
                     type="button"
                     onClick={() => {
-                      // Si la sub-page a été ouverte via URL (route
-                      // /mes-calories/[meal]), on navigue vers la home
-                      // du tracker plutôt que de juste reset le state
-                      // (qui resterait sur /mes-calories/[meal] mais
-                      // afficherait la home — inconsistant).
                       if (useUrlNavigation) {
                         router.push('/mes-calories');
                         return;
@@ -1137,6 +1239,7 @@ export function CalorieCounterSheetV2({
                     {MEAL_LABELS[renderedMealCategory]}
                   </h2>
                 </div>
+                )}
 
                 <div
                   className="flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4"
@@ -1147,19 +1250,56 @@ export function CalorieCounterSheetV2({
                     touchAction: 'pan-y',
                   }}
                 >
-                  {/* "Ajouter un plat" tout en HAUT (avant la liste
-                      des plats déjà saisis). Décision UX : la sub-page
-                      commence par l'action principale. */}
-                  <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-coral-soft/30">
+                  {/* Bouton camera bien visible AU-DESSUS de la card,
+                      centre, gros (56px). Affiche un libelle dessous
+                      pour clarte. Pendant l'upload, animation pulse
+                      sur l'anneau. Si l'utilisatrice prend une photo,
+                      l'analyse Vision se lance et le plat sera ajoute
+                      a la liste apres validation. */}
+                  <div className="flex flex-col items-center">
+                    <label
+                      className={`group grid size-14 cursor-pointer place-items-center rounded-full bg-coral text-white shadow-lg shadow-coral/30 ring-4 ring-coral-soft/50 transition hover:scale-105 active:scale-95 ${
+                        photoUploading ? 'cursor-wait opacity-70' : ''
+                      }`}
+                      title="Prendre une photo du plat"
+                      aria-label="Prendre une photo du plat"
+                    >
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        disabled={photoUploading}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) handlePhoto(f);
+                          e.target.value = '';
+                        }}
+                        className="sr-only"
+                      />
+                      {photoUploading ? (
+                        <Loader2 className="size-6 animate-spin" />
+                      ) : (
+                        <Camera className="size-6" />
+                      )}
+                    </label>
+                    <span className="mt-1 text-[0.65rem] font-semibold uppercase tracking-wider text-coral-dark">
+                      {photoUploading ? 'Analyse…' : 'Photo du plat'}
+                    </span>
+                  </div>
+
+                  {/* "Ajouter un plat" — card compacte avec textarea
+                      pleine largeur et bouton send EN INTERNE. Camera
+                      retiree de la card (deplacee au-dessus, centree). */}
+                  <div className="rounded-2xl bg-white px-3 py-2.5 shadow-sm ring-1 ring-coral-soft/30">
                     <p className="mb-2 text-base font-bold text-ink">
                       Ajouter un plat
                     </p>
+                    {/* multiline=false : input 1 ligne avec le bouton
+                        send EN INTERNE (absolute a droite). Camera
+                        deja dans le header de la card → hideCamera. */}
                     <InlineMealInvite
                       naturalText={naturalText}
                       onTextChange={(t) => {
-                        // Quand l'utilisatrice retape, on retire le panneau
-                        // "aliment introuvable" pour ne pas la garder
-                        // visuellement bloquée sur le résultat précédent.
                         if (noResult) setNoResult(null);
                         setNaturalText(t);
                       }}
@@ -1168,6 +1308,8 @@ export function CalorieCounterSheetV2({
                       onPhoto={handlePhoto}
                       onParse={handleParse}
                       onPickSuggestion={handlePickSuggestion}
+                      hideCamera
+                      sendInside
                     />
                   </div>
 
@@ -1391,12 +1533,23 @@ export function CalorieCounterSheetV2({
                       home view). En mode "add" (clic +), on cache la
                       liste pour ne pas noyer l'utilisatrice sous
                       l'historique : focus sur l'ajout. */}
-                  {subPageMode === 'view' && entriesByCat[renderedMealCategory].length > 0 && (
-                    <div className="rounded-2xl bg-white shadow-sm ring-1 ring-coral-soft/30">
-                      <h4 className="border-b border-coral-soft/20 px-4 py-2 text-[0.7rem] font-bold uppercase tracking-wider text-coral-dark">
-                        Déjà ajouté ({Math.round(totalsForCat(renderedMealCategory))} kcal)
-                      </h4>
-                      <ul className="space-y-1.5 px-4 py-2.5">
+                  {entriesByCat[renderedMealCategory].length > 0 && (
+                    // Le frame du repas en cours. Titre = nom du repas
+                    // (« Petit-déjeuner », « Déjeuner »…) puisqu'on est
+                    // dans ce repas. Fond rose pastel (coral-soft/25)
+                    // pour identite visuelle « repas en cours ». Chaque
+                    // entry rendue avec vignette photo a gauche au lieu
+                    // de la pastille catégorie.
+                    <section className="mx-auto w-full rounded-2xl bg-coral-soft/25 p-3 shadow-[0_8px_24px_-10px_rgba(213,110,130,0.35)] ring-1 ring-coral-soft/40">
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h2 className="text-xs font-bold uppercase tracking-wider text-coral-dark">
+                          {MEAL_LABELS[renderedMealCategory]}
+                        </h2>
+                        <span className="text-xs font-bold text-coral-dark">
+                          {Math.round(totalsForCat(renderedMealCategory))} kcal
+                        </span>
+                      </div>
+                      <ul className="space-y-1.5">
                         {entriesByCat[renderedMealCategory].map((e) => (
                           <EntryRow
                             key={e.id}
@@ -1410,17 +1563,59 @@ export function CalorieCounterSheetV2({
                             onShowPhoto={(url) =>
                               setLightboxState({ url, persisted: true })
                             }
-                            // Sub-page dédiée à `renderedMealCategory` :
-                            // le label « Déjeuner / Dîner / … » sur
-                            // chaque ligne est redondant avec le titre
-                            // de la sub-page.
                             hideCategoryBadge
+                            showPhotoBadge
                           />
                         ))}
                       </ul>
-                    </div>
+                    </section>
                   )}
                 </div>
+                {/* Bandeau anneaux nutritionnels en BAS du PANEL 2,
+                    visible sans scroll. Affiche les valeurs du REPAS
+                    EN COURS avec leur cible derivee de la cible
+                    journaliere : daily × MEAL_KCAL_RATIO[cat] (ex.
+                    petit-dej = 20% du daily kcal & macros). Coherent
+                    avec les tuiles repas de la home view qui montrent
+                    "673 / 419 kcal". */}
+                {(() => {
+                  const m = macrosForCat(renderedMealCategory);
+                  const ratio = MEAL_KCAL_RATIO[renderedMealCategory];
+                  const dt = day?.target;
+                  const tKcal = dt ? Math.round(dt.dailyKcal * ratio) : null;
+                  const tProt =
+                    dt?.dailyProteinsG !== null && dt?.dailyProteinsG !== undefined
+                      ? Math.round(dt.dailyProteinsG * ratio)
+                      : null;
+                  const tCarb =
+                    dt?.dailyCarbsG !== null && dt?.dailyCarbsG !== undefined
+                      ? Math.round(dt.dailyCarbsG * ratio)
+                      : null;
+                  const tLip =
+                    dt?.dailyLipidsG !== null && dt?.dailyLipidsG !== undefined
+                      ? Math.round(dt.dailyLipidsG * ratio)
+                      : null;
+                  return (
+                    <div className="shrink-0 border-t border-coral-soft/30 bg-white/60 px-3 py-2 backdrop-blur-sm">
+                      <div className="flex items-center justify-around gap-2">
+                        <MacroRing kind="protein" current={m.proteinsG} target={tProt} />
+                        <MacroRing kind="carbs" current={m.carbsG} target={tCarb} />
+                        <MacroRing kind="lipid" current={m.lipidsG} target={tLip} />
+                        <div className="flex flex-col items-center">
+                          <span className="text-[0.55rem] font-bold uppercase tracking-wider text-coral-dark">
+                            Kcal
+                          </span>
+                          <span className="text-sm font-bold leading-none text-ink">
+                            {Math.round(m.kcal)}
+                          </span>
+                          <span className="text-[0.55rem] font-medium text-ink-soft">
+                            {tKcal !== null ? `/ ${tKcal}` : 'ce repas'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             )}
           </div>
@@ -1883,7 +2078,7 @@ function CandidateRow({
  * Tuiles macros — fond blanc cassé, mini-barre de progression colorée
  * par macro (rose / sky / amber comme aujourd'hui).
  */
-function MacrosTiles({
+export function MacrosTiles({
   consumed,
   target,
 }: {
@@ -2079,7 +2274,7 @@ function MyMealsSection({
  * label de catégorie + total kcal + nb plats. Click → drill-down vers
  * le meal detail panel.
  */
-function MealTileApple({
+export function MealTileApple({
   category,
   count,
   totalKcal,
@@ -2158,28 +2353,21 @@ function MealTileApple({
           }}
         />
       </div>
-      {/* Bouton + en HAUT À GAUCHE — ajoute un plat (sub-page sans
-          historique). Coral plein, identique à l'ancien design. */}
+      {/* Bouton + en haut a gauche avec marge 15px (cf demande user
+          2026-06-09 : sur la meme ligne que le titre du repas, a
+          gauche, marge 15 px). */}
       <button
         type="button"
         onClick={onAdd}
         aria-label={`Ajouter à ${MEAL_LABELS[category]}`}
-        className="absolute left-2 top-2 grid size-9 place-items-center rounded-full bg-coral text-white shadow transition hover:bg-coral-dark active:scale-95"
+        className="absolute left-[15px] top-2 grid size-9 place-items-center rounded-full bg-coral text-white shadow transition hover:bg-coral-dark active:scale-95"
       >
         <Plus className="size-4" />
       </button>
-      {/* Bouton œil en BAS À DROITE — visualise l'historique de ce
-          repas (sub-page avec liste "Déjà ajouté"). Cercle blanc avec
-          ring coral, plus discret que le + pour respecter la hiérarchie
-          (l'action principale d'une tuile = ajouter). */}
-      <button
-        type="button"
-        onClick={onView}
-        aria-label={`Voir l'historique de ${MEAL_LABELS[category]}`}
-        className="absolute bottom-2 right-2 grid size-9 place-items-center rounded-full bg-white text-coral shadow ring-1 ring-coral-soft/60 transition hover:bg-coral-soft/30 active:scale-95"
-      >
-        <Eye className="size-4" />
-      </button>
+      {/* Bouton oeil retire (demande user 2026-06-09). onView reste
+          dispo via props pour une future reintegration (ex. clic
+          ailleurs sur la tuile, gesture, ou bouton ajoute autrement). */}
+      {void onView}
     </div>
   );
 }
@@ -2323,6 +2511,10 @@ type Suggestion = {
   proteinsG: number | null;
   lipidsG: number | null;
   carbsG: number | null;
+  /** Vignette Ciqual (bucket ciqual-images) — affichee en miniature a
+   *  gauche de chaque suggestion dans le dropdown autosuggest pour
+   *  reconnaissance visuelle rapide. Null si pas d'image. */
+  imageUrl: string | null;
   defaultPortionG: number;
   defaultKcalForPortion: number | null;
   matchedVia: 'alias_resolved' | 'alias_pending' | 'name';
@@ -2369,6 +2561,8 @@ function InlineMealInvite({
   onParse,
   multiline = false,
   onPickSuggestion,
+  hideCamera = false,
+  sendInside = false,
 }: {
   naturalText: string;
   onTextChange: (v: string) => void;
@@ -2376,6 +2570,14 @@ function InlineMealInvite({
   photoUploading: boolean;
   onPhoto: (file: File) => void;
   onParse: () => void;
+  /** Si true, ne rend pas le bouton appareil photo dans le bloc input.
+   *  Utile quand la camera est deja affichee ailleurs (ex. dans le
+   *  header de la card sur la sub-page repas). */
+  hideCamera?: boolean;
+  /** Si true, place le bouton "envoyer" EN ABSOLU DANS l'input (a
+   *  droite), avec un padding-right sur l'input pour laisser la place.
+   *  Ne s'applique qu'au mode non-multiline. */
+  sendInside?: boolean;
   /** Si true, rend un <textarea> 2 lignes au lieu d'un <input> 1 ligne.
    *  Utilisé sur la sub-page V2 pour pouvoir saisir plus confortablement
    *  une description longue type "pâtes carbonara avec parmesan". */
@@ -2489,13 +2691,36 @@ function InlineMealInvite({
 
   return (
     <div className="relative">
-      <div className={multiline ? 'space-y-2' : 'flex gap-2'}>
+      <div className={multiline ? 'space-y-2' : sendInside ? 'block' : 'flex gap-2'}>
         {multiline ? (
           <textarea
             {...SharedTextareaProps}
             rows={2}
             className="w-full resize-none rounded-lg border border-coral-soft px-3 py-2 text-sm leading-relaxed"
           />
+        ) : sendInside ? (
+          // Input + send INSIDE : wrapper relative, padding-right pour
+          // que le texte ne passe pas sous le bouton qui flotte a droite.
+          <div className="relative">
+            <input
+              type="text"
+              {...SharedTextareaProps}
+              className="w-full rounded-full border border-coral-soft bg-white py-2 pl-4 pr-12 text-sm focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral-soft/40"
+            />
+            <button
+              type="button"
+              onClick={onParse}
+              disabled={parsing || naturalText.trim().length < 3}
+              aria-label="Analyser"
+              className="absolute right-1.5 top-1/2 grid size-8 -translate-y-1/2 place-items-center rounded-full bg-coral text-white shadow-sm transition hover:bg-coral-dark disabled:opacity-40"
+            >
+              {parsing ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Send className="size-4" />
+              )}
+            </button>
+          </div>
         ) : (
           <input
             type="text"
@@ -2503,31 +2728,33 @@ function InlineMealInvite({
             className="flex-1 rounded-lg border border-coral-soft px-2 py-1.5 text-sm"
           />
         )}
-        <div className={multiline ? 'flex justify-end gap-2' : 'contents'}>
-          <label
-            className={`flex size-9 cursor-pointer items-center justify-center rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
-              photoUploading ? 'cursor-wait opacity-50' : ''
-            }`}
-            title="Prendre une photo du plat"
-          >
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              disabled={photoUploading}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onPhoto(f);
-                e.target.value = '';
-              }}
-              className="sr-only"
-            />
-            {photoUploading ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Camera className="size-4" />
-            )}
-          </label>
+        <div className={multiline ? 'flex justify-end gap-2' : sendInside ? 'hidden' : 'contents'}>
+          {!hideCamera && (
+            <label
+              className={`flex size-9 cursor-pointer items-center justify-center rounded-full bg-white text-coral ring-2 ring-coral-soft hover:bg-coral-soft/30 ${
+                photoUploading ? 'cursor-wait opacity-50' : ''
+              }`}
+              title="Prendre une photo du plat"
+            >
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                disabled={photoUploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) onPhoto(f);
+                  e.target.value = '';
+                }}
+                className="sr-only"
+              />
+              {photoUploading ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Camera className="size-4" />
+              )}
+            </label>
+          )}
           <button
             type="button"
             onClick={onParse}
@@ -2544,24 +2771,27 @@ function InlineMealInvite({
         </div>
       </div>
 
-      {/* Dropdown autosuggest. Positionné absolute relatif au wrapper.
-          Ne s'affiche que si suggestions disponibles ET enabled.
-          Le mouseDown sur item = pick (mouseDown avant blur, sinon
-          le blur ferme le dropdown avant que le click ne soit reçu). */}
+      {/* Dropdown autosuggest. Positionné absolute -inset-x-2 pour
+          DEBORDER legerement de la card "Ajouter un plat" et prendre
+          presque toute la largeur dispo dans le main. Animation
+          d'apparition (fade + slide-down) pour rendre le dropdown
+          dynamique. mouseDown pour picker avant blur. */}
       {enabled && showDropdown && suggestions.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-30 mt-1 max-h-72 overflow-y-auto rounded-xl border border-coral-soft bg-white shadow-lg">
+        <ul
+          className="anim-dropdown-in absolute -left-2 -right-2 top-full z-30 mt-2 max-h-[60vh] overflow-y-auto rounded-2xl border border-coral-soft bg-white shadow-xl ring-1 ring-coral-soft/40"
+          role="listbox"
+        >
           {suggestions.map((s, i) => {
-            // Affichage : displayText en titre (alias si dispo, sinon
-            // name). Quand on retombe sur le name Ciqual brut (pas
-            // d'alias), on le nettoie pour la lecture (suppression
-            // "(aliment moyen)", "préemballée", etc.). Le sous-titre
-            // garde la référence Ciqual non altérée pour transparence.
-            const showNameSubtitle = s.displayText !== s.name;
-            const titleText = showNameSubtitle
-              ? s.displayText
-              : cleanCiqualNameForDisplay(s.displayText);
+            // Pas de duplication : on n'affiche QUE le titre + infos
+            // nutritionnelles. Le name Ciqual brut etait redondant
+            // avec le titre quand displayText (alias) etait similaire.
+            const titleText =
+              s.displayText !== s.name
+                ? s.displayText
+                : cleanCiqualNameForDisplay(s.displayText);
+            const isSelected = i === selectedIdx;
             return (
-              <li key={s.ciqualId}>
+              <li key={s.ciqualId} role="option" aria-selected={isSelected}>
                 <button
                   type="button"
                   onMouseDown={(e) => {
@@ -2569,43 +2799,44 @@ function InlineMealInvite({
                     pickSuggestion(s);
                   }}
                   onMouseEnter={() => setSelectedIdx(i)}
-                  className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition ${
-                    i === selectedIdx ? 'bg-coral-soft/40' : 'hover:bg-coral-soft/20'
+                  className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition ${
+                    isSelected ? 'bg-coral-soft/40' : 'hover:bg-coral-soft/20'
                   }`}
                 >
+                  {/* Vignette Ciqual 48x48 ronde — plus grande qu'avant
+                      pour mieux ressortir. Fallback emoji si pas d'image. */}
+                  <span className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-full bg-coral-soft/20 ring-1 ring-coral-soft/30">
+                    {s.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s.imageUrl}
+                        alt=""
+                        className="size-12 rounded-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <span className="text-xl">🍽️</span>
+                    )}
+                  </span>
                   <span className="min-w-0 flex-1">
-                    {/* Titre : wrap sur 2 lignes max (line-clamp-2)
-                        au lieu de tronquer en 1 ligne — sinon les noms
-                        Ciqual longs deviennent illisibles ("Purée De
-                        Pomme De Terre, Avec L..."). */}
+                    {/* Titre : 2 lignes max (les noms Ciqual peuvent
+                        être longs). Pas de duplication en sous-titre. */}
                     <span className="line-clamp-2 font-semibold capitalize leading-tight text-ink">
                       {titleText}
                     </span>
-                    {/* Sous-titre : 1 ligne, tronqué. Contient le
-                        name Ciqual si on a un displayText différent
-                        (référence stable), sinon juste les infos kcal. */}
+                    {/* Sous-titre : kcal + portion. Plus de duplication
+                        du name Ciqual (etait redondant avec le titre). */}
                     <span className="mt-0.5 block truncate text-xs text-ink-soft">
-                      {showNameSubtitle ? (
-                        <>
-                          {s.name}
-                          {s.kcalPer100g !== null
-                            ? ` · ${s.kcalPer100g} kcal/100 g`
-                            : ''}
-                        </>
-                      ) : (
-                        <>
-                          {s.kcalPer100g !== null
-                            ? `${s.kcalPer100g} kcal/100 g`
-                            : 'kcal inconnue'}
-                          {s.defaultPortionG !== 100
-                            ? ` · 1 portion ≈ ${s.defaultPortionG} g`
-                            : ''}
-                        </>
-                      )}
+                      {s.kcalPer100g !== null
+                        ? `${s.kcalPer100g} kcal/100 g`
+                        : 'kcal inconnue'}
+                      {s.defaultPortionG !== 100
+                        ? ` · 1 portion ≈ ${s.defaultPortionG} g`
+                        : ''}
                     </span>
                   </span>
                   {s.defaultKcalForPortion !== null && (
-                    <span className="shrink-0 rounded-full bg-coral px-2.5 py-0.5 text-xs font-bold text-white">
+                    <span className="shrink-0 rounded-full bg-coral px-2.5 py-1 text-xs font-bold text-white">
                       {s.defaultKcalForPortion} kcal
                     </span>
                   )}
@@ -2639,7 +2870,7 @@ const MEAL_BG_COLOR: Record<MealCategory, string> = {
  * calculer la cible kcal et la barre de progression de chaque
  * tuile repas. Total = 90% (10% pour collation libre / boissons).
  */
-const MEAL_KCAL_RATIO: Record<MealCategory, number> = {
+export const MEAL_KCAL_RATIO: Record<MealCategory, number> = {
   breakfast: 0.20,
   lunch: 0.30,
   snack: 0.10,
@@ -2775,26 +3006,23 @@ function EntryRow({
   onChangeLabel,
   onShowPhoto,
   hideCategoryBadge = false,
+  showPhotoBadge = false,
 }: {
   entry: FoodLogEntry;
   onDelete: () => void;
   onChangeCategory: (next: MealCategory) => void;
-  /** Si fourni, les kcal deviennent cliquables et ouvrent la fiche
-   *  d'édition. Sinon affichage en texte simple. */
-  onChangeKcal?: (kcal: number) => void;
-  /** Si fourni, le nom devient éditable depuis la fiche. */
+  /** Modifie kcal-par-portion + optionnellement portions. Si portions
+   *  est passe, on PATCH les 2 champs ensemble (sinon ancien
+   *  comportement : kcal seul, portions force a 1 cote serveur). */
+  onChangeKcal?: (kcal: number, portions?: number) => void;
   onChangeLabel?: (label: string) => void;
-  /** Si fourni ET entry.photoUrl existe, affiche une mini-vignette
-   *  cliquable à droite. Le parent gère le lightbox. */
   onShowPhoto?: (url: string) => void;
-  /**
-   * Cache la pastille "Déjeuner / Dîner / …" à gauche. Utilisé sur
-   * les sub-pages dédiées à une catégorie (ex: sub-page Déjeuner),
-   * où le label est redondant — on est déjà dans le contexte de
-   * cette catégorie. Sur la home view (toutes catégories mélangées),
-   * laisser false pour conserver la distinction visuelle.
-   */
   hideCategoryBadge?: boolean;
+  /** Si true, affiche une VIGNETTE PHOTO (40x40 ronde) a gauche au
+   *  lieu de la pastille catégorie. Photo user (entry.photoUrl) si
+   *  dispo, sinon emoji fallback. Utilisé dans la liste « repas en
+   *  cours » de la sub-page. */
+  showPhotoBadge?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   // editOpen remplace kcalPickerOpen : ouvre une fiche d'édition
@@ -2816,17 +3044,60 @@ function EntryRow({
   return (
     <li
       ref={wrapperRef}
-      className="relative flex items-center gap-2 rounded-lg border border-coral-soft/30 bg-white px-2.5 py-1.5"
+      className="relative flex items-center gap-2.5 rounded-xl border border-coral-soft/40 bg-white px-2.5 py-2"
     >
-      {!hideCategoryBadge && (
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="shrink-0 rounded-full bg-coral-soft/40 px-2 py-0.5 text-[0.6rem] font-semibold text-coral-dark hover:bg-coral-soft/60"
-          aria-label="Changer la catégorie"
-        >
-          {MEAL_LABELS[cat]}
-        </button>
+      {/* Vignette photo badge a gauche (40x40 ronde). Priorite :
+          1) photo user (entry.photoUrl) → cliquable lightbox
+          2) photo Ciqual (entry.ciqualImageUrl) → vignette decorative
+          3) emoji fallback */}
+      {showPhotoBadge ? (
+        entry.photoUrl ? (
+          <button
+            type="button"
+            onClick={() => onShowPhoto?.(entry.photoUrl as string)}
+            aria-label="Voir la photo du plat"
+            className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full ring-1 ring-coral-soft/40"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={entry.photoUrl}
+              alt=""
+              className="size-10 rounded-full object-cover"
+              loading="lazy"
+            />
+          </button>
+        ) : entry.ciqualImageUrl ? (
+          <span
+            className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full ring-1 ring-coral-soft/40"
+            aria-hidden
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={entry.ciqualImageUrl}
+              alt=""
+              className="size-10 rounded-full object-cover"
+              loading="lazy"
+            />
+          </span>
+        ) : (
+          <span
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-coral-soft/30 text-lg ring-1 ring-coral-soft/40"
+            aria-hidden
+          >
+            🍽️
+          </span>
+        )
+      ) : (
+        !hideCategoryBadge && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="shrink-0 rounded-full bg-coral-soft/40 px-2 py-0.5 text-[0.6rem] font-semibold text-coral-dark hover:bg-coral-soft/60"
+            aria-label="Changer la catégorie"
+          >
+            {MEAL_LABELS[cat]}
+          </button>
+        )
       )}
       <div className="min-w-0 flex-1">
         {onChangeKcal ? (
@@ -2837,34 +3108,34 @@ function EntryRow({
             type="button"
             onClick={() => setEditOpen(true)}
             className="block w-full min-w-0 text-left"
-            aria-label="Modifier ce plat"
+            aria-label="Modifier ce plat (kcal, portions, poids)"
           >
-            <p className="truncate text-sm font-medium text-ink">
+            <p className="text-sm font-medium leading-tight text-ink break-words">
               {entry.label}
             </p>
             <p className="text-xs font-semibold text-coral-dark">
               {currentKcal} kcal
-              {entry.portions !== 1 && (
-                <span className="font-normal text-ink-soft">
-                  {' '}
-                  ({entry.portions} portions)
-                </span>
-              )}
+              <span className="font-normal text-ink-soft">
+                {' · '}
+                {formatPortionsAndGrams(entry)}
+              </span>
             </p>
           </button>
         ) : (
           <>
-            <p className="truncate text-sm font-medium text-ink">
+            <p className="text-sm font-medium leading-tight text-ink break-words">
               {entry.label}
             </p>
             <p className="text-xs text-ink-soft">
-              {currentKcal} kcal
-              {entry.portions !== 1 && ` (${entry.portions} portions)`}
+              {currentKcal} kcal · {formatPortionsAndGrams(entry)}
             </p>
           </>
         )}
       </div>
-      {entry.photoUrl && onShowPhoto && (
+      {/* Mini-vignette photo a droite : utile uniquement si on
+          n'utilise PAS showPhotoBadge (qui met deja la photo a gauche
+          comme badge principal). Evite la duplication. */}
+      {!showPhotoBadge && entry.photoUrl && onShowPhoto && (
         <button
           type="button"
           onClick={() => onShowPhoto(entry.photoUrl as string)}
@@ -2919,9 +3190,14 @@ function EntryRow({
         <EntryEditModal
           entry={entry}
           onClose={() => setEditOpen(false)}
-          onSave={({ label, kcal }) => {
+          onSave={({ label, portions, kcal }) => {
             if (label !== entry.label && onChangeLabel) onChangeLabel(label);
-            if (kcal !== currentKcal) onChangeKcal(kcal);
+            // onChangeKcal envoie (kcal par portion, portions) au handler
+            // qui PATCH les 2 champs ensemble. La signature passe a 2
+            // params : kcal-per-portion + portions.
+            if (kcal !== entry.kcal || portions !== entry.portions) {
+              onChangeKcal(kcal, portions);
+            }
             setEditOpen(false);
           }}
           onDelete={() => {
@@ -2935,13 +3211,19 @@ function EntryRow({
 }
 
 /**
- * Fiche d'édition d'une entrée du journal (nom + kcal).
+ * Fiche d'édition d'une entrée du journal :
+ *   - Nom (label)
+ *   - Quantité (portions, ex. 1 / 2 / 0.5)
+ *   - Poids (grammes) — synchro avec portions via unitWeightG
+ *   - Kcal totales — synchro avec portions × kcal_per_portion
  *
- * Pattern Apple "détail simple" : on n'utilise pas de drum picker pour
- * les kcal car ici l'utilisatrice connait la valeur qu'elle veut
- * souvent (regardé sur l'emballage). Input number avec clavier
- * numérique iOS = plus rapide qu'un scroll. Le DrumPicker reste utilisé
- * pour la création (où l'utilisatrice DÉCOUVRE la valeur).
+ * Synchronisation : les 3 champs (portions / poids / kcal) se
+ * recalculent reciproquement. L'utilisatrice peut taper "2 pommes"
+ * (portions=2) ou "300g de poulet" (poids=300) — le reste s'ajuste.
+ *
+ * Si l'aliment n'a PAS de poids unitaire connu (huile, sel,
+ * unitWeightG = null), le champ poids est cache et seuls portions /
+ * kcal restent modifiables.
  */
 function EntryEditModal({
   entry,
@@ -2951,12 +3233,17 @@ function EntryEditModal({
 }: {
   entry: FoodLogEntry;
   onClose: () => void;
-  onSave: (next: { label: string; kcal: number }) => void;
+  /** Sauvegarde : on envoie portions ET kcal-par-portion. L'API recoit
+   *  `{ portions, kcal }` ou kcal est la valeur PAR PORTION (cohérent
+   *  avec le modele BDD : kcal total = kcal × portions). */
+  onSave: (next: { label: string; portions: number; kcal: number }) => void;
   onDelete: () => void;
 }) {
-  const initialKcal = Math.round(entry.kcal * entry.portions);
   const [label, setLabel] = useState(entry.label);
-  const [kcalText, setKcalText] = useState(String(initialKcal));
+  // Etat source = portions + kcal-par-portion (fixe sauf override).
+  // Le poids est derive : grams = portions × unitWeightG.
+  const [portions, setPortions] = useState<number>(entry.portions);
+  const [kcalPerPortion, setKcalPerPortion] = useState<number>(entry.kcal);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -2970,15 +3257,75 @@ function EntryEditModal({
     };
   }, []);
 
+  // unitWeightG fallback : si Ciqual n'a pas de poids unitaire pour
+  // cet aliment (huile, sel, courge spaghetti…), on utilise 100g par
+  // defaut (= 1 portion = 100g, ratio standard kcal_per_100g). Permet
+  // toujours d'afficher le champ poids editable, l'user peut taper son
+  // vrai poids et les kcal se recalculent.
+  const unitW = entry.unitWeightG && entry.unitWeightG > 0 ? entry.unitWeightG : 100;
+  // hasKnownWeight = true si la valeur vient de Ciqual (vrai poids
+  // unitaire connu). Affiche un hint quand on a fallback sur 100g.
+  const hasKnownWeight = entry.unitWeightG !== null && entry.unitWeightG > 0;
+  const grams = portions * unitW;
+  const totalKcal = portions * kcalPerPortion;
+
+  // Inputs en mode texte pour permettre saisie partielle (vide, virgule…)
+  const [portionsText, setPortionsText] = useState(() =>
+    Number.isInteger(entry.portions) ? `${entry.portions}` : entry.portions.toFixed(2).replace('.', ','),
+  );
+  const [gramsText, setGramsText] = useState(() =>
+    String(Math.round(entry.portions * unitW)),
+  );
+  const [kcalText, setKcalText] = useState(() =>
+    String(Math.round(entry.portions * entry.kcal)),
+  );
+
+  // Helpers de parsing (virgule FR -> point)
+  const parseNum = (s: string) => Number(s.replace(',', '.'));
+
+  /** L'utilisatrice tape PORTIONS → on recalcule poids + kcal. */
+  function onPortionsChange(s: string) {
+    setPortionsText(s);
+    const n = parseNum(s);
+    if (!Number.isFinite(n) || n <= 0) return;
+    setPortions(n);
+    setGramsText(String(Math.round(n * unitW)));
+    setKcalText(String(Math.round(n * kcalPerPortion)));
+  }
+
+  /** L'utilisatrice tape POIDS (g) → on recalcule portions + kcal. */
+  function onGramsChange(s: string) {
+    setGramsText(s);
+    const g = parseNum(s);
+    if (!Number.isFinite(g) || g <= 0) return;
+    const p = g / unitW;
+    setPortions(p);
+    setPortionsText(p.toFixed(2).replace('.', ','));
+    setKcalText(String(Math.round(p * kcalPerPortion)));
+  }
+
+  /** L'utilisatrice tape KCAL TOTALES → on update kcal-par-portion
+   *  (les portions restent inchangees). Permet d'override la valeur
+   *  Ciqual si user pense qu'elle est fausse. */
+  function onKcalChange(s: string) {
+    setKcalText(s);
+    const k = parseNum(s);
+    if (!Number.isFinite(k) || k < 0) return;
+    if (portions > 0) setKcalPerPortion(k / portions);
+  }
+
   const trimmedLabel = label.trim();
-  const kcalNum = Number(kcalText);
-  const kcalValid =
-    Number.isFinite(kcalNum) && kcalNum >= 0 && kcalNum <= 5000;
-  const valid = trimmedLabel.length > 0 && kcalValid;
+  const portionsValid = portions > 0 && portions <= 50;
+  const kcalValid = totalKcal >= 0 && totalKcal <= 5000;
+  const valid = trimmedLabel.length > 0 && portionsValid && kcalValid;
 
   function save() {
     if (!valid) return;
-    onSave({ label: trimmedLabel, kcal: Math.round(kcalNum) });
+    onSave({
+      label: trimmedLabel,
+      portions: Math.round(portions * 100) / 100,
+      kcal: Math.round(kcalPerPortion * 100) / 100,
+    });
   }
 
   if (!mounted || typeof document === 'undefined') return null;
@@ -3026,27 +3373,77 @@ function EntryEditModal({
           />
         </div>
 
+        {/* Quantité (portions) + Poids (g) côte à côte sur une ligne.
+            En mobile, ça tient confortablement (2 inputs courts). */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <label
+              htmlFor="entry-edit-portions"
+              className="text-[0.7rem] font-bold uppercase tracking-wider text-coral-dark"
+            >
+              Quantité
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input
+                id="entry-edit-portions"
+                type="text"
+                inputMode="decimal"
+                value={portionsText}
+                onChange={(e) => onPortionsChange(e.target.value)}
+                className="w-full min-w-0 rounded-xl border border-coral-soft/50 bg-white px-2.5 py-2.5 text-center text-base font-bold text-ink shadow-sm focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
+              />
+              <span className="shrink-0 text-xs font-semibold text-ink-soft">
+                {portions > 1 ? 'portions' : 'portion'}
+              </span>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label
+              htmlFor="entry-edit-grams"
+              className="text-[0.7rem] font-bold uppercase tracking-wider text-coral-dark"
+            >
+              Poids
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input
+                id="entry-edit-grams"
+                type="text"
+                inputMode="numeric"
+                value={gramsText}
+                onChange={(e) => onGramsChange(e.target.value)}
+                className="w-full min-w-0 rounded-xl border border-coral-soft/50 bg-white px-2.5 py-2.5 text-center text-base font-bold text-ink shadow-sm focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
+              />
+              <span className="shrink-0 text-xs font-semibold text-ink-soft">g</span>
+            </div>
+          </div>
+        </div>
+
         <div className="space-y-1">
           <label
             htmlFor="entry-edit-kcal"
             className="text-[0.7rem] font-bold uppercase tracking-wider text-coral-dark"
           >
-            Calories
+            Calories <span className="font-normal normal-case text-ink-soft">(total)</span>
           </label>
           <div className="flex items-center gap-2">
             <input
               id="entry-edit-kcal"
-              type="number"
+              type="text"
               inputMode="numeric"
-              pattern="[0-9]*"
               value={kcalText}
-              onChange={(e) => setKcalText(e.target.value)}
-              min={0}
-              max={5000}
+              onChange={(e) => onKcalChange(e.target.value)}
               className="w-32 rounded-xl border border-coral-soft/50 bg-white px-3 py-2.5 text-center text-xl font-bold text-coral-dark shadow-sm focus:border-coral focus:outline-none focus:ring-2 focus:ring-coral/30"
             />
             <span className="text-sm font-semibold text-ink-soft">kcal</span>
           </div>
+          <p className="text-[0.65rem] italic text-ink-soft">
+            Soit {Math.round(grams)} g · {Math.round(kcalPerPortion)} kcal pour 1 portion
+            {!hasKnownWeight && (
+              <span className="block text-[0.6rem] text-ink-soft/70">
+                (poids unitaire estime a 100 g — ajuste si besoin)
+              </span>
+            )}
+          </p>
         </div>
 
         <div className="flex items-center justify-between gap-2 pt-1">
@@ -3073,7 +3470,7 @@ function EntryEditModal({
   );
 }
 
-function KcalBurnedEditor({
+export function KcalBurnedEditor({
   value,
   onSaved,
 }: {

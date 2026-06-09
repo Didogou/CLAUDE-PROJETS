@@ -62,12 +62,19 @@ export default async function MesCaloriesMealPage({
 
   return (
     <div className="relative flex min-h-screen flex-col">
+      {/* Juste FloralBackground (fleurs + libellules + fee). Pas de
+          degrade bleu : Karine prefere le fond rose floral naturel. */}
       <FloralBackground />
       <AppHeader
         pageTitle={SLUG_TO_LABEL[meal as MealSlug] ?? 'Mes calories'}
         backHref="/mes-calories"
+        hideTracking
       />
-      <main className="relative mx-auto w-full max-w-lg flex-1">
+      {/* flex flex-col est CRITIQUE : sans ca, le sheetBody interne
+          (flex-1 flex-col) ne s'etend pas verticalement → hauteur 0.
+          pb-16 = laisse la place pour le bandeau anneaux + BottomNav
+          fixed en bas (sinon les anneaux se retrouvent caches derriere). */}
+      <main className="relative mx-auto flex w-full max-w-lg flex-1 flex-col pb-16">
         <MesCaloriesMealPageClient slug={meal as MealSlug} mode={mode} />
       </main>
       <BottomNav />

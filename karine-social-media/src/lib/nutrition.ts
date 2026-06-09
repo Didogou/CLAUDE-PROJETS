@@ -116,20 +116,55 @@ export async function getNutritionDayState(userId: string): Promise<NutritionDay
     .order('logged_at', { ascending: false });
 
   const rows = !error && data ? (data as Array<Record<string, unknown>>) : [];
-  const entries: FoodLogEntry[] = rows.map((r) => ({
-    id: String(r.id),
-    loggedAt: String(r.logged_at),
-    source: r.source as FoodLogEntry['source'],
-    sourceRefId: (r.source_ref_id as string | null) ?? null,
-    label: String(r.label),
-    kcal: Number(r.kcal),
-    proteinsG: r.proteins_g === null ? null : Number(r.proteins_g),
-    lipidsG: r.lipids_g === null ? null : Number(r.lipids_g),
-    carbsG: r.carbs_g === null ? null : Number(r.carbs_g),
-    portions: Number(r.portions),
-    mealCategory: (r.meal_category as MealCategory | null) ?? null,
-    photoUrl: (r.photo_url as string | null) ?? null,
-  }));
+
+  // Joindre les images Ciqual : pour toutes les entries source='ciqual'
+  // avec un source_ref_id numerique, on lookup ciqual_foods.image_url
+  // en 1 query batch pour ne pas faire N requetes.
+  const ciqualIds = new Set<number>();
+  for (const r of rows) {
+    if (r.source === 'ciqual' && r.source_ref_id) {
+      const n = Number(r.source_ref_id);
+      if (Number.isFinite(n)) ciqualIds.add(n);
+    }
+  }
+  const ciqualImageById = new Map<number, string | null>();
+  const ciqualWeightById = new Map<number, number | null>();
+  if (ciqualIds.size > 0) {
+    const { data: imgs } = await (supabase as any)
+      .from('ciqual_foods')
+      .select('id, image_url, avg_unit_weight_g')
+      .in('id', [...ciqualIds]);
+    for (const row of ((imgs ?? []) as Array<{ id: number; image_url: string | null; avg_unit_weight_g: number | null }>)) {
+      ciqualImageById.set(Number(row.id), row.image_url ?? null);
+      // Sentinel 0.0001 = "1 unite n'a pas de sens" (huile, sel) → null
+      const w = row.avg_unit_weight_g;
+      ciqualWeightById.set(
+        Number(row.id),
+        typeof w === 'number' && w > 0.01 ? Number(w) : null,
+      );
+    }
+  }
+
+  const entries: FoodLogEntry[] = rows.map((r) => {
+    const isCiqual = r.source === 'ciqual';
+    const refId = isCiqual && r.source_ref_id ? Number(r.source_ref_id) : null;
+    return {
+      id: String(r.id),
+      loggedAt: String(r.logged_at),
+      source: r.source as FoodLogEntry['source'],
+      sourceRefId: (r.source_ref_id as string | null) ?? null,
+      label: String(r.label),
+      kcal: Number(r.kcal),
+      proteinsG: r.proteins_g === null ? null : Number(r.proteins_g),
+      lipidsG: r.lipids_g === null ? null : Number(r.lipids_g),
+      carbsG: r.carbs_g === null ? null : Number(r.carbs_g),
+      portions: Number(r.portions),
+      mealCategory: (r.meal_category as MealCategory | null) ?? null,
+      photoUrl: (r.photo_url as string | null) ?? null,
+      ciqualImageUrl: refId !== null ? ciqualImageById.get(refId) ?? null : null,
+      unitWeightG: refId !== null ? ciqualWeightById.get(refId) ?? null : null,
+    };
+  });
 
   const totals = entries.reduce(
     (acc, e) => ({

@@ -2,26 +2,29 @@ import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { MenusPagerView } from '@/components/menus/MenusPagerView';
-import { getPublishedMenusLite } from '@/lib/menus';
+import { getPublishedMenus, getPublishedMenusLite } from '@/lib/menus';
 import { getCurrentUser } from '@/lib/current-user';
 
 export const dynamic = 'force-dynamic';
 
 export default async function MenusPage() {
-  const [menus, user] = await Promise.all([
-    // Lite : exclut shopping_list_items du payload envoyé au navigateur.
-    // Un non-abonné voit les vignettes des menus mais pas la liste de
-    // courses détaillée. Elle est chargée uniquement au clic, et seulement
-    // si l'utilisatrice a un plan actif (gate /menus/[id]/liste-courses).
-    getPublishedMenusLite(),
-    getCurrentUser(),
-  ]);
-  // Tuile image de la liste cachée pour les abonnés (la liste passe
-  // par le bouton "Voir la liste" dans la page jour).
+  // On charge l'utilisateur D'ABORD pour decider quelle version des
+  // menus envoyer dans le payload :
+  //   - Abonne / admin / patient → version FULL (avec ingredients)
+  //     pour qu'ils voient la liste des ingredients de la semaine.
+  //   - Non-abonne → version LITE (sans ingredients) : la liste de
+  //     courses reste confidentielle, gate /menus/[id]/liste-courses.
+  // Cf. commit 40f99b6 qui a introduit cette segmentation pour la
+  // securite : sans elle, un visiteur non-abonne pouvait recuperer
+  // la liste via DevTools.
+  const user = await getCurrentUser();
   const isSubscriber =
     user.effectiveRole === 'patient' ||
     user.effectiveRole === 'subscriber' ||
     user.effectiveRole === 'admin';
+  const menus = isSubscriber
+    ? await getPublishedMenus()
+    : await getPublishedMenusLite();
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
