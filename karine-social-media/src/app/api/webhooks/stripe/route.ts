@@ -43,6 +43,28 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient();
 
+  // DEDUP : tentative d'INSERT sur stripe_webhook_events. Si event.id
+  // deja vu, contrainte unique 23505 → on a deja traite, on skip.
+  // Protege des replays et des doubles webhooks Stripe lors d'un retry.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error: dedupErr } = await (supabase as any)
+    .from('stripe_webhook_events')
+    .insert({
+      event_id: event.id,
+      event_type: event.type,
+      stripe_created_at: new Date(event.created * 1000).toISOString(),
+    });
+  if (dedupErr) {
+    // 23505 = unique_violation = event deja traite
+    if ((dedupErr as { code?: string }).code === '23505') {
+      return NextResponse.json({ ok: true, skipped: 'duplicate' });
+    }
+    // Autre erreur (table absente, etc.) : log et continue. Si la
+    // migration n'est pas encore appliquee, on ne veut pas bloquer
+    // le webhook (donc fallback open temporaire).
+    console.warn('[webhooks/stripe] dedup table inaccessible', dedupErr.message);
+  }
+
   try {
     switch (event.type) {
       case 'checkout.session.completed': {

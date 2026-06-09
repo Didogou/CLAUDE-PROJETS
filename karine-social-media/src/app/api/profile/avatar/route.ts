@@ -54,18 +54,35 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, url });
 }
 
-/** DELETE : retire l'avatar (remet à null en DB). */
+/** DELETE : retire l'avatar (remet à null en DB + purge Storage). */
 export async function DELETE() {
   const user = await getCurrentUser();
   if (!user.isAuthenticated || !user.id) {
     return NextResponse.json({ error: 'Authentification requise' }, { status: 401 });
   }
   const supabase = createServiceClient();
+
+  // RGPD Art. 17 : purger aussi le(s) fichier(s) dans Storage, pas
+  // seulement la reference en BDD. Sinon les avatars precedents
+  // restent telechargeables indefiniment via l'URL UUID.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: oldFiles } = await (supabase.storage as any)
+    .from(BUCKET)
+    .list(user.id, { limit: 100 });
+  if (Array.isArray(oldFiles) && oldFiles.length > 0) {
+    const paths = oldFiles.map((f: { name: string }) => `${user.id}/${f.name}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase.storage as any).from(BUCKET).remove(paths);
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { error } = await (supabase as any)
     .from('profiles')
     .update({ avatar_url: null })
     .eq('id', user.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error('[profile/avatar DELETE]', error.message);
+    return NextResponse.json({ error: 'Suppression échouée' }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }
