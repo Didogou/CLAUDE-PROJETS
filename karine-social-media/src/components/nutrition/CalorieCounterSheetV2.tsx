@@ -2091,41 +2091,48 @@ export function MacrosTiles({
       }
     | null;
 }) {
+  // Palette charte Karine 2026-06-09 (conseil designer specialise) :
+  //  - Glucides : miel doré (#E8A33D) → blé, céréales
+  //  - Proteines : terracotta (#C76B4A) → viande, saumon — remplace
+  //    le marron, reste proche de l'identite coral Karine
+  //  - Lipides : olive douce (#9CAE6B) → huile olive, oleagineux
+  // Chaque tuile a un fond cream teinte par macro (lisibilite +
+  // reconnaissance instantanee de la macro).
   const items: Array<{
     label: string;
     consumed: number;
     target: number | null;
-    barClass: string;
+    barColor: string;
     accent: string;
     labelColor: string;
+    bg: string;
   }> = [
-    // Couleurs par macro (charte Karine 2026-06-09) :
-    //  - Glucides : beige (amber clair)
-    //  - Proteines : marron (amber fonce)
-    //  - Lipides : jaune
     {
       label: 'Glucides',
       consumed: consumed.carbsG,
       target: target?.dailyCarbsG ?? null,
-      barClass: 'bg-amber-300',
-      accent: 'text-amber-700',
-      labelColor: 'text-amber-800/80',
+      barColor: '#E8A33D',
+      accent: '#A56B12',
+      labelColor: 'rgba(165, 107, 18, 0.8)',
+      bg: '#FDF6E8',
     },
     {
       label: 'Protéines',
       consumed: consumed.proteinsG,
       target: target?.dailyProteinsG ?? null,
-      barClass: 'bg-amber-800',
-      accent: 'text-amber-900',
-      labelColor: 'text-amber-900/80',
+      barColor: '#C76B4A',
+      accent: '#8A3F26',
+      labelColor: 'rgba(138, 63, 38, 0.8)',
+      bg: '#FBEDE5',
     },
     {
       label: 'Lipides',
       consumed: consumed.lipidsG,
       target: target?.dailyLipidsG ?? null,
-      barClass: 'bg-yellow-400',
-      accent: 'text-yellow-700',
-      labelColor: 'text-yellow-800/80',
+      barColor: '#9CAE6B',
+      accent: '#5E6E2F',
+      labelColor: 'rgba(94, 110, 47, 0.8)',
+      bg: '#F4F6EA',
     },
   ];
   return (
@@ -2138,14 +2145,23 @@ export function MacrosTiles({
         return (
           <div
             key={it.label}
-            className="rounded-2xl bg-gradient-to-b from-white to-emerald-50/60 px-4 py-4 shadow-md ring-1 ring-emerald-100"
+            className="rounded-2xl px-4 py-4 shadow-md ring-1"
+            style={{
+              background: `linear-gradient(180deg, #FFFFFF 0%, ${it.bg} 100%)`,
+              // @ts-expect-error CSS custom property
+              '--tw-ring-color': '#F0E4DC',
+            }}
           >
             <p
-              className={`text-xs font-bold uppercase tracking-wider ${it.labelColor}`}
+              className="text-xs font-bold uppercase tracking-wider"
+              style={{ color: it.labelColor }}
             >
               {it.label}
             </p>
-            <p className={`mt-1.5 text-2xl font-extrabold ${it.accent}`}>
+            <p
+              className="mt-1.5 text-2xl font-extrabold"
+              style={{ color: it.accent }}
+            >
               {Math.round(it.consumed)}
               <span className="text-base font-semibold text-ink-soft">
                 {it.target !== null ? `/${Math.round(it.target)}` : ''}g
@@ -2153,8 +2169,8 @@ export function MacrosTiles({
             </p>
             <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-ink-soft/15">
               <div
-                className={`h-full ${it.barClass} transition-[width] duration-500`}
-                style={{ width: `${pct}%` }}
+                className="h-full transition-[width] duration-500"
+                style={{ width: `${pct}%`, background: it.barColor }}
               />
             </div>
           </div>

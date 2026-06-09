@@ -115,10 +115,15 @@ export function MesCaloriesView() {
       </div>
 
       {/* === HERO : cercle Restant + carte Dépensées ===========
-          Fond FUCHSIA (au lieu de coral) pour identite visuelle
-          tracker calories. Texte/contraste en fuchsia-900 pour
-          lisibilite sur fond clair. */}
-      <section className="rounded-3xl bg-gradient-to-b from-fuchsia-300/60 via-fuchsia-200/50 to-fuchsia-100/40 px-4 py-6 shadow-sm">
+          Palette charte 2026-06-09 (conseil designer specialise
+          nutrition feminine) : degrade coral-blush → cream-peach,
+          anneau coral profond, chiffres brun-coral. */}
+      <section
+        className="rounded-3xl px-4 py-6 shadow-sm"
+        style={{
+          background: 'linear-gradient(180deg, rgba(255,212,194,0.7) 0%, rgba(255,232,222,0.7) 100%)',
+        }}
+      >
         <div className="flex items-center justify-center gap-4">
           <CircularProgress
             value={Math.max(0, net)}
@@ -126,20 +131,25 @@ export function MesCaloriesView() {
             size="12rem"
             strokeWidth="0.9rem"
             trackClassName="stroke-white/40"
-            arcClassName={overshoot > 0 ? 'stroke-rose-300' : 'stroke-white'}
+            arcClassName={overshoot > 0 ? 'stroke-rose-300' : 'stroke-[#E8704F]'}
           >
-            <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-fuchsia-900">
+            <span
+              className="text-[0.7rem] font-semibold uppercase tracking-widest"
+              style={{ color: '#8A6B5E' }}
+            >
               Restant
             </span>
-            <span className="font-bold leading-none text-fuchsia-900" style={{ fontSize: '2.5rem' }}>
+            <span className="font-bold leading-none" style={{ fontSize: '2.5rem', color: '#3D2820' }}>
               {Math.round(Math.max(0, remaining))}
             </span>
-            <span className="text-[0.7rem] text-fuchsia-900/70">/ {target} kcal</span>
+            <span className="text-[0.7rem]" style={{ color: '#8A6B5E' }}>
+              / {target} kcal
+            </span>
           </CircularProgress>
 
           <div
-            className="flex shrink-0 flex-col items-stretch justify-center rounded-2xl bg-white px-4 py-5 text-emerald-900 shadow-xl ring-2 ring-white/60"
-            style={{ minHeight: '11rem' }}
+            className="flex shrink-0 flex-col items-stretch justify-center rounded-2xl px-4 py-5 shadow-xl ring-2 ring-white/60"
+            style={{ minHeight: '11rem', background: '#FFF1EA', color: '#3D2820' }}
           >
             <KcalBurnedEditor
               value={metrics?.kcalBurned ?? 0}
