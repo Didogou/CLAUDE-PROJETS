@@ -13,6 +13,10 @@ export type CiqualBaseEntry = {
   avgUnitWeightG: number | null;
   avgUnitWeightSource: 'mistral' | 'karine' | null;
   aliases: string[];
+  /** True si l'aliment est reference au moins une fois (recette/menu/scan).
+   *  False si on l'a charge depuis la base complete pour permettre
+   *  d'ajouter un alias dessus alors qu'il n'est pas encore utilise. */
+  isUsed: boolean;
   /** Compteurs d'usage : reflète d'où vient l'aliment dans l'écosystème. */
   usage: {
     recipes: number;
@@ -83,57 +87,53 @@ export default async function CiqualBasePage() {
     scansUsage.set(idNum, (scansUsage.get(idNum) ?? 0) + 1);
   }
 
-  if (linkedIds.size === 0) {
-    return (
-      <CiqualBaseReport entries={[]} totalCiqual={0} />
-    );
-  }
-
-  // 2. Fetch les Ciqual concernés (1 query IN, peut être splittée si > 1000)
-  const idArr = Array.from(linkedIds);
+  // 2. Fetch TOUS les Ciqual (paginé, ~3500). Necessaire pour permettre
+  //    a Karine d'ajouter un alias sur un aliment qui n'est PAS encore
+  //    utilise (ex. "Farine de blé tendre T150" qu'elle veut lier a
+  //    l'alias "farine complete"). Le toggle UI permettra de filtrer
+  //    sur les utilises seulement.
   const ciqualMap = new Map<number, any>();
-  // PostgREST IN ne supporte pas plus de quelques milliers d'ids → on
-  // batche par 500 pour être prudent.
-  for (let i = 0; i < idArr.length; i += 500) {
-    const slice = idArr.slice(i, i + 500);
+  const PAGE = 1000;
+  for (let offset = 0; offset < 10000; offset += PAGE) {
     const { data } = await supa
       .from('ciqual_foods')
       .select(
         'id, name, group_name, subgroup_name, image_url, avg_unit_weight_g, avg_unit_weight_source',
       )
-      .in('id', slice);
-    for (const c of (data ?? []) as any[]) {
-      ciqualMap.set(Number(c.id), c);
-    }
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    const arr = (data ?? []) as any[];
+    if (arr.length === 0) break;
+    for (const c of arr) ciqualMap.set(Number(c.id), c);
+    if (arr.length < PAGE) break;
   }
 
-  // 3. Fetch les alias (status='resolved' uniquement — les pending et
-  //    rejected ne participent pas à la prod).
+  // 3. Fetch TOUS les alias (status='resolved') pour pouvoir afficher
+  //    les badges sur les aliments non-utilises aussi.
   const aliasesByCiqual = new Map<number, string[]>();
-  for (let i = 0; i < idArr.length; i += 500) {
-    const slice = idArr.slice(i, i + 500);
+  for (let offset = 0; offset < 100000; offset += PAGE) {
     const { data } = await supa
       .from('ciqual_aliases')
       .select('ciqual_id, alias_display, status')
-      .in('ciqual_id', slice)
-      .eq('status', 'resolved');
-    for (const a of (data ?? []) as Array<{ ciqual_id: number; alias_display: string }>) {
-      const arr = aliasesByCiqual.get(Number(a.ciqual_id)) ?? [];
-      arr.push(a.alias_display);
-      aliasesByCiqual.set(Number(a.ciqual_id), arr);
+      .eq('status', 'resolved')
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    const arr = (data ?? []) as Array<{ ciqual_id: number; alias_display: string }>;
+    if (arr.length === 0) break;
+    for (const a of arr) {
+      const list = aliasesByCiqual.get(Number(a.ciqual_id)) ?? [];
+      list.push(a.alias_display);
+      aliasesByCiqual.set(Number(a.ciqual_id), list);
     }
+    if (arr.length < PAGE) break;
   }
 
   // 4. Total Ciqual pour ratio (référence sur les ~3500)
-  const { count: totalCiqual } = await supa
-    .from('ciqual_foods')
-    .select('id', { count: 'exact', head: true });
+  const totalCiqual = ciqualMap.size;
 
   // 5. Construit les entrées + tri par groupe puis nom
   const entries: CiqualBaseEntry[] = [];
-  for (const id of linkedIds) {
-    const c = ciqualMap.get(id);
-    if (!c) continue;
+  for (const [id, c] of ciqualMap) {
     const w = c.avg_unit_weight_g;
     entries.push({
       id,
@@ -141,11 +141,10 @@ export default async function CiqualBasePage() {
       groupName: c.group_name ?? null,
       subgroupName: c.subgroup_name ?? null,
       imageUrl: c.image_url ?? null,
-      // Le sentinel 0.0001 = "1 unité n'a pas de sens" (huile, sel) → on
-      // affiche "N/A" plutôt qu'une valeur bidon.
       avgUnitWeightG: typeof w === 'number' && w > 0.01 ? Number(w) : null,
       avgUnitWeightSource: c.avg_unit_weight_source ?? null,
       aliases: aliasesByCiqual.get(id) ?? [],
+      isUsed: linkedIds.has(id),
       usage: {
         recipes: recipesAUsage.get(id) ?? 0,
         menus: menusUsage.get(id) ?? 0,
@@ -161,9 +160,6 @@ export default async function CiqualBasePage() {
   });
 
   return (
-    <CiqualBaseReport
-      entries={entries}
-      totalCiqual={totalCiqual ?? 0}
-    />
+    <CiqualBaseReport entries={entries} totalCiqual={totalCiqual} />
   );
 }

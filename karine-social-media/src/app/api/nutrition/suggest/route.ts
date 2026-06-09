@@ -64,6 +64,7 @@ type CiqualFood = {
   proteins_g: number | null;
   lipids_g: number | null;
   carbs_g: number | null;
+  image_url: string | null;
 };
 
 type AliasHit = {
@@ -93,29 +94,40 @@ export async function GET(request: NextRequest) {
   // précis et rapide grâce à l'index trigram. Pour name, on accepte
   // aussi la substring (%q%).
   /* eslint-disable @typescript-eslint/no-explicit-any */
-  const [resolvedAliases, pendingAliases, nameMatches] = await Promise.all([
-    (supabase as any)
-      .from('ciqual_aliases')
-      .select(
-        'alias, alias_display, ciqual_id, status, ciqual_foods!inner(id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g)',
-      )
-      .eq('status', 'resolved')
-      .like('alias', `${qNorm}%`)
-      .limit(8),
-    (supabase as any)
-      .from('ciqual_aliases')
-      .select(
-        'alias, alias_display, ciqual_id, status, ciqual_foods!inner(id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g)',
-      )
-      .eq('status', 'pending')
-      .like('alias', `${qNorm}%`)
-      .limit(8),
-    (supabase as any)
-      .from('ciqual_foods')
-      .select('id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g')
-      .ilike('name', `${q}%`)
-      .limit(8),
-  ]);
+  const [resolvedAliases, pendingAliases, nameMatches, fuzzyMatches] =
+    await Promise.all([
+      (supabase as any)
+        .from('ciqual_aliases')
+        .select(
+          'alias, alias_display, ciqual_id, status, ciqual_foods!inner(id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, image_url)',
+        )
+        .eq('status', 'resolved')
+        .like('alias', `${qNorm}%`)
+        .limit(8),
+      (supabase as any)
+        .from('ciqual_aliases')
+        .select(
+          'alias, alias_display, ciqual_id, status, ciqual_foods!inner(id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, image_url)',
+        )
+        .eq('status', 'pending')
+        .like('alias', `${qNorm}%`)
+        .limit(8),
+      // Recherche EXACTE (LIKE) insensible accents + casse via RPC
+      // search_ciqual_foods. Premier choix car plus precis.
+      (supabase as any)
+        .rpc('search_ciqual_foods', { query_tokens: [qNorm], limit_n: 8 })
+        .select('id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, image_url'),
+      // Recherche FUZZY (trigram similarity) en complement : tolere
+      // les fautes de frappe ("frmage" → "Fromage"). Seuil 0.3 = max
+      // 1-2 caracteres differents. Cf. migration 20260609120000.
+      // Les resultats sont fusionnes avec ceux du LIKE puis dedoublonnes
+      // par ciqual_id (le LIKE prime sur le fuzzy pour le score).
+      (supabase as any).rpc('search_ciqual_foods_fuzzy', {
+        q: qNorm,
+        threshold: 0.3,
+        limit_n: 8,
+      }),
+    ]);
   /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // Récupère les règles portion pour calculer la kcal "1 portion"
@@ -130,6 +142,7 @@ export async function GET(request: NextRequest) {
     proteinsG: number | null;
     lipidsG: number | null;
     carbsG: number | null;
+    imageUrl: string | null;
     defaultPortionG: number;
     defaultKcalForPortion: number | null;
     matchedVia: 'alias_resolved' | 'alias_pending' | 'name';
@@ -241,6 +254,7 @@ export async function GET(request: NextRequest) {
       proteinsG: food.proteins_g === null ? null : Number(food.proteins_g),
       lipidsG: food.lipids_g === null ? null : Number(food.lipids_g),
       carbsG: food.carbs_g === null ? null : Number(food.carbs_g),
+      imageUrl: food.image_url ?? null,
       defaultPortionG,
       defaultKcalForPortion,
       matchedVia,
@@ -271,9 +285,17 @@ export async function GET(request: NextRequest) {
       }
     }
   }
-  // 3) name fallback (matchedText = name, qu'on affichera en titre)
+  // 3) name fallback EXACT (matchedText = name, qu'on affichera en titre)
   if (!nameMatches.error && Array.isArray(nameMatches.data)) {
     for (const row of nameMatches.data as CiqualFood[]) {
+      addSuggestion(row, 'name', row.name);
+    }
+  }
+  // 4) name fallback FUZZY (typos tolérés). On les ajoute mais addSuggestion
+  // dedoublonne par ciqual_id donc les exacts (deja inseres en 3) priment.
+  // Les fuzzy n'apparaissent que pour les ids qui n'ont PAS matche en exact.
+  if (!fuzzyMatches.error && Array.isArray(fuzzyMatches.data)) {
+    for (const row of fuzzyMatches.data as CiqualFood[]) {
       addSuggestion(row, 'name', row.name);
     }
   }

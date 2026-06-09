@@ -29,15 +29,41 @@ import {
   Tag,
   Award,
   TrendingUp,
+  Database,
+  Download,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 
-type Section = { href: string; label: string; icon: typeof LayoutDashboard };
+// Un menu peut etre un lien direct, ou un groupe qui contient des
+// sous-liens (rendus indentés). Les groupes ne sont pas cliquables.
+type NavItem = { href: string; label: string; icon: typeof LayoutDashboard };
+type NavGroup = {
+  label: string;
+  icon: typeof LayoutDashboard;
+  children: NavItem[];
+};
+type Section = NavItem | NavGroup;
+
+function isGroup(s: Section): s is NavGroup {
+  return 'children' in s;
+}
 
 const SECTIONS: Section[] = [
   { href: '/admin', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/admin/recettes', label: 'Recettes', icon: ChefHat },
   { href: '/admin/recettes/nutriscore', label: 'Nutri-Score', icon: Award },
-  { href: '/admin/recettes/ciqual-base', label: 'Base Ciqual', icon: Apple },
+  {
+    label: 'Ciqual',
+    icon: Database,
+    children: [
+      { href: '/admin/recettes/ciqual-base', label: 'Base Ciqual', icon: Apple },
+      { href: '/admin/recettes/audit-ciqual', label: 'Audit Ciqual IA', icon: FlaskConical },
+      { href: '/admin/ciqual-aliases', label: 'Aliases', icon: Tag },
+      { href: '/admin/portions', label: 'Portions', icon: Scale },
+      { href: '/admin/ciqual', label: 'Import ANSES', icon: Download },
+    ],
+  },
   { href: '/admin/stats', label: 'Trafic', icon: TrendingUp },
   { href: '/admin/menus', label: 'Menus', icon: ClipboardList },
   { href: '/admin/conseils', label: 'Conseils', icon: Leaf },
@@ -50,13 +76,15 @@ const SECTIONS: Section[] = [
   { href: '/admin/abonnes', label: 'Abonnés', icon: Users },
   { href: '/admin/permissions', label: 'Permissions', icon: Shield },
   { href: '/admin/informations-legales', label: 'Infos légales & banque', icon: FileText },
-  { href: '/admin/ciqual', label: 'Base Ciqual', icon: Apple },
-  { href: '/admin/ciqual-aliases', label: 'Aliases Ciqual', icon: Tag },
-  { href: '/admin/portions', label: 'Portions', icon: Scale },
   { href: '/admin/parse-tests', label: 'Tests parsing', icon: FlaskConical },
   { href: '/admin/parametres', label: 'Paramètres', icon: SlidersHorizontal },
   { href: '/admin/compte', label: 'Compte', icon: Settings },
 ];
+
+// Tous les items "plats" (groupes deplies) pour recherche d'active state
+const FLAT_ITEMS: NavItem[] = SECTIONS.flatMap((s) =>
+  isGroup(s) ? s.children : [s],
+);
 
 function isActive(pathname: string, href: string) {
   if (href === '/admin') return pathname === '/admin';
@@ -64,14 +92,27 @@ function isActive(pathname: string, href: string) {
 }
 
 function currentTitle(pathname: string): string {
-  const match = SECTIONS.find((s) => isActive(pathname, s.href));
+  const match = FLAT_ITEMS.find((s) => isActive(pathname, s.href));
   return match?.label ?? 'Admin';
 }
 
 export function AdminChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? '/admin';
   const [open, setOpen] = useState(false);
+  // Groupes deplies par leur label. Vide par defaut → groupes plies.
+  // Auto-deploiement si une sous-page est active : voir useMemo.
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const title = currentTitle(pathname);
+
+  const groupIsOpen = (label: string, hasActiveChild: boolean) =>
+    hasActiveChild || openGroups.has(label);
+  const toggleGroup = (label: string) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
 
   return (
     <div className="min-h-screen bg-admin-bg text-admin-ink">
@@ -128,7 +169,63 @@ export function AdminChrome({ children }: { children: React.ReactNode }) {
             </div>
 
             <nav className="flex-1 overflow-y-auto px-3 py-3">
-              {SECTIONS.map(({ href, label, icon: Icon }) => {
+              {SECTIONS.map((section, i) => {
+                if (isGroup(section)) {
+                  const GroupIcon = section.icon;
+                  const hasActiveChild = section.children.some((c) => isActive(pathname, c.href));
+                  const isOpenGroup = groupIsOpen(section.label, hasActiveChild);
+                  return (
+                    <div key={`group-${i}`} className="mb-1">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(section.label)}
+                        className={`flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm font-semibold transition ${
+                          hasActiveChild
+                            ? 'text-admin-primary-dark'
+                            : 'text-admin-ink hover:bg-admin-soft/40'
+                        }`}
+                        aria-expanded={isOpenGroup}
+                      >
+                        <GroupIcon
+                          className={`h-5 w-5 ${hasActiveChild ? 'text-admin-primary-dark' : 'text-admin-primary'}`}
+                          strokeWidth={2.2}
+                        />
+                        <span className="flex-1 text-left">{section.label}</span>
+                        {isOpenGroup ? (
+                          <ChevronDown className="h-4 w-4 text-admin-ink-soft" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4 text-admin-ink-soft" />
+                        )}
+                      </button>
+                      {isOpenGroup && (
+                        <div className="ml-3 border-l border-admin-border pl-2">
+                          {section.children.map(({ href, label, icon: Icon }) => {
+                            const active = isActive(pathname, href);
+                            return (
+                              <Link
+                                key={href}
+                                href={href}
+                                onClick={() => setOpen(false)}
+                                className={`mb-0.5 flex items-center gap-2 rounded-lg px-2.5 py-2 text-[0.85rem] font-semibold transition ${
+                                  active
+                                    ? 'bg-admin-primary text-white shadow-sm'
+                                    : 'text-admin-ink hover:bg-admin-soft/40'
+                                }`}
+                              >
+                                <Icon
+                                  className={`h-4 w-4 ${active ? 'text-white' : 'text-admin-primary'}`}
+                                  strokeWidth={2.2}
+                                />
+                                {label}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                const { href, label, icon: Icon } = section;
                 const active = isActive(pathname, href);
                 return (
                   <Link

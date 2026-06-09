@@ -156,39 +156,219 @@ export function applySaltDefault<T extends RecipeIngredientLite>(
   return { resolved: out, mutated };
 }
 
+// Mots vides FR + qualificatifs courants qui faussent le matching
+// ("pépites DE chocolat noir", "banane BIEN mûre", "fruits OU légumes").
+// On les filtre AVANT tokenisation pour que le premier token soit
+// le NOM REEL de l'aliment, pas un connecteur ou un adjectif.
+const STOP_WORDS = new Set([
+  'de', 'du', 'des', 'et', 'ou', 'au', 'aux', 'avec', 'sans', 'en',
+  'le', 'la', 'les', 'un', 'une', 'plus', 'bien', 'tres',
+  // Qualificatifs de maturite / etat qui ne sont pas dans Ciqual
+  // (Ciqual decrit le mode de prep : "cru", "cuit", "seche")
+  'mure', 'mur', 'mature', 'frai', 'frais', 'fraiche', 'fraich',
+  // Formes / decoupes : "pepites de", "morceaux de", "tranches de",
+  // "gousse de", "rondelle de", etc. Le nom apres "de" est le vrai.
+  'pepite', 'morceau', 'tranche', 'rondelle', 'gousse', 'feuille',
+  'feuilles', 'cube', 'cubes', 'dose', 'doses', 'pincee', 'pincees',
+]);
+
+// Indices "viande" : si un de ces tokens apparait dans le label, on
+// applique la REGLE METIER "viande = cuit par defaut". Privilegie les
+// candidats Ciqual avec marqueur de cuisson, penalise les "cru".
+// Cf. ciqual-aliases/auto-resolve qui applique la meme regle aux
+// aliases ambigus. Liste restreinte aux mots NON-AMBIGUS (pas "blanc"
+// qui peut etre blanc d'oeuf, pas "filet" qui peut etre filet de
+// poisson, etc.).
+const MEAT_KEYWORDS = new Set([
+  'poulet', 'dinde', 'boeuf', 'porc', 'agneau', 'veau', 'canard',
+  'lapin', 'jambon', 'saucisse', 'magret', 'bavette', 'entrecote',
+  'rumsteck', 'gigot', 'cordon', 'nugget', 'viande',
+  // Stems de ces mots (chaine ne se termine pas par 's' avec
+  // length>=5, donc pas raccourcis par le stemmer — sauf pluriels)
+  'poulets', 'dindes', 'jambons', 'saucisses', 'magrets',
+]);
+// Marqueurs explicites de cuisson dans le nom Ciqual
+const RAW_RE = /\b(cru|crue|crus|crues)\b/;
+const COOKED_RE =
+  /\b(cuit|cuite|cuits|cuites|grill|r[ôo]ti|po[êe]l|brais|appert|vapeur|frit|frite|bouilli|blanchi|confit|mijot)/;
+// Marqueurs explicites "cru" dans le LABEL utilisateur (tartare,
+// carpaccio, sashimi = explicitement cru → on n'applique pas la
+// regle "viande cuit par defaut").
+const LABEL_EXPLICIT_RAW_RE = /\b(cru|crue|crus|crues|tartare|carpaccio|sashimi)\b/;
+
+// REGLE TRANSFORMATION : on penalise les variantes transformees
+// (poudre, sechee, en conserve, nectar, etc.) quand le label ne les
+// demande pas. Sinon "gingembre frais" → "Gingembre, poudre" et
+// "fruit de la passion" → "Nectar de fruit de la passion".
+const TRANSFORMED_RE =
+  /\b(poudre|moulu|moulue|s[ée]che|s[ée]chee|s[ée]chees|sec|d[ée]shydrat|lyophilis|nectar|jus de|au sirop|en sirop|appertis|conserve|en bo[iî]te|congel|surgel)\b/;
+const LABEL_TRANSFORMATION_RE =
+  /\b(poudre|moulu|moulue|s[ée]che|sec|d[ée]shydrat|lyophilis|nectar|jus|sirop|appertis|conserve|en bo[iî]te|congel|surgel|en bocal)\b/;
+
+// Normalize qui CONSERVE les accents (juste lowercase) — utilisee pour
+// le matching strict "pate" ≠ "pâté", "cote" ≠ "côté", etc. Sans cette
+// distinction, normalize() rend "pâte" et "pâté" identiques (les deux
+// deviennent "pate") → "pâtes (penne)" matche "Pâté au jambon".
+const normalizeKeep = (s: string) => s.toLowerCase();
+
+/**
+ * Alias resolu (`status='resolved'`) qui forcera un match direct
+ * vers un ciqual_id donne. Karine peut en creer manuellement depuis
+ * /admin/recettes/ciqual-base (bouton "+ alias").
+ *
+ * Format : { ciqual_id, alias } ou alias est DEJA normalise (lowercase
+ * sans accents). On normalise aussi le label utilisateur pour la
+ * comparaison, donc la table peut stocker au choix la forme brute ou
+ * normalisée — on re-normalise par securite.
+ */
+export type CiqualAlias = { ciqual_id: number; alias: string };
+
 export function quickMatchCiqual(
   label: string,
   ciqualFoods: CiqualFoodLite[],
+  aliases?: CiqualAlias[],
 ): CiqualFoodLite | null {
-  const rawTokens = normalize(label)
-    .split(/[\s,()/'’]+/)
-    .filter((t) => t.length >= 3)
-    .map(stem);
+  // PRIORITE ABSOLUE aux aliases resolus : si le label normalise
+  // matche EXACTEMENT un alias, on retourne le Ciqual associe sans
+  // passer par le scoring naif. C'est ce qui permet a Karine de
+  // forcer "pate de curry rouge" → Sauce au curry sans coder l'algo
+  // pour ce cas precis.
+  if (aliases && aliases.length > 0) {
+    const labelNormFull = normalize(label).trim().replace(/\s+/g, ' ');
+    for (const a of aliases) {
+      const aliasNorm = normalize(a.alias).trim().replace(/\s+/g, ' ');
+      if (aliasNorm === labelNormFull) {
+        const f = ciqualFoods.find((c) => c.id === a.ciqual_id);
+        if (f) return f;
+      }
+    }
+  }
+
+  // On tokenise EN PARALLELE en 3 versions :
+  //  - keepRaw  : avec accents + sans stem (pour bonus "match exact")
+  //  - keep     : avec accents + stem (matching strict)
+  //  - strip    : sans accents + stem (matching tolerant)
+  // Le triple sert au matching 2-tier ET au bonus exact pre-stem qui
+  // distingue "pâtes" (Pâtes seches) de "pâte" (Pâte de fruits).
+  const labelKeep = normalizeKeep(label);
+  const labelStrip = normalize(label);
+  const splitRe = /[\s,()/'’0-9%]+/;
+  const tokensKeepRaw = labelKeep.split(splitRe).filter((t) => t.length >= 3);
+  const tokensKeep = tokensKeepRaw.map(stem);
+  const tokensStrip = labelStrip.split(splitRe).filter((t) => t.length >= 3).map(stem);
+
+  // Filtre par STOP_WORDS (sur version strippee) + garde les triplets
+  const rawTokens: Array<{ keepRaw: string; keep: string; strip: string }> = [];
+  for (let i = 0; i < tokensStrip.length; i++) {
+    if (!STOP_WORDS.has(tokensStrip[i])) {
+      rawTokens.push({
+        keepRaw: tokensKeepRaw[i],
+        keep: tokensKeep[i],
+        strip: tokensStrip[i],
+      });
+    }
+  }
   if (rawTokens.length === 0) return null;
+
+  // REGLE METIER VIANDES : si le label contient un mot-cle viande
+  // ET ne dit pas explicitement "cru/tartare/carpaccio", on penalise
+  // les Ciqual "cru" et on bonifie les "cuit".
+  const isMeatLabel =
+    rawTokens.some((t) => MEAT_KEYWORDS.has(t.strip)) &&
+    !LABEL_EXPLICIT_RAW_RE.test(labelStrip);
+
+  // REGLE TRANSFORMATION : on penalise les Ciqual transformes (poudre,
+  // sechee, nectar, en conserve) si le label ne demande pas la
+  // transformation. Sinon "gingembre frais" → "Gingembre, poudre".
+  const labelHasTransform = LABEL_TRANSFORMATION_RE.test(labelStrip);
 
   let bestScore = 0;
   let best: CiqualFoodLite | null = null;
   for (const f of ciqualFoods) {
-    const fname = normalize(f.name);
+    const fnameKeep = normalizeKeep(f.name);
+    const fnameStrip = normalize(f.name);
+    // MATCHING MOT-ENTIER + 2-TIER : on tokenise le nom Ciqual en 2
+    // versions et on cherche selon precision de l'user.
+    const fnameWordsKeepRaw = new Set(
+      fnameKeep.split(splitRe).filter((w) => w.length >= 3),
+    );
+    const fnameWordsKeep = new Set(
+      [...fnameWordsKeepRaw].map(stem),
+    );
+    const fnameWordsStrip = new Set(
+      fnameStrip.split(splitRe).filter((w) => w.length >= 3).map(stem),
+    );
     let matched = 0;
     let score = 0;
-    for (const t of rawTokens) {
-      if (fname.includes(t)) {
-        score += t.length;
-        matched++;
+    rawTokens.forEach((t, idx) => {
+      let isMatch = false;
+      if (fnameWordsKeep.has(t.keep)) {
+        // Match STRICT (accents respectes) : "pâte" matche "pâte",
+        // pas "pâté".
+        isMatch = true;
+      } else if (t.keep === t.strip && fnameWordsStrip.has(t.strip)) {
+        // User n'a pas d'accent dans son token → on tolere une
+        // version stripee dans Ciqual ("creme" matche "crème").
+        isMatch = true;
       }
-    }
+      // Sinon : user avait un accent ET Ciqual n'a pas le meme accent
+      // → NO MATCH (intention precise non respectee).
+      if (isMatch) {
+        const weight = idx === 0 ? 2 : 1;
+        score += t.strip.length * weight;
+        matched++;
+        // BONUS MATCH EXACT (pre-stem) : si la version BRUTE du token
+        // (avec accents et 's' final) est presente telle quelle dans
+        // le nom Ciqual, +5 pts. Distingue "pâtes" (Pâtes seches)
+        // de "pâte" (Pâte de fruits), pousse "tomates" vers une
+        // entree Ciqual au pluriel si elle existe.
+        if (fnameWordsKeepRaw.has(t.keepRaw)) score += 5;
+      }
+    });
     if (matched === 0) continue;
+
+    // Bonus PROPORTIONNEL au nombre de tokens matches : matcher 2/3
+    // doit clairement battre matcher 1/3, meme si le 2eme token est
+    // court. Sans ce bonus, "creme liquide legere" matche "Creme de
+    // cassis" (1/3 → 15 pts) au lieu de "Creme 12% MG, legere, fluide"
+    // (2/3 → 14 pts car penalisee par sa longueur).
+    if (matched > 1) score += (matched - 1) * 10;
 
     // Bonus si TOUS les tokens recherchés sont présents
     if (matched === rawTokens.length) score += 20;
 
     // Bonus si le nom Ciqual COMMENCE par un des tokens (match exact)
-    if (rawTokens.some((t) => fname.startsWith(t))) score += 5;
+    if (rawTokens.some((t) => fnameStrip.startsWith(t.strip))) score += 5;
 
-    // Malus longueur : on préfère "Oignon, cru" (11) à "Tarte à l'oignon,
-    // préemballée" (32). Pénalité linéaire à partir de 15 chars.
-    score -= Math.max(0, f.name.length - 15) * 0.5;
+    // GROS bonus si le nom Ciqual commence par "<premier_token>,"
+    // → c'est la forme CANONIQUE Ciqual. Ex. "Banane, chair sans peau,
+    // crue" est l'entree canonique de la banane ; "Banane plantain,
+    // crue" est une variete distincte. Sans ce bonus, le malus longueur
+    // favorise les noms courts ("plantain") sur les noms canoniques
+    // qui contiennent des qualifiers descriptifs.
+    if (rawTokens[0] && fnameStrip.startsWith(rawTokens[0].strip + ',')) {
+      score += 10;
+    }
+
+    // Malus longueur reduit (0.25 au lieu de 0.5) : on prefere toujours
+    // les noms courts, mais sans ecraser les noms canoniques Ciqual qui
+    // ont des qualifiers descriptifs ("Chocolat noir 50 % de cacao
+    // environ, tablette" - 50 chars - ne doit pas etre disqualifie).
+    score -= Math.max(0, f.name.length - 15) * 0.25;
+
+    // REGLE VIANDES (cuit par defaut)
+    if (isMeatLabel) {
+      if (RAW_RE.test(fnameStrip)) score -= 15;
+      if (COOKED_RE.test(fnameStrip)) score += 10;
+    }
+
+    // REGLE TRANSFORMATION : si label ne demande pas la transformation
+    // mais que Ciqual est transforme → malus 12 pts. Evite que
+    // "gingembre frais" → "Gingembre, poudre", "fruit de la passion"
+    // → "Nectar de fruit de la passion", "tomate" → "Sauce tomate".
+    if (!labelHasTransform && TRANSFORMED_RE.test(fnameStrip)) {
+      score -= 12;
+    }
 
     if (score > bestScore) {
       bestScore = score;
