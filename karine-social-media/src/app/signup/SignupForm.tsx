@@ -58,16 +58,14 @@ export default function SignupForm() {
       });
 
       if (signUpErr && /already|registered/i.test(signUpErr.message)) {
-        // Compte existe déjà → on tente login
-        const { error: signInErr } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (signInErr) {
-          throw new Error(
-            'Un compte existe déjà avec cet email. Mot de passe incorrect ?',
-          );
-        }
+        // ANTI ÉNUMÉRATION D'EMAILS : on ne révèle PAS si l'email existe.
+        // Plateforme santé → confirmer une adresse comme patiente est une
+        // donnée sensible. On affiche un message générique identique a
+        // celui du cas "tout va bien". L'attaquant ne peut pas distinguer
+        // un nouveau signup réussi d'un compte deja existant.
+        setSuccess('Vérifie ta boîte mail : si un compte peut être créé, un email de confirmation vient de t\'être envoyé.');
+        setLoading(false);
+        return;
       } else if (signUpErr) {
         throw new Error(signUpErr.message);
       }

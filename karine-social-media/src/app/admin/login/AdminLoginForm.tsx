@@ -3,11 +3,13 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { safeNextPath } from '@/lib/safe-redirect';
 
 export default function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get('redirect') ?? '/admin';
+  // Anti open redirect : safeNextPath rejette les URLs hors domaine.
+  const redirect = safeNextPath(searchParams.get('redirect'), '/admin');
 
   const supabase = createClient();
   const [mode, setMode] = useState<'password' | 'magic'>('password');

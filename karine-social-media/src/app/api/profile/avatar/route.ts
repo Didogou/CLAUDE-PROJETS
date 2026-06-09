@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/current-user';
 import { createServiceClient } from '@/lib/supabase/server';
 import { optimizeUploadToWebp } from '@/lib/optimize-upload';
+import { checkImageUpload } from '@/lib/validate-upload';
 
 export const runtime = 'nodejs';
 
@@ -20,15 +21,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Formulaire invalide' }, { status: 400 });
   }
   const file = form.get('file');
-  if (!(file instanceof File) || file.size === 0) {
-    return NextResponse.json({ error: 'Fichier requis' }, { status: 400 });
-  }
-  if (!file.type.startsWith('image/')) {
-    return NextResponse.json({ error: 'Image uniquement' }, { status: 400 });
+  // Cap 5 MB AVANT arrayBuffer + vérif magic bytes (file.type spoofable).
+  const check = await checkImageUpload(file, { maxBytes: 5 * 1024 * 1024 });
+  if (!check.ok) {
+    return NextResponse.json({ error: check.error }, { status: check.status });
   }
 
   // Conversion WebP (qualité 85) + resize 512 max (variant icon)
-  const { buffer, ext, contentType } = await optimizeUploadToWebp(file, {
+  const { buffer, ext, contentType } = await optimizeUploadToWebp(file as File, {
     icon: true,
   });
   const supabase = createServiceClient();

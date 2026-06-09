@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import sharp from 'sharp';
 import { createClient } from '@/lib/supabase/server';
 import { describeMealFromImage } from '@/lib/claude-meal-vision';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const maxDuration = 30;
@@ -43,6 +44,17 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+  }
+  // Rate-limit Claude Vision (cout API explosif si exploite).
+  // 5 req/min par user = largement assez pour usage humain legitime.
+  const rl = checkRateLimit({
+    req: request, key: 'describe-meal', windowMs: 60_000, max: 5, scope: user.id,
+  });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: rl.error },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    );
   }
 
   let formData: FormData;

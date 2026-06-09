@@ -8,12 +8,16 @@ import { createClient } from '@/lib/supabase/client';
 import { authErrorFr } from '@/lib/auth-error-fr';
 import { AuthHeader } from '@/components/brand/AuthHeader';
 import { OAuthButton } from '@/components/auth/OAuthButtons';
+import { safeNextPath } from '@/lib/safe-redirect';
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect =
-    searchParams.get('next') ?? searchParams.get('redirect') ?? '/';
+  // Anti open redirect : safeNextPath rejette les URLs absolues etc.
+  const redirect = safeNextPath(
+    searchParams.get('next') ?? searchParams.get('redirect'),
+    '/',
+  );
   const reason = searchParams.get('reason');
 
   const [email, setEmail] = useState('');

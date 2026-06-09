@@ -18,10 +18,19 @@ export const maxDuration = 60;
  * Doc Vercel Cron : https://vercel.com/docs/cron-jobs
  */
 export async function GET(request: NextRequest) {
-  // Auth cron
+  // Auth cron — FAIL CLOSED : si CRON_SECRET est absent en prod,
+  // on refuse tout. Sinon un attaquant ferait tourner Mistral en
+  // boucle sur tous les abonnes a chaque hit.
   const authHeader = request.headers.get('authorization');
   const expected = process.env.CRON_SECRET;
-  if (expected && authHeader !== `Bearer ${expected}`) {
+  if (!expected) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[cron/daily-summary] CRON_SECRET manquant en production — refus');
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
+    }
+    // En dev local : on accepte pour les tests manuels mais on log.
+    console.warn('[cron/daily-summary] CRON_SECRET absent en dev — endpoint ouvert (DEV ONLY)');
+  } else if (authHeader !== `Bearer ${expected}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

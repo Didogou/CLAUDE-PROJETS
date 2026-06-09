@@ -57,6 +57,33 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  // Defense en profondeur : verifie le role admin sur TOUTE route
+  // /admin/* (sauf /admin/login). Avant ce check, une page admin
+  // creee hors du segment (panel)/layout = accessible a tout user
+  // authentifie. Fail-closed : si l'appel DB plante, on bloque.
+  if (isAdminRoute && !isAdminLogin && user) {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      const role = (profile as { role?: string } | null)?.role;
+      if (role !== 'admin') {
+        const url = request.nextUrl.clone();
+        url.pathname = '/';
+        url.searchParams.set('reason', 'forbidden');
+        return NextResponse.redirect(url);
+      }
+    } catch (err) {
+      console.error('[middleware admin] check role failed, refus :', err);
+      const url = request.nextUrl.clone();
+      url.pathname = '/admin/login';
+      url.searchParams.set('reason', 'service_unavailable');
+      return NextResponse.redirect(url);
+    }
+  }
+
   // === Check capabilities ===
   // Wrappé en try/catch : aucune erreur de permission ne doit faire planter
   // une page applicative. Skip explicite des routes système.

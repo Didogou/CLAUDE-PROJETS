@@ -18,15 +18,11 @@ export function DebugConsole() {
     if (typeof window === 'undefined') return;
 
     const isLocal = /localhost|127\.0\.0\.1|192\.168\./.test(window.location.hostname);
-    const url = new URL(window.location.href);
-    const hasDebugParam = url.searchParams.get('debug') === '1';
-
-    // Persistance de l'activation en prod sur la session
-    if (hasDebugParam) sessionStorage.setItem('karine-debug', '1');
-    const persisted = sessionStorage.getItem('karine-debug') === '1';
-
-    const shouldLoad = isLocal || persisted;
-    if (!shouldLoad) return;
+    // SECURITE : eruda est activable UNIQUEMENT en local. En prod, le
+    // parametre ?debug=1 et le sessionStorage sont ignores — risque
+    // sinon : self-XSS / leak JWT Supabase via capture d'ecran si la
+    // patiente est piegee a coller du code dans la console.
+    if (!isLocal) return;
 
     let cancelled = false;
     (async () => {

@@ -66,25 +66,29 @@ export async function POST(request: NextRequest) {
 
     const origin = new URL(request.url).origin;
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'subscription',
-      ...(existingCustomerId
-        ? { customer: existingCustomerId }
-        : { customer_email: user.email ?? undefined }),
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: `${origin}/mon-plan?checkout=success`,
-      cancel_url: `${origin}/mon-plan?checkout=cancel`,
-      // Important pour retrouver le user dans le webhook
-      metadata: { user_id: user.id, plan },
-      subscription_data: {
+    // IdempotencyKey : evite que 2 clics rapides creent 2 sessions
+    // Stripe. Cle = (user, plan, jour) → un clic dans le meme bucket
+    // de jour reutilise la meme session.
+    const dayBucket = new Date().toISOString().slice(0, 10);
+    const idempotencyKey = `checkout-${user.id}-${plan}-${dayBucket}`;
+
+    const session = await stripe.checkout.sessions.create(
+      {
+        mode: 'subscription',
+        ...(existingCustomerId
+          ? { customer: existingCustomerId }
+          : { customer_email: user.email ?? undefined }),
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: `${origin}/mon-plan?checkout=success`,
+        cancel_url: `${origin}/mon-plan?checkout=cancel`,
         metadata: { user_id: user.id, plan },
+        subscription_data: {
+          metadata: { user_id: user.id, plan },
+        },
+        allow_promotion_codes: true,
       },
-      allow_promotion_codes: true,
-      // Note : l'acceptation explicite des CGV + renonciation au droit
-      // de retractation 14j est faite cote /mon-plan AVANT le clic sur
-      // le plan (case a cocher obligatoire). Stripe n'a pas besoin de
-      // re-demander ici (eviterait la config Dashboard pas encore faite).
-    });
+      { idempotencyKey },
+    );
 
     if (!session.url) {
       return NextResponse.json({ error: 'Session sans URL' }, { status: 500 });
