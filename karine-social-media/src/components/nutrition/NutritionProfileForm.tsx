@@ -7,6 +7,7 @@ import {
   type Sex,
   type ActivityLevel,
 } from '@/lib/nutrition-calc';
+import { ConsentHealthModal } from '@/components/consent/ConsentHealthModal';
 
 type HorizonMonths = 3 | 6 | 12;
 
@@ -52,6 +53,9 @@ type Props = {
 export function NutritionProfileForm({ onSaved, onError }: Props) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // RGPD Art. 9 : modale consentement donnees sante. S'ouvre si le
+  // backend refuse le PATCH faute de consentement.
+  const [showConsentModal, setShowConsentModal] = useState(false);
   const [profile, setProfile] = useState<Profile>({
     sex: null,
     ageYears: null,
@@ -122,6 +126,10 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
       return onError('Taille requise (1 à 300 cm)');
     if (!profile.activityLevel) return onError("Niveau d'activité requis");
 
+    await actuallySubmit();
+  }
+
+  async function actuallySubmit() {
     setSaving(true);
     try {
       const res = await fetch('/api/nutrition/profile', {
@@ -131,6 +139,13 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
       });
       const data = await res.json();
       if (!res.ok) {
+        // RGPD Art. 9 : si le serveur refuse faute de consentement,
+        // on declenche la modale ConsentHealthModal puis on re-essaie.
+        if (res.status === 403 && data?.code === 'consent_health_missing') {
+          setShowConsentModal(true);
+          setSaving(false);
+          return;
+        }
         onError(data?.error || 'Enregistrement impossible');
         return;
       }
@@ -311,6 +326,17 @@ export function NutritionProfileForm({ onSaved, onError }: Props) {
         )}
         Calculer mes besoins
       </button>
+
+      {/* Modale RGPD Art. 9 : ouverte au PATCH si consent_health_at null.
+          Apres "Je consens" → on retry actuallySubmit automatiquement. */}
+      <ConsentHealthModal
+        open={showConsentModal}
+        onAccepted={() => {
+          setShowConsentModal(false);
+          void actuallySubmit();
+        }}
+        onCancelled={() => setShowConsentModal(false)}
+      />
     </form>
   );
 }

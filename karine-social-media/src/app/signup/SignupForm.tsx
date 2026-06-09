@@ -7,6 +7,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Eye,
+  Cake,
   EyeOff,
   Heart,
   HeartHandshake,
@@ -30,11 +31,25 @@ export default function SignupForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
+  // RGPD Art. 8 : verification d'age 15+ (majorite numerique FR)
+  const [birthDate, setBirthDate] = useState('');
   const [isPatient, setIsPatient] = useState(false);
   const [patientMessage, setPatientMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+
+  /** Calcule l'age aujourd'hui a partir d'une date YYYY-MM-DD. */
+  function ageFrom(yyyymmdd: string): number | null {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(yyyymmdd)) return null;
+    const bd = new Date(`${yyyymmdd}T00:00:00`);
+    if (Number.isNaN(bd.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - bd.getFullYear();
+    const md = today.getMonth() - bd.getMonth();
+    if (md < 0 || (md === 0 && today.getDate() < bd.getDate())) age--;
+    return age;
+  }
   /**
    * Quand non-null, on remplace le formulaire par un panneau de confirmation
    * persistant. La page NE se redirige PAS automatiquement : c'est l'utilisatrice
@@ -49,6 +64,17 @@ export default function SignupForm() {
     setError(null);
     setSuccess(null);
     try {
+      // RGPD Art. 8 : check age 15+ AVANT toute creation de compte.
+      const age = ageFrom(birthDate);
+      if (age === null) {
+        throw new Error('Date de naissance invalide.');
+      }
+      if (age < 15) {
+        throw new Error(
+          'L\'application est réservée aux 15 ans et plus. Si tu as besoin d\'un suivi nutritionnel, demande à un parent de contacter Karine directement.',
+        );
+      }
+
       const supabase = createClient();
       const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
       const { error: signUpErr } = await supabase.auth.signUp({
@@ -69,6 +95,16 @@ export default function SignupForm() {
       } else if (signUpErr) {
         throw new Error(signUpErr.message);
       }
+
+      // Persiste birth_date + age_verified_at maintenant qu'on est
+      // authentifie (handle_new_user a cree le profile). Fire-and-forget :
+      // l'erreur ne bloque PAS le signup (le client a deja verifie 15+,
+      // la route serveur est defense en profondeur).
+      void fetch('/api/profile/age-verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ birthDate }),
+      }).catch(() => {/* tolerant */});
 
       // Si la confirmation email Supabase est désactivée, l'utilisateur est
       // immédiatement connecté. On crée la demande patiente si cochée.
@@ -189,6 +225,27 @@ export default function SignupForm() {
                   className="input-pill"
                 />
               </Field>
+
+              {/* RGPD Art. 8 : verification d'age 15+ obligatoire.
+                  L'app traite la perte de poids → reservee aux 15 ans
+                  et plus (majorite numerique francaise). */}
+              <Field icon={Cake}>
+                <input
+                  type="date"
+                  required
+                  autoComplete="bday"
+                  value={birthDate}
+                  onChange={(e) => setBirthDate(e.target.value)}
+                  max={new Date().toISOString().slice(0, 10)}
+                  min="1900-01-01"
+                  placeholder="Date de naissance"
+                  className="input-pill"
+                  aria-label="Date de naissance"
+                />
+              </Field>
+              <p className="-mt-2 px-2 text-[0.65rem] italic text-ink-soft">
+                L&apos;application est réservée aux 15 ans et plus.
+              </p>
 
               <Field icon={KeyRound}>
                 <input

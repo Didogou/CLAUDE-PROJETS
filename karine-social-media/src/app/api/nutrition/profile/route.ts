@@ -111,6 +111,23 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
   }
 
+  // RGPD Art. 9 : aucune donnee de sante (poids/taille/sexe/objectif)
+  // ne peut etre persistee tant que le consentement explicite n'a pas
+  // ete recueilli. Defense en profondeur — la modale ConsentHealthModal
+  // empeche deja la saisie cote UI.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: profileRow } = await (supabase as any)
+    .from('profiles')
+    .select('consent_health_at')
+    .eq('id', user.id)
+    .maybeSingle();
+  if (!profileRow?.consent_health_at) {
+    return NextResponse.json(
+      { error: 'Consentement Art. 9 RGPD requis pour traiter tes données de santé.', code: 'consent_health_missing' },
+      { status: 403 },
+    );
+  }
+
   const body = await request.json().catch(() => ({}));
   // targetHorizonMonths : 3, 6 ou 12. Default 3 (legacy).
   const horizonRaw = body?.targetHorizonMonths;
