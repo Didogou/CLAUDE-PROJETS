@@ -29,6 +29,10 @@ type FeatureTileProps = {
   /** Si true → déclenche un feu d'artifice de particules cuisine au clic
    *  avant la navigation (~700ms). Utilisé pour la tuile Recettes. */
   burstOnClick?: boolean;
+  /** Echelle de l'icone (en % de la largeur de la tuile). Par defaut
+   *  85%. Permet d'agrandir specifiquement certaines tuiles (ex.
+   *  "Menu de la semaine" avec scale=110 pour la mettre en avant). */
+  iconScale?: number;
 };
 
 export function FeatureTile({
@@ -45,6 +49,7 @@ export function FeatureTile({
   locked = false,
   isAuthenticated = false,
   burstOnClick = false,
+  iconScale = 85,
 }: FeatureTileProps) {
   const router = useRouter();
   const [modalOpen, setModalOpen] = useState(false);
@@ -100,38 +105,46 @@ export function FeatureTile({
         </span>
       )}
 
+      {/* Icone ABSOLUTE-CENTERED (top:50%, left:50%, translate -50%)
+          → centrage parfait independant du flex/justify. L'icone peut
+          deborder (iconScale 115%) sans casser l'alignement. */}
       {iconImage ? (
         <span
           aria-hidden
-          className="h-20 w-20 bg-contain bg-center bg-no-repeat lg:h-24 lg:w-24"
-          style={{ backgroundImage: `url(${iconImage})` }}
+          className="absolute left-1/2 top-1/2 aspect-square -translate-x-1/2 -translate-y-1/2 bg-contain bg-center bg-no-repeat"
+          style={{
+            backgroundImage: `url(${iconImage})`,
+            width: `${iconScale}%`,
+            maxWidth: '16rem',
+          }}
         />
       ) : (
         Icon && (
-          <span className="grid h-16 w-16 place-items-center rounded-full bg-white shadow-sm">
-            <Icon className={`h-8 w-8 ${iconClass}`} strokeWidth={2} />
+          <span className="absolute left-1/2 top-1/2 grid h-20 w-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white shadow-sm">
+            <Icon className={`h-10 w-10 ${iconClass}`} strokeWidth={2} />
           </span>
         )
       )}
 
-      <span className="mt-1.5 w-full px-1 text-center">
-        <span className="block text-sm font-bold leading-tight text-ink lg:text-base">{title}</span>
-        <span className="mt-0.5 block whitespace-pre-line text-[0.7rem] leading-snug text-ink-soft lg:text-xs">
-          {subtitle}
-        </span>
+      {/* Titre cache (l'icone parle d'elle-meme) + subtitle en BAS
+          aligne horizontalement avec la fleche. Le subtitle prend
+          tout l'espace dispo a gauche de la fleche. */}
+      <span className="sr-only">{title}</span>
+      <span className="absolute bottom-2 left-2.5 right-10 z-10 whitespace-pre-line text-left text-[0.65rem] leading-tight text-ink-soft lg:text-xs">
+        {subtitle}
       </span>
 
-      <span className="absolute bottom-2.5 right-2.5 z-10 grid h-6 w-6 place-items-center rounded-full bg-coral text-white">
+      <span className="absolute bottom-2 right-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-coral text-white">
         <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} />
       </span>
     </>
   );
 
-  // Forme RONDE : seul changement par rapport a la version d'hier.
-  // aspect-square + rounded-full transforme la tuile en cercle.
-  // Le contenu interne (image medaillon + titre + sous-titre + fleche)
-  // est conserve a l'identique.
-  const baseClass = `group relative flex aspect-square h-full flex-col items-center rounded-full p-3 pb-7 shadow-sm transition ${bgClass} ${className}`;
+  // Forme CARRE : aspect-square + rounded-2xl. Pas de flex car
+  // tout est en ABSOLUTE positioning (icone centree + subtitle bas
+  // gauche + fleche bas droite). overflow-hidden pour que les icones
+  // qui debordent (iconScale > 100) restent dans le cadre arrondi.
+  const baseClass = `group relative block aspect-square h-full overflow-hidden rounded-2xl shadow-sm transition ${bgClass} ${className}`;
   const lockedClass = locked
     ? 'opacity-65 saturate-75 hover:opacity-80 hover:shadow-md'
     : 'hover:-translate-y-0.5 hover:shadow-md';

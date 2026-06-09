@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Check,
-  Pencil,
   Plus,
   Printer,
   Save,
@@ -23,6 +22,9 @@ type Props = {
   currentMenu: WeeklyMenu | null;
 };
 
+/** Labels jours FR courts, indexes par day_index (0=lundi → 6=dimanche). */
+const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] as const;
+
 /**
  * Cœur de la page /courses : affiche la liste active, gère cochage,
  * ajout/suppression article, archivage et toggle du menu hebdo.
@@ -31,8 +33,6 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
   const [list, setList] = useState(initialList);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [renaming, setRenaming] = useState(false);
-  const [nameDraft, setNameDraft] = useState(initialList.name);
   const [addingItem, setAddingItem] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
 
@@ -97,21 +97,6 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
     });
   }
 
-  async function saveName() {
-    const trimmed = nameDraft.trim();
-    if (!trimmed || trimmed === list.name) {
-      setRenaming(false);
-      setNameDraft(list.name);
-      return;
-    }
-    await call('/api/shopping-list', {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: trimmed }),
-    });
-    setRenaming(false);
-  }
-
   async function archiveList() {
     await call('/api/shopping-list/archive', {
       method: 'POST',
@@ -130,99 +115,81 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
         </div>
       )}
 
-      {/* Nom de la liste éditable */}
-      <section className="rounded-2xl bg-white/95 p-4 shadow-sm">
-        {renaming ? (
-          <div className="flex items-center gap-2">
-            <input
-              autoFocus
-              value={nameDraft}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') saveName();
-                else if (e.key === 'Escape') {
-                  setRenaming(false);
-                  setNameDraft(list.name);
-                }
-              }}
-              className="input flex-1"
-            />
-            <button
-              type="button"
-              onClick={saveName}
-              disabled={busy}
-              className="rounded-full bg-coral px-3 py-1.5 text-xs font-bold text-white"
-            >
-              OK
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-start justify-between gap-2">
-            <h2 className="font-script text-2xl text-coral-dark">{list.name}</h2>
-            <button
-              type="button"
-              onClick={() => setRenaming(true)}
-              aria-label="Renommer la liste"
-              className="rounded-full p-1.5 text-ink-soft transition hover:bg-coral-soft/30 hover:text-coral"
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
-          </div>
-        )}
-        <div className="mt-2 flex items-center gap-3">
-          <span className="rounded-full bg-coral-soft/40 px-2.5 py-0.5 text-xs font-bold text-coral-dark">
-            {checkedCount}/{totalCount} cochés
-          </span>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-cream">
-            <div
-              className="h-full rounded-full bg-coral transition-all"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-      </section>
 
-      {/* Menu de la semaine — cover + toggle ajout */}
-      {currentMenu && currentMenu.coverImageUrl && (
-        <section className="overflow-hidden rounded-2xl bg-white/95 shadow-sm">
-          <Link
-            href={`/menus/${currentMenu.id}/jour`}
-            className="block"
-            aria-label="Voir le menu de la semaine"
-          >
-            <img
-              src={currentMenu.coverImageUrl}
-              alt={currentMenu.title || 'Menu de la semaine'}
-              className="aspect-[3/2] w-full object-cover"
-            />
-          </Link>
-          <div className="flex items-center justify-between gap-3 p-3">
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold uppercase tracking-wider text-coral-dark">
-                Menu de la semaine
-              </p>
-              <p className="truncate text-sm text-ink">
-                {currentMenu.title || formatWeekTitle(currentMenu.weekStart)}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={toggleMenuLinked}
-              disabled={busy || (currentMenu.shoppingListItems ?? []).length === 0}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold transition disabled:opacity-50 ${
-                menuLinked
-                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300'
-                  : 'bg-coral text-white shadow-sm hover:bg-coral-dark'
-              }`}
-            >
-              {menuLinked ? '✓ Ajouté' : 'Ajouter à ma liste'}
-            </button>
-          </div>
-          {(currentMenu.shoppingListItems ?? []).length === 0 && (
-            <p className="border-t border-cream px-3 py-2 text-[0.65rem] italic text-ink-soft">
-              La liste interactive de ce menu n&apos;est pas encore disponible.
-            </p>
-          )}
+      {/* Menu de la semaine — VIGNETTES REPAS uniquement si le menu
+          est ajoute a la liste. Croix sur chaque vignette = retire
+          le menu entier (= retire les ingredients correspondants de
+          la liste de courses). */}
+      {currentMenu && menuLinked && currentMenu.days.length > 0 && (
+        <section className="rounded-2xl bg-white/95 p-3 shadow-sm">
+          <p className="mb-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
+            Repas du menu
+          </p>
+          <ul className="flex gap-2.5 overflow-x-auto pb-1">
+            {currentMenu.days.flatMap((d) => {
+              const meals: Array<{
+                key: string;
+                label: string;
+                title: string;
+                imageUrl: string | null;
+                dayIndex: number;
+              }> = [];
+              if (d.lunchLabel || d.lunchImageUrl) {
+                meals.push({
+                  key: `${d.dayIndex}-lunch`,
+                  label: `${DAY_LABELS[d.dayIndex]} midi`,
+                  title: d.lunchLabel || '',
+                  imageUrl: d.lunchImageUrl,
+                  dayIndex: d.dayIndex,
+                });
+              }
+              if (d.dinnerLabel || d.dinnerImageUrl) {
+                meals.push({
+                  key: `${d.dayIndex}-dinner`,
+                  label: `${DAY_LABELS[d.dayIndex]} soir`,
+                  title: d.dinnerLabel || '',
+                  imageUrl: d.dinnerImageUrl,
+                  dayIndex: d.dayIndex,
+                });
+              }
+              return meals;
+            }).map((m) => (
+              <li key={m.key} className="relative shrink-0 w-20">
+                {/* Croix de retrait : cliquer enleve TOUT le menu de
+                    la liste (= retire tous les ingredients du menu).
+                    On ne peut pas retirer un seul repas, le modele
+                    backend stocke les ingredients du menu en bloc. */}
+                <button
+                  type="button"
+                  onClick={toggleMenuLinked}
+                  disabled={busy}
+                  aria-label="Retirer le menu de la liste"
+                  className="absolute -right-1 -top-1 z-10 grid size-5 place-items-center rounded-full bg-white text-rose-600 shadow-md ring-1 ring-rose-200 transition hover:bg-rose-50 disabled:opacity-50"
+                >
+                  <X className="size-3" />
+                </button>
+                <Link
+                  href={`/menus/${currentMenu.id}/jour?d=${m.dayIndex}`}
+                  className="block overflow-hidden rounded-xl bg-blush/30 shadow-sm transition hover:scale-105 active:scale-95"
+                >
+                  <div
+                    className="aspect-square w-full bg-cover bg-center bg-blush/40"
+                    style={
+                      m.imageUrl
+                        ? { backgroundImage: `url(${m.imageUrl})` }
+                        : undefined
+                    }
+                  />
+                  <p className="px-1 pt-1 text-center text-[0.6rem] font-bold uppercase tracking-wider text-coral-dark">
+                    {m.label}
+                  </p>
+                  <p className="line-clamp-2 px-1 pb-1.5 text-center text-[0.65rem] font-semibold leading-tight text-ink">
+                    {m.title || '—'}
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 

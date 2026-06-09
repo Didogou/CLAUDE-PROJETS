@@ -114,8 +114,11 @@ export function MesCaloriesView() {
         </button>
       </div>
 
-      {/* === HERO : cercle Restant + carte Dépensées =========== */}
-      <section className="rounded-3xl bg-gradient-to-b from-coral/35 via-coral/25 to-coral/10 px-4 py-6 shadow-sm">
+      {/* === HERO : cercle Restant + carte Dépensées ===========
+          Fond FUCHSIA (au lieu de coral) pour identite visuelle
+          tracker calories. Texte/contraste en fuchsia-900 pour
+          lisibilite sur fond clair. */}
+      <section className="rounded-3xl bg-gradient-to-b from-fuchsia-300/60 via-fuchsia-200/50 to-fuchsia-100/40 px-4 py-6 shadow-sm">
         <div className="flex items-center justify-center gap-4">
           <CircularProgress
             value={Math.max(0, net)}
@@ -125,13 +128,13 @@ export function MesCaloriesView() {
             trackClassName="stroke-white/40"
             arcClassName={overshoot > 0 ? 'stroke-rose-300' : 'stroke-white'}
           >
-            <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-coral-dark">
+            <span className="text-[0.7rem] font-semibold uppercase tracking-widest text-fuchsia-900">
               Restant
             </span>
-            <span className="font-bold leading-none text-coral-dark" style={{ fontSize: '2.5rem' }}>
+            <span className="font-bold leading-none text-fuchsia-900" style={{ fontSize: '2.5rem' }}>
               {Math.round(Math.max(0, remaining))}
             </span>
-            <span className="text-[0.7rem] text-coral-dark/80">/ {target} kcal</span>
+            <span className="text-[0.7rem] text-fuchsia-900/70">/ {target} kcal</span>
           </CircularProgress>
 
           <div

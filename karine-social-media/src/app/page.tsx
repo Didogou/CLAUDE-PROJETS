@@ -25,6 +25,8 @@ type TileDef = {
   badge?: string;
   accentImage?: string;
   burstOnClick?: boolean;
+  /** Echelle de l'icone en % de la largeur de la tuile (default 85). */
+  iconScale?: number;
 };
 
 const TILES: TileDef[] = [
@@ -33,33 +35,33 @@ const TILES: TileDef[] = [
     title: 'Menu de la semaine',
     subtitle: 'Des repas équilibrés\nchaque jour',
     bgClass: 'bg-peach',
-    // Vignettes generiques de la version d'il y a 2 jours (avant
-    // l'introduction des medaillons aquarelle de la charte Karine).
-    iconImage: '/images/icons/ms.webp',
+    iconImage: '/images/icons/menu-de-la-semaine.png',
+    iconScale: 115,
   },
   {
     href: '/recettes',
     title: 'Idées recettes',
     subtitle: 'Inspiration saine\net gourmande',
     bgClass: 'bg-cream',
-    iconImage: '/images/icons/ir.webp',
+    iconImage: '/images/icons/recettesv2.png',
+    iconScale: 115,
     burstOnClick: true,
   },
-  // Tuile "Mon menu" masquée (à réintroduire quand la fonctionnalité
-  // personnalisée par profil utilisatrice sera prête).
   {
     href: '/conseils',
     title: 'Conseils santé',
     subtitle: 'Mieux comprendre\nvotre santé',
     bgClass: 'bg-mint',
-    iconImage: '/images/icons/cs.webp',
+    iconImage: '/images/icons/sante.png',
+    iconScale: 115,
   },
   {
     href: '/astuces',
     title: 'Astuces diététiques',
     subtitle: 'Des astuces simples\nau quotidien',
     bgClass: 'bg-lavender',
-    iconImage: '/images/icons/ad.webp',
+    iconImage: '/images/icons/astucesv3.png',
+    iconScale: 115,
   },
 ];
 
@@ -144,6 +146,7 @@ export default async function Home({
               locked={tile.locked}
               isAuthenticated={user.isAuthenticated}
               burstOnClick={tile.burstOnClick}
+              iconScale={tile.iconScale}
             />
           ))}
         </div>

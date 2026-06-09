@@ -2099,29 +2099,33 @@ export function MacrosTiles({
     accent: string;
     labelColor: string;
   }> = [
+    // Couleurs par macro (charte Karine 2026-06-09) :
+    //  - Glucides : beige (amber clair)
+    //  - Proteines : marron (amber fonce)
+    //  - Lipides : jaune
     {
       label: 'Glucides',
       consumed: consumed.carbsG,
       target: target?.dailyCarbsG ?? null,
-      barClass: 'bg-rose-400',
-      accent: 'text-rose-700',
-      labelColor: 'text-rose-800/80',
+      barClass: 'bg-amber-300',
+      accent: 'text-amber-700',
+      labelColor: 'text-amber-800/80',
     },
     {
       label: 'Protéines',
       consumed: consumed.proteinsG,
       target: target?.dailyProteinsG ?? null,
-      barClass: 'bg-sky-500',
-      accent: 'text-sky-700',
-      labelColor: 'text-sky-800/80',
+      barClass: 'bg-amber-800',
+      accent: 'text-amber-900',
+      labelColor: 'text-amber-900/80',
     },
     {
       label: 'Lipides',
       consumed: consumed.lipidsG,
       target: target?.dailyLipidsG ?? null,
-      barClass: 'bg-amber-500',
-      accent: 'text-amber-700',
-      labelColor: 'text-amber-800/80',
+      barClass: 'bg-yellow-400',
+      accent: 'text-yellow-700',
+      labelColor: 'text-yellow-800/80',
     },
   ];
   return (
