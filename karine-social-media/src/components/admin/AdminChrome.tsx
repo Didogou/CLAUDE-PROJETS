@@ -76,7 +76,13 @@ export function AdminChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-admin-bg text-admin-ink">
       {/* Top bar */}
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-admin-border bg-admin-surface/95 px-4 py-3 backdrop-blur">
+      <header
+        className="sticky top-0 z-30 flex items-center justify-between border-b border-admin-border bg-admin-surface/95 px-4 py-3 backdrop-blur"
+        style={{
+          // PWA iOS standalone : evite que le header passe sous l'island/notch.
+          paddingTop: 'calc(0.75rem + env(safe-area-inset-top))',
+        }}
+      >
         <button
           type="button"
           onClick={() => setOpen(true)}

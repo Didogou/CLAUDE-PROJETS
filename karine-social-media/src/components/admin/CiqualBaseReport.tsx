@@ -67,7 +67,7 @@ export function CiqualBaseReport({
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col gap-4 p-4">
+    <div className="flex h-[calc(100dvh-4rem)] flex-col gap-4 p-4">
       {/* Stats en tête */}
       <header className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-coral-soft/30">
         <h1 className="font-script text-2xl text-coral-dark">Base Ciqual utilisée</h1>

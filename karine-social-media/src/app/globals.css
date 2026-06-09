@@ -200,3 +200,28 @@ body {
     animation: none !important;
   }
 }
+
+
+/* =============================================================
+ * Anti-zoom Safari iOS sur les inputs en mobile.
+ *
+ * iOS Safari zoome automatiquement quand on tape dans un <input>,
+ * <select> ou <textarea> dont la font-size effective est < 16px,
+ * et ne dezoome JAMAIS apres le blur. Karine se retrouvait alors
+ * a recentrer son ecran en permanence.
+ *
+ * Fix : on force 16px minimum sur tous les champs en viewport
+ * mobile (<= 640px = breakpoint sm Tailwind). Sur desktop on
+ * garde la possibilite davoir des inputs en text-sm/text-xs car
+ * il ny a pas de zoom auto sur clic.
+ * ============================================================= */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea,
+  .input,
+  .file-input {
+    font-size: 16px !important;
+  }
+}
+

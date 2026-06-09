@@ -444,7 +444,14 @@ export function RecipeFormUnified() {
       )}
 
       {/* ========== Footer actions ========== */}
-      <section className="sticky bottom-0 z-10 -mx-1 rounded-2xl bg-white/95 p-4 shadow-lg backdrop-blur">
+      <section
+        className="sticky bottom-0 z-10 -mx-1 rounded-2xl bg-white/95 p-4 shadow-lg backdrop-blur"
+        style={{
+          // iPhone X+ avec home indicator : evite que le bouton "Creer"
+          // se retrouve colle au home indicator (zone non cliquable).
+          paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))',
+        }}
+      >
         {error && (
           <div className="mb-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
             {error}

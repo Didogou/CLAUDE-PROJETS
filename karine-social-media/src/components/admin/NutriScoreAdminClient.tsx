@@ -199,7 +199,7 @@ export function NutriScoreAdminClient({
   const selectedStat = sheetStats.find((s) => s.sheet.id === selectedSheetId) ?? null;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] flex-col gap-4 p-4 lg:flex-row">
+    <div className="flex h-[calc(100dvh-4rem)] flex-col gap-4 p-4 lg:flex-row">
       {/* Sidebar : visible sur mobile UNIQUEMENT si showListMobile.
           Sur desktop (lg+), forcée visible via lg:flex. */}
       <aside
