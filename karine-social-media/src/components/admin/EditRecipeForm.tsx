@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Trash2, X, ChevronUp, ChevronDown } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 import type { Recipe } from '@/data/recipes';
 import { ConfirmModal } from './ConfirmModal';
 import { compressImage, compressMany } from '@/lib/compress-image';
@@ -12,9 +12,7 @@ type RecipeWithStatus = Recipe & { status: string };
 export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
   const router = useRouter();
 
-  const [slides, setSlides] = useState<string[]>(recipe.slides);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
-  const [newSlideFiles, setNewSlideFiles] = useState<File[]>([]);
   const [prepPhotos, setPrepPhotos] = useState<string[]>(recipe.prepPhotos);
   const [newPrepFiles, setNewPrepFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -23,10 +21,6 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
   const [error, setError] = useState<string | null>(null);
 
   // Object URLs pour les previews des nouveaux fichiers (calculées au render).
-  const newSlideUrls = useMemo(
-    () => newSlideFiles.map((f) => URL.createObjectURL(f)),
-    [newSlideFiles],
-  );
   const newPrepUrls = useMemo(
     () => newPrepFiles.map((f) => URL.createObjectURL(f)),
     [newPrepFiles],
@@ -34,30 +28,10 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
   // Cleanup au démontage / changement de la liste pour éviter les leaks mémoire.
   useEffect(() => {
     return () => {
-      newSlideUrls.forEach((u) => URL.revokeObjectURL(u));
-    };
-  }, [newSlideUrls]);
-  useEffect(() => {
-    return () => {
       newPrepUrls.forEach((u) => URL.revokeObjectURL(u));
     };
   }, [newPrepUrls]);
 
-  function removeSlide(i: number) {
-    setSlides((s) => s.filter((_, j) => j !== i));
-  }
-  function moveSlide(i: number, dir: -1 | 1) {
-    setSlides((s) => {
-      const j = i + dir;
-      if (j < 0 || j >= s.length) return s;
-      const next = [...s];
-      [next[i], next[j]] = [next[j], next[i]];
-      return next;
-    });
-  }
-  function removeNewSlide(i: number) {
-    setNewSlideFiles((arr) => arr.filter((_, j) => j !== i));
-  }
   function removePrep(i: number) {
     setPrepPhotos((p) => p.filter((_, j) => j !== i));
   }
@@ -68,11 +42,6 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
     const file = e.target.files?.[0];
     if (coverPreview) URL.revokeObjectURL(coverPreview);
     setCoverPreview(file ? URL.createObjectURL(file) : null);
-  }
-  function onNewSlidesChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []) as File[];
-    setNewSlideFiles((prev) => [...prev, ...files]);
-    e.target.value = '';
   }
   function onNewPrepChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []) as File[];
@@ -86,8 +55,9 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
     setError(null);
     try {
       const form = new FormData(e.currentTarget);
-      // L'ordre des slides existants est porté par notre state, pas par le DOM
-      form.set('existingSlides', JSON.stringify(slides));
+      // Slides retires (cf. commentaire UI plus bas). On force tableau
+      // vide cote serveur pour que le PATCH ne conserve pas les anciens.
+      form.set('existingSlides', '[]');
 
       // Compression cover si remplacée (évite Vercel 413).
       const coverFile = form.get('cover');
@@ -96,11 +66,6 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
       } else {
         form.delete('cover');
       }
-
-      // Compression nouveaux slides.
-      form.delete('newSlides');
-      const compressedSlides = await compressMany(newSlideFiles);
-      compressedSlides.forEach((f) => form.append('newSlides', f));
 
       // Prep photos : URLs existantes (state) + nouveaux fichiers compressés
       form.set('existingPrepPhotos', JSON.stringify(prepPhotos));
@@ -250,88 +215,12 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
         </div>
       </div>
 
-      {/* Slides existants */}
-      <div className="space-y-2">
-        <p className="text-sm font-semibold text-admin-ink">
-          Slides ({slides.length + newSlideFiles.length})
-        </p>
-        {slides.length === 0 && newSlideFiles.length === 0 && (
-          <p className="text-xs text-admin-ink-soft">Aucun slide pour l’instant.</p>
-        )}
-
-        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-          {slides.map((url, i) => (
-            <div
-              key={url + i}
-              className="relative aspect-square overflow-hidden rounded-lg bg-cover bg-center shadow-sm ring-1 ring-admin-border"
-              style={{ backgroundImage: `url(${url})` }}
-            >
-              <span className="absolute left-1 top-1 grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-admin-primary px-1 text-[0.6rem] font-bold text-white">
-                {i + 1}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeSlide(i)}
-                aria-label="Retirer ce slide"
-                className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-white/90 text-admin-ink-soft transition hover:bg-white hover:text-red-600"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-              <div className="absolute bottom-1 right-1 flex gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => moveSlide(i, -1)}
-                  disabled={i === 0}
-                  aria-label="Monter"
-                  className="grid h-6 w-6 place-items-center rounded-full bg-white/90 text-admin-ink-soft transition hover:bg-white disabled:opacity-30"
-                >
-                  <ChevronUp className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveSlide(i, 1)}
-                  disabled={i === slides.length - 1}
-                  aria-label="Descendre"
-                  className="grid h-6 w-6 place-items-center rounded-full bg-white/90 text-admin-ink-soft transition hover:bg-white disabled:opacity-30"
-                >
-                  <ChevronDown className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            </div>
-          ))}
-
-          {newSlideFiles.map((f, i) => (
-            <div
-              key={`new-${i}-${f.name}`}
-              className="relative aspect-square overflow-hidden rounded-lg bg-cover bg-center shadow-sm ring-2 ring-sage"
-              style={{ backgroundImage: `url(${newSlideUrls[i] ?? ''})` }}
-            >
-              <span className="absolute left-1 top-1 grid h-5 min-w-[1.25rem] place-items-center rounded-full bg-sage px-1 text-[0.6rem] font-bold text-white">
-                +
-              </span>
-              <button
-                type="button"
-                onClick={() => removeNewSlide(i)}
-                aria-label="Annuler cet ajout"
-                className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-white/90 text-admin-ink-soft transition hover:bg-white hover:text-red-600"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-
-        <div>
-          <input
-            name="newSlides"
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
-            multiple
-            onChange={onNewSlidesChange}
-            className="file-input"
-          />
-        </div>
-      </div>
+      {/* Champ "Slides" retire 2026-06-09 :
+          La confusion entre Slides (illustration decorative) et Fiches
+          detaillees (vraies recettes analysees IA) creait des erreurs
+          d'upload chez Karine. Les fiches detaillees suffisent + le
+          cover. Si besoin d'images supplementaires plus tard, on
+          repartira d'un design plus clair. */}
 
       {/* Photos réelles de la préparation (pellicule) */}
       <div className="space-y-2">
@@ -427,7 +316,7 @@ export function EditRecipeForm({ recipe }: { recipe: RecipeWithStatus }) {
           <>
             <p>
               <span className="font-semibold text-admin-ink">«&nbsp;{recipe.title}&nbsp;»</span>{' '}
-              sera supprimée définitivement, ainsi que tous ses slides et images uploadés.
+              sera supprimée définitivement, ainsi que toutes ses fiches détaillées et images uploadées.
             </p>
             <p className="mt-2 text-xs">Cette action est irréversible.</p>
           </>
