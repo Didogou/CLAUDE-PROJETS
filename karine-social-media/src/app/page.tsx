@@ -33,14 +33,16 @@ const TILES: TileDef[] = [
     title: 'Menu de la semaine',
     subtitle: 'Des repas équilibrés\nchaque jour',
     bgClass: 'bg-peach',
-    iconImage: '/images/icons/ms.webp',
+    // POC 2026-06-09 : remplace les anciennes vignettes par les
+    // logos officiels de la charte Karine (assets-source/06_ICONES_ET_UI).
+    iconImage: '/images/icons/menu-semaine.webp',
   },
   {
     href: '/recettes',
     title: 'Idées recettes',
     subtitle: 'Inspiration saine\net gourmande',
     bgClass: 'bg-cream',
-    iconImage: '/images/icons/ir.webp',
+    iconImage: '/images/icons/recettes-logo.webp',
     burstOnClick: true,
   },
   // Tuile "Mon menu" masquée (à réintroduire quand la fonctionnalité
@@ -50,14 +52,16 @@ const TILES: TileDef[] = [
     title: 'Conseils santé',
     subtitle: 'Mieux comprendre\nvotre santé',
     bgClass: 'bg-mint',
-    iconImage: '/images/icons/cs.webp',
+    iconImage: '/images/icons/sante-logo.webp',
   },
   {
     href: '/astuces',
     title: 'Astuces diététiques',
     subtitle: 'Des astuces simples\nau quotidien',
     bgClass: 'bg-lavender',
-    iconImage: '/images/icons/ad.webp',
+    // Logo "fée" : la diététicienne comme petite fée du quotidien
+    // (à confirmer avec Karine ou remplacer par autre asset).
+    iconImage: '/images/icons/astuces-logo.webp',
   },
 ];
 
