@@ -48,13 +48,41 @@ export async function POST(request: NextRequest) {
     ? body.mealCategory
     : null;
 
-  // Photo URL optionnelle : si fournie, on l'attache UNIQUEMENT à
-  // la 1ère entry insérée. Au retour, le front retrouvera la photo
-  // sur cette entry et la rendra en mini-vignette dans "Déjà ajouté".
-  const photoUrl: string | null =
-    typeof body?.photoUrl === 'string' && body.photoUrl.trim()
-      ? body.photoUrl.trim()
-      : null;
+  // Photo PATH optionnel : si fourni, on l'attache UNIQUEMENT à
+  // la 1ère entry insérée. Au retour, le front retrouvera le path
+  // et appellera /api/nutrition/photo/[photoId] pour obtenir une
+  // signed URL d'affichage.
+  //
+  // SECURITE : on accepte `photoPath` (nouveau, depuis bucket privé)
+  // ET `photoUrl` (legacy, ancien bucket public) pendant la transition.
+  // On valide que le path commence par `${user.id}/` pour empêcher
+  // un client malveillant d'attacher la photo d'une autre utilisatrice.
+  let photoPath: string | null = null;
+  const rawPath =
+    typeof body?.photoPath === 'string' && body.photoPath.trim()
+      ? body.photoPath.trim()
+      : typeof body?.photoUrl === 'string' && body.photoUrl.trim()
+        ? body.photoUrl.trim()
+        : null;
+  if (rawPath) {
+    // Si c'est une URL complète (legacy ou signed URL), extraire le
+    // path après /nutrition-meal-photos/. Sinon c'est déjà un path.
+    const marker = '/nutrition-meal-photos/';
+    const idx = rawPath.indexOf(marker);
+    let candidate =
+      idx >= 0 ? rawPath.slice(idx + marker.length) : rawPath;
+    // Retire la query string (signed URL = `?token=...&expires=...`).
+    const qIdx = candidate.indexOf('?');
+    if (qIdx >= 0) candidate = candidate.slice(0, qIdx);
+    // Validation ownership : le path DOIT commencer par user.id/
+    // ET ne PAS contenir de path traversal (`..`, double slash).
+    const PATH_RE = /^[0-9a-f-]+\/[0-9a-zA-Z-]+\.(?:jpg|jpeg|png|webp)$/i;
+    if (PATH_RE.test(candidate) && candidate.startsWith(`${user.id}/`)) {
+      photoPath = candidate;
+    } else {
+      console.warn('[log] photoPath rejeté (format invalide ou ownership)');
+    }
+  }
 
   const now = new Date().toISOString();
   const rows = entries
@@ -63,7 +91,7 @@ export async function POST(request: NextRequest) {
         { ...e, mealCategory: e.mealCategory ?? bodyMeal },
         user.id,
         now,
-        idx === 0 ? photoUrl : null,
+        idx === 0 ? photoPath : null,
       ),
     )
     .filter(Boolean);
@@ -85,7 +113,7 @@ function sanitizeEntry(
   e: IncomingEntry,
   userId: string,
   now: string,
-  photoUrl: string | null,
+  photoPath: string | null,
 ): Record<string, unknown> | null {
   if (!e || typeof e.label !== 'string' || !e.label.trim()) return null;
   if (typeof e.kcal !== 'number' || !Number.isFinite(e.kcal) || e.kcal < 0) return null;
@@ -110,6 +138,9 @@ function sanitizeEntry(
     meal_category: MEAL_CATEGORIES.includes(e.mealCategory as MealCategory)
       ? e.mealCategory
       : null,
-    photo_url: photoUrl,
+    // photo_url stocke maintenant un PATH Storage, pas une URL.
+    // Le front utilise GET /api/nutrition/photo/[photoId] pour
+    // obtenir une signed URL (1h) au moment d'afficher la vignette.
+    photo_url: photoPath,
   };
 }

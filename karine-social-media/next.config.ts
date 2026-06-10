@@ -7,6 +7,22 @@ const nextConfig: NextConfig = {
   // par Vercel — déjà actif par défaut, mais on l'explicite.
   compress: true,
 
+  // Securite : pas de source maps en prod cote client. Defaut Next.js,
+  // mais explicite ici pour eviter qu'un dev active par megarde et
+  // expose le code source frontend complet (commentaires, noms originaux,
+  // patterns auth, TODOs...) via les .map files servis publiquement.
+  productionBrowserSourceMaps: false,
+
+  // Strip console.log/error/warn/debug en prod cote client. console.error
+  // garde un canal pour Sentry / logs critiques. Empeche les fuites
+  // d'info technique (structures DB, IDs, stack traces) via les logs
+  // navigateur quand un utilisateur ouvre DevTools.
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production'
+      ? { exclude: ['error'] }
+      : false,
+  },
+
   // Headers HTTP de mise en cache pour les ressources statiques.
   // Vercel Edge sert avec ces headers, donc le navigateur (et tout CDN
   // intermédiaire) garde l'image au moins 1 an avant de redemander.
@@ -39,7 +55,7 @@ const nextConfig: NextConfig = {
         key: 'Content-Security-Policy',
         value: [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.stripe.com https://va.vercel-scripts.com",
+          "script-src 'self' 'unsafe-inline' https://*.stripe.com https://va.vercel-scripts.com",
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https://*.supabase.co https://*.stripe.com",
           "font-src 'self' data:",

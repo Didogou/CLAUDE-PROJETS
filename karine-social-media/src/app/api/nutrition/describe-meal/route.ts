@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { randomUUID } from 'crypto';
 import sharp from 'sharp';
 import { createClient } from '@/lib/supabase/server';
 import { describeMealFromImage } from '@/lib/claude-meal-vision';
@@ -102,6 +103,12 @@ export async function POST(request: NextRequest) {
   try {
     compressedBuffer = await sharp(rawBuffer)
       .rotate() // applique l'EXIF orientation (photos téléphone)
+      // SECURITE RGPD : sharp STRIPPE par défaut tous les EXIF
+      // (GPS, DateTime, Model, IMEI, XMP, IPTC). C'est exactement
+      // ce qu'on veut. Ne PAS appeler .withMetadata() ici : ça
+      // ferait l'inverse (keepMetadata = 0b11111 = tout préservé).
+      // Le .rotate() au-dessus lit l'EXIF orientation pour pivoter
+      // correctement la photo, puis l'EXIF est strippé en sortie.
       .resize(COMPRESS_MAX_SIDE, COMPRESS_MAX_SIDE, {
         fit: 'inside',
         withoutEnlargement: true,
@@ -116,7 +123,11 @@ export async function POST(request: NextRequest) {
   // En parallèle : décrire via Vision + uploader en Storage pour
   // l'afficher en vignette côté front. Les 2 utilisent le buffer
   // compressé (cohérent + économe).
-  const photoPath = `${user.id}/${Date.now()}.jpg`;
+  // SECURITE : UUID imprévisible (au lieu de Date.now() devinable
+  // par brute-force sur une fenêtre de quelques secondes). Le path
+  // reste structuré {user_id}/{uuid}.jpg pour les RLS storage qui
+  // filtrent sur foldername[0] = auth.uid().
+  const photoPath = `${user.id}/${randomUUID()}.jpg`;
   const [descriptionResult, uploadResult] = await Promise.allSettled([
     describeMealFromImage(
       compressedBuffer,
@@ -148,20 +159,36 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // URL publique si l'upload a réussi (sinon on retourne juste la
-  // description, la photo n'apparaîtra pas en vignette).
-  let photoUrl: string | null = null;
+  // SECURITE : ne PAS retourner une URL publique. Le bucket est privé,
+  // on retourne le PATH + une signed URL temporaire (5 min) pour
+  // l'affichage immédiat en vignette. Plus tard, le front demande de
+  // nouvelles signed URLs via /api/nutrition/photo/[photoId].
+  let photoPathResult: string | null = null;
+  let photoSignedUrl: string | null = null;
   if (
     uploadResult.status === 'fulfilled' &&
     !uploadResult.value.error
   ) {
-    const { data } = (supabase as any).storage
-      .from('nutrition-meal-photos')
-      .getPublicUrl(photoPath);
-    photoUrl = data?.publicUrl ?? null;
+    photoPathResult = photoPath;
+    try {
+      const { data: signed } = await (supabase as any).storage
+        .from('nutrition-meal-photos')
+        .createSignedUrl(photoPath, 300); // 5 min pour la vignette immédiate
+      photoSignedUrl = signed?.signedUrl ?? null;
+    } catch (e) {
+      console.warn('[describe-meal] signed URL failed:', e);
+    }
   } else if (uploadResult.status === 'rejected') {
     console.warn('[describe-meal] upload failed:', uploadResult.reason);
   }
 
-  return NextResponse.json({ description, photoUrl });
+  return NextResponse.json({
+    description,
+    photoPath: photoPathResult,
+    photoSignedUrl,
+    // Compat retro : si le client ancien attend `photoUrl`, on lui
+    // refile la signed URL temporaire. À retirer plus tard quand
+    // le client est entièrement migré.
+    photoUrl: photoSignedUrl,
+  });
 }

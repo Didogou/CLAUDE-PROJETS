@@ -26,6 +26,7 @@ import { LongPressSlider } from '@/components/ui/LongPressSlider';
 import { CircularProgress } from '@/components/ui/CircularProgress';
 import { MealCategoryAvatar } from './MealIcon';
 import { WaterSection } from './WaterSection';
+import { SecurePhoto } from './SecurePhoto';
 import { showToast, queueToastForNextPage } from '@/lib/toast';
 import { IngredientCardCarousel } from './IngredientCardCarousel';
 import { MacroRing } from './MacroRing';
@@ -1713,12 +1714,10 @@ export function CalorieCounterSheetV2({
             setConfirmDeletePhoto(false);
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <SecurePhoto
             src={lightboxState.url}
             alt="Photo du plat"
             className="max-h-[80vh] max-w-[95vw] rounded-2xl object-contain shadow-2xl"
-            draggable={false}
             onClick={(e) => e.stopPropagation()}
           />
           <button
@@ -3162,8 +3161,7 @@ function EntryRow({
             aria-label="Voir la photo du plat"
             className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full ring-1 ring-coral-soft/40"
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <SecurePhoto
               src={entry.photoUrl}
               alt=""
               className="size-10 rounded-full object-cover"
@@ -3246,12 +3244,9 @@ function EntryRow({
           aria-label="Voir la photo du repas"
           className="block overflow-hidden rounded-lg shadow-sm ring-1 ring-coral-soft/40 transition hover:scale-105 active:scale-95"
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <SecurePhoto
             src={entry.photoUrl}
             alt=""
-            aria-hidden
-            draggable={false}
             className="h-10 w-10 object-cover"
           />
         </button>

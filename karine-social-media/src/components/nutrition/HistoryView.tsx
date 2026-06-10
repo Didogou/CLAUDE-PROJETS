@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Flame, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { SecurePhoto } from './SecurePhoto';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 
@@ -376,11 +377,9 @@ function DayCard({
                       aria-label="Voir la photo"
                       className="overflow-hidden rounded-lg shadow ring-1 ring-coral-soft/40 transition hover:scale-105 active:scale-95"
                     >
-                      <img
+                      <SecurePhoto
                         src={u}
                         alt=""
-                        aria-hidden
-                        draggable={false}
                         className="h-16 w-16 object-cover"
                       />
                     </button>
