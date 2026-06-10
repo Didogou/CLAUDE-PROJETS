@@ -36,27 +36,41 @@ export function BottomNav() {
   // Astuces) → BottomNav serait redondant. On garde juste le raccourci
   // photo, action principale qu'on veut faire vite depuis n'importe ou.
   if (isHome) {
-    // Variante HOME : 3 boutons centres en bas → [Courses 40px]
-    // [FAB Camera 48px] [Ampoule 40px]. Padding safe-area pour iOS.
+    // Variante HOME : 3 boutons centres + ampoule DETACHEE a droite.
+    // Layout : [Courses 40px] [FAB Camera 48px] [Repas 40px] centres,
+    // [Ampoule 40px] completement a droite avec marge.
     return (
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 flex justify-center"
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4"
         style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
       >
-        <div className="pointer-events-auto flex items-center gap-3">
-          {/* Courses : icone Lucide ShoppingCart (panier), style
-              discret sans anneau coral ni pulse. Clic → /courses. */}
-          <Link
-            href="/courses"
-            aria-label="Liste de courses"
-            className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
-          >
-            <ShoppingCart className="h-6 w-6" strokeWidth={2.2} />
-          </Link>
-          {/* FAB photo central : reste a sa taille (48px) */}
-          <CameraFAB homeMode />
-          {/* Ampoule "Une idee" a droite : meme taille que Courses (40px) */}
-          <IdeasFloatingButton variant="inline-small" />
+        <div className="relative flex items-center justify-center">
+          {/* Trio central */}
+          <div className="pointer-events-auto flex items-center gap-3">
+            {/* Courses (gauche) */}
+            <Link
+              href="/courses"
+              aria-label="Liste de courses"
+              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+            >
+              <ShoppingCart className="h-6 w-6" strokeWidth={2.2} />
+            </Link>
+            {/* FAB photo central */}
+            <CameraFAB homeMode />
+            {/* Repas (droite de l'appareil photo) — meme taille que
+                Courses (40px). Clic → /mes-repas. */}
+            <Link
+              href="/mes-repas"
+              aria-label="Mes repas"
+              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+            >
+              <UtensilsCrossed className="h-6 w-6" strokeWidth={2.2} />
+            </Link>
+          </div>
+          {/* Ampoule DETACHEE, completement a droite avec marge */}
+          <div className="pointer-events-auto absolute right-0">
+            <IdeasFloatingButton variant="inline-small" />
+          </div>
         </div>
       </div>
     );

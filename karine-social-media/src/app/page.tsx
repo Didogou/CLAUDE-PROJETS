@@ -34,7 +34,7 @@ const TILES: TileDef[] = [
     title: 'Menu de la semaine',
     subtitle: 'Des repas équilibrés\nchaque jour',
     bgClass: 'bg-white',
-    iconImage: '/images/icons/new-menu-v6.webp',
+    iconImage: '/images/icons/tile-menu-v7.webp',
   },
   {
     href: '/recettes',

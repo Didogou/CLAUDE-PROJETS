@@ -38,7 +38,7 @@ export default async function MesCaloriesPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen flex-col">
+    <div className="relative flex min-h-screen flex-col overflow-x-clip">
       {/* Fond identique a la page d'accueil (variant 'accueil') pour
           cohérence visuelle — le tracker calorie est l'extension
           naturelle de l'experience home. Plus de degrade bleu superpose. */}

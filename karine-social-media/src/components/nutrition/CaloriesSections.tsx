@@ -55,7 +55,7 @@ export function CaloriesRepartition({
   const lipidsLen = (lipidsPct / 100) * c;
 
   const cardInner = (
-    <div className="relative h-full w-full overflow-hidden rounded-2xl bg-white/95 px-4 py-4 shadow-sm">
+    <div className="relative flex h-full w-full items-center overflow-hidden rounded-2xl bg-white/95 px-4 py-2 shadow-sm">
       {!compact && (
         <Image
           src="/images/icons/cal-tasse.webp"
@@ -175,7 +175,7 @@ function LegendItem({
       />
       <span
         className="font-semibold"
-        style={{ color: '#3D2820', minWidth: '4.5rem' }}
+        style={{ color: '#3D2820', minWidth: '3.5rem' }}
       >
         {label}
       </span>

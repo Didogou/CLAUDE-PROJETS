@@ -14,23 +14,24 @@ import {
 } from './CalorieCounterSheetV2';
 
 /**
- * MesCaloriesView — refonte from-scratch 2026-06-10.
+ * MesCaloriesView — refonte from-scratch 2026-06-10 + responsive 2026-06-10.
  *
- * Layout pixel-perfect issu du POC /editor-test/calories-poc, converti
- * en UNITES RELATIVES (rem) pour s'adapter a tout type de mobile.
- * Toutes les coordonnees du JSON POC (en px ref 390 wide) sont
- * converties via le helper rem() : `rem(N)` = `${N/16}rem`.
+ * Layout PIXEL-PERFECT issu du POC /editor-test/calories-poc, converti
+ * en UNITES RELATIVES (% du wrapper) pour s'adapter a TOUS les devices.
  *
- * Sections rendues :
- *  - Hero (couronne + fee + cercle texte + carte Depensees + branche)
- *  - 3 tuiles macros + 3 icones aquarelle independantes
- *  - Titre + Donut Repartition + tasse aquarelle
- *  - Titre + Histogramme Evolution 7 jours
- *  - Slogan encourageant + fee
+ * Reference : 390×910 px (le POC mobile). Au runtime :
+ *  - wrapper width = min(100%, 390px) → scale horizontal selon viewport
+ *  - wrapper height = width × (910/390) via aspect-ratio → scale vertical proportionnel
+ *  - chaque position/taille px du POC → % du wrapper via pctX/pctY
+ *
+ * Resultat : sur viewport 320, 360, 390, 412+ → tout scale uniformement,
+ *  pas de bias gauche/droite, contenu visuellement centre sur tous les devices.
  */
 
-/** Helper de conversion px → rem (base 16px = 1rem).
- *  Exemple : rem(390) = '24.375rem'. */
+const REF_W = 390;
+const REF_H = 910;
+const pctX = (px: number) => `${(px / REF_W) * 100}%`;
+const pctY = (px: number) => `${(px / REF_H) * 100}%`;
 const rem = (px: number) => `${px / 16}rem`;
 
 type Metrics = {
@@ -72,12 +73,13 @@ export function MesCaloriesView() {
   const net = Math.max(0, totals - burned);
   const remaining = Math.max(0, target - net);
 
-  // === Arc de progression coral (superpose sur l'anneau couronne) ===
-  // SVG path calcule : demarre EN BAS (6h) et progresse en ANTI-HORAIRE
-  // visuel (vers la gauche puis le haut). Convention standard de jauge :
-  // 0% = rien, 100% = anneau plein.
-  // Animation : interpole de 0 a la vraie valeur en ~1200ms ease-out
-  // au mount + a chaque changement (consommation update).
+  const macros = day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 };
+  const tgt = day?.target ?? null;
+  const tCarbs = tgt?.dailyCarbsG ?? null;
+  const tProt = tgt?.dailyProteinsG ?? null;
+  const tLip = tgt?.dailyLipidsG ?? null;
+
+  // === Arc de progression (animation ease-out 1.2s) ===
   const ARC_R = 36;
   const ARC_CX = 50;
   const ARC_CY = 50;
@@ -92,7 +94,7 @@ export function MesCaloriesView() {
     const tick = (now: number) => {
       const elapsed = now - start;
       const t = Math.min(1, elapsed / duration);
-      const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+      const eased = 1 - Math.pow(1 - t, 3);
       setAnimatedProgress(from + (trueProgress - from) * eased);
       if (t < 1) raf = requestAnimationFrame(tick);
     };
@@ -104,44 +106,37 @@ export function MesCaloriesView() {
 
   let arcPathD = '';
   if (progress >= 1) {
-    // Cercle plein : 2 demi-arcs pour eviter le bug "start = end"
     arcPathD =
       `M ${ARC_CX} ${ARC_CY + ARC_R}` +
       ` A ${ARC_R} ${ARC_R} 0 1 1 ${ARC_CX} ${ARC_CY - ARC_R}` +
       ` A ${ARC_R} ${ARC_R} 0 1 1 ${ARC_CX} ${ARC_CY + ARC_R}`;
   } else if (progress > 0) {
-    // Calcule l'angle parcouru depuis le bas (6h) en anti-horaire visuel.
-    // En coords SVG (Y vers le bas) : x = cx - r·sin(θ), y = cy + r·cos(θ).
     const angle = progress * 2 * Math.PI;
     const endX = ARC_CX - ARC_R * Math.sin(angle);
     const endY = ARC_CY + ARC_R * Math.cos(angle);
     const largeArc = progress > 0.5 ? 1 : 0;
-    // sweep-flag=1 → sens horaire en math SVG = anti-horaire visuel.
     arcPathD = `M ${ARC_CX} ${ARC_CY + ARC_R} A ${ARC_R} ${ARC_R} 0 ${largeArc} 1 ${endX} ${endY}`;
   }
-
-  const macros = day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 };
-  const tgt = day?.target ?? null;
-  const tCarbs = tgt?.dailyCarbsG ?? null;
-  const tProt = tgt?.dailyProteinsG ?? null;
-  const tLip = tgt?.dailyLipidsG ?? null;
 
   return (
     <div
       className="mx-auto w-full"
-      style={{ maxWidth: rem(390), marginTop: '-3rem' }}
+      style={{ maxWidth: rem(REF_W), marginTop: '-3rem' }}
     >
-      {/* Container global absolute. Height calculee en rem (= max y +
-          height des elements + marge basse). marginTop negatif sur le
-          parent → la couronne remonte dans la zone du AppHeader. */}
+      {/* Container avec aspect-ratio = scale uniforme sur tous devices.
+          Toutes les positions/tailles internes sont en % de ce
+          container → ratio preserve sur 320, 360, 390, 412+. */}
       <div
         className="relative"
-        style={{ height: rem(910), overflow: 'visible' }}
+        style={{
+          width: '100%',
+          aspectRatio: `${REF_W} / ${REF_H}`,
+          overflow: 'visible',
+        }}
       >
         {/* ===== HERO ============================================ */}
 
-        {/* Couronne fleurie (object-contain pour respecter ratio natif
-            1024×1536, portrait 2:3). */}
+        {/* Couronne fleurie (object-contain → ratio natif 1024×1536) */}
         <Image
           src="/images/icons/cal-courone.webp"
           alt=""
@@ -150,22 +145,26 @@ export function MesCaloriesView() {
           priority
           aria-hidden
           className="pointer-events-none absolute object-contain"
-          style={{ left: rem(-48), top: rem(2), width: rem(485), height: rem(401) }}
+          style={{
+            left: pctX(-48),
+            top: pctY(2),
+            width: pctX(485),
+            height: pctY(401),
+          }}
         />
 
-        {/* Arc de progression coral superpose sur l'anneau visible
-            de la couronne. Position calibree pour matcher l'anneau de
-            cal-courone.webp, centre aligne sur le cercle texte
-            (cx≈144 = centre cercle text left=55 width=179). */}
+        {/* Arc de progression coral pastel superpose sur l'anneau de
+            la couronne. left=35 → centre arc x=147.5, decale fortement
+            a gauche pour s'aligner sur le cercle dessine dans la webp. */}
         <svg
           viewBox="0 0 100 100"
           preserveAspectRatio="xMidYMid meet"
           className="pointer-events-none absolute"
           style={{
-            left: rem(32),
-            top: rem(68),
-            width: rem(225),
-            height: rem(225),
+            left: pctX(35),
+            top: pctY(70),
+            width: pctX(225),
+            height: pctY(225),
             zIndex: 3,
           }}
           aria-hidden
@@ -190,17 +189,23 @@ export function MesCaloriesView() {
           height={110}
           aria-hidden
           className="anim-pulse-soft pointer-events-none absolute object-contain"
-          style={{ left: rem(18), top: rem(87), width: rem(110), height: rem(110), zIndex: 5 }}
+          style={{
+            left: pctX(18),
+            top: pctY(87),
+            width: pctX(110),
+            height: pctY(110),
+            zIndex: 5,
+          }}
         />
 
         {/* Cercle texte (RESTANT + chiffre + target + objectif atteint) */}
         <div
           className="absolute flex flex-col items-center justify-center"
           style={{
-            left: rem(55),
-            top: rem(99),
-            width: rem(179),
-            height: rem(163),
+            left: pctX(55),
+            top: pctY(99),
+            width: pctX(179),
+            height: pctY(163),
             zIndex: 4,
           }}
         >
@@ -230,25 +235,24 @@ export function MesCaloriesView() {
           )}
         </div>
 
-        {/* Lien "Mes objectifs" au-dessus de la carte Depenses,
-            aligne sur sa largeur. Ouvre la modal MyInfoModal. */}
+        {/* Lien "Mes objectifs" au-dessus de la carte Depenses. */}
         <button
           type="button"
           onClick={() => setMyInfoOpen(true)}
           className="absolute text-center text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark underline decoration-coral-soft/50 underline-offset-2 hover:decoration-coral"
-          style={{ left: rem(270), top: rem(88), width: rem(105) }}
+          style={{ left: pctX(270), top: pctY(88), width: pctX(105) }}
         >
           Mes objectifs
         </button>
 
-        {/* Carte Depensees */}
+        {/* Carte Depenses */}
         <div
           className="absolute flex flex-col items-center overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-coral-soft/20"
           style={{
-            left: rem(270),
-            top: rem(112),
-            width: rem(105),
-            height: rem(149),
+            left: pctX(270),
+            top: pctY(112),
+            width: pctX(105),
+            height: pctY(149),
           }}
         >
           <div className="relative z-10 flex h-full w-full flex-col items-center px-1.5 pb-2 pt-6 text-center">
@@ -263,7 +267,7 @@ export function MesCaloriesView() {
           </div>
         </div>
 
-        {/* Branche aquarelle (decoration sous carte Depensees) */}
+        {/* Branche aquarelle (decoration sous carte Depenses) */}
         <Image
           src="/images/icons/cal-branche.webp"
           alt=""
@@ -271,7 +275,12 @@ export function MesCaloriesView() {
           height={80}
           aria-hidden
           className="pointer-events-none absolute object-contain"
-          style={{ left: rem(325), top: rem(201), width: rem(80), height: rem(80) }}
+          style={{
+            left: pctX(325),
+            top: pctY(201),
+            width: pctX(80),
+            height: pctY(80),
+          }}
         />
 
         {/* ===== MACROS ========================================== */}
@@ -313,7 +322,7 @@ export function MesCaloriesView() {
           barColor="#9CAE6B"
         />
 
-        {/* Icones aquarelle macros (ble→Glucides, feuille→Proteines, olive→Lipides) */}
+        {/* Icones aquarelle macros */}
         <Image
           src="/images/icons/cal-ble.webp"
           alt=""
@@ -321,7 +330,12 @@ export function MesCaloriesView() {
           height={52}
           aria-hidden
           className="pointer-events-none absolute object-contain"
-          style={{ left: rem(45), top: rem(356), width: rem(52), height: rem(52) }}
+          style={{
+            left: pctX(45),
+            top: pctY(356),
+            width: pctX(52),
+            height: pctY(52),
+          }}
         />
         <Image
           src="/images/icons/cal-feuille.webp"
@@ -330,7 +344,12 @@ export function MesCaloriesView() {
           height={52}
           aria-hidden
           className="pointer-events-none absolute object-contain"
-          style={{ left: rem(172), top: rem(360), width: rem(52), height: rem(52) }}
+          style={{
+            left: pctX(172),
+            top: pctY(360),
+            width: pctX(52),
+            height: pctY(52),
+          }}
         />
         <Image
           src="/images/icons/cal-olive.webp"
@@ -339,14 +358,19 @@ export function MesCaloriesView() {
           height={52}
           aria-hidden
           className="pointer-events-none absolute object-contain"
-          style={{ left: rem(297), top: rem(355), width: rem(52), height: rem(52) }}
+          style={{
+            left: pctX(297),
+            top: pctY(355),
+            width: pctX(52),
+            height: pctY(52),
+          }}
         />
 
         {/* ===== DONUT REPARTITION ============================== */}
 
         <h2
           className="absolute text-sm font-bold uppercase tracking-wider text-coral-dark"
-          style={{ left: rem(22), top: rem(424) }}
+          style={{ left: pctX(22), top: pctY(424) }}
         >
           Répartition des calories
         </h2>
@@ -354,10 +378,10 @@ export function MesCaloriesView() {
         <div
           className="absolute"
           style={{
-            left: rem(22),
-            top: rem(460),
-            width: rem(360),
-            height: rem(120),
+            left: pctX(22),
+            top: pctY(460),
+            width: pctX(360),
+            height: pctY(120),
             zIndex: 1,
           }}
         >
@@ -370,7 +394,9 @@ export function MesCaloriesView() {
           />
         </div>
 
-        {/* Tasse aquarelle qui deborde du donut a droite */}
+        {/* Tasse aquarelle — repositionnee en bas-droite de la carte
+            donut pour ne PAS chevaucher la legende (textes kcal/%).
+            Agrandie 110×130, decalee a droite (left=305). */}
         <Image
           src="/images/icons/cal-tasse.webp"
           alt=""
@@ -379,10 +405,10 @@ export function MesCaloriesView() {
           aria-hidden
           className="pointer-events-none absolute object-contain"
           style={{
-            left: rem(305),
-            top: rem(470),
-            width: rem(120),
-            height: rem(140),
+            left: pctX(305),
+            top: pctY(490),
+            width: pctX(110),
+            height: pctY(130),
             zIndex: 3,
           }}
         />
@@ -391,7 +417,7 @@ export function MesCaloriesView() {
 
         <h2
           className="absolute text-sm font-bold uppercase tracking-wider text-coral-dark"
-          style={{ left: rem(22), top: rem(604) }}
+          style={{ left: pctX(22), top: pctY(604) }}
         >
           Mon évolution
         </h2>
@@ -399,10 +425,10 @@ export function MesCaloriesView() {
         <div
           className="absolute"
           style={{
-            left: rem(22),
-            top: rem(640),
-            width: rem(360),
-            height: rem(150),
+            left: pctX(22),
+            top: pctY(640),
+            width: pctX(360),
+            height: pctY(150),
           }}
         >
           <WeekEvolutionChart targetKcal={target} compact />
@@ -413,10 +439,10 @@ export function MesCaloriesView() {
         <div
           className="absolute"
           style={{
-            left: rem(20),
-            top: rem(810),
-            width: rem(360),
-            height: rem(80),
+            left: pctX(20),
+            top: pctY(810),
+            width: pctX(360),
+            height: pctY(80),
             zIndex: 1,
           }}
         >
@@ -436,16 +462,16 @@ export function MesCaloriesView() {
           aria-hidden
           className="anim-pulse-soft pointer-events-none absolute object-contain"
           style={{
-            left: rem(-3),
-            top: rem(805),
-            width: rem(90),
-            height: rem(90),
+            left: pctX(-3),
+            top: pctY(805),
+            width: pctX(90),
+            height: pctY(90),
             zIndex: 5,
           }}
         />
       </div>
 
-      {/* Modal "Mes infos" (trigger a remettre plus tard). */}
+      {/* Modal "Mes objectifs" */}
       <MyInfoModal
         open={myInfoOpen}
         onClose={() => setMyInfoOpen(false)}
@@ -463,9 +489,7 @@ export function MesCaloriesView() {
 }
 
 /**
- * Tuile macro "plain" — sans illustration aquarelle integree.
- * Les coords (left/top/width/height) sont passees en PX mais converties
- * en REM via le helper rem() au rendu.
+ * Tuile macro "plain" — coords en px ref (390×910) convertis en %.
  */
 function MacroTilePlain({
   left,
@@ -498,10 +522,10 @@ function MacroTilePlain({
     <div
       className="absolute overflow-hidden rounded-2xl px-3 py-2 shadow-md ring-1"
       style={{
-        left: rem(left),
-        top: rem(top),
-        width: rem(width),
-        height: rem(height),
+        left: pctX(left),
+        top: pctY(top),
+        width: pctX(width),
+        height: pctY(height),
         background: `linear-gradient(180deg, #FFFFFF 0%, ${bg} 100%)`,
         // @ts-expect-error CSS custom property
         '--tw-ring-color': '#F0E4DC',
