@@ -45,51 +45,76 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    // Process en parallèle (Vision + upload Storage indépendants par image)
-    const results = await Promise.all(
-      files.map(async (file, idx) => {
-        try {
-          const { buffer, contentType } = await optimizeUploadToWebp(file);
-          const tempPath = `temp-recipe-sheets/${Date.now().toString(36)}-${idx}-${Math.random()
-            .toString(36)
-            .slice(2, 8)}.webp`;
-          const { error: upErr } = await supabase.storage
-            .from(BUCKET)
-            .upload(tempPath, buffer, { upsert: true, contentType });
-          if (upErr) throw upErr;
-          const imageUrl = supabase.storage.from(BUCKET).getPublicUrl(tempPath).data
-            .publicUrl;
-
-          let extracted: Awaited<ReturnType<typeof extractRecipeSheetFromImage>> | null = null;
-          try {
-            extracted = await extractRecipeSheetFromImage(buffer, 'image/webp');
-          } catch (visionErr) {
-            console.warn(`[bulk preview] Vision failed for ${file.name}:`, visionErr);
-          }
-
-          return {
-            ok: true as const,
-            fileName: file.name,
-            tempPath,
-            imageUrl,
-            title: extracted?.title ?? null,
-            servings: extracted?.servings ?? null,
-            calories: extracted?.calories ?? null,
-            prepTimeMin: extracted?.prepTimeMin ?? null,
-            cookTimeMin: extracted?.cookTimeMin ?? null,
-            tags: extracted?.tags ?? [],
-            aliments: extracted?.aliments ?? [],
-            ingredients: extracted?.ingredients ?? [],
-          };
-        } catch (e) {
-          return {
-            ok: false as const,
-            fileName: file.name,
-            error: e instanceof Error ? e.message : 'Erreur',
-          };
+    // Process SÉQUENTIEL (queue 1 par 1) :
+    //  - Évite le rate limit Anthropic (parallèle 10x = risque 429)
+    //  - Erreurs isolables (on sait quelle fiche a planté)
+    //  - L'upload Storage et Vision Claude se font dans l'ordre des
+    //    fichiers reçus → cohérence d'extraction
+    // Trade-off : plus lent (somme des durées au lieu du max), mais
+    // pour 1-10 fiches c'est négligeable (10 × ~2s = 20s acceptable).
+    const results: Array<
+      | {
+          ok: true;
+          fileName: string;
+          tempPath: string;
+          imageUrl: string;
+          sheetNumber: number | null;
+          title: string | null;
+          servings: number | null;
+          calories: number | null;
+          prepTimeMin: number | null;
+          cookTimeMin: number | null;
+          tags: string[];
+          aliments: string[];
+          ingredients: unknown[];
         }
-      }),
-    );
+      | { ok: false; fileName: string; error: string }
+    > = [];
+
+    for (let idx = 0; idx < files.length; idx++) {
+      const file = files[idx];
+      try {
+        const { buffer, contentType } = await optimizeUploadToWebp(file);
+        const tempPath = `temp-recipe-sheets/${Date.now().toString(36)}-${idx}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}.webp`;
+        const { error: upErr } = await supabase.storage
+          .from(BUCKET)
+          .upload(tempPath, buffer, { upsert: true, contentType });
+        if (upErr) throw upErr;
+        const imageUrl = supabase.storage.from(BUCKET).getPublicUrl(tempPath).data
+          .publicUrl;
+
+        let extracted: Awaited<ReturnType<typeof extractRecipeSheetFromImage>> | null = null;
+        try {
+          extracted = await extractRecipeSheetFromImage(buffer, 'image/webp');
+        } catch (visionErr) {
+          console.warn(`[bulk preview] Vision failed for ${file.name}:`, visionErr);
+        }
+
+        results.push({
+          ok: true,
+          fileName: file.name,
+          tempPath,
+          imageUrl,
+          sheetNumber: extracted?.sheetNumber ?? null,
+          title: extracted?.title ?? null,
+          servings: extracted?.servings ?? null,
+          calories: extracted?.calories ?? null,
+          prepTimeMin: extracted?.prepTimeMin ?? null,
+          cookTimeMin: extracted?.cookTimeMin ?? null,
+          tags: extracted?.tags ?? [],
+          aliments: extracted?.aliments ?? [],
+          ingredients: extracted?.ingredients ?? [],
+        });
+      } catch (e) {
+        results.push({
+          ok: false,
+          fileName: file.name,
+          error: e instanceof Error ? e.message : 'Erreur',
+        });
+      }
+    }
 
     return NextResponse.json({ sheets: results });
   } catch (e) {

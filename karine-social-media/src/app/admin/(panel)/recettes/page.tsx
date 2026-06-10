@@ -26,6 +26,8 @@ export default async function AdminRecettesPage() {
 
   // Adapte la forme des recipes pour le composant client (RecipesAdminList
   // ne s'intéresse qu'aux propriétés affichées + filtrables).
+  // sheets : liste des fiches détaillées avec titre complet pour le
+  // drawer "Voir les fiches" (clic sur tuile).
   const listRecipes = recipes.map((r) => ({
     id: String(r.id),
     title: r.title,
@@ -36,6 +38,15 @@ export default async function AdminRecettesPage() {
     isSeasonal: r.isSeasonal,
     status: r.status,
     slides: r.slides,
+    sheets: r.sheets.map((s) => ({
+      id: s.id,
+      sheetIndex: s.sheetIndex,
+      title: s.title,
+      coverImageUrl: s.coverImageUrl,
+      calories: s.calories,
+      nutriscoreGrade: s.nutriscoreGrade,
+      nutriscoreConfidence: s.nutriscoreConfidence,
+    })),
   }));
 
   return (

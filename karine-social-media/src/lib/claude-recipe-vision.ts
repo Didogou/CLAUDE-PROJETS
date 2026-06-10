@@ -22,6 +22,10 @@ import type { RecipeIngredient } from '@/data/recipes';
 const MODEL = 'claude-haiku-4-5-20251001';
 
 export type ExtractedRecipeSheet = {
+  /** Numéro de fiche imprimé sur l'image (« Recette 1 », « Fiche 2 »,
+   *  etc.). null si absent / illisible. Utilisé pour calculer le
+   *  sheet_index à l'enregistrement. */
+  sheetNumber: number | null;
   title: string | null;
   servings: number | null;
   calories: number | null;
@@ -109,6 +113,11 @@ export async function extractRecipeSheetFromImage(
         input_schema: {
           type: 'object',
           properties: {
+            sheetNumber: {
+              type: ['integer', 'null'],
+              description:
+                'Numéro de la fiche/recette si imprimé sur l\'image. Cherche "Recette 1", "Fiche 2", "N°3", "Recette n°4", chiffre en haut de la fiche, etc. C\'est l\'ordre dans lequel Karine veut classer ses fiches. null si absent ou illisible.',
+            },
             title: {
               type: ['string', 'null'],
               description:
@@ -199,6 +208,7 @@ export async function extractRecipeSheetFromImage(
             },
           },
           required: [
+            'sheetNumber',
             'title',
             'servings',
             'calories',
@@ -230,6 +240,12 @@ export async function extractRecipeSheetFromImage(
           {
             type: 'text',
             text: `Tu lis une fiche recette française complète (titre + ingrédients listés + temps + calories + tags).
+
+🔢 NUMÉRO DE FICHE (sheetNumber) :
+- Cherche un numéro imprimé sur l'image : "Recette 1", "Fiche 2", "N°3", "Recette n°4", "1/12" (= fiche 1 sur 12), gros chiffre en coin de fiche, etc.
+- Renvoie UNIQUEMENT le numéro de la fiche courante (pas le "12" de "1/12").
+- Si tu vois "Recette 1", sheetNumber=1. Si "Fiche 7", sheetNumber=7.
+- null si absent ou illisible.
 
 Règles :
 - Reste 100% fidèle au texte de l'image. N'invente jamais une quantité ou un ingrédient.
@@ -318,6 +334,14 @@ Appelle save_recipe_sheet.`,
   }
 
   return {
+    // sheetNumber : entier positif uniquement (Vision peut renvoyer 0
+    // ou négatif si confusion). Filtre à `null` dans ces cas.
+    sheetNumber:
+      typeof input.sheetNumber === 'number' &&
+      Number.isFinite(input.sheetNumber) &&
+      input.sheetNumber >= 1
+        ? Math.round(input.sheetNumber)
+        : null,
     title: typeof input.title === 'string' ? input.title.trim() : null,
     servings:
       typeof input.servings === 'number' && Number.isFinite(input.servings)

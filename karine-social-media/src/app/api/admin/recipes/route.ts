@@ -191,6 +191,42 @@ export async function POST(request: NextRequest) {
       sheetsToInsert.push({ payload: mainAsSheet, coverUrl });
     }
 
+    // === Calcul sheet_index final avec auto-renum des doublons ===
+    // Le payload Vision peut contenir un `sheetNumber` (1-based, extrait
+    // de "Recette 1", "Fiche 2", etc. sur l'image). Stratégie :
+    //  1. Les numéros UNIQUES proposés sont conservés (1 → sheet_index 0)
+    //  2. Les doublons + les fiches sans numéro reçoivent le plus petit
+    //     sheet_index libre disponible (Q4=B auto-renum).
+    // Si aucune fiche n'a de numéro → comportement identique à avant
+    // (sheet_index = 0, 1, 2, ... dans l'ordre d'arrivée).
+    const counts = new Map<number, number>();
+    for (const { payload } of sheetsToInsert) {
+      const n = (payload as { sheetNumber?: number | null }).sheetNumber;
+      if (typeof n === 'number' && n >= 1) {
+        counts.set(n, (counts.get(n) ?? 0) + 1);
+      }
+    }
+    const finalSheetIndices = new Map<number, number>();
+    const usedIndices = new Set<number>();
+    // Phase 1 : alloue les numéros sans conflit
+    for (let idx = 0; idx < sheetsToInsert.length; idx++) {
+      const n = (sheetsToInsert[idx].payload as { sheetNumber?: number | null })
+        .sheetNumber;
+      if (typeof n === 'number' && n >= 1 && counts.get(n) === 1) {
+        finalSheetIndices.set(idx, n - 1);
+        usedIndices.add(n - 1);
+      }
+    }
+    // Phase 2 : conflits + sans numéro → plus petit libre
+    let nextFree = 0;
+    for (let idx = 0; idx < sheetsToInsert.length; idx++) {
+      if (finalSheetIndices.has(idx)) continue;
+      while (usedIndices.has(nextFree)) nextFree++;
+      finalSheetIndices.set(idx, nextFree);
+      usedIndices.add(nextFree);
+      nextFree++;
+    }
+
     // Insert chaque sheet. On garde les ids pour pouvoir recalculer
     // le Nutri-Score juste après (sequentially, pour respecter le
     // throttle Mistral 1 req/s sur les poids unitaires).
@@ -199,7 +235,7 @@ export async function POST(request: NextRequest) {
       const { payload, coverUrl: shCover } = sheetsToInsert[i];
       const sheetPayload = {
         recipe_id: recipeId,
-        sheet_index: i,
+        sheet_index: finalSheetIndices.get(i) ?? i,
         title:
           typeof payload.title === 'string' ? payload.title.trim() || null : null,
         cover_image_url: shCover,
