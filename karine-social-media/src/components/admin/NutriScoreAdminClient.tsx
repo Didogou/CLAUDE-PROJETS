@@ -106,6 +106,9 @@ export function NutriScoreAdminClient({
   const [pendingSheetId, setPendingSheetId] = useState<string | null>(null);
   // Filtre catégorie sidebar : "all" affiche tout, sinon filtre.
   const [categoryFilter, setCategoryFilter] = useState<RecipeCategory | 'all'>('all');
+  // Recherche live par titre (sheet OU recette parente), tolérante
+  // aux accents et à la casse.
+  const [searchQuery, setSearchQuery] = useState('');
   // Onglet courant du panel droit : éditeur de recette ou règles.
   const [activeTab, setActiveTab] = useState<'editor' | 'rules'>('editor');
   // Mode de la sidebar : "recettes" (liste plate) ou "menus" (semaines
@@ -237,6 +240,34 @@ export function NutriScoreAdminClient({
         {/* Filtre par catégorie — visible uniquement en mode recettes.
             Scrollable horizontalement. "Toutes" + une pastille par
             catégorie. La catégorie active est en avant (coral). */}
+        {/* Barre de recherche live sur la sidebar Recettes.
+            Filtre par titre de sheet OU titre de recette parente
+            (tolérant accents + casse). */}
+        {sidebarMode === 'recipes' && (
+        <div className="border-b border-coral-soft/20 px-2 pt-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ink-soft" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Rechercher une recette…"
+              className="w-full rounded-full border border-coral-soft/40 bg-white py-1.5 pl-9 pr-8 text-xs text-ink placeholder:text-ink-soft/60 focus:border-coral focus:outline-none focus:ring-1 focus:ring-coral"
+              aria-label="Rechercher dans les recettes"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                aria-label="Effacer la recherche"
+                className="absolute right-2 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-full text-ink-soft hover:bg-coral-soft/30 hover:text-coral-dark"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+        </div>
+        )}
         {sidebarMode === 'recipes' && (
         <div className="overflow-x-auto border-b border-coral-soft/20 px-2 py-2">
           <div className="flex w-max gap-1">
@@ -290,6 +321,18 @@ export function NutriScoreAdminClient({
               (s) =>
                 categoryFilter === 'all' || s.recipe.category === categoryFilter,
             )
+            .filter((s) => {
+              // Normalisation accents + casse pour recherche tolérante.
+              const q = searchQuery
+                .trim()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .toLowerCase();
+              if (!q) return true;
+              const sheetTitle = (s.sheet.title ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+              const recipeTitle = (s.recipe.title ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+              return sheetTitle.includes(q) || recipeTitle.includes(q);
+            })
             .map((stat) => {
               const isSelected = stat.sheet.id === selectedSheetId;
               const conf = stat.agg?.confidence ?? 0;
