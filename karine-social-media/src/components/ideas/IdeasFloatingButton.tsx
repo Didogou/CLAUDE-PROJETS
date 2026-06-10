@@ -47,12 +47,12 @@ export function IdeasFloatingButton({
   variant = 'pill',
 }: {
   /** Forme du bouton trigger.
-   *  - 'pill'  : pastille blanche "💡 Une idée ?" en flow inline.
-   *              Utilisée dans la ligne du header (legacy).
-   *  - 'fab'   : bouton rond flottant en bas-droite, au-dessus de la
-   *              BottomNav. Pattern Material/Action Button. Plus
-   *              discret mais persistent sur toute la page. */
-  variant?: 'pill' | 'fab';
+   *  - 'pill'        : pastille blanche "💡 Une idée ?" inline (header legacy).
+   *  - 'fab'         : bouton rond flottant en bas-droite (fixed).
+   *  - 'inline-small': bouton rond en flow normal (pas fixed),
+   *                    taille reduite h-10 w-10. Utilise dans la
+   *                    BottomNav home pour s'aligner avec le FAB camera. */
+  variant?: 'pill' | 'fab' | 'inline-small';
 } = {}) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<IdeaType>('recette');
@@ -135,6 +135,18 @@ export function IdeasFloatingButton({
           style={{ marginBottom: 'env(safe-area-inset-bottom)' }}
         >
           <Lightbulb className="h-5 w-5 fill-amber-400" strokeWidth={2.2} />
+        </button>
+      ) : variant === 'inline-small' ? (
+        /* Variante INLINE-SMALL : bouton rond en flow (pas fixed),
+           h-10 w-10, integre dans la BottomNav home a cote du FAB
+           camera. Ouvre la meme modal. */
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label="Soumettre une idée à Karine"
+          className="grid h-10 w-10 place-items-center rounded-full bg-white text-amber-400 shadow-md ring-2 ring-coral-soft transition hover:scale-105 active:scale-95"
+        >
+          <Lightbulb className="h-6 w-6 fill-amber-400" strokeWidth={2.2} />
         </button>
       ) : (
         /* Pill blanc inline (legacy) — utilisé dans le header. */

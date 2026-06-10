@@ -28,9 +28,12 @@ export function TrackingPill({
    *  des appels existants (ignorée). */
   canEdit?: boolean;
 } = {}) {
+  // Taille legerement augmentee (h-9 vs h-8, flamme h-5 vs h-4) +
+  // pulse-soft pour signaler que c'est une action vivante (clic =
+  // ouvrir le tracker calorique).
   const className =
-    'grid h-8 w-8 place-items-center rounded-full bg-white text-coral shadow-md ring-2 ring-coral transition hover:scale-105 active:scale-95';
-  const icon = <Flame className="h-4 w-4 fill-coral" strokeWidth={2} />;
+    'anim-pulse-soft grid h-9 w-9 place-items-center rounded-full bg-white text-coral shadow-md ring-2 ring-coral transition hover:scale-105 active:scale-95';
+  const icon = <Flame className="h-5 w-5 fill-coral" strokeWidth={2} />;
 
   if (behavior === 'login') {
     return (

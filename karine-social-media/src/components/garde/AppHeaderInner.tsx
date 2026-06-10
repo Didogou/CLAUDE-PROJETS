@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { ArrowLeft, Bell, LogIn, User } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { MainDrawer } from './MainDrawer';
@@ -51,6 +52,33 @@ export function AppHeaderInner({
   backHref?: string;
 }) {
   const [scrolled, setScrolled] = useState(false);
+  // Si l'admin a clique "Voir le site abonne" depuis /admin, il
+  // navigue avec ?as=visitor sur la home. Le flag est stocke en
+  // sessionStorage des qu'on l'a vu une fois, puis AppHeader sur
+  // toutes les pages internes peut le re-lire (le query param
+  // disparait dès qu'on navigue vers /recettes, /courses, etc.).
+  // On l'utilise pour propager ?as=visitor sur backHref et eviter
+  // que le guard home (page.tsx) re-redirige vers /admin.
+  const searchParams = useSearchParams();
+  const [asVisitorSticky, setAsVisitorSticky] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const fromUrl = searchParams?.get('as') === 'visitor';
+    if (fromUrl) {
+      sessionStorage.setItem('karine_as_visitor', '1');
+      setAsVisitorSticky(true);
+      return;
+    }
+    if (sessionStorage.getItem('karine_as_visitor') === '1') {
+      setAsVisitorSticky(true);
+    }
+  }, [searchParams]);
+
+  const effectiveBackHref =
+    backHref && asVisitorSticky && !backHref.includes('as=visitor')
+      ? `${backHref}${backHref.includes('?') ? '&' : '?'}as=visitor`
+      : backHref;
 
   useEffect(() => {
     // Hystérésis pour éviter le clignotement : quand le header passe
@@ -91,9 +119,9 @@ export function AppHeaderInner({
             et "sur cette sous-page, le geste principal à gauche c'est
             revenir, pas naviguer ailleurs". Le burger reste accessible
             via la page parente. */}
-        {backHref ? (
+        {effectiveBackHref ? (
           <Link
-            href={backHref}
+            href={effectiveBackHref}
             aria-label="Retour"
             className="grid h-9 w-9 place-items-center rounded-full bg-white/70 text-coral-dark ring-1 ring-coral-soft/40 backdrop-blur transition hover:bg-white"
           >

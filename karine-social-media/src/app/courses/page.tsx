@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
@@ -33,17 +32,12 @@ export default async function CoursesPage() {
           qu'on dépassait sa propre hauteur (~80 px). On garde le
           print:hidden directement sur chaque enfant. */}
       <FloralBackground />
-      <AppHeader pageTitle="Mes courses" />
+      {/* Meme pattern que /recettes /menus /astuces : pageTitle +
+          backHref vers la page d'origine (home par default). Pas de
+          bouton "Historique" visible — accessible via le lien
+          discret dans la boite pliable "Repas du menu" si besoin. */}
+      <AppHeader pageTitle="Mes courses" backHref="/" />
       <main className="mx-auto w-full max-w-md flex-1 px-5 pb-8 lg:max-w-2xl print:max-w-none print:px-0 print:pb-0">
-        <div className="mb-4 flex items-center justify-end gap-2 print:hidden">
-          <Link
-            href="/courses/historique"
-            className="rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-coral-dark shadow-sm transition hover:bg-white"
-          >
-            Historique
-          </Link>
-        </div>
-
         <ShoppingListPage initialList={list} currentMenu={currentMenu} />
       </main>
       <div className="print:hidden">

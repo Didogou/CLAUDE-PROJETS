@@ -6,7 +6,6 @@ import { SaviezVousFil } from '@/components/garde/SaviezVousFil';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { LegalFooter } from '@/components/garde/LegalFooter';
-import { IdeasFloatingButton } from '@/components/ideas/IdeasFloatingButton';
 import { getPublishedFeaturedPhotos } from '@/lib/featured-photos';
 import { getUserFavorites } from '@/lib/favorites';
 import { discoverPages } from '@/lib/discover-pages';
@@ -34,34 +33,30 @@ const TILES: TileDef[] = [
     href: '/menus',
     title: 'Menu de la semaine',
     subtitle: 'Des repas équilibrés\nchaque jour',
-    bgClass: 'bg-peach',
-    iconImage: '/images/icons/menu-de-la-semaine.png',
-    iconScale: 115,
+    bgClass: 'bg-white',
+    iconImage: '/images/icons/new-menu-v6.webp',
   },
   {
     href: '/recettes',
     title: 'Idées recettes',
     subtitle: 'Inspiration saine\net gourmande',
-    bgClass: 'bg-cream',
-    iconImage: '/images/icons/recettesv2.png',
-    iconScale: 115,
+    bgClass: 'bg-white',
+    iconImage: '/images/icons/new-recettes-v8.webp',
     burstOnClick: true,
   },
   {
     href: '/conseils',
     title: 'Conseils santé',
     subtitle: 'Mieux comprendre\nvotre santé',
-    bgClass: 'bg-mint',
-    iconImage: '/images/icons/sante.png',
-    iconScale: 115,
+    bgClass: 'bg-white',
+    iconImage: '/images/icons/new-sante-v6.webp',
   },
   {
     href: '/astuces',
     title: 'Astuces diététiques',
     subtitle: 'Des astuces simples\nau quotidien',
-    bgClass: 'bg-lavender',
-    iconImage: '/images/icons/astucesv3.png',
-    iconScale: 115,
+    bgClass: 'bg-white',
+    iconImage: '/images/icons/new-astuces-v10.webp',
   },
 ];
 
@@ -116,7 +111,7 @@ export default async function Home({
 
   return (
     <div className="relative flex min-h-screen flex-col">
-      <FloralBackground />
+      <FloralBackground variant="accueil" />
 
       {/* AppHeader DOIT être enfant direct du flex parent <div.min-h-screen>
           pour que `sticky top-0` fonctionne tout au long du scroll.
@@ -169,11 +164,9 @@ export default async function Home({
 
       <LegalFooter />
 
-      {/* FAB "Une idée" flottant en bas-droite, au-dessus de la
-          BottomNav. Toujours visible, persistant au scroll, mais
-          discret (icone seule). Remplace l'ancien pill en 2e ligne
-          du header. Réservé à la home (canal feedback principal). */}
-      <IdeasFloatingButton variant="fab" />
+      {/* L'ampoule "Une idée" est integree dans la BottomNav home
+          (a droite du FAB camera, taille inline-small) — pas besoin
+          de la dupliquer en FAB fixe. */}
 
       <BottomNav />
     </div>

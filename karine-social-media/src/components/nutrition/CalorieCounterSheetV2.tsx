@@ -26,7 +26,7 @@ import { LongPressSlider } from '@/components/ui/LongPressSlider';
 import { CircularProgress } from '@/components/ui/CircularProgress';
 import { MealCategoryAvatar } from './MealIcon';
 import { WaterSection } from './WaterSection';
-import { showToast } from '@/lib/toast';
+import { showToast, queueToastForNextPage } from '@/lib/toast';
 import { IngredientCardCarousel } from './IngredientCardCarousel';
 import { MacroRing } from './MacroRing';
 
@@ -67,7 +67,7 @@ export const MEAL_FROM_URL_SLUG: Record<string, MealCategory> = {
  *   < 19h   → snack
  *   sinon   → dinner
  */
-function defaultMealForHour(date: Date = new Date()): MealCategory {
+export function defaultMealForHour(date: Date = new Date()): MealCategory {
   const h = date.getHours();
   const m = date.getMinutes();
   const total = h * 60 + m;
@@ -274,6 +274,20 @@ type Props = {
    * route /mes-calories pour des URLs distinctes par sub-page.
    */
   useUrlNavigation?: boolean;
+  /**
+   * Pre-remplissage du champ "Ajouter un plat" au mount. Utilise par
+   * le FAB camera de BottomNav : la description Vision est passee en
+   * query string et hydratee ici, declenche auto-parse → l'utilisatrice
+   * arrive directement sur la preview a valider.
+   */
+  initialNaturalText?: string;
+  /** Photo deja uploadee a associer aux entries crees. Utilise par
+   *  le FAB camera (photo uploadee avant navigation). */
+  initialPhotoUrl?: string;
+  /** URL vers laquelle revenir apres validation d'un plat. Utile pour
+   *  le FAB camera : si l'utilisatrice etait sur /recettes, on la
+   *  ramene la apres avoir ajoute son plat. */
+  returnUrl?: string;
 };
 
 /**
@@ -290,6 +304,9 @@ export function CalorieCounterSheetV2({
   initialMealCategory,
   initialSubPageMode = 'add',
   useUrlNavigation = false,
+  initialNaturalText,
+  initialPhotoUrl,
+  returnUrl,
 }: Props) {
   const [day, setDay] = useState<DayState | null>(null);
   const [naturalText, setNaturalText] = useState('');
@@ -308,7 +325,9 @@ export function CalorieCounterSheetV2({
   // puis on remet null pour ne pas l'afficher en haut. La photo
   // réapparaît automatiquement dans la liste "Déjà ajouté" (via la
   // colonne photo_url remontée par getNutritionDayState).
-  const [mealPhotoUrl, setMealPhotoUrl] = useState<string | null>(null);
+  const [mealPhotoUrl, setMealPhotoUrl] = useState<string | null>(
+    initialPhotoUrl ?? null,
+  );
   // URL en cours d'affichage en lightbox plein écran (null = fermé).
   // - persisted=false : photo en cours d'analyse (pas encore sauvée),
   //   pas de bouton supprimer.
@@ -431,6 +450,22 @@ export function CalorieCounterSheetV2({
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Auto-parse au mount si on arrive du FAB camera (initialNaturalText
+  // fourni). Ref garde l'execution unique meme en cas de StrictMode
+  // double-mount (dev). Pas de setTimeout/cleanup : le cleanup
+  // annulait le timer en StrictMode → parseText jamais appele.
+  const autoParsedRef = useRef(false);
+  useEffect(() => {
+    if (autoParsedRef.current) return;
+    if (!initialNaturalText || !initialNaturalText.trim()) return;
+    autoParsedRef.current = true;
+    setNaturalText(initialNaturalText);
+    // Appel direct, le `parsing` flag de parseText bloque les
+    // doublons. Une micro-tache laisse le state s'hydrater d'abord.
+    void Promise.resolve().then(() => parseText(initialNaturalText));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialNaturalText]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -572,6 +607,18 @@ export function CalorieCounterSheetV2({
         setNoResult(null);
         await refresh();
         window.dispatchEvent(new Event('nutrition-log-updated'));
+        // Si on est venue du FAB camera (returnUrl fournie), on
+        // ramene l'utilisatrice vers la page d'origine apres
+        // validation. Toast persistant via sessionStorage : sera
+        // affiche sur la page d'arrivee post-navigation.
+        if (returnUrl) {
+          queueToastForNextPage({
+            kind: 'banner-pink',
+            message: `Ton repas est ajouté dans ${MEAL_LABELS[renderedMealCategory]}`,
+            durationMs: 3500,
+          });
+          router.push(returnUrl);
+        }
       } else {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         alertError(j?.error || 'Erreur ajout');
@@ -754,6 +801,16 @@ export function CalorieCounterSheetV2({
         await refresh();
         onChanged();
         window.dispatchEvent(new CustomEvent('nutrition-log-updated'));
+        // Si on est venue du FAB camera (returnUrl), retour a la page
+        // d'origine + toast de confirmation persistant.
+        if (returnUrl) {
+          queueToastForNextPage({
+            kind: 'banner-pink',
+            message: `Ton repas est ajouté dans ${MEAL_LABELS[effectiveCategory]}`,
+            durationMs: 3500,
+          });
+          router.push(returnUrl);
+        }
         // Déclenche la génération du conseil Karine en arrière-plan.
         // Pas de await : si Mistral met 2s, l'UI reste réactive et le
         // toast apparaît dès que la réponse arrive.

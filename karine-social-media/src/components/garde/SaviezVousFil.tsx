@@ -125,17 +125,6 @@ export function SaviezVousFil({
           <Sparkles className="h-5 w-5 text-tangerine" aria-hidden />
         </header>
 
-        {/* Caption du polaroid actuellement centré dans le scroller.
-            Permet de lire le sujet en grand AVANT de cliquer pour
-            ouvrir la lightbox. Hauteur réservée (min-h-6) pour éviter
-            le saut de layout quand un item n'a pas de caption. */}
-        <p
-          aria-live="polite"
-          className="mb-3 min-h-[1.5rem] px-2 text-center font-script text-xl text-coral-dark lg:text-2xl"
-        >
-          {items[activeIdx]?.caption ?? ''}
-        </p>
-
         {/* Wrapper relatif qui ancre le fil au niveau des pinces. */}
         <div className="relative">
           {/* Fil tendu d'un bord à l'autre — passe PILE au niveau des pinces.

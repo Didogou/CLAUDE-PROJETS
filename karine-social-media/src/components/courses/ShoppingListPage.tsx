@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   Check,
+  ChevronDown,
+  ChevronUp,
   Plus,
   Printer,
   Save,
@@ -35,6 +37,10 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [addingItem, setAddingItem] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
+  // Boite "Repas du menu" pliable (vignettes recettes + repas semaine).
+  // Plie par defaut : Karine ne veut pas surcharger la vue avec les
+  // vignettes des qu'on arrive sur la liste de courses.
+  const [repasOpen, setRepasOpen] = useState(false);
 
   const menuLinked = currentMenu !== null && list.linkedMenuId === currentMenu.id;
   const checkedCount = list.items.filter((it) => it.checked).length;
@@ -116,16 +122,44 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
       )}
 
 
-      {/* Menu de la semaine — VIGNETTES REPAS uniquement si le menu
-          est ajoute a la liste. Croix sur chaque vignette = retire
-          le menu entier (= retire les ingredients correspondants de
-          la liste de courses). */}
-      {currentMenu && menuLinked && currentMenu.days.length > 0 && (
-        <section className="rounded-2xl bg-white/95 p-3 shadow-sm">
-          <p className="mb-1.5 text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
-            Repas du menu
-          </p>
-          <ul className="flex gap-2.5 overflow-x-auto pb-1">
+      {/* BOITE PLIABLE "Repas du menu" : contient les vignettes des
+          repas du menu de la semaine (si menu ajoute) ET les recettes
+          ajoutees individuellement. Pliee par defaut, deroule au clic
+          sur le header. */}
+      {((currentMenu && menuLinked && currentMenu.days.length > 0) ||
+        list.linkedRecipes.length > 0) && (
+        <section className="overflow-hidden rounded-2xl bg-white/95 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setRepasOpen((o) => !o)}
+            aria-expanded={repasOpen}
+            className="flex w-full items-center justify-between gap-2 px-3 py-3 text-left hover:bg-coral-soft/10"
+          >
+            <span className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
+              Repas du menu
+            </span>
+            {repasOpen ? (
+              <ChevronUp className="size-4 text-coral-dark" />
+            ) : (
+              <ChevronDown className="size-4 text-coral-dark" />
+            )}
+          </button>
+
+          {/* Pattern CSS Grid pour animer la hauteur AUTO :
+              grid-rows-[0fr] → [1fr] avec transition lente (500ms
+              cubic-bezier). Plus smooth que max-height qui requiert
+              une valeur fixe. overflow-hidden sur l'enfant
+              indispensable pour cacher le contenu pendant le pliage. */}
+          <div
+            className={`grid transition-[grid-template-rows] duration-500 ease-out ${
+              repasOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+            }`}
+          >
+            <div className="overflow-hidden">
+              <div className="space-y-3 px-3 pb-3">
+                {/* Vignettes repas du menu de la semaine */}
+                {currentMenu && menuLinked && currentMenu.days.length > 0 && (
+                  <ul className="flex gap-2.5 overflow-x-auto pb-1">
             {currentMenu.days.flatMap((d) => {
               const meals: Array<{
                 key: string;
@@ -189,45 +223,46 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
                 </Link>
               </li>
             ))}
-          </ul>
-        </section>
-      )}
+                </ul>
+              )}
 
-      {/* Fiches détaillées ajoutées (anciennement "Recettes") */}
-      {list.linkedRecipes.length > 0 && (
-        <section className="rounded-2xl bg-white/95 p-3 shadow-sm">
-          <h2 className="mb-2 font-script text-xl text-coral">Recettes ajoutées</h2>
-          <ul className="flex gap-3 overflow-x-auto pb-1">
-            {list.linkedRecipes.map((r) => (
-              <li key={r.sheetId} className="relative shrink-0 w-24">
-                <Link
-                  href={`/recettes/${r.recipeSlug}`}
-                  className="block overflow-hidden rounded-xl bg-blush/30 shadow-sm"
-                >
-                  <div
-                    className="aspect-square w-full bg-cover bg-center"
-                    style={
-                      r.sheetCoverUrl
-                        ? { backgroundImage: `url(${r.sheetCoverUrl})` }
-                        : undefined
-                    }
-                  />
-                  <p className="line-clamp-2 px-1.5 py-1 text-center text-[0.7rem] font-semibold text-ink">
-                    {r.sheetTitle}
-                  </p>
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => removeSheet(r.sheetId)}
-                  disabled={busy}
-                  aria-label="Retirer cette fiche"
-                  className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-white/95 text-coral shadow ring-1 ring-coral-soft/40 transition hover:scale-110"
-                >
-                  <X className="h-3.5 w-3.5" strokeWidth={2.5} />
-                </button>
-              </li>
-            ))}
-          </ul>
+              {/* Vignettes recettes ajoutees individuellement */}
+              {list.linkedRecipes.length > 0 && (
+                <ul className="flex gap-3 overflow-x-auto pb-1">
+                  {list.linkedRecipes.map((r) => (
+                    <li key={r.sheetId} className="relative shrink-0 w-24">
+                      <Link
+                        href={`/recettes/${r.recipeSlug}`}
+                        className="block overflow-hidden rounded-xl bg-blush/30 shadow-sm"
+                      >
+                        <div
+                          className="aspect-square w-full bg-cover bg-center"
+                          style={
+                            r.sheetCoverUrl
+                              ? { backgroundImage: `url(${r.sheetCoverUrl})` }
+                              : undefined
+                          }
+                        />
+                        <p className="line-clamp-2 px-1.5 py-1 text-center text-[0.7rem] font-semibold text-ink">
+                          {r.sheetTitle}
+                        </p>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => removeSheet(r.sheetId)}
+                        disabled={busy}
+                        aria-label="Retirer cette fiche"
+                        className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-white/95 text-coral shadow ring-1 ring-coral-soft/40 transition hover:scale-110"
+                      >
+                        <X className="h-3.5 w-3.5" strokeWidth={2.5} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              </div>
+            </div>
+          </div>
         </section>
       )}
 

@@ -25,8 +25,8 @@ export const BACKGROUND_VARIANTS: {
     key: 'accueil',
     label: 'Accueil',
     description: 'Page d’accueil principale (tuiles + Le saviez-vous)',
-    fallbackPortrait: '/images/fond-accueil-v2.webp',
-    fallbackPaysage: '/images/fond-accueil-desktop-v2.webp',
+    fallbackPortrait: '/images/fond-accueil-v3.png',
+    fallbackPaysage: '/images/fond-accueil-desktop-v3.png',
   },
   {
     key: 'default',

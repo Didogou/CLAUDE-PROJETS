@@ -1,25 +1,26 @@
+import Image from 'next/image';
 import { Heart } from 'lucide-react';
 
 export function WelcomeBlock() {
   return (
-    <div
-      // pb-5 (20px) crée de l'air entre le slogan "Prenons soin de
-      // vous" et la première rangée de tuiles. pt-1 garde le slogan
-      // proche du header.
-      //
-      // ⚠ Ancien comportement supprimé : "lg:absolute lg:inset-y-0
-      // lg:left-28 lg:flex lg:flex-col lg:justify-center lg:p-0
-      // lg:text-left" plaçait le slogan en absolute centré
-      // verticalement dans la page (vu l'absence de wrapper relative
-      // depuis le refacto sticky), ce qui le faisait chevaucher le
-      // SaviezVousFil. Sur PC, le slogan est maintenant simplement
-      // centré sous le header — même comportement que mobile.
-      className="px-5 pb-5 pt-1 text-center"
-    >
+    <div className="relative px-5 pb-5 pt-1 text-center">
+      {/* Petite fee aquarelle a DROITE qui "pointe" vers le titre.
+          Positionnement absolu pour ne pas decaler le centrage du
+          texte. scale-x-[-1] : l'illustration native a la baguette
+          a droite ; on inverse pour qu'elle pointe a gauche (vers
+          le titre). Taille augmentee (size-20 mobile, plus en desktop).
+          anim-pulse-soft pour donner vie. */}
+      <Image
+        src="/images/icons/fee-logo.webp"
+        alt=""
+        width={128}
+        height={128}
+        aria-hidden
+        className="anim-pulse-soft pointer-events-none absolute right-1 top-1/2 size-20 -translate-y-1/2 scale-x-[-1] drop-shadow-sm sm:right-4 sm:size-28 lg:size-32"
+        priority
+      />
+
       <p className="flex items-end justify-center gap-2 whitespace-nowrap font-script leading-tight text-coral lg:gap-3">
-        {/* `clamp` garantit que la phrase tient toujours sur 1 ligne
-            même sur les très petits écrans : la taille s'ajuste entre
-            1.8rem (mobile étroit) et 4rem (desktop). */}
         <span style={{ fontSize: 'clamp(1.8rem, 9vw, 4rem)' }}>
           Prenons soin de vous
         </span>

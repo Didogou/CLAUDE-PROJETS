@@ -60,6 +60,14 @@ export default async function MesCaloriesMealPage({
   // Mode : ?view => 'view' (liste "Déjà ajouté" affichée), sinon 'add'.
   const mode: 'add' | 'view' = sp.view !== undefined ? 'view' : 'add';
 
+  // Pre-remplissage depuis le FAB camera : ?desc=...&photo=...&from=...
+  // Quand l'utilisatrice clique le FAB en BottomNav, on l'envoie ici
+  // avec la description Vision deja faite et l'URL de la photo
+  // uploadee. La sub-page lance auto-parse au mount.
+  const prefillDesc = typeof sp.desc === 'string' ? sp.desc : null;
+  const prefillPhoto = typeof sp.photo === 'string' ? sp.photo : null;
+  const fromUrl = typeof sp.from === 'string' ? sp.from : null;
+
   return (
     <div className="relative flex min-h-screen flex-col">
       {/* Juste FloralBackground (fleurs + libellules + fee). Pas de
@@ -75,7 +83,13 @@ export default async function MesCaloriesMealPage({
           pb-16 = laisse la place pour le bandeau anneaux + BottomNav
           fixed en bas (sinon les anneaux se retrouvent caches derriere). */}
       <main className="relative mx-auto flex w-full max-w-lg flex-1 flex-col pb-16">
-        <MesCaloriesMealPageClient slug={meal as MealSlug} mode={mode} />
+        <MesCaloriesMealPageClient
+          slug={meal as MealSlug}
+          mode={mode}
+          prefillDesc={prefillDesc}
+          prefillPhoto={prefillPhoto}
+          fromUrl={fromUrl}
+        />
       </main>
       <BottomNav />
     </div>

@@ -197,12 +197,21 @@ body {
 .anim-scale-in    { animation: karine-scale-in 250ms cubic-bezier(0.16, 1, 0.3, 1) both; }
 .anim-dropdown-in { animation: karine-dropdown-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: top center; }
 
+/* Pulsation douce et infinie (FAB camera, icone Flame calorie...).
+   Subtile : scale 1 → 1.07 → 1, ~2.4s. Boucle sans accroc. */
+@keyframes karine-pulse-soft {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.07); }
+}
+.anim-pulse-soft { animation: karine-pulse-soft 2.4s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .anim-fade-in,
   .anim-fade-quick,
   .anim-slide-up,
   .anim-scale-in,
-  .anim-dropdown-in {
+  .anim-dropdown-in,
+  .anim-pulse-soft {
     animation: none !important;
   }
 }

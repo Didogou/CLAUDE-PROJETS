@@ -24,9 +24,20 @@ import {
 export function MesCaloriesMealPageClient({
   slug,
   mode,
+  prefillDesc,
+  prefillPhoto,
+  fromUrl,
 }: {
   slug: 'petit-dej' | 'dejeuner' | 'gouter' | 'diner';
   mode: 'add' | 'view';
+  /** Si fourni (via le FAB camera dans BottomNav), prerempli l'invite
+   *  "Ajouter un plat" avec cette description Vision et lance auto-parse. */
+  prefillDesc?: string | null;
+  /** Si fourni, photo deja uploadee a associer aux entries crees. */
+  prefillPhoto?: string | null;
+  /** Si fourni, URL vers laquelle revenir apres validation du plat
+   *  (page d'origine d'ou l'utilisatrice a clique le FAB). */
+  fromUrl?: string | null;
 }) {
   const router = useRouter();
   const category = MEAL_FROM_URL_SLUG[slug];
@@ -36,6 +47,9 @@ export function MesCaloriesMealPageClient({
       useUrlNavigation
       initialMealCategory={category}
       initialSubPageMode={mode}
+      initialNaturalText={prefillDesc ?? undefined}
+      initialPhotoUrl={prefillPhoto ?? undefined}
+      returnUrl={fromUrl ?? undefined}
       onClose={() => router.push('/mes-calories')}
       onChanged={() => {
         /* refresh local géré par le composant */

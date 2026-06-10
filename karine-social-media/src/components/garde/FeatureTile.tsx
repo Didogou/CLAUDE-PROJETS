@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Lock, type LucideIcon } from 'lucide-react';
+import { Lock, type LucideIcon } from 'lucide-react';
 import { LockedTileModal } from './LockedTileModal';
 import { FireworkBurst } from '@/components/recettes/FireworkBurst';
 
@@ -105,46 +106,51 @@ export function FeatureTile({
         </span>
       )}
 
-      {/* Icone ABSOLUTE-CENTERED (top:50%, left:50%, translate -50%)
-          → centrage parfait independant du flex/justify. L'icone peut
-          deborder (iconScale 115%) sans casser l'alignement. */}
+      {/* Next/Image + fill + sizes : Next genere automatiquement les
+          versions AVIF/WebP et choisit la resolution adaptee a chaque
+          ecran via srcset.
+          quality=95 (vs default 75) : les illustrations aquarelle
+          Karine ont des transitions subtiles qui se compressent mal
+          en JPEG/WebP low-quality → on monte au max pour preserver
+          la nettete. Poids legerement plus eleve mais visuel propre. */}
       {iconImage ? (
-        <span
-          aria-hidden
-          className="absolute left-1/2 top-1/2 aspect-square -translate-x-1/2 -translate-y-1/2 bg-contain bg-center bg-no-repeat"
-          style={{
-            backgroundImage: `url(${iconImage})`,
-            width: `${iconScale}%`,
-            maxWidth: '16rem',
-          }}
-        />
+        <div
+          className="relative block w-full overflow-hidden"
+          style={{ aspectRatio: '4 / 5' }}
+        >
+          <Image
+            src={iconImage}
+            alt=""
+            fill
+            sizes="(max-width: 1024px) 50vw, 25vw"
+            // Toutes les images sources sont en 4:5 strict (Karine
+            // exporte en 2244x2805 ou equivalent) → object-cover
+            // remplit bord a bord sans crop visible.
+            className="object-cover"
+          />
+        </div>
       ) : (
         Icon && (
-          <span className="absolute left-1/2 top-1/2 grid h-20 w-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white shadow-sm">
-            <Icon className={`h-10 w-10 ${iconClass}`} strokeWidth={2} />
+          <span className="grid h-32 w-full place-items-center bg-coral-soft/20">
+            <Icon className={`h-12 w-12 ${iconClass}`} strokeWidth={2} />
           </span>
         )
       )}
 
-      {/* Titre cache (l'icone parle d'elle-meme) + subtitle en BAS
-          aligne horizontalement avec la fleche. Le subtitle prend
-          tout l'espace dispo a gauche de la fleche. */}
-      <span className="sr-only">{title}</span>
-      <span className="absolute bottom-2 left-2.5 right-10 z-10 whitespace-pre-line text-left text-[0.65rem] leading-tight text-ink-soft lg:text-xs">
-        {subtitle}
-      </span>
-
-      <span className="absolute bottom-2 right-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-coral text-white">
-        <ArrowRight className="h-3.5 w-3.5" strokeWidth={2.5} />
+      {/* Titre + subtitle gardes en sr-only pour SEO / accessibilite,
+          mais cachés visuellement (deja dans l'image). */}
+      <span className="sr-only">
+        {title}
+        {subtitle ? ` — ${subtitle.replace(/\n/g, ' ')}` : ''}
       </span>
     </>
   );
 
-  // Forme CARRE : aspect-square + rounded-2xl. Pas de flex car
-  // tout est en ABSOLUTE positioning (icone centree + subtitle bas
-  // gauche + fleche bas droite). overflow-hidden pour que les icones
-  // qui debordent (iconScale > 100) restent dans le cadre arrondi.
-  const baseClass = `group relative block aspect-square h-full overflow-hidden rounded-2xl shadow-sm transition ${bgClass} ${className}`;
+  // Forme RECTANGLE 4:5 portrait. Coins tres arrondis + shadow
+  // marquee pour le relief. L'image fait tout : titre + subtitle +
+  // fleche, donc on n'a pas besoin de padding interne — l'image
+  // touche les 4 bords.
+  const baseClass = `group relative block overflow-hidden rounded-3xl shadow-md transition ${bgClass} ${className}`;
   const lockedClass = locked
     ? 'opacity-65 saturate-75 hover:opacity-80 hover:shadow-md'
     : 'hover:-translate-y-0.5 hover:shadow-md';
