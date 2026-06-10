@@ -67,6 +67,11 @@ export default async function MesCaloriesMealPage({
   const prefillDesc = typeof sp.desc === 'string' ? sp.desc : null;
   const prefillPhoto = typeof sp.photo === 'string' ? sp.photo : null;
   const fromUrl = typeof sp.from === 'string' ? sp.from : null;
+  // `back` param : controle ou ramene la fleche back du AppHeader.
+  // Valeur "mes-repas" envoyee par AddMealButton sur /mes-repas pour
+  // que back ramene a la liste des repas (et la rafraichisse au mount).
+  const backParam = typeof sp.back === 'string' ? sp.back : null;
+  const backHref = backParam === 'mes-repas' ? '/mes-repas' : '/mes-calories';
 
   return (
     <div className="relative flex min-h-screen flex-col">
@@ -75,14 +80,19 @@ export default async function MesCaloriesMealPage({
       <FloralBackground />
       <AppHeader
         pageTitle={SLUG_TO_LABEL[meal as MealSlug] ?? 'Mes calories'}
-        backHref="/mes-calories"
+        backHref={backHref}
         hideTracking
       />
       {/* flex flex-col est CRITIQUE : sans ca, le sheetBody interne
           (flex-1 flex-col) ne s'etend pas verticalement → hauteur 0.
-          pb-16 = laisse la place pour le bandeau anneaux + BottomNav
-          fixed en bas (sinon les anneaux se retrouvent caches derriere). */}
-      <main className="relative mx-auto flex w-full max-w-lg flex-1 flex-col pb-16">
+          En mode 'add' (ajout d'ingredient) : pas de BottomNav →
+          pb-4 suffit pour le bandeau anneaux.
+          En mode 'view' : pb-16 pour laisser la place au BottomNav. */}
+      <main
+        className={`relative mx-auto flex w-full max-w-lg flex-1 flex-col ${
+          mode === 'add' ? 'pb-4' : 'pb-16'
+        }`}
+      >
         <MesCaloriesMealPageClient
           slug={meal as MealSlug}
           mode={mode}
@@ -91,7 +101,10 @@ export default async function MesCaloriesMealPage({
           fromUrl={fromUrl}
         />
       </main>
-      <BottomNav />
+      {/* BottomNav masquee en mode "ajouter un ingredient" pour
+          laisser toute la place a la recherche + ne pas masquer le
+          champ input au clavier mobile. */}
+      {mode !== 'add' && <BottomNav />}
     </div>
   );
 }

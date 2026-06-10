@@ -27,9 +27,27 @@ const ITEMS_RIGHT: NavItem[] = [
   { href: '/menus', label: 'Menu', icon: CalendarDays },
 ];
 
+/** Routes qui utilisent le layout "detache" : Accueil rond gauche
+ *  + trio central [Courses · FAB · Repas]. Hors home (layout
+ *  ampoule a droite) et hors /mes-calories /mes-repas qui ont
+ *  leurs propres specificites. */
+const DETACHED_LAYOUT_ROUTES = [
+  '/menus',
+  '/recettes',
+  '/conseils',
+  '/astuces',
+  '/mes-stats',
+  '/mes-repas',
+  '/favoris',
+  '/profil',
+];
+
 export function BottomNav() {
   const pathname = usePathname();
   const isHome = pathname === '/';
+  const isDetachedLayout = DETACHED_LAYOUT_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + '/'),
+  );
 
   // === Variante HOME : uniquement le FAB camera centre, sans barre.
   // La home a deja ses 4 tuiles d'acces (Menu, Recettes, Sante,
@@ -70,6 +88,50 @@ export function BottomNav() {
           {/* Ampoule DETACHEE, completement a droite avec marge */}
           <div className="pointer-events-auto absolute right-0">
             <IdeasFloatingButton variant="inline-small" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // === Variante "detachee" : meme format que home mais avec Accueil
+  // detache a gauche (au lieu de l'ampoule a droite).
+  // Layout : [Accueil] (gauche detache) [Courses 🛒] [FAB 📷] [Repas 🍴] centres.
+  // Utilise sur /menus, /recettes, /conseils, /astuces, /mes-stats.
+  if (isDetachedLayout) {
+    return (
+      <div
+        className="pointer-events-none fixed inset-x-0 bottom-0 z-40 px-4"
+        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+      >
+        <div className="relative flex items-center justify-center">
+          {/* Accueil DETACHE, completement a gauche avec marge */}
+          <div className="pointer-events-auto absolute left-0">
+            <Link
+              href="/"
+              aria-label="Accueil"
+              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+            >
+              <Home className="h-6 w-6" strokeWidth={2.2} />
+            </Link>
+          </div>
+          {/* Trio central : Courses + FAB photo + Repas */}
+          <div className="pointer-events-auto flex items-center gap-3">
+            <Link
+              href="/courses"
+              aria-label="Liste de courses"
+              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+            >
+              <ShoppingCart className="h-6 w-6" strokeWidth={2.2} />
+            </Link>
+            <CameraFAB homeMode />
+            <Link
+              href="/mes-repas"
+              aria-label="Mes repas"
+              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+            >
+              <UtensilsCrossed className="h-6 w-6" strokeWidth={2.2} />
+            </Link>
           </div>
         </div>
       </div>
