@@ -7,6 +7,7 @@ import { Clock, Trash2 } from 'lucide-react';
 import {
   clearRecentViews,
   getRecentViews,
+  removeRecentView,
   type RecentView,
 } from '@/lib/recent-views';
 
@@ -75,6 +76,16 @@ export function RecentViewsList({ onItemClick }: { onItemClick?: () => void }) {
                   src={it.imageUrl}
                   alt=""
                   className="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-coral-soft/40"
+                  onError={() => {
+                    // Image cassée → la cible n'existe probablement plus.
+                    // Retire l'item du localStorage + de la liste affichée.
+                    removeRecentView(it.type, it.id);
+                    setItems((prev) =>
+                      prev?.filter(
+                        (x) => !(x.type === it.type && x.id === it.id),
+                      ) ?? null,
+                    );
+                  }}
                 />
               ) : (
                 <span className="h-10 w-10 shrink-0 rounded-lg bg-coral-soft/40" />

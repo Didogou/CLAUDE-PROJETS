@@ -1,5 +1,6 @@
 import { getAppSettings } from '@/lib/app-settings';
 import { ParametresView } from '@/components/admin/ParametresView';
+import { CleanupOrphansButton } from '@/components/admin/CleanupOrphansButton';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +21,7 @@ export default async function AdminParametresPage() {
       </header>
 
       <ParametresView initial={settings} />
+      <CleanupOrphansButton />
     </div>
   );
 }

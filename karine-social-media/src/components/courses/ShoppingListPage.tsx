@@ -8,6 +8,7 @@ import {
   ChevronUp,
   Plus,
   Printer,
+  RefreshCcw,
   Save,
   Trash2,
   X,
@@ -37,6 +38,7 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [addingItem, setAddingItem] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
   // Boite "Repas du menu" pliable (vignettes recettes + repas semaine).
   // Plie par defaut : Karine ne veut pas surcharger la vue avec les
   // vignettes des qu'on arrive sur la liste de courses.
@@ -101,6 +103,11 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ sheetId }),
     });
+  }
+
+  async function resetList() {
+    await call('/api/shopping-list/reset', { method: 'POST' });
+    setConfirmingReset(false);
   }
 
   async function archiveList() {
@@ -206,13 +213,9 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
                   href={`/menus/${currentMenu.id}/jour?d=${m.dayIndex}`}
                   className="block overflow-hidden rounded-xl bg-blush/30 shadow-sm transition hover:scale-105 active:scale-95"
                 >
-                  <div
-                    className="aspect-square w-full bg-cover bg-center bg-blush/40"
-                    style={
-                      m.imageUrl
-                        ? { backgroundImage: `url(${m.imageUrl})` }
-                        : undefined
-                    }
+                  <FallbackImage
+                    src={m.imageUrl}
+                    label={m.title || m.label}
                   />
                   <p className="px-1 pt-1 text-center text-[0.6rem] font-bold uppercase tracking-wider text-coral-dark">
                     {m.label}
@@ -235,13 +238,9 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
                         href={`/recettes/${r.recipeSlug}`}
                         className="block overflow-hidden rounded-xl bg-blush/30 shadow-sm"
                       >
-                        <div
-                          className="aspect-square w-full bg-cover bg-center"
-                          style={
-                            r.sheetCoverUrl
-                              ? { backgroundImage: `url(${r.sheetCoverUrl})` }
-                              : undefined
-                          }
+                        <FallbackImage
+                          src={r.sheetCoverUrl}
+                          label={r.sheetTitle}
                         />
                         <p className="line-clamp-2 px-1.5 py-1 text-center text-[0.7rem] font-semibold text-ink">
                           {r.sheetTitle}
@@ -357,8 +356,87 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
             <Save className="h-3 w-3" /> Sauvegarder cette liste
           </button>
         )}
+
+        {/* Bouton « Initialiser » — vide items + recettes + menu lié
+            sans archiver. Utile pour repartir de zéro ou nettoyer une
+            liste polluée de références cassées. */}
+        {confirmingReset ? (
+          <div className="flex items-center gap-2 rounded-full bg-rose-100 p-1 pl-3">
+            <span className="text-xs font-semibold text-rose-700">
+              Tout vider (ingrédients + recettes + menu) ?
+            </span>
+            <button
+              type="button"
+              onClick={() => setConfirmingReset(false)}
+              disabled={busy}
+              className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-ink-soft"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={resetList}
+              disabled={busy}
+              className="rounded-full bg-rose-500 px-3 py-1 text-xs font-bold text-white shadow-sm"
+            >
+              Confirmer
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingReset(true)}
+            disabled={
+              busy ||
+              (totalCount === 0 &&
+                list.linkedRecipes.length === 0 &&
+                !list.linkedMenuId)
+            }
+            className="flex items-center gap-1 rounded-full bg-white/80 px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-sm transition hover:bg-rose-50 disabled:opacity-50"
+          >
+            <RefreshCcw className="h-3 w-3" /> Initialiser
+          </button>
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Affiche une image avec fallback élégant si l'URL est absente OU
+ * si le chargement échoue (recette supprimée, fichier purgé du Storage,
+ * etc.). Le fallback montre les initiales / un placeholder décoratif
+ * au lieu d'une box vide ou d'un icône cassé.
+ */
+function FallbackImage({
+  src,
+  label,
+}: {
+  src: string | null;
+  label: string;
+}) {
+  const [failed, setFailed] = useState(!src);
+
+  if (failed || !src) {
+    // Fallback : placeholder décoratif avec initiale
+    const initial = (label || '?').trim().charAt(0).toUpperCase();
+    return (
+      <div className="grid aspect-square w-full place-items-center bg-gradient-to-br from-blush/60 to-coral-soft/40">
+        <span className="font-script text-2xl text-coral-dark/60">
+          {initial}
+        </span>
+      </div>
+    );
+  }
+  return (
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src={src}
+      alt=""
+      aria-hidden
+      className="aspect-square w-full object-cover"
+      onError={() => setFailed(true)}
+    />
   );
 }
 

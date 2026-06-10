@@ -60,3 +60,18 @@ export function clearRecentViews(): void {
     /* noop */
   }
 }
+
+/** Retire un item spécifique de l'historique (ex. image cassée =
+ *  cible probablement supprimée). */
+export function removeRecentView(type: RecentViewType, id: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return;
+    const prev: RecentView[] = JSON.parse(raw);
+    const next = prev.filter((x) => !(x.type === type && x.id === id));
+    localStorage.setItem(KEY, JSON.stringify(next));
+  } catch {
+    /* localStorage indisponible */
+  }
+}
