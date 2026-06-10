@@ -39,19 +39,10 @@ export default async function MesCaloriesPage() {
 
   return (
     <div className="relative flex min-h-screen flex-col">
-      {/* Pattern standard reprise des autres pages (/recettes, /menus,
-          /astuces) : FloralBackground + AppHeader + main + BottomNav.
-          Sur cette page on superpose un degrade rose -> bleu pastel
-          pour signifier "tracker calories" sans rompre l'identite. */}
-      <FloralBackground />
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 -z-10"
-        style={{
-          background:
-            'linear-gradient(180deg, rgba(255, 218, 224, 0.45) 0%, rgba(225, 235, 255, 0.55) 80%, rgba(190, 215, 245, 0.65) 100%)',
-        }}
-      />
+      {/* Fond identique a la page d'accueil (variant 'accueil') pour
+          cohérence visuelle — le tracker calorie est l'extension
+          naturelle de l'experience home. Plus de degrade bleu superpose. */}
+      <FloralBackground variant="accueil" />
 
       {/* AppHeader meme pattern que /recettes, /menus, /astuces :
           pageTitle + backHref (fleche retour, pas de burger). C'est le

@@ -80,6 +80,54 @@ export async function getNutritionTarget(userId: string): Promise<NutritionTarge
   };
 }
 
+/** Bornes [start, end) des 7 derniers jours (jour courant inclus,
+ *  total 7 entrees). Retourne aussi les bornes de chaque jour pour
+ *  pouvoir grouper les entries. */
+export async function getLast7DaysKcal(
+  userId: string,
+): Promise<Array<{ date: string; kcal: number; dayLabel: string }>> {
+  const supabase = await createClient();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // J-6 → J0 (inclus), 7 entrees
+  const start = new Date(today);
+  start.setDate(start.getDate() - 6);
+  const end = new Date(today);
+  end.setDate(end.getDate() + 1);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('food_log_entries')
+    .select('logged_at, kcal, portions')
+    .eq('user_id', userId)
+    .gte('logged_at', start.toISOString())
+    .lt('logged_at', end.toISOString());
+
+  // Initialise les 7 jours a 0
+  const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+  const days: Array<{ date: string; kcal: number; dayLabel: string }> = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    days.push({
+      date: d.toISOString().slice(0, 10),
+      kcal: 0,
+      dayLabel: DAY_LABELS[d.getDay()],
+    });
+  }
+
+  if (error || !data) return days;
+
+  // Cumule les kcal × portions par jour
+  for (const r of data as Array<{ logged_at: string; kcal: number; portions: number }>) {
+    const d = r.logged_at.slice(0, 10);
+    const day = days.find((x) => x.date === d);
+    if (day) day.kcal += Number(r.kcal) * Number(r.portions);
+  }
+
+  return days;
+}
+
 /** Bornes [start, end) en UTC d'une journée locale (Europe/Paris). */
 function todayBounds(): { start: string; end: string } {
   // On utilise les bornes locales : tout ce qui a logged_at dans la

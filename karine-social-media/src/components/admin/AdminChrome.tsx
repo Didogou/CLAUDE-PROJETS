@@ -78,6 +78,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/informations-legales', label: 'Infos légales & banque', icon: FileText },
   { href: '/admin/parse-tests', label: 'Tests parsing', icon: FlaskConical },
   { href: '/admin/parametres', label: 'Paramètres', icon: SlidersHorizontal },
+  { href: '/admin/parametres/encouragements', label: 'Encouragements', icon: Sparkles },
   { href: '/admin/compte', label: 'Compte', icon: Settings },
 ];
 

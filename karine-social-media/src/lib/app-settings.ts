@@ -2,7 +2,10 @@ import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
   DEFAULT_APP_SETTINGS,
+  DEFAULT_ENCOURAGEMENTS,
   type AppSettings,
+  type CalorieEncouragements,
+  type EncouragementCategory,
 } from '@/data/app-settings';
 
 /**
@@ -18,7 +21,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     const { data, error } = await (supabase as any)
       .from('app_settings')
       .select(
-        'patient_relance_cooldown_days, show_calories_in_counter, calorie_tracker_enabled, water_tracker_enabled',
+        'patient_relance_cooldown_days, show_calories_in_counter, calorie_tracker_enabled, water_tracker_enabled, calorie_encouragements',
       )
       .eq('id', 1)
       .maybeSingle();
@@ -40,8 +43,27 @@ export async function getAppSettings(): Promise<AppSettings> {
         typeof data.water_tracker_enabled === 'boolean'
           ? data.water_tracker_enabled
           : DEFAULT_APP_SETTINGS.waterTrackerEnabled,
+      calorieEncouragements: parseEncouragements(data.calorie_encouragements),
     };
   } catch {
     return DEFAULT_APP_SETTINGS;
   }
+}
+
+/** Parse defensif d'un JSONB encouragements + fallback par categorie. */
+function parseEncouragements(raw: unknown): CalorieEncouragements {
+  if (!raw || typeof raw !== 'object') return DEFAULT_ENCOURAGEMENTS;
+  const cats: EncouragementCategory[] = [
+    'debut-journee',
+    'bonne-route',
+    'objectif-atteint',
+  ];
+  const out: CalorieEncouragements = { ...DEFAULT_ENCOURAGEMENTS };
+  for (const cat of cats) {
+    const arr = (raw as Record<string, unknown>)[cat];
+    if (Array.isArray(arr) && arr.length > 0 && arr.every((s) => typeof s === 'string')) {
+      out[cat] = arr as string[];
+    }
+  }
+  return out;
 }

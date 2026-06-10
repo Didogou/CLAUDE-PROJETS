@@ -1655,9 +1655,21 @@ export function CalorieCounterSheetV2({
                   return (
                     <div className="shrink-0 border-t border-coral-soft/30 bg-white/60 px-3 py-2 backdrop-blur-sm">
                       <div className="flex items-center justify-around gap-2">
-                        <MacroRing kind="protein" current={m.proteinsG} target={tProt} />
-                        <MacroRing kind="carbs" current={m.carbsG} target={tCarb} />
-                        <MacroRing kind="lipid" current={m.lipidsG} target={tLip} />
+                        {/* Petites illustrations aquarelle Karine
+                            au-dessus de chaque MacroRing pour cohérence
+                            avec MacrosTiles de /mes-calories. */}
+                        <div className="flex flex-col items-center">
+                          <img src="/images/icons/cal-feuille.webp" alt="" aria-hidden className="size-7 object-contain" />
+                          <MacroRing kind="protein" current={m.proteinsG} target={tProt} />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <img src="/images/icons/cal-ble.webp" alt="" aria-hidden className="size-7 object-contain" />
+                          <MacroRing kind="carbs" current={m.carbsG} target={tCarb} />
+                        </div>
+                        <div className="flex flex-col items-center">
+                          <img src="/images/icons/cal-olive.webp" alt="" aria-hidden className="size-7 object-contain" />
+                          <MacroRing kind="lipid" current={m.lipidsG} target={tLip} />
+                        </div>
                         <div className="flex flex-col items-center">
                           <span className="text-[0.55rem] font-bold uppercase tracking-wider text-coral-dark">
                             Kcal
@@ -2163,6 +2175,9 @@ export function MacrosTiles({
     accent: string;
     labelColor: string;
     bg: string;
+    /** Illustration aquarelle Karine pour identifier la macro
+     *  visuellement (placee en bas-droite de la tuile). */
+    illustration: string;
   }> = [
     {
       label: 'Glucides',
@@ -2172,6 +2187,7 @@ export function MacrosTiles({
       accent: '#A56B12',
       labelColor: 'rgba(165, 107, 18, 0.8)',
       bg: '#FDF6E8',
+      illustration: '/images/icons/cal-ble.webp',
     },
     {
       label: 'Protéines',
@@ -2181,6 +2197,7 @@ export function MacrosTiles({
       accent: '#8A3F26',
       labelColor: 'rgba(138, 63, 38, 0.8)',
       bg: '#FBEDE5',
+      illustration: '/images/icons/cal-feuille.webp',
     },
     {
       label: 'Lipides',
@@ -2190,6 +2207,7 @@ export function MacrosTiles({
       accent: '#5E6E2F',
       labelColor: 'rgba(94, 110, 47, 0.8)',
       bg: '#F4F6EA',
+      illustration: '/images/icons/cal-olive.webp',
     },
   ];
   return (
@@ -2202,29 +2220,38 @@ export function MacrosTiles({
         return (
           <div
             key={it.label}
-            className="rounded-2xl px-4 py-4 shadow-md ring-1"
+            className="relative overflow-hidden rounded-2xl px-3 py-3 shadow-md ring-1"
             style={{
               background: `linear-gradient(180deg, #FFFFFF 0%, ${it.bg} 100%)`,
               // @ts-expect-error CSS custom property
               '--tw-ring-color': '#F0E4DC',
             }}
           >
+            {/* Illustration aquarelle de la macro en bas-droite,
+                discrete (opacity 70). Reconnaissance instantanee. */}
+            <img
+              src={it.illustration}
+              alt=""
+              aria-hidden
+              className="pointer-events-none absolute -bottom-1 -right-1 size-12 object-contain opacity-80"
+              loading="lazy"
+            />
             <p
-              className="text-xs font-bold uppercase tracking-wider"
+              className="relative z-10 text-[0.65rem] font-bold uppercase tracking-wider"
               style={{ color: it.labelColor }}
             >
               {it.label}
             </p>
             <p
-              className="mt-1.5 text-2xl font-extrabold"
+              className="relative z-10 mt-1.5 text-2xl font-extrabold"
               style={{ color: it.accent }}
             >
               {Math.round(it.consumed)}
-              <span className="text-base font-semibold text-ink-soft">
+              <span className="text-sm font-semibold text-ink-soft">
                 {it.target !== null ? `/${Math.round(it.target)}` : ''}g
               </span>
             </p>
-            <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-ink-soft/15">
+            <div className="relative z-10 mt-2 h-1.5 w-full overflow-hidden rounded-full bg-ink-soft/15">
               <div
                 className="h-full transition-[width] duration-500"
                 style={{ width: `${pct}%`, background: it.barColor }}
