@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import { ArrowLeft, Bell, LogIn, User } from 'lucide-react';
 import { Logo } from '@/components/brand/Logo';
 import { MainDrawer } from './MainDrawer';
@@ -57,14 +57,17 @@ export function AppHeaderInner({
   // sessionStorage des qu'on l'a vu une fois, puis AppHeader sur
   // toutes les pages internes peut le re-lire (le query param
   // disparait dès qu'on navigue vers /recettes, /courses, etc.).
-  // On l'utilise pour propager ?as=visitor sur backHref et eviter
-  // que le guard home (page.tsx) re-redirige vers /admin.
-  const searchParams = useSearchParams();
+  // On evite useSearchParams() qui nécessite un Suspense boundary
+  // (Next.js 16) et casse le build des pages statiques. On lit
+  // window.location.search dans useEffect, re-evalue a chaque
+  // changement de pathname.
+  const pathname = usePathname();
   const [asVisitorSticky, setAsVisitorSticky] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const fromUrl = searchParams?.get('as') === 'visitor';
+    const params = new URLSearchParams(window.location.search);
+    const fromUrl = params.get('as') === 'visitor';
     if (fromUrl) {
       sessionStorage.setItem('karine_as_visitor', '1');
       setAsVisitorSticky(true);
@@ -73,7 +76,7 @@ export function AppHeaderInner({
     if (sessionStorage.getItem('karine_as_visitor') === '1') {
       setAsVisitorSticky(true);
     }
-  }, [searchParams]);
+  }, [pathname]);
 
   const effectiveBackHref =
     backHref && asVisitorSticky && !backHref.includes('as=visitor')
