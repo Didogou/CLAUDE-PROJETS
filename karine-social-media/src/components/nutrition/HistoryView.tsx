@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Flame, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Flame, X, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
 import { SecurePhoto } from './SecurePhoto';
 
 type MealCategory = 'breakfast' | 'lunch' | 'snack' | 'dinner';
@@ -72,6 +72,9 @@ export function HistoryView() {
   const [data, setData] = useState<HistoryData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [confirmDeletePhoto, setConfirmDeletePhoto] = useState(false);
+  const [deletingPhoto, setDeletingPhoto] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     void load();
@@ -148,29 +151,122 @@ export function HistoryView() {
     <div className="space-y-5">
       <DaysList days={data.days} onShowPhoto={setLightboxUrl} />
 
-      {/* Lightbox plein écran */}
+      {/* Lightbox plein écran + bouton "Supprimer ce repas" */}
       {lightboxUrl && (
         <div
           role="dialog"
           aria-modal="true"
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/85 p-4"
-          onClick={() => setLightboxUrl(null)}
+          onClick={() => {
+            setLightboxUrl(null);
+            setConfirmDeletePhoto(false);
+          }}
         >
-          <img
+          <SecurePhoto
             src={lightboxUrl}
             alt="Photo du plat"
-            className="max-h-[90vh] max-w-[95vw] rounded-2xl object-contain shadow-2xl"
-            draggable={false}
+            className="max-h-[80vh] max-w-[95vw] rounded-2xl object-contain shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           />
           <button
             type="button"
-            onClick={() => setLightboxUrl(null)}
+            onClick={() => {
+              setLightboxUrl(null);
+              setConfirmDeletePhoto(false);
+            }}
             aria-label="Fermer"
             className="absolute right-4 top-4 grid size-10 place-items-center rounded-full bg-white/90 text-ink shadow-lg hover:bg-white"
           >
             <X className="size-5" strokeWidth={3} />
           </button>
+
+          {/* Bouton "Supprimer ce repas" — supprime DB + Storage atomique. */}
+          <div
+            className="absolute inset-x-4 bottom-6 flex justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {!confirmDeletePhoto ? (
+              <button
+                type="button"
+                onClick={() => setConfirmDeletePhoto(true)}
+                className="inline-flex items-center gap-2 rounded-full bg-rose-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg ring-2 ring-white/40 transition hover:bg-rose-600 active:scale-95"
+              >
+                <Trash2 className="size-4" />
+                Supprimer ce repas
+              </button>
+            ) : (
+              <div className="flex flex-col items-center gap-2 rounded-2xl bg-white/95 px-5 py-3 shadow-xl">
+                <p className="text-sm font-semibold text-ink">
+                  Supprimer ce repas et tous ses aliments&nbsp;?
+                </p>
+                {deleteError && (
+                  <p className="text-xs font-semibold text-rose-700">
+                    {deleteError}
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDeletePhoto(false)}
+                    disabled={deletingPhoto}
+                    className="rounded-full border border-coral-soft px-4 py-1.5 text-xs font-semibold text-coral disabled:opacity-50"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!lightboxUrl || deletingPhoto) return;
+                      setDeletingPhoto(true);
+                      try {
+                        const res = await fetch(
+                          '/api/nutrition/log/by-photo',
+                          {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            // Le serveur accepte photoPath (nouveau) et
+                            // photoUrl (legacy URL complète). On envoie
+                            // les deux pour compat.
+                            body: JSON.stringify({
+                              photoPath: lightboxUrl,
+                              photoUrl: lightboxUrl,
+                            }),
+                          },
+                        );
+                        if (res.ok) {
+                          setLightboxUrl(null);
+                          setConfirmDeletePhoto(false);
+                          setDeleteError(null);
+                          await load();
+                          window.dispatchEvent(
+                            new CustomEvent('nutrition-log-updated'),
+                          );
+                        } else {
+                          const j = await res
+                            .json()
+                            .catch(() => ({}));
+                          setDeleteError(
+                            (j as { error?: string })?.error ||
+                              `Suppression échouée (HTTP ${res.status})`,
+                          );
+                        }
+                      } catch (e) {
+                        setDeleteError(
+                          e instanceof Error ? e.message : 'Erreur réseau',
+                        );
+                      } finally {
+                        setDeletingPhoto(false);
+                      }
+                    }}
+                    disabled={deletingPhoto}
+                    className="rounded-full bg-rose-500 px-4 py-1.5 text-xs font-bold text-white disabled:opacity-50"
+                  >
+                    {deletingPhoto ? 'Suppression…' : 'Confirmer'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
