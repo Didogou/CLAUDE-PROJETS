@@ -55,7 +55,13 @@ const nextConfig: NextConfig = {
         key: 'Content-Security-Policy',
         value: [
           "default-src 'self'",
-          "script-src 'self' 'unsafe-inline' https://*.stripe.com https://va.vercel-scripts.com",
+          // 'unsafe-eval' nécessaire EN DEV uniquement : React dev mode
+          // utilise eval() pour reconstruire les callstacks (debug,
+          // erreurs lisibles). En prod, React n'utilise jamais eval()
+          // donc on le retire (surface XSS réduite).
+          process.env.NODE_ENV === 'development'
+            ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.stripe.com https://va.vercel-scripts.com"
+            : "script-src 'self' 'unsafe-inline' https://*.stripe.com https://va.vercel-scripts.com",
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https://*.supabase.co https://*.stripe.com",
           "font-src 'self' data:",
