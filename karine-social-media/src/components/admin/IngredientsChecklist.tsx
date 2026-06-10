@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import type { RecipeIngredient } from '@/data/recipes';
 
@@ -161,13 +161,43 @@ function Row({
   onUpdate: (patch: Partial<RecipeIngredient>) => void;
   onRemove: () => void;
 }) {
-  // Layout aligné sur ShoppingListEditor : grid 5 colonnes avec
-  // largeurs fixes pour quantity/unit + label flexible + note (visible
-  // dès sm) + delete. Avant on était en flex+w-12 et le label
-  // collapsait dans certains parents (tableau de relecture étroit).
+  // State LOCAL pour chaque input : la valeur en cours de saisie n'est
+  // PAS propagee au parent a chaque keystroke (sinon onChange → PATCH
+  // serveur → reponse qui ecrase la saisie en cours = impossibilite
+  // de taper "12" — la 1ere frappe "1" est sauvee, la reponse
+  // serveur ecrase le state avec "1" avant qu'on tape "2").
+  // Le commit se fait sur onBlur (perte de focus) ou Enter.
+  const [qtyText, setQtyText] = useState(ing.quantity?.toString() ?? '');
+  const [unitText, setUnitText] = useState(ing.unit ?? '');
+  const [labelText, setLabelText] = useState(ing.label);
+  const [noteText, setNoteText] = useState(ing.note ?? '');
+
+  // Re-sync si l'ingredient externe change (ex. apres save serveur).
+  useEffect(() => {
+    setQtyText(ing.quantity?.toString() ?? '');
+  }, [ing.quantity]);
+  useEffect(() => setUnitText(ing.unit ?? ''), [ing.unit]);
+  useEffect(() => setLabelText(ing.label), [ing.label]);
+  useEffect(() => setNoteText(ing.note ?? ''), [ing.note]);
+
+  function commitQty() {
+    const next = qtyText.trim() === '' ? null : Math.max(0, Number(qtyText) || 0);
+    if (next !== ing.quantity) onUpdate({ quantity: next });
+  }
+  function commitUnit() {
+    const next = unitText.trim() === '' ? null : unitText;
+    if (next !== ing.unit) onUpdate({ unit: next });
+  }
+  function commitLabel() {
+    if (labelText !== ing.label) onUpdate({ label: labelText });
+  }
+  function commitNote() {
+    const next = noteText.trim() === '' ? null : noteText;
+    if (next !== ing.note) onUpdate({ note: next });
+  }
+
   return (
     <li className="grid grid-cols-[1.5rem_3rem_3rem_1fr_auto] items-center gap-1.5 px-2.5 py-1.5 sm:grid-cols-[1.5rem_4rem_4rem_1fr_2fr_auto]">
-      {/* Case carrée déco — esthétique liste de courses */}
       <span
         aria-hidden
         className="grid h-4 w-4 shrink-0 place-items-center rounded border-2 border-coral-soft bg-white"
@@ -176,34 +206,37 @@ function Row({
         type="number"
         step="0.5"
         min="0"
-        value={ing.quantity ?? ''}
-        onChange={(e) =>
-          onUpdate({
-            quantity:
-              e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0),
-          })
-        }
+        value={qtyText}
+        onChange={(e) => setQtyText(e.target.value)}
+        onBlur={commitQty}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
         placeholder="—"
         className="input h-8 px-1.5 text-center text-sm"
       />
       <input
         type="text"
-        value={ing.unit ?? ''}
-        onChange={(e) => onUpdate({ unit: e.target.value || null })}
+        value={unitText}
+        onChange={(e) => setUnitText(e.target.value)}
+        onBlur={commitUnit}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
         placeholder="g/cl"
         className="input h-8 px-1.5 text-center text-sm"
       />
       <input
         type="text"
-        value={ing.label}
-        onChange={(e) => onUpdate({ label: e.target.value })}
+        value={labelText}
+        onChange={(e) => setLabelText(e.target.value)}
+        onBlur={commitLabel}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
         placeholder="ingrédient"
         className="input h-8 px-2 text-sm"
       />
       <input
         type="text"
-        value={ing.note ?? ''}
-        onChange={(e) => onUpdate({ note: e.target.value || null })}
+        value={noteText}
+        onChange={(e) => setNoteText(e.target.value)}
+        onBlur={commitNote}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
         placeholder="note (optionnel)"
         className="input hidden h-8 px-2 text-xs italic text-admin-ink-soft sm:block"
       />
