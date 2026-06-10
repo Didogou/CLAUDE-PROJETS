@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Check, ChevronDown, Loader2, Search, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ChevronDown, Loader2, Search, X } from 'lucide-react';
 import { ConfirmModal } from './ConfirmModal';
 import { NutriScoreRulesPanel } from './NutriScoreRulesPanel';
 import type { NutriscoreGrade } from '@/lib/nutriscore';
@@ -810,62 +810,89 @@ function IngredientRow({
       : 'border-coral-soft/40 bg-coral-soft/5';
 
   return (
-    <div className={`rounded-lg border p-2 transition ${wrapperClass}`}>
-      {/* Layout colonne sur mobile, row sur desktop. */}
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">{ing.label}</p>
-          <p className="truncate text-xs italic">
-            {linkedFood ? (
-              <span className="text-sage">→ {linkedFood.name}</span>
-            ) : (
-              <span className="text-coral-dark">Aucun match Ciqual</span>
-            )}
+    <div className={`rounded-lg border p-3 transition ${wrapperClass}`}>
+      {/* Ligne 1 : layout 2 colonnes côte à côte (recette ↔ Ciqual).
+          Sur mobile (<lg), on empile verticalement avec une flèche
+          tournée vers le bas. Sur desktop, flèche horizontale. */}
+      <div className="grid grid-cols-1 items-center gap-2 lg:grid-cols-[1fr_auto_1fr] lg:gap-3">
+        {/* Colonne gauche : ingrédient de la recette */}
+        <div className="min-w-0">
+          <p className="text-[0.6rem] font-bold uppercase tracking-wider text-ink-soft">
+            Ingrédient recette
+          </p>
+          <p className="mt-0.5 truncate text-sm font-semibold leading-tight text-ink">
+            {ing.label}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Qty */}
-          <input
-            type="number"
-            step="0.1"
-            min="0"
-            value={ing.quantity ?? ''}
-            onChange={(e) => {
-              const v = e.target.value;
-              onChange({ quantity: v === '' ? null : Number(v) });
-            }}
-            placeholder="qty"
-            className={`w-20 rounded border px-2 py-1 text-sm ${
-              hasQty
-                ? 'border-sage/40 bg-white'
-                : 'border-coral-soft/60 bg-coral-soft/20 placeholder-coral-dark/50'
-            }`}
-          />
+        {/* Flèche : horizontale sur desktop, en bas sur mobile */}
+        <ArrowRight
+          className="hidden size-4 shrink-0 text-ink-soft lg:block"
+          aria-hidden
+        />
 
-          {/* Unit */}
-          <input
-            type="text"
-            value={ing.unit ?? ''}
-            onChange={(e) => onChange({ unit: e.target.value || null })}
-            placeholder="g, cs, ml…"
-            className="w-20 rounded border border-coral-soft/40 px-2 py-1 text-xs"
-          />
-
-          {/* Bouton picker — "Changer" si déjà assigné, "Chercher" sinon */}
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className={`shrink-0 rounded-md px-3 py-1 text-xs font-semibold transition ${
-              linkedFood
-                ? 'bg-sage/20 text-sage hover:bg-sage/30'
-                : 'bg-coral-soft/40 text-coral-dark hover:bg-coral-soft/60'
-            }`}
-          >
-            {linkedFood ? 'Changer' : 'Chercher'}{' '}
-            <ChevronDown className="inline h-3 w-3" />
-          </button>
+        {/* Colonne droite : match Ciqual */}
+        <div className="min-w-0">
+          <p className="text-[0.6rem] font-bold uppercase tracking-wider text-ink-soft">
+            Match Ciqual
+          </p>
+          {linkedFood ? (
+            <p
+              className="mt-0.5 truncate text-sm font-semibold leading-tight text-sage"
+              title={linkedFood.name}
+            >
+              {linkedFood.name}
+            </p>
+          ) : (
+            <p className="mt-0.5 truncate text-sm font-semibold italic leading-tight text-coral-dark">
+              Aucun match
+            </p>
+          )}
         </div>
+      </div>
+
+      {/* Ligne 2 : qty / unit / bouton — compact en bas */}
+      <div className="mt-2.5 flex items-center gap-2 border-t border-current/10 pt-2">
+        <input
+          type="number"
+          step="0.1"
+          min="0"
+          value={ing.quantity ?? ''}
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange({ quantity: v === '' ? null : Number(v) });
+          }}
+          placeholder="qty"
+          aria-label="Quantité"
+          className={`w-20 rounded border px-2 py-1 text-sm ${
+            hasQty
+              ? 'border-sage/40 bg-white'
+              : 'border-coral-soft/60 bg-coral-soft/20 placeholder-coral-dark/50'
+          }`}
+        />
+        <input
+          type="text"
+          value={ing.unit ?? ''}
+          onChange={(e) => onChange({ unit: e.target.value || null })}
+          placeholder="g, cs, ml…"
+          aria-label="Unité"
+          className="w-20 rounded border border-coral-soft/40 px-2 py-1 text-xs"
+        />
+
+        {/* Bouton picker — "Changer" vert si déjà assigné, "Chercher"
+            rose sinon. Pousse à droite via ml-auto. */}
+        <button
+          type="button"
+          onClick={() => setPickerOpen(true)}
+          className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-md px-3 py-1 text-xs font-semibold transition ${
+            linkedFood
+              ? 'bg-sage/20 text-sage hover:bg-sage/30'
+              : 'bg-coral text-white hover:bg-coral-dark'
+          }`}
+        >
+          <Search className="size-3" />
+          {linkedFood ? 'Changer' : 'Chercher'}
+        </button>
       </div>
 
       {pickerOpen && (
