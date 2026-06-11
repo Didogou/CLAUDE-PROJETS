@@ -149,10 +149,23 @@ export function AppHeaderInner({
               comme le faisait le slogan. */}
           {pageTitle && (
             <span
-              className={`mt-1 overflow-hidden font-script text-coral-dark transition-all duration-300 ease-out ${
+              // Adaptation automatique de la taille selon la longueur :
+              //  - court (< 12 char) : énorme (text-5xl/6xl)
+              //  - moyen (12-20)     : grand (text-4xl/5xl)
+              //  - long  (> 20)      : modéré (text-3xl/4xl)
+              // text-balance pour break naturel + line-clamp anti
+              // chevauchement des icônes back/account aux extrémités.
+              // max-w-[14rem] sm:max-w-[20rem] pour cap la largeur.
+              className={`mx-auto block max-w-[14rem] overflow-hidden text-center font-script leading-tight text-coral-dark transition-all duration-300 ease-out sm:max-w-[20rem] ${
                 scrolled
-                  ? 'max-h-0 text-base opacity-0'
-                  : 'max-h-12 text-2xl opacity-100 sm:text-3xl'
+                  ? 'mt-0 max-h-8 truncate whitespace-nowrap text-xl opacity-100'
+                  : `mt-4 line-clamp-2 text-balance opacity-100 sm:mt-5 ${
+                      pageTitle.length > 20
+                        ? 'text-3xl sm:text-4xl'
+                        : pageTitle.length > 12
+                          ? 'text-4xl sm:text-5xl'
+                          : 'text-5xl sm:text-6xl'
+                    }`
               }`}
               style={{
                 textShadow: '0 1px 2px rgba(255,255,255,0.6)',

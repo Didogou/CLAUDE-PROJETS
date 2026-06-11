@@ -17,6 +17,11 @@ import {
 } from 'lucide-react';
 import type { RecipeIngredient, RecipeSheet } from '@/data/recipes';
 import { IngredientsChecklist } from './IngredientsChecklist';
+import {
+  isGlutenFreeAuto,
+  isPorkFreeAuto,
+  isVegetarianAuto,
+} from '@/lib/dietary-tags';
 
 type PreviewData = {
   tempPath: string;
@@ -29,6 +34,9 @@ type PreviewData = {
   tags: string[];
   aliments: string[];
   ingredients: RecipeIngredient[];
+  isVegetarianOverride?: boolean | null;
+  isGlutenFreeOverride?: boolean | null;
+  isPorkFreeOverride?: boolean | null;
 };
 
 type Props = {
@@ -133,6 +141,25 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
               typeof sheet.nutriscore_confidence === 'number'
                 ? sheet.nutriscore_confidence
                 : null,
+            isVegetarianOverride:
+              typeof sheet.is_vegetarian_override === 'boolean'
+                ? sheet.is_vegetarian_override
+                : null,
+            isGlutenFreeOverride:
+              typeof sheet.is_gluten_free_override === 'boolean'
+                ? sheet.is_gluten_free_override
+                : null,
+            isPorkFreeOverride:
+              typeof sheet.is_pork_free_override === 'boolean'
+                ? sheet.is_pork_free_override
+                : null,
+            // Stub : dietary effectif sera recalculé au reload depuis
+            // le server (côté admin on n'affiche pas les tags ici).
+            dietary: {
+              isVegetarian: false,
+              isGlutenFree: false,
+              isPorkFree: false,
+            },
           },
         ].sort((a, b) => a.sheetIndex - b.sheetIndex),
       );
@@ -157,6 +184,12 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
       if (patch.tags !== undefined) body.tags = patch.tags;
       if (patch.aliments !== undefined) body.aliments = patch.aliments;
       if (patch.ingredients !== undefined) body.ingredients = patch.ingredients;
+      if (patch.isVegetarianOverride !== undefined)
+        body.isVegetarianOverride = patch.isVegetarianOverride;
+      if (patch.isGlutenFreeOverride !== undefined)
+        body.isGlutenFreeOverride = patch.isGlutenFreeOverride;
+      if (patch.isPorkFreeOverride !== undefined)
+        body.isPorkFreeOverride = patch.isPorkFreeOverride;
       const res = await fetch(
         `/api/admin/recipes/${recipeSlug}/sheets/${id}`,
         {
@@ -477,6 +510,30 @@ function SheetEditableForm({
             values={data.aliments}
             onChange={(v) => onChange({ aliments: v })}
           />
+          {/* Overrides admin tags diététiques (Auto / Forcé oui / Forcé non).
+              Auto = détection automatique depuis la liste des ingrédients
+              (lib/dietary-tags.ts). Karine peut forcer si l'auto se trompe. */}
+          <DietaryToggle
+            label="Végétarien"
+            ingredientList={data.ingredients}
+            kind="vegetarian"
+            value={data.isVegetarianOverride}
+            onChange={(v) => onChange({ isVegetarianOverride: v })}
+          />
+          <DietaryToggle
+            label="Sans gluten"
+            ingredientList={data.ingredients}
+            kind="glutenFree"
+            value={data.isGlutenFreeOverride}
+            onChange={(v) => onChange({ isGlutenFreeOverride: v })}
+          />
+          <DietaryToggle
+            label="Sans porc"
+            ingredientList={data.ingredients}
+            kind="porkFree"
+            value={data.isPorkFreeOverride}
+            onChange={(v) => onChange({ isPorkFreeOverride: v })}
+          />
         </div>
       </div>
 
@@ -621,5 +678,97 @@ function SheetGradeBadge({
     >
       {grade}
     </span>
+  );
+}
+
+/**
+ * Toggle 3-states pour les tags diététiques (végétarien / sans gluten).
+ *
+ *  - Auto (null)  : utilise l'auto-détection depuis les ingrédients
+ *  - Forcé oui    : le tag est affiché côté abonnée même si auto dit non
+ *  - Forcé non    : le tag est masqué côté abonnée même si auto dit oui
+ *
+ * Affiche aussi le résultat AUTO en grisé pour que Karine voie ce que
+ * l'heuristique propose avant de décider d'override ou pas.
+ */
+function DietaryToggle({
+  label,
+  ingredientList,
+  kind,
+  value,
+  onChange,
+}: {
+  label: string;
+  ingredientList: RecipeIngredient[];
+  kind: 'vegetarian' | 'glutenFree' | 'porkFree';
+  value: boolean | null | undefined;
+  onChange: (v: boolean | null) => void;
+}) {
+  const normalized: boolean | null = value === undefined ? null : value;
+  const autoResult =
+    kind === 'vegetarian'
+      ? isVegetarianAuto(ingredientList)
+      : kind === 'glutenFree'
+        ? isGlutenFreeAuto(ingredientList)
+        : isPorkFreeAuto(ingredientList);
+  const effective = normalized === null ? autoResult : normalized;
+
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg bg-admin-soft/40 px-2.5 py-1.5">
+      <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <span className="text-xs font-bold text-admin-ink">{label}</span>
+        <span
+          className={`text-[0.6rem] font-semibold uppercase tracking-wider ${
+            effective ? 'text-emerald-700' : 'text-rose-700'
+          }`}
+        >
+          {effective ? 'OUI' : 'non'}
+        </span>
+        <span
+          className="text-[0.55rem] italic text-admin-ink-soft"
+          title="Résultat de l'auto-détection sur les ingrédients"
+        >
+          (auto : {autoResult ? 'oui' : 'non'})
+        </span>
+      </div>
+      <div className="flex gap-0.5 rounded-full bg-white p-0.5 ring-1 ring-admin-border">
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={`rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider transition ${
+            normalized === null
+              ? 'bg-admin-primary text-white'
+              : 'text-admin-ink-soft hover:bg-admin-soft'
+          }`}
+          title="Utiliser l'auto-détection"
+        >
+          Auto
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider transition ${
+            normalized === true
+              ? 'bg-emerald-600 text-white'
+              : 'text-admin-ink-soft hover:bg-admin-soft'
+          }`}
+          title="Forcer le tag à OUI"
+        >
+          Oui
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`rounded-full px-2 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider transition ${
+            normalized === false
+              ? 'bg-rose-600 text-white'
+              : 'text-admin-ink-soft hover:bg-admin-soft'
+          }`}
+          title="Forcer le tag à non"
+        >
+          Non
+        </button>
+      </div>
+    </div>
   );
 }

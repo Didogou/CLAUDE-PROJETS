@@ -1,9 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Heart, Flame, Lock, Sparkles } from 'lucide-react';
+import { Ban, Heart, Flame, Leaf, Lock, Sparkles } from 'lucide-react';
 import type { Recipe } from '@/data/recipes';
-import { SeasonChip } from './SeasonChip';
 import { RealBadge } from './RealBadge';
 import { NutriScoreBadge } from './NutriScoreBadge';
 
@@ -25,6 +24,10 @@ type RecipeCardProps = {
    *  tuile au layout emballage (rangée A-E). Optionnel : si null ou
    *  confiance < 50 %, on n'affiche rien. */
   nutriScore?: RecipeAvgScore | null;
+  /** Si true, applique un ring coral animé pour indiquer à
+   *  l'utilisatrice "tu étais ici" au retour depuis la page détail.
+   *  L'animation se fait via la classe CSS recipe-card-highlight. */
+  highlighted?: boolean;
 };
 
 export function RecipeCard({
@@ -33,6 +36,7 @@ export function RecipeCard({
   onToggleFavorite,
   userHasPlan,
   nutriScore,
+  highlighted = false,
 }: RecipeCardProps) {
   const isAccessible = userHasPlan || recipe.isPublic;
   const showFreeBadge = !userHasPlan && recipe.isPublic;
@@ -42,8 +46,80 @@ export function RecipeCard({
     ? `/recettes/${recipe.id}`
     : `/mon-plan?next=/recettes/${recipe.id}`;
 
+  // Tags pré-calculés server-side dans buildRecipe (OR sur les sheets).
+  const dietary = recipe.dietaryTags;
+  // Counts par tag (combien de fiches détaillées correspondent).
+  // Utile pour afficher "Végé 2/4" quand seulement une partie des
+  // fiches d'une recette mère sont concernées.
+  const totalSheets = recipe.sheets.length;
+  const vegCount = recipe.sheets.filter((s) => s.dietary?.isVegetarian).length;
+  const gfCount = recipe.sheets.filter((s) => s.dietary?.isGlutenFree).length;
+
   return (
-    <div className="group mx-auto w-full max-w-[14rem]">
+    <div
+      className={`group mx-auto w-full max-w-[14rem] ${
+        highlighted ? 'recipe-card-highlight' : ''
+      }`}
+      data-recipe-id={recipe.id}
+    >
+      {/* Tags compacts au-dessus de l'image. Labels courts pour tenir
+          dans la largeur (~12-14rem). "Sans porc" reste un filtre
+          toggle mais pas affiché ici (englobé par Végé). */}
+      {(recipe.isSeasonal ||
+        dietary.isVegetarian ||
+        dietary.isGlutenFree) && (
+        <div className="mb-1 flex flex-wrap justify-center gap-0.5">
+          {recipe.isSeasonal && (
+            <span
+              className="inline-flex items-center justify-center rounded-full bg-sage/15 p-1 text-sage ring-1 ring-sage/40"
+              title="De saison"
+            >
+              <Leaf className="size-2.5" strokeWidth={2.5} />
+            </span>
+          )}
+          {dietary.isVegetarian && (
+            <span
+              className="inline-flex items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-300"
+              title={
+                totalSheets > 1
+                  ? `${vegCount}/${totalSheets} fiches sans viande, poisson ni œufs`
+                  : 'Cette recette ne contient ni viande, ni poisson, ni œufs'
+              }
+            >
+              <span
+                aria-hidden
+                className="block size-2 shrink-0 rounded-full bg-emerald-600"
+              />
+              Végé
+              {totalSheets > 1 && (
+                <span className="opacity-70">
+                  {' '}
+                  {vegCount}/{totalSheets}
+                </span>
+              )}
+            </span>
+          )}
+          {dietary.isGlutenFree && (
+            <span
+              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-amber-700 ring-1 ring-amber-300"
+              title={
+                totalSheets > 1
+                  ? `${gfCount}/${totalSheets} fiches sans gluten`
+                  : 'Cette recette ne contient pas de gluten'
+              }
+            >
+              <Ban className="size-2.5 shrink-0" strokeWidth={2.5} />
+              Glu
+              {totalSheets > 1 && (
+                <span className="opacity-70">
+                  {' '}
+                  {gfCount}/{totalSheets}
+                </span>
+              )}
+            </span>
+          )}
+        </div>
+      )}
       <div className="relative">
         <Link
           href={href}
@@ -64,13 +140,6 @@ export function RecipeCard({
           <Flame className="h-3.5 w-3.5" />
           {recipe.calories} kcal
         </span>
-
-        {/* Étiquette "Légumes de saison" — débordante en coin haut-gauche */}
-        {recipe.isSeasonal && (
-          <span className="pointer-events-none absolute -left-3 -top-4 z-20">
-            <SeasonChip />
-          </span>
-        )}
 
         {/* Badge "Aperçu gratuit" : visible uniquement pour les
             visiteuses/connectées-sans-plan sur une recette is_public.
@@ -112,7 +181,12 @@ export function RecipeCard({
       </div>
 
       {/* Titre + Nutri-Score moyen + compteur de likes centrés sous la tuile */}
-      <p className="mt-2 text-center text-sm font-bold leading-tight text-ink">{recipe.title}</p>
+      <p
+        className="mt-2 truncate text-center text-sm font-bold leading-tight text-ink"
+        title={recipe.title}
+      >
+        {recipe.title}
+      </p>
       {nutriScore && nutriScore.confidence >= 0.5 && (
         <div className="mt-1.5 flex justify-center">
           <NutriScoreBadge

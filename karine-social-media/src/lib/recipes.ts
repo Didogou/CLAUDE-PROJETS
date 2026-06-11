@@ -1,12 +1,42 @@
 import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
+  type DietaryTags,
   type Recipe,
   type RecipeCategory,
   type RecipeIngredient,
   type RecipeSheet,
 } from '@/data/recipes';
+import { computeSheetDietaryTags } from '@/lib/dietary-tags';
 import type { Database } from '@/types/database';
+
+/** Agrège les tags diététiques sur l'ensemble des fiches (OR).
+ *  Une recette est taguée "sans gluten" si au moins UNE fiche l'est. */
+function aggregateDietaryTags(sheets: RecipeSheet[]): DietaryTags {
+  if (!sheets || sheets.length === 0) {
+    return { isVegetarian: false, isGlutenFree: false, isPorkFree: false };
+  }
+  let someVeg = false;
+  let someGf = false;
+  let somePf = false;
+  for (const s of sheets) {
+    const tags = computeSheetDietaryTags(
+      s.ingredients,
+      s.isVegetarianOverride,
+      s.isGlutenFreeOverride,
+      s.isPorkFreeOverride,
+    );
+    if (tags.isVegetarian) someVeg = true;
+    if (tags.isGlutenFree) someGf = true;
+    if (tags.isPorkFree) somePf = true;
+    if (someVeg && someGf && somePf) break;
+  }
+  return {
+    isVegetarian: someVeg,
+    isGlutenFree: someGf,
+    isPorkFree: somePf,
+  };
+}
 
 type RecipeRow = Database['public']['Tables']['recipes']['Row'];
 
@@ -56,6 +86,35 @@ function mapSheetRow(row: any): RecipeSheet {
         : row.nutriscore_confidence !== null && row.nutriscore_confidence !== undefined
           ? Number(row.nutriscore_confidence)
           : null,
+    // Overrides admin pour tags diététiques (migration 20260611220000).
+    // null = utiliser l'auto-détection ; true/false = forcer le tag.
+    isVegetarianOverride:
+      typeof row.is_vegetarian_override === 'boolean'
+        ? row.is_vegetarian_override
+        : null,
+    isGlutenFreeOverride:
+      typeof row.is_gluten_free_override === 'boolean'
+        ? row.is_gluten_free_override
+        : null,
+    isPorkFreeOverride:
+      typeof row.is_pork_free_override === 'boolean'
+        ? row.is_pork_free_override
+        : null,
+    // Calculé immédiatement à partir des ingredients lus en DB.
+    // Si ingredients est vide (cas lite scrubbé après) → 3 × false
+    // (conservateur — le tag ne s'affiche pas).
+    dietary: computeSheetDietaryTags(
+      Array.isArray(row.ingredients) ? row.ingredients : [],
+      typeof row.is_vegetarian_override === 'boolean'
+        ? row.is_vegetarian_override
+        : null,
+      typeof row.is_gluten_free_override === 'boolean'
+        ? row.is_gluten_free_override
+        : null,
+      typeof row.is_pork_free_override === 'boolean'
+        ? row.is_pork_free_override
+        : null,
+    ),
   };
 }
 
@@ -72,9 +131,13 @@ function buildRecipe(row: RecipeRow, sheetRows: any[]): Recipe {
     .sort((a, b) => a.sheetIndex - b.sheetIndex);
   // Champs legacy pointent sur sheets[0] (fallback si pas encore de sheet).
   const s0: Partial<RecipeSheet> = sheets[0] ?? {};
+  // Tags diététiques agrégés (OR sur les sheets). Calculé ici car le
+  // type Recipe l'expose obligatoirement.
+  const dietaryTags = aggregateDietaryTags(sheets);
   return {
     id: row.slug,
     internalId: typeof row.id === 'number' ? row.id : Number(row.id),
+    dietaryTags,
     title: row.title,
     category: row.category as RecipeCategory,
     coverImage: row.cover_image_url ?? '',
@@ -178,16 +241,22 @@ export async function getPublishedRecipesLite(): Promise<Recipe[]> {
 
   const sheetsMap = new Map<number, any[]>();
   if (recipeIds.length > 0) {
+    // SELECT avec ingredients (pour calculer dietaryTags server-side)
+    // sans les 3 colonnes override (Auto suffit pour V1). Quand la
+    // migration 20260611220000 sera appliquée, on pourra les rajouter
+    // pour activer les overrides admin.
     const { data: sheetRows, error: shErr } = await (supabase as any)
       .from('recipe_sheets')
       .select(
-        // PAS de "ingredients" ni "ingredients_text" : le détail reste
-        // confidentiel tant qu'on n'a pas l'abonnement.
-        'id, recipe_id, sheet_index, title, cover_image_url, servings, calories, prep_time_min, cook_time_min, tags, aliments, likes_count, nutriscore_grade, nutriscore_confidence',
+        'id, recipe_id, sheet_index, title, cover_image_url, servings, calories, prep_time_min, cook_time_min, tags, aliments, ingredients, likes_count, nutriscore_grade, nutriscore_confidence',
       )
       .in('recipe_id', recipeIds)
       .order('sheet_index', { ascending: true });
-    if (!shErr) {
+    if (shErr) {
+      console.warn(
+        '[recipes-lite] sheets fetch failed, recipes will show no dietary tags',
+      );
+    } else {
       for (const r of sheetRows ?? []) {
         const rid = Number((r as any).recipe_id);
         if (!sheetsMap.has(rid)) sheetsMap.set(rid, []);
@@ -196,9 +265,19 @@ export async function getPublishedRecipesLite(): Promise<Recipe[]> {
     }
   }
 
-  return rows.map((r) =>
-    buildRecipe(r as RecipeRow, sheetsMap.get(Number(r.id)) ?? []),
-  );
+  // Build avec ingredients (pour calculer dietaryTags), puis scrub.
+  const result = rows.map((r) => {
+    const built = buildRecipe(r as RecipeRow, sheetsMap.get(Number(r.id)) ?? []);
+    // dietaryTags est déjà calculé dans buildRecipe — on vide
+    // maintenant les ingredients pour ne pas les exposer au client.
+    built.sheets = built.sheets.map((s) => ({
+      ...s,
+      ingredients: [],
+      ingredientsText: null,
+    }));
+    return built;
+  });
+  return result;
 }
 
 export async function getRecipeBySlug(slug: string): Promise<Recipe | null> {

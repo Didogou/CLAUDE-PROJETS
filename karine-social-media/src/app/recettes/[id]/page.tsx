@@ -145,7 +145,14 @@ export default async function RecipeDetailPage({
           tout au long du scroll. backHref ramène à la liste des
           recettes (onglets). */}
       <FloralBackground />
-      <AppHeader pageTitle={recipe.title} backHref="/recettes" />
+      {/* backHref inclut ?cat=… + ?highlight=… pour que /recettes :
+          1) ouvre sur l'onglet correspondant à la catégorie
+          2) scroll automatiquement sur la card de cette recette
+          3) flash visuellement la card (UX 2026-06-11). */}
+      <AppHeader
+        pageTitle={recipe.title}
+        backHref={`/recettes?cat=${encodeURIComponent(recipe.category)}&highlight=${encodeURIComponent(recipe.id)}`}
+      />
 
       <TrackView
         type="recipe"

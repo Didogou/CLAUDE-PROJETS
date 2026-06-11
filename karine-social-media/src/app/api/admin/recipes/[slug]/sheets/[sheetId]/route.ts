@@ -52,6 +52,25 @@ export async function PATCH(
     if (typeof body.ingredientsText === 'string') {
       patch.ingredients_text = body.ingredientsText.trim() || null;
     }
+    // Overrides admin tags diététiques (Auto = null, true/false = forcé).
+    if (body.isVegetarianOverride !== undefined) {
+      patch.is_vegetarian_override =
+        body.isVegetarianOverride === null
+          ? null
+          : Boolean(body.isVegetarianOverride);
+    }
+    if (body.isGlutenFreeOverride !== undefined) {
+      patch.is_gluten_free_override =
+        body.isGlutenFreeOverride === null
+          ? null
+          : Boolean(body.isGlutenFreeOverride);
+    }
+    if (body.isPorkFreeOverride !== undefined) {
+      patch.is_pork_free_override =
+        body.isPorkFreeOverride === null
+          ? null
+          : Boolean(body.isPorkFreeOverride);
+    }
 
     // Remplacement de l'image via tempPath
     const tempPath =

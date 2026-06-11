@@ -61,12 +61,42 @@ export type RecipeSheet = {
    *  grade fiable. Les pages publiques l'affichent si ≥ 0.5 confiance. */
   nutriscoreGrade: 'A' | 'B' | 'C' | 'D' | 'E' | null;
   nutriscoreConfidence: number | null;
+  /** Override admin végétarien : null = auto, true/false = forcé.
+   *  Le tag effectif est calculé via computeSheetDietaryTags() dans
+   *  src/lib/dietary-tags.ts. */
+  isVegetarianOverride: boolean | null;
+  /** Override admin sans gluten : null = auto, true/false = forcé. */
+  isGlutenFreeOverride: boolean | null;
+  /** Override admin sans porc : null = auto, true/false = forcé. */
+  isPorkFreeOverride: boolean | null;
+  /** Tags diététiques EFFECTIFS de cette fiche (override + auto).
+   *  Calculés server-side. Permettent d'afficher les labels sur
+   *  une fiche détaillée individuelle (SheetCarousel) sans avoir
+   *  besoin de re-calculer côté client (les ingredients sont scrubés). */
+  dietary: {
+    isVegetarian: boolean;
+    isGlutenFree: boolean;
+    isPorkFree: boolean;
+  };
+};
+
+/** Tags diététiques agrégés sur l'ensemble des fiches d'une recette.
+ *  Calculés server-side dans `getPublishedRecipesLite` (les ingrédients
+ *  ne fuitent pas au client). Règle d'agrégation : OR sur les sheets —
+ *  la recette est taguée si AU MOINS UNE fiche correspond. */
+export type DietaryTags = {
+  isVegetarian: boolean;
+  isGlutenFree: boolean;
+  isPorkFree: boolean;
 };
 
 export type Recipe = {
   id: string; // slug, utilisé pour l'URL /recettes/[id]
   /** UUID interne (bigint en DB), pour FK vers recipe_sheets. */
   internalId: number;
+  /** Tags diététiques pré-calculés server-side. Évite d'avoir à
+   *  exposer la liste des ingrédients au client. */
+  dietaryTags: DietaryTags;
   title: string;
   category: RecipeCategory;
   coverImage: string;

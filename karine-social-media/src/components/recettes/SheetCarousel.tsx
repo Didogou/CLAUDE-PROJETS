@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  Ban,
   ChevronLeft,
   ChevronRight,
   Clock,
   Flame,
   Heart,
+  Leaf,
   Printer,
   Share2,
   Users,
@@ -220,9 +222,13 @@ export function SheetCarousel({
           Le bouton favoris est ici (dans la bande blanche), PAS en
           overlay sur l'image (UX demandée 2026-06-03). */}
       <header className="flex items-center justify-between gap-2">
-        <span className="rounded-full bg-coral-soft/40 px-3 py-1 text-xs font-bold uppercase tracking-wider text-coral-dark">
-          Fiche {active + 1}/{total}
+        <span className="shrink-0 rounded-full bg-coral-soft/40 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-coral-dark">
+          {active + 1}/{total}
         </span>
+        {/* Tags diététiques DE LA FICHE COURANTE — recalculés à chaque
+            navigation entre fiches. Inclut Sans porc cette fois (vs la
+            card mère où c'est englobé par Végé). */}
+        <SheetDietaryTags dietary={sheet.dietary} />
         {total > 1 && (
           <div className="flex items-center gap-1.5">
             {sheets.map((_, i) => (
@@ -533,4 +539,59 @@ function formatIngredient(it: RecipeIngredient): string {
 function capitalize(s: string): string {
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** Tags diététiques d'une fiche détaillée individuelle. À la différence
+ *  de la card recette mère, on inclut Sans porc ici (info utile au
+ *  détail). Affichés en pillules compactes au-dessus de l'image. */
+function SheetDietaryTags({
+  dietary,
+}: {
+  dietary: {
+    isVegetarian: boolean;
+    isGlutenFree: boolean;
+    isPorkFree: boolean;
+  };
+}) {
+  if (
+    !dietary.isVegetarian &&
+    !dietary.isGlutenFree &&
+    !dietary.isPorkFree
+  ) {
+    return null;
+  }
+  return (
+    <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-end gap-1 overflow-hidden">
+      {dietary.isVegetarian && (
+        <span
+          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-300"
+          title="Cette fiche ne contient ni viande, ni poisson, ni œufs"
+        >
+          <span
+            aria-hidden
+            className="block size-2 shrink-0 rounded-full bg-emerald-600"
+          />
+          Végé
+        </span>
+      )}
+      {dietary.isGlutenFree && (
+        <span
+          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-amber-700 ring-1 ring-amber-300"
+          title="Cette fiche ne contient pas de gluten"
+        >
+          <Ban className="size-2.5 shrink-0" strokeWidth={2.5} />
+          Glu
+        </span>
+      )}
+      {dietary.isPorkFree && (
+        <span
+          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-sky-700 ring-1 ring-sky-300"
+          title="Cette fiche ne contient pas de porc"
+        >
+          <Ban className="size-2.5 shrink-0" strokeWidth={2.5} />
+          Porc
+        </span>
+      )}
+    </div>
+  );
 }
