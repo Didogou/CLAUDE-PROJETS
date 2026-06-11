@@ -137,7 +137,7 @@ const GLUTEN_PATTERNS: RegExp[] = [
   /\bkamut\b/i,
   /\btriticale\b/i,
   /\bavoine\b/i, // contamination croisée par défaut — sauf override admin
-  // Produits boulangés
+  // Produits boulangés (français + internationaux)
   /\bpain\b/i,
   /\bbaguette(?:s)?\b/i,
   /\bbiscotte(?:s)?\b/i,
@@ -154,6 +154,44 @@ const GLUTEN_PATTERNS: RegExp[] = [
   /\bcrêpe(?:s)?\b/i, // crêpes au blé sauf override
   /\bblini(?:s)?\b/i,
   /\bgalette(?:s)?\s+de\s+blé\b/i,
+  // Breads internationaux (ajout 2026-06-12 : pita seul n'était pas
+  // détecté, faux positif observé sur recette pita grecque)
+  /\bpita(?:s)?\b/i,
+  /\bnaan(?:s)?\b/i,
+  /\bwrap(?:s)?\b/i,
+  /\btortilla(?:s)?\b/i, // au blé par défaut, sauf override (tortilla de maïs)
+  /\bfajita(?:s)?\b/i,
+  /\bbagel(?:s)?\b/i,
+  /\bbun(?:s)?\b/i, // pain à burger
+  /\bciabatta(?:s)?\b/i,
+  /\bfocaccia(?:s)?\b/i,
+  /\bfougasse(?:s)?\b/i,
+  /\bpizza(?:s)?\b/i, // pâte à pizza
+  /\bcalzone(?:s)?\b/i,
+  /\bgrissini(?:s)?\b/i,
+  /\bbreadstick(?:s)?\b/i,
+  /\blavash(?:s)?\b/i,
+  /\bchapati(?:s)?\b/i,
+  /\bparatha(?:s)?\b/i,
+  /\bfocacce\b/i,
+  /\bfilo\b/i, // pâte filo / phyllo
+  /\bphyllo\b/i,
+  // Gâteaux + douceurs au blé (par défaut, sauf override)
+  /\bmuffin(?:s)?\b/i,
+  /\bpancake(?:s)?\b/i,
+  /\bdonut(?:s)?\b/i,
+  /\bbeignet(?:s)?\b/i,
+  /\bcookie(?:s)?\b/i,
+  /\bsablé(?:s)?\b/i,
+  /\bpâtisserie(?:s)?\b/i,
+  /\bclafoutis\b/i,
+  /\bcake(?:s)?\b/i,
+  /\bfar\s+breton\b/i,
+  /\bquatre[\s-]quart(?:s)?\b/i,
+  // Plats panés / impanés
+  /\bpané(?:e|s|es)?\b/i,
+  /\bschnitzel\b/i,
+  /\btempura\b/i, // farine de blé en général
   // Sauces / autres
   /\bsauce\s+soja\b/i, // sauf tamari → admin override
   /\bsoja\s+sauce\b/i,

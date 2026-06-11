@@ -290,7 +290,8 @@
       "Bash(grep -n \"Glu$\\\\|>Glu\\\\| Glu\" src/components/recettes/RecipeCard.tsx)",
       "Bash(grep -rn \">Glu<\\\\|>Glu \\\\|>Glu$\\\\| Glu<\\\\|\\\\\"Glu\\\\\"\" src/components)",
       "Bash(grep -n \"<MyInfoModal\\\\|^}$\\\\|return null\" src/components/nutrition/MesCaloriesView.tsx)",
-      "Bash(grep -rn \"ingredients.*menu_meal_sheets\\\\|menu_meal_sheets.*ingredients\\\\|category.*label.*quantity\\\\|.from\\\\\\\\.'menu_meal_sheets'\" supabase/migrations)"
+      "Bash(grep -rn \"ingredients.*menu_meal_sheets\\\\|menu_meal_sheets.*ingredients\\\\|category.*label.*quantity\\\\|.from\\\\\\\\.'menu_meal_sheets'\" supabase/migrations)",
+      "Bash(echo \"---exit $?---\")"
     ],
     "additionalDirectories": [
       "\\tmp",

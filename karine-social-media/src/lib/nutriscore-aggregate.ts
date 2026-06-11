@@ -531,19 +531,28 @@ export function aggregateIngredients(
     fruitsVegLegumesPct: (fvlGrams / totalGramsMatched) * 100,
   };
 
-  // Confiance pondérée par le POIDS (décision 2026-06-08) :
-  //   ratio du poids effectivement matché Ciqual sur le poids total
-  //   des ingrédients avec quantité renseignée.
+  // Confiance combinée (révision 2026-06-12) :
+  //   - weightCoverage  = poids matché Ciqual / poids total qty-renseigné
+  //   - ingredientCoverage = ingrédients sans problème / ingrédients totaux
+  //   - confidence = weightCoverage × ingredientCoverage
   //
-  // Avantages vs le comptage d'ingrédients :
-  //  - Le sel/poivre sans qty ne pénalise PAS la confiance.
-  //  - Sel avec qty 2g sur 500g de plat = impact négligeable (0.4%).
-  //  - Tahini 50g non matché sur 500g = impact réaliste (10%).
+  // Pourquoi ce changement vs le simple weightCoverage de 2026-06-08 :
+  //   Sur une recette "Caviar d'aubergines" : aubergine + huile d'olive
+  //   matchés à 100% du poids, mais ail/persil/citron/tahini en "à goût"
+  //   (sans qty) → weightCoverage = 100% MAIS recette incomplète. L'admin
+  //   voyait "100%" trompeur. Avec le facteur ingrédients : si 2/6 sont
+  //   sans qty, ingredientCoverage = 4/6 = 0.67 → confidence finale = 67%.
   //
-  // Représente l'incertitude réelle du calcul Nutri-Score, pas un
-  // décompte arbitraire d'ingrédients.
-  const confidence =
+  // Le sel/poivre/herbes apparaissent maintenant dans la pénalité, ce qui
+  // est juste : Karine doit explicitement valider qu'ils n'ont pas de qty
+  // (et pas par oubli d'extraction Vision).
+  const weightCoverage =
     totalGrams === 0 ? 0 : totalGramsMatched / totalGrams;
+  const ingredientCoverage =
+    ingredients.length === 0
+      ? 0
+      : (ingredients.length - problems.length) / ingredients.length;
+  const confidence = weightCoverage * ingredientCoverage;
 
   return {
     per100g,
