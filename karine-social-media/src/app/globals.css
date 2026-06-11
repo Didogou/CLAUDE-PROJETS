@@ -270,3 +270,41 @@ body {
   }
 }
 
+/* BottomNav : pulsation 3× sur l'icône après ajout d'un élément
+   (courses ou repas). Combinée avec un "+1" floating au-dessus. */
+@keyframes bottom-nav-pulse-anim {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.18);
+  }
+}
+.bottom-nav-pulse {
+  animation: bottom-nav-pulse-anim 0.6s ease-in-out 3;
+}
+/* "+1" qui monte au-dessus de l'icône puis fade out en 2s. */
+@keyframes bottom-nav-plus-one-anim {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 0) scale(0.6);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, -0.5rem) scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -2.5rem) scale(0.9);
+  }
+}
+.bottom-nav-plus-one {
+  animation: bottom-nav-plus-one-anim 2s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav-pulse,
+  .bottom-nav-plus-one {
+    animation: none;
+  }
+}
+

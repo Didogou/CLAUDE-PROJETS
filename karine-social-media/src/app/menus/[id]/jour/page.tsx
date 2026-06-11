@@ -5,6 +5,7 @@ import { FloralBackground } from '@/components/garde/FloralBackground';
 import { MenuDayMealsCarousel } from '@/components/menus/MenuDayMealsCarousel';
 import { getPublishedMenuById, getMenuMealSheets } from '@/lib/menus';
 import { getCurrentUser } from '@/lib/current-user';
+import { getUserFavorites } from '@/lib/favorites';
 import { dayIndexFromDate, formatWeekTitle } from '@/data/menus';
 
 export const dynamic = 'force-dynamic';
@@ -49,6 +50,14 @@ export default async function MenuDayPage({
   > = {};
   for (const [k, v] of mealSheetsMap) mealSheetsByDay[k] = v;
 
+  // Charge les favoris meal_sheet de l'utilisatrice (V1 anonyme V0
+  // sans persist = set vide). Permet de pré-cocher les bookmark icons.
+  const favoritedMealSheetIds: string[] = user.id
+    ? (await getUserFavorites(user.id))
+        .filter((f) => f.targetType === 'meal_sheet')
+        .map((f) => f.targetId)
+    : [];
+
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
       {/* FloralBackground et MenuDayHeader DOIVENT être enfants directs
@@ -85,6 +94,7 @@ export default async function MenuDayPage({
           mealSheetsByDay={mealSheetsByDay}
           isSubscriber={canSeeFullMenu}
           isAuthenticated={user.isAuthenticated}
+          favoritedMealSheetIds={favoritedMealSheetIds}
         />
       </main>
 

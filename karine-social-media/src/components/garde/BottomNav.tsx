@@ -1,7 +1,9 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import type { PulseTarget } from '@/lib/bottom-nav-pulse';
 import {
   CalendarDays,
   Home,
@@ -42,8 +44,67 @@ const DETACHED_LAYOUT_ROUTES = [
   '/profil',
 ];
 
+/** Hook qui écoute les events 'bottom-nav-pulse' et déclenche
+ *  l'animation (pulse + +1 floating) sur la cible. La cible reste
+ *  active 2.5s puis se reset (le temps que l'animation finisse). */
+function usePulseTarget() {
+  const [pulsing, setPulsing] = useState<PulseTarget | null>(null);
+  const [pulseKey, setPulseKey] = useState(0);
+  useEffect(() => {
+    const onPulse = (e: Event) => {
+      const ce = e as CustomEvent<{ target: PulseTarget }>;
+      if (!ce.detail?.target) return;
+      setPulsing(ce.detail.target);
+      // pulseKey change pour forcer le remount du +1 (= relance l'anim)
+      // si l'utilisatrice clique 2× rapidement sur le même bouton.
+      setPulseKey((k) => k + 1);
+    };
+    window.addEventListener('bottom-nav-pulse', onPulse);
+    return () => window.removeEventListener('bottom-nav-pulse', onPulse);
+  }, []);
+  useEffect(() => {
+    if (!pulsing) return;
+    const t = setTimeout(() => setPulsing(null), 2500);
+    return () => clearTimeout(t);
+  }, [pulsing, pulseKey]);
+  return { pulsing, pulseKey };
+}
+
+/** Wrap l'icône d'un Link BottomNav pour appliquer la classe
+ *  `bottom-nav-pulse` + afficher le "+1" flottant si la cible matche. */
+function NavIconWrapper({
+  target,
+  pulsing,
+  pulseKey,
+  children,
+}: {
+  target: PulseTarget;
+  pulsing: PulseTarget | null;
+  pulseKey: number;
+  children: React.ReactNode;
+}) {
+  const active = pulsing === target;
+  return (
+    <span
+      className={`relative inline-flex ${active ? 'bottom-nav-pulse' : ''}`}
+    >
+      {children}
+      {active && (
+        <span
+          key={pulseKey}
+          aria-hidden
+          className="bottom-nav-plus-one pointer-events-none absolute -top-2 left-1/2 -translate-x-1/2 text-sm font-extrabold text-coral drop-shadow-sm"
+        >
+          +1
+        </span>
+      )}
+    </span>
+  );
+}
+
 export function BottomNav() {
   const pathname = usePathname();
+  const { pulsing, pulseKey } = usePulseTarget();
   const isHome = pathname === '/';
   const isDetachedLayout = DETACHED_LAYOUT_ROUTES.some(
     (route) => pathname === route || pathname.startsWith(route + '/'),
@@ -65,25 +126,25 @@ export function BottomNav() {
         <div className="relative flex items-center justify-center">
           {/* Trio central */}
           <div className="pointer-events-auto flex items-center gap-3">
-            {/* Courses (gauche) */}
-            <Link
-              href="/courses"
-              aria-label="Liste de courses"
-              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
-            >
-              <ShoppingCart className="h-6 w-6" strokeWidth={2.2} />
-            </Link>
-            {/* FAB photo central */}
+            <NavIconWrapper target="courses" pulsing={pulsing} pulseKey={pulseKey}>
+              <Link
+                href="/courses"
+                aria-label="Liste de courses"
+                className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+              >
+                <ShoppingCart className="h-6 w-6" strokeWidth={2.2} />
+              </Link>
+            </NavIconWrapper>
             <CameraFAB homeMode />
-            {/* Repas (droite de l'appareil photo) — meme taille que
-                Courses (40px). Clic → /mes-repas. */}
-            <Link
-              href="/mes-repas"
-              aria-label="Mes repas"
-              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
-            >
-              <UtensilsCrossed className="h-6 w-6" strokeWidth={2.2} />
-            </Link>
+            <NavIconWrapper target="meals" pulsing={pulsing} pulseKey={pulseKey}>
+              <Link
+                href="/mes-repas"
+                aria-label="Mes repas"
+                className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+              >
+                <UtensilsCrossed className="h-6 w-6" strokeWidth={2.2} />
+              </Link>
+            </NavIconWrapper>
           </div>
           {/* Ampoule DETACHEE, completement a droite avec marge */}
           <div className="pointer-events-auto absolute right-0">
@@ -117,21 +178,25 @@ export function BottomNav() {
           </div>
           {/* Trio central : Courses + FAB photo + Repas */}
           <div className="pointer-events-auto flex items-center gap-3">
-            <Link
-              href="/courses"
-              aria-label="Liste de courses"
-              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
-            >
-              <ShoppingCart className="h-6 w-6" strokeWidth={2.2} />
-            </Link>
+            <NavIconWrapper target="courses" pulsing={pulsing} pulseKey={pulseKey}>
+              <Link
+                href="/courses"
+                aria-label="Liste de courses"
+                className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+              >
+                <ShoppingCart className="h-6 w-6" strokeWidth={2.2} />
+              </Link>
+            </NavIconWrapper>
             <CameraFAB homeMode />
-            <Link
-              href="/mes-repas"
-              aria-label="Mes repas"
-              className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
-            >
-              <UtensilsCrossed className="h-6 w-6" strokeWidth={2.2} />
-            </Link>
+            <NavIconWrapper target="meals" pulsing={pulsing} pulseKey={pulseKey}>
+              <Link
+                href="/mes-repas"
+                aria-label="Mes repas"
+                className="grid size-10 place-items-center rounded-full bg-white text-coral shadow-md transition hover:scale-105 active:scale-95"
+              >
+                <UtensilsCrossed className="h-6 w-6" strokeWidth={2.2} />
+              </Link>
+            </NavIconWrapper>
           </div>
         </div>
       </div>
@@ -140,7 +205,11 @@ export function BottomNav() {
 
   function renderItem({ href, label, icon: Icon }: NavItem) {
     const active = href === '/' ? pathname === '/' : pathname.startsWith(href);
-    return (
+    // Identifier la cible pulse selon le href : /courses → 'courses',
+    // /mes-repas → 'meals'. Les autres ne pulsent jamais.
+    const pulseTarget: PulseTarget | null =
+      href === '/courses' ? 'courses' : href === '/mes-repas' ? 'meals' : null;
+    const link = (
       <Link
         key={href}
         href={href}
@@ -151,6 +220,17 @@ export function BottomNav() {
         <Icon className="h-5 w-5" strokeWidth={active ? 2.6 : 2} />
         {label}
       </Link>
+    );
+    if (!pulseTarget) return link;
+    return (
+      <NavIconWrapper
+        key={href}
+        target={pulseTarget}
+        pulsing={pulsing}
+        pulseKey={pulseKey}
+      >
+        {link}
+      </NavIconWrapper>
     );
   }
 

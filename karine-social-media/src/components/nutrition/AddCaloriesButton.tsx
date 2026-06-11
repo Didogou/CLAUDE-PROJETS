@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Flame, Check, Loader2 } from 'lucide-react';
+import { Check, Loader2, Plus, UtensilsCrossed } from 'lucide-react';
+import { pulseBottomNav } from '@/lib/bottom-nav-pulse';
 
 type Source = 'recipe' | 'menu' | 'free';
 
@@ -67,6 +68,8 @@ export function AddCaloriesButton({
       if (res.ok) {
         setDone(true);
         window.dispatchEvent(new CustomEvent('nutrition-log-updated'));
+        // Pulse + "+1" floating sur l'icône Repas en bas (UX 2026-06-11).
+        pulseBottomNav('meals');
         setTimeout(() => setDone(false), 1500);
       }
     } finally {
@@ -78,9 +81,8 @@ export function AddCaloriesButton({
     'inline-flex items-center justify-center gap-1 rounded-full border border-coral/30 bg-white text-coral transition-colors hover:bg-coral hover:text-white disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white disabled:hover:text-coral';
   // compact = h-7 w-7 (icone seule)
   // default = h-9 (cohérent avec les autres boutons d'action recette)
-  const sizing = compact
-    ? 'h-7 w-7 text-xs'
-    : 'h-9 px-2.5 text-[0.7rem] font-semibold';
+  // Plus de label texte : bouton carré dans les 2 modes.
+  const sizing = compact ? 'h-7 w-7 text-xs' : 'h-9 w-9 text-sm';
 
   return (
     <button
@@ -97,15 +99,17 @@ export function AddCaloriesButton({
       }
       className={`${base} ${sizing} ${className ?? ''}`}
     >
+      {/* Icône seule : + avec UtensilsCrossed (= ajouter à mes repas)
+          au repos, Loader2 pendant l'appel, Check une fois confirmé. */}
       {busy ? (
         <Loader2 className="size-3.5 animate-spin" />
       ) : done ? (
         <Check className="size-3.5" />
       ) : (
-        <Flame className="size-3.5" />
-      )}
-      {!compact && (
-        <span>{done ? 'Ajouté' : kcal !== null ? `+${Math.round(kcal)} kcal` : 'kcal ?'}</span>
+        <span className="inline-flex items-center">
+          <Plus className="size-3.5" strokeWidth={2.6} />
+          <UtensilsCrossed className="size-3.5" strokeWidth={2.2} />
+        </span>
       )}
     </button>
   );

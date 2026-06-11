@@ -103,6 +103,7 @@ export async function enrichFavorites(
     tip: [],
     advice: [],
     featured: [],
+    meal_sheet: [],
   };
   for (const r of rows) ids[r.targetType].push(r.targetId);
 
@@ -173,6 +174,27 @@ export async function enrichFavorites(
         label: r.label,
         imageUrl: (r.slides as string[] | null)?.[0] ?? null,
         href: `/conseils?open=${r.slug}`,
+      });
+    }
+  }
+
+  // Repas de menu (menu_meal_sheets) — id = uuid de la sheet de menu.
+  // href pointe vers le menu parent avec le jour pré-sélectionné.
+  if (ids.meal_sheet.length > 0) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from('menu_meal_sheets')
+      .select('id, menu_id, title, cover_image_url, day_index, meal_kind')
+      .in('id', ids.meal_sheet);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const r of (data ?? []) as any[]) {
+      metaByKey.set(`meal_sheet:${String(r.id)}`, {
+        label: r.title ?? 'Repas de menu',
+        imageUrl: r.cover_image_url ?? null,
+        // Lien direct vers /jour (la racine /menus/[id] redirige
+        // SANS préserver les query params). Le jour n'est pas pré-
+        // sélectionné en V1 → l'utilisatrice navigue depuis la page.
+        href: `/menus/${r.menu_id}/jour`,
       });
     }
   }

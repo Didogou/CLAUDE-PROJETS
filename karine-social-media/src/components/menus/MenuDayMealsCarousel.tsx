@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
+  Bookmark,
   ChevronLeft,
   ChevronRight,
+  Heart,
   Lock,
   Printer,
   Share2,
@@ -18,6 +21,7 @@ import { DAYS_LABELS, formatWeekTitle } from '@/data/menus';
 import { AddCaloriesButton } from '@/components/nutrition/AddCaloriesButton';
 import { PortionsStepper } from '@/components/recettes/PortionsStepper';
 import { scaleIngredients } from '@/lib/recipe-portions';
+import { pulseBottomNav } from '@/lib/bottom-nav-pulse';
 
 type Props = {
   menuTitle: string | null;
@@ -29,6 +33,9 @@ type Props = {
   >;
   isSubscriber: boolean;
   isAuthenticated: boolean;
+  /** Ids de menu_meal_sheets déjà favorisées par l'utilisatrice.
+   *  Pré-chargé server-side pour pré-cocher les bookmark icons. */
+  favoritedMealSheetIds?: string[];
 };
 
 /**
@@ -55,7 +62,13 @@ export function MenuDayMealsCarousel({
   mealSheetsByDay,
   isSubscriber,
   isAuthenticated,
+  favoritedMealSheetIds = [],
 }: Props) {
+  const favSet = useMemo(
+    () => new Set(favoritedMealSheetIds),
+    [favoritedMealSheetIds],
+  );
+  const router = useRouter();
   const [dayIndex, setDayIndex] = useState(defaultDayIndex);
   const [toast] = useState<string | null>(null);
 
@@ -144,6 +157,12 @@ export function MenuDayMealsCarousel({
             label={label}
             sheet={sheet}
             isAuthenticated={isAuthenticated}
+            initialFavorited={sheet ? favSet.has(sheet.id) : false}
+            onAuthRequired={() =>
+              router.push(
+                `/login?next=${encodeURIComponent(window.location.pathname)}`,
+              )
+            }
           />
         ))}
       </div>
@@ -172,16 +191,37 @@ function MealCard({
   label,
   sheet,
   isAuthenticated,
+  initialFavorited = false,
+  onAuthRequired,
 }: {
   label: string;
   sheet: MenuMealSheet | null;
   isAuthenticated: boolean;
+  initialFavorited?: boolean;
+  onAuthRequired?: () => void;
 }) {
   // Hooks d'abord (avant le early return null) — règle React.
   const [customPortions, setCustomPortions] = useState<number>(
     sheet?.servings ?? 4,
   );
   const [zoomOpen, setZoomOpen] = useState(false);
+  const [favorited, setFavorited] = useState(initialFavorited);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
+  const [likes, setLikes] = useState(sheet?.likesCount ?? 0);
+  const [hasLiked, setHasLiked] = useState(false);
+  // Charge l'état "a déjà liké" depuis localStorage (V1 anti-spam).
+  useEffect(() => {
+    if (!sheet) return;
+    try {
+      const raw = localStorage.getItem('karine.liked-meals.v1');
+      if (raw) {
+        const set = new Set(JSON.parse(raw) as string[]);
+        setHasLiked(set.has(sheet.id));
+      }
+    } catch {
+      /* localStorage indispo */
+    }
+  }, [sheet?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Si servings change (refresh / autre sheet), on resync.
   useEffect(() => {
@@ -199,6 +239,61 @@ function MealCard({
         </p>
       </div>
     );
+  }
+
+  async function toggleFavorite(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!sheet || favoriteBusy) return;
+    if (!isAuthenticated) {
+      onAuthRequired?.();
+      return;
+    }
+    const wasFav = favorited;
+    setFavorited(!wasFav);
+    setFavoriteBusy(true);
+    try {
+      if (wasFav) {
+        const res = await fetch(
+          `/api/favorites?targetType=meal_sheet&targetId=${encodeURIComponent(sheet.id)}`,
+          { method: 'DELETE' },
+        );
+        if (!res.ok) throw new Error();
+      } else {
+        const res = await fetch('/api/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetType: 'meal_sheet', targetId: sheet.id }),
+        });
+        if (!res.ok) throw new Error();
+      }
+    } catch {
+      setFavorited(wasFav);
+    } finally {
+      setFavoriteBusy(false);
+    }
+  }
+
+  async function handleLike(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!sheet || hasLiked) return;
+    setLikes((n) => n + 1);
+    setHasLiked(true);
+    try {
+      const raw = localStorage.getItem('karine.liked-meals.v1');
+      const arr = raw ? (JSON.parse(raw) as string[]) : [];
+      if (!arr.includes(sheet.id)) arr.push(sheet.id);
+      localStorage.setItem('karine.liked-meals.v1', JSON.stringify(arr));
+    } catch {
+      /* localStorage indispo */
+    }
+    try {
+      const res = await fetch(`/api/meals/${sheet.id}/like`, { method: 'POST' });
+      if (!res.ok) throw new Error();
+    } catch {
+      setLikes((n) => Math.max(0, n - 1));
+    }
   }
 
   async function handleShare() {
@@ -225,21 +320,64 @@ function MealCard({
       </header>
 
       {/* Image entière (object-contain) centrée. Hauteur cappée pour
-          rester visible d'un coup sur PC sans scroll. Click → zoom. */}
+          rester visible d'un coup sur PC sans scroll. Click → zoom.
+          Wrappée dans un div relative pour placer Bookmark (haut gauche)
+          et Heart (haut droite) en absolute. */}
       {sheet.coverImageUrl && (
-        <button
-          type="button"
-          onClick={() => setZoomOpen(true)}
-          aria-label="Agrandir la fiche"
-          className="group mx-auto block w-full max-w-md cursor-zoom-in"
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={sheet.coverImageUrl}
-            alt={sheet.title ?? ''}
-            className="mx-auto block max-h-[70vh] w-auto max-w-full rounded-2xl object-contain shadow-md transition group-hover:-translate-y-0.5 group-hover:shadow-lg"
-          />
-        </button>
+        <div className="relative mx-auto w-full max-w-md">
+          <button
+            type="button"
+            onClick={() => setZoomOpen(true)}
+            aria-label="Agrandir la fiche"
+            className="group block w-full cursor-zoom-in"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={sheet.coverImageUrl}
+              alt={sheet.title ?? ''}
+              className="mx-auto block max-h-[70vh] w-auto max-w-full rounded-2xl object-contain shadow-md transition group-hover:-translate-y-0.5 group-hover:shadow-lg"
+            />
+          </button>
+          {/* Bookmark = favori privé (haut gauche). */}
+          <button
+            type="button"
+            onClick={toggleFavorite}
+            disabled={favoriteBusy}
+            aria-label={
+              favorited ? 'Retirer des favoris' : 'Ajouter aux favoris'
+            }
+            aria-pressed={favorited}
+            className="absolute left-3 top-3 z-10 grid h-9 w-9 place-items-center rounded-full bg-white/95 shadow-md transition hover:scale-110 disabled:opacity-50"
+          >
+            <Bookmark
+              className={
+                favorited
+                  ? 'h-4 w-4 fill-coral text-coral'
+                  : 'h-4 w-4 text-coral'
+              }
+              strokeWidth={2}
+            />
+          </button>
+          {/* Heart = like public (haut droite) avec compteur. */}
+          <button
+            type="button"
+            onClick={handleLike}
+            disabled={hasLiked}
+            aria-label={hasLiked ? `Tu as aimé (${likes})` : "J'aime"}
+            aria-pressed={hasLiked}
+            className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1.5 shadow-md transition hover:scale-110 disabled:hover:scale-100"
+          >
+            <Heart
+              className={
+                hasLiked
+                  ? 'h-4 w-4 fill-coral text-coral'
+                  : 'h-4 w-4 text-coral'
+              }
+              strokeWidth={2}
+            />
+            <span className="text-xs font-bold text-coral-dark">{likes}</span>
+          </button>
+        </div>
       )}
 
       {sheet.title && (
@@ -359,6 +497,7 @@ function AddMealSheetButton({
       if (!res.ok) throw new Error();
       setAdded(true);
       window.dispatchEvent(new CustomEvent('shopping-list-updated'));
+      pulseBottomNav('courses');
       window.setTimeout(() => setAdded(false), 2000);
     } catch {
       /* silent */
@@ -372,10 +511,11 @@ function AddMealSheetButton({
       type="button"
       onClick={add}
       disabled={busy || !hasIngredients}
-      className="flex items-center gap-1.5 rounded-full bg-coral px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-coral-dark disabled:opacity-40"
+      aria-label={added ? 'Ajouté aux courses' : 'Ajouter à mes courses'}
+      title={added ? 'Ajouté aux courses' : 'Ajouter à mes courses'}
+      className="grid h-10 w-10 place-items-center rounded-full bg-coral text-white shadow-sm transition hover:bg-coral-dark disabled:opacity-40"
     >
-      <ShoppingCart className="h-3.5 w-3.5" />
-      {added ? '✓ ajouté' : 'Mes courses'}
+      {added ? <span aria-hidden>✓</span> : <ShoppingCart className="h-4 w-4" />}
     </button>
   );
 }

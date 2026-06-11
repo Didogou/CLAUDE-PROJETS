@@ -1,7 +1,8 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Ban, Heart, Flame, Leaf, Lock, Sparkles } from 'lucide-react';
+import { Ban, Bookmark, Heart, Flame, Leaf, Lock, Sparkles } from 'lucide-react';
 import type { Recipe } from '@/data/recipes';
 import { RealBadge } from './RealBadge';
 import { NutriScoreBadge } from './NutriScoreBadge';
@@ -38,6 +39,48 @@ export function RecipeCard({
   nutriScore,
   highlighted = false,
 }: RecipeCardProps) {
+  // Like compteur + état "déjà liké" en localStorage (V1 anonyme,
+  // garde-fou anti-spam basique). Format : Set<slug> dans
+  // 'karine.liked-recipes.v1'.
+  const [likes, setLikes] = useState(recipe.likesCount ?? 0);
+  const [hasLiked, setHasLiked] = useState(false);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      if (raw) {
+        const set = new Set(JSON.parse(raw) as string[]);
+        setHasLiked(set.has(recipe.id));
+      }
+    } catch {
+      /* localStorage indispo */
+    }
+  }, [recipe.id]);
+  async function handleLike(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (hasLiked) return;
+    setLikes((n) => n + 1);
+    setHasLiked(true);
+    try {
+      // Persiste en localStorage AVANT l'appel pour bloquer un double-clic.
+      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      const arr = raw ? (JSON.parse(raw) as string[]) : [];
+      if (!arr.includes(recipe.id)) arr.push(recipe.id);
+      localStorage.setItem('karine.liked-recipes.v1', JSON.stringify(arr));
+    } catch {
+      /* localStorage indispo */
+    }
+    try {
+      const res = await fetch(`/api/recipes/${recipe.id}/like`, {
+        method: 'POST',
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      // Rollback compteur si l'API a échoué (mais on garde hasLiked
+      // pour pas re-spammer — V1 acceptable).
+      setLikes((n) => Math.max(0, n - 1));
+    }
+  }
   const isAccessible = userHasPlan || recipe.isPublic;
   const showFreeBadge = !userHasPlan && recipe.isPublic;
   const showLock = !isAccessible;
@@ -168,15 +211,49 @@ export function RecipeCard({
           </span>
         )}
 
-        {/* Favori */}
+        {/* Favori (bookmark) — HAUT GAUCHE.
+            Convention type Instagram : ❤️ = like public, 🔖 = favori privé. */}
         <button
           type="button"
-          onClick={() => onToggleFavorite(recipe.id)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleFavorite(recipe.id);
+          }}
           aria-label={isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
           aria-pressed={isFavorite}
-          className="absolute right-2 top-2 z-20 grid h-8 w-8 place-items-center rounded-full bg-white/90 shadow-sm transition hover:scale-110"
+          className="absolute left-2 top-2 z-20 grid h-8 w-8 place-items-center rounded-full bg-white/90 shadow-sm transition hover:scale-110"
         >
-          <Heart className={isFavorite ? 'h-4 w-4 fill-coral text-coral' : 'h-4 w-4 text-coral'} strokeWidth={2} />
+          <Bookmark
+            className={
+              isFavorite
+                ? 'h-4 w-4 fill-coral text-coral'
+                : 'h-4 w-4 text-coral'
+            }
+            strokeWidth={2}
+          />
+        </button>
+
+        {/* Like (compteur public) — HAUT DROITE. */}
+        <button
+          type="button"
+          onClick={handleLike}
+          disabled={hasLiked}
+          aria-label={hasLiked ? `Tu as aimé (${likes})` : 'J\'aime'}
+          aria-pressed={hasLiked}
+          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 shadow-sm transition hover:scale-110 disabled:hover:scale-100"
+        >
+          <Heart
+            className={
+              hasLiked
+                ? 'h-4 w-4 fill-coral text-coral'
+                : 'h-4 w-4 text-coral'
+            }
+            strokeWidth={2}
+          />
+          <span className="text-[0.65rem] font-bold text-coral-dark">
+            {likes}
+          </span>
         </button>
       </div>
 
@@ -196,10 +273,6 @@ export function RecipeCard({
           />
         </div>
       )}
-      <p className="mt-0.5 flex items-center justify-center gap-1 text-xs font-semibold text-coral-dark">
-        <Heart className="h-3.5 w-3.5 fill-coral text-coral" />
-        {recipe.likesCount}
-      </p>
     </div>
   );
 }

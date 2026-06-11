@@ -20,6 +20,7 @@ import type { RecipeIngredient } from '@/data/recipes';
 import { FireworkBurst } from '@/components/recettes/FireworkBurst';
 import { PortionsStepper } from '@/components/recettes/PortionsStepper';
 import { scaleIngredients } from '@/lib/recipe-portions';
+import { pulseBottomNav } from '@/lib/bottom-nav-pulse';
 
 /**
  * Page principale /menus.
@@ -404,6 +405,8 @@ function MenuShoppingActions({
       if (!res.ok) throw new Error();
       setAdded(true);
       window.dispatchEvent(new CustomEvent('shopping-list-updated'));
+      // Pulse + "+1" sur l'icône Courses (UX 2026-06-11).
+      pulseBottomNav('courses');
       window.setTimeout(() => setAdded(false), 2200);
     } catch {
       /* silent */

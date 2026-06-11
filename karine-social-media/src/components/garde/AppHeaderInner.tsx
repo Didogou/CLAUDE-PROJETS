@@ -109,7 +109,7 @@ export function AppHeaderInner({
       //    lisible par-dessus le contenu défilant.
       // Le bg-blush/85 + backdrop-blur ne s'active que via le toggle
       // `scrolled`. Transition `bg-*` smooth pour fade-in du fond.
-      className={`sticky top-0 z-40 flex flex-col px-5 transition-[padding,box-shadow,background-color,backdrop-filter] duration-300 ${
+      className={`sticky top-0 z-40 flex flex-col px-5 transition-[padding,box-shadow,background-color,backdrop-filter] duration-500 ease-in-out ${
         scrolled
           ? 'bg-blush/85 py-1.5 shadow-sm backdrop-blur-xl backdrop-saturate-150 lg:py-2'
           : 'bg-transparent py-3 lg:py-5'
@@ -156,7 +156,7 @@ export function AppHeaderInner({
               // text-balance pour break naturel + line-clamp anti
               // chevauchement des icônes back/account aux extrémités.
               // max-w-[14rem] sm:max-w-[20rem] pour cap la largeur.
-              className={`mx-auto block max-w-[14rem] overflow-hidden text-center font-script leading-tight text-coral-dark transition-all duration-300 ease-out sm:max-w-[20rem] ${
+              className={`mx-auto block max-w-[14rem] overflow-hidden text-center font-script leading-tight text-coral-dark transition-all duration-500 ease-in-out sm:max-w-[20rem] ${
                 scrolled
                   ? 'mt-0 max-h-8 truncate whitespace-nowrap text-xl opacity-100'
                   : `mt-4 line-clamp-2 text-balance opacity-100 sm:mt-5 ${

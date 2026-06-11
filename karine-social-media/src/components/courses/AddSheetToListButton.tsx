@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Check, Loader2, Plus } from 'lucide-react';
 import { MyShoppingListOverlay } from './MyShoppingListOverlay';
 import { showToast } from '@/lib/toast';
+import { pulseBottomNav } from '@/lib/bottom-nav-pulse';
 
 type Props = {
   sheetId: string;
@@ -96,6 +97,7 @@ export function AddSheetToListButton({
   async function toggle() {
     setError(null);
     setState('busy');
+    const wasLinked = linked;
     try {
       const res = await fetch('/api/shopping-list/toggle-sheet', {
         method: 'POST',
@@ -122,6 +124,11 @@ export function AddSheetToListButton({
         : null;
       // Notifie les autres instances pour qu'elles se mettent à jour.
       window.dispatchEvent(new CustomEvent(SHOPPING_LIST_EVENT));
+      // Pulse BottomNav courses + "+1" floating si on vient d'AJOUTER
+      // (pas si on a retiré).
+      if (nowLinked && !wasLinked) {
+        pulseBottomNav('courses');
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur');
     } finally {

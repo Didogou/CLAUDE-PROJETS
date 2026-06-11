@@ -5,6 +5,7 @@ import { FloralBackground } from '@/components/garde/FloralBackground';
 import { RecettesOngletsView } from '@/components/recettes/RecettesOngletsView';
 import { getPublishedRecipesLite } from '@/lib/recipes';
 import { getCurrentUser } from '@/lib/current-user';
+import { getUserFavorites } from '@/lib/favorites';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,6 +48,12 @@ export default async function RecettesPage() {
     user.effectiveRole === 'patient' ||
     user.effectiveRole === 'subscriber' ||
     user.effectiveRole === 'admin';
+  // Favoris pré-chargés pour pré-cocher les cœurs. Si non auth → set vide.
+  const favoritedRecipeIds: string[] = user.id
+    ? (await getUserFavorites(user.id))
+        .filter((f) => f.targetType === 'recipe')
+        .map((f) => f.targetId)
+    : [];
 
   // Score moyen PAR recette : lit directement les colonnes BDD
   // nutriscore_grade + nutriscore_confidence (persistées par
@@ -84,6 +91,8 @@ export default async function RecettesPage() {
           recipes={recipes}
           userHasPlan={userHasPlan}
           recipeScores={recipeScores}
+          initialFavoritedIds={favoritedRecipeIds}
+          isAuthenticated={user.isAuthenticated}
         />
       </main>
       <BottomNav />

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Ban,
   ChevronLeft,
@@ -149,12 +149,19 @@ export function RecettesOngletsView({
   recipes,
   userHasPlan,
   recipeScores = {},
+  initialFavoritedIds = [],
+  isAuthenticated = false,
 }: {
   recipes: Recipe[];
   userHasPlan: boolean;
   /** Score Nutri-Score moyen PAR recette (moyenne de ses sheets enfants).
    *  Affiché sous chaque tuile RecipeCard. Optionnel. */
   recipeScores?: Record<string, { grade: 'A' | 'B' | 'C' | 'D' | 'E'; confidence: number }>;
+  /** Slugs des recettes déjà favorisées par l'utilisatrice (préchargé
+   *  server-side). Permet de pré-cocher les cœurs. */
+  initialFavoritedIds?: string[];
+  /** Pour rediriger vers /login si non-auth lors du clic favori. */
+  isAuthenticated?: boolean;
 }) {
   // Query params utilisés au retour depuis la page détail d'une recette :
   //  - ?cat=…       : ouvre directement l'onglet correspondant
@@ -228,7 +235,9 @@ export function RecettesOngletsView({
     return () => clearTimeout(t);
   }, [highlightFromUrl, highlightConsumed]);
   const [query, setQuery] = useState('');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<Set<string>>(
+    () => new Set(initialFavoritedIds),
+  );
   // Chevrons de scroll horizontal : indiquent à l'utilisatrice qu'il y
   // a plus d'onglets à voir dans une direction. Visible UNIQUEMENT si
   // on peut effectivement scroller dans cette direction.
@@ -265,11 +274,19 @@ export function RecettesOngletsView({
   useEffect(() => {
     let rafId = 0;
     const evaluate = () => {
+      // Guard : si la page n'est pas réellement scrollable (contenu
+      // tient à l'écran), on force le mode non-compact. Sans ça, iOS
+      // peut faire un overscroll bounce qui rétracte le menu alors
+      // que c'est inutile (1-2 plats à l'écran).
+      const docHeight = document.documentElement.scrollHeight;
+      const viewportHeight = window.innerHeight;
+      const canScroll = docHeight > viewportHeight + 50;
+      if (!canScroll) {
+        setScrolledHeader(false);
+        return;
+      }
       const y = window.scrollY;
-      // Hystérésis LARGE (200 / 50) pour éviter le flicker : quand le
-      // header passe en compact, sa hauteur réduit → le contenu remonte
-      // → scrollY peut osciller autour du seuil → boucle infinie de
-      // bascule. Plus l'écart est grand, plus le toggle est stable.
+      // Hystérésis LARGE (200 / 50) pour éviter le flicker.
       setScrolledHeader((prev) => {
         if (!prev && y > 200) return true;
         if (prev && y < 50) return false;
@@ -328,13 +345,47 @@ export function RecettesOngletsView({
   }
 
   // Favoris : toggle in-memory.
-  const toggleFavorite = (id: string) =>
+  const router = useRouter();
+  // Toggle favori avec PERSISTANCE en DB. Optimistic UI : on change
+  // le state immédiatement, on rollback si le call API échoue.
+  // Non-auth → redirige vers /login (retour vers /recettes après).
+  const toggleFavorite = async (id: string) => {
+    if (!isAuthenticated) {
+      router.push(`/login?next=${encodeURIComponent('/recettes')}`);
+      return;
+    }
+    const wasFavorited = favorites.has(id);
     setFavorites((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
+      if (wasFavorited) next.delete(id);
       else next.add(id);
       return next;
     });
+    try {
+      if (wasFavorited) {
+        const res = await fetch(
+          `/api/favorites?targetType=recipe&targetId=${encodeURIComponent(id)}`,
+          { method: 'DELETE' },
+        );
+        if (!res.ok) throw new Error();
+      } else {
+        const res = await fetch('/api/favorites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ targetType: 'recipe', targetId: id }),
+        });
+        if (!res.ok) throw new Error();
+      }
+    } catch {
+      // Rollback optimistic
+      setFavorites((prev) => {
+        const next = new Set(prev);
+        if (wasFavorited) next.add(id);
+        else next.delete(id);
+        return next;
+      });
+    }
+  };
 
   // Recettes affichées : filtrées par catégorie de l'onglet actif,
   // puis par la recherche dans cet onglet uniquement (pas cross-tab).
@@ -592,7 +643,7 @@ export function RecettesOngletsView({
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
                   aria-pressed={isActive}
-                  className={`relative flex shrink-0 snap-start flex-col items-center transition active:scale-95 ${
+                  className={`relative flex shrink-0 snap-start flex-col items-center transition-all duration-500 ease-in-out active:scale-95 ${
                     scrolledHeader
                       ? 'w-auto min-w-[4rem] gap-0 px-2'
                       : 'w-24 gap-1.5 lg:w-28'
@@ -607,7 +658,7 @@ export function RecettesOngletsView({
                       src="/recettes/fee.webp"
                       alt=""
                       aria-hidden
-                      className={`anim-pulse-soft pointer-events-none absolute z-10 select-none drop-shadow-sm transition-all duration-300 ${
+                      className={`anim-pulse-soft pointer-events-none absolute z-10 select-none drop-shadow-sm transition-all duration-500 ease-in-out ${
                         scrolledHeader
                           ? '-left-3 -top-5 w-9'
                           : '-left-6 -top-6 w-14 lg:w-16'
@@ -618,7 +669,7 @@ export function RecettesOngletsView({
                       mode non-compact. Animation fade-out smooth quand
                       on scroll. */}
                   <span
-                    className={`grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-blush/30 transition-all duration-300 ${
+                    className={`grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-blush/30 transition-all duration-500 ease-in-out ${
                       scrolledHeader
                         ? 'pointer-events-none max-h-0 scale-0 opacity-0'
                         : `max-h-32 scale-100 opacity-100 ${
@@ -644,7 +695,7 @@ export function RecettesOngletsView({
                       taille mini en mode compact (xs). Soulignement
                       coral sous l'active dans les 2 modes. */}
                   <span
-                    className={`whitespace-nowrap leading-tight transition-all duration-300 ${
+                    className={`whitespace-nowrap leading-tight transition-all duration-500 ease-in-out ${
                       scrolledHeader ? 'text-xs' : 'text-sm lg:text-base'
                     } ${
                       isActive
