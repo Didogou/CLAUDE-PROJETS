@@ -531,28 +531,36 @@ export function aggregateIngredients(
     fruitsVegLegumesPct: (fvlGrams / totalGramsMatched) * 100,
   };
 
-  // Confiance combinée (révision 2026-06-12) :
-  //   - weightCoverage  = poids matché Ciqual / poids total qty-renseigné
-  //   - ingredientCoverage = ingrédients sans problème / ingrédients totaux
-  //   - confidence = weightCoverage × ingredientCoverage
+  // Confiance combinée (révision 2026-06-12 v2) :
+  //   - weightCoverage   = poids matché Ciqual / poids total qty-renseigné
+  //   - ingredientPenalty = pénalité douce proportionnelle au % d'ingrédients
+  //     sans données, capée à 30% maximum
+  //   - confidence = weightCoverage × (1 - ingredientPenalty)
   //
-  // Pourquoi ce changement vs le simple weightCoverage de 2026-06-08 :
-  //   Sur une recette "Caviar d'aubergines" : aubergine + huile d'olive
-  //   matchés à 100% du poids, mais ail/persil/citron/tahini en "à goût"
-  //   (sans qty) → weightCoverage = 100% MAIS recette incomplète. L'admin
-  //   voyait "100%" trompeur. Avec le facteur ingrédients : si 2/6 sont
-  //   sans qty, ingredientCoverage = 4/6 = 0.67 → confidence finale = 67%.
+  // Pourquoi cette version (v2) :
+  //   v1 (2026-06-12 matin) : confidence = weightCoverage × ingredientCoverage
+  //   → 1 ingrédient sans qty sur 10 = -10% direct, trop dur sur les salades
+  //     de fruits qui ont menthe/zest sans qty mais 90% du poids couvert.
+  //   v2 : pénalité de 30% MAX même si tous les ingrédients sont sans qty.
+  //   → 1 sans qty sur 10 = -3% (97% des cas), juste un petit signal.
+  //   → 5 sans qty sur 10 = -15% (85%), signal plus net.
+  //   → tous sans qty = -30% (cap), mais en pratique totalGrams=0 → 0%.
   //
-  // Le sel/poivre/herbes apparaissent maintenant dans la pénalité, ce qui
-  // est juste : Karine doit explicitement valider qu'ils n'ont pas de qty
-  // (et pas par oubli d'extraction Vision).
+  // Cap visuel : si AU MOINS 1 problème, on plafonne à 0.99 pour qu'on ne
+  // voie JAMAIS "100%" sur une recette incomplète. C'est ce qui était
+  // trompeur sur le Caviar d'aubergines.
   const weightCoverage =
     totalGrams === 0 ? 0 : totalGramsMatched / totalGrams;
-  const ingredientCoverage =
+  const ingredientPenalty =
     ingredients.length === 0
       ? 0
-      : (ingredients.length - problems.length) / ingredients.length;
-  const confidence = weightCoverage * ingredientCoverage;
+      : Math.min(0.3, (problems.length / ingredients.length) * 0.3);
+  let confidence = weightCoverage * (1 - ingredientPenalty);
+  // Cap à 0.99 si au moins 1 ingrédient a un problème (no-qty, unit-unknown,
+  // estimated-weight) — empêche d'afficher "100%" sur une recette imparfaite.
+  if (problems.length > 0) {
+    confidence = Math.min(confidence, 0.99);
+  }
 
   return {
     per100g,
