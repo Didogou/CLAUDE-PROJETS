@@ -29,7 +29,7 @@ export function WaterFAB() {
       setGlasses(Number(data.glassesCount) || 0);
       const targetGlasses = Math.max(
         1,
-        Math.round((data.targetMl ?? 1500) / (data.glassSizeMl ?? 250)),
+        Math.round((data.targetMl ?? 1500) / (data.glassSizeMl ?? 125)),
       );
       setTarget(targetGlasses);
     } catch {

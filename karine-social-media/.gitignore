@@ -13,6 +13,11 @@
 # testing
 /coverage
 
+# Playwright artifacts (rapports + traces locales — pas à commit)
+/playwright-report/
+/test-results/
+/playwright/.cache/
+
 # next.js
 /.next/
 /out/

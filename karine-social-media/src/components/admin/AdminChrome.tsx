@@ -53,6 +53,7 @@ const SECTIONS: Section[] = [
   { href: '/admin', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/admin/recettes', label: 'Recettes', icon: ChefHat },
   { href: '/admin/recettes/nutriscore', label: 'Nutri-Score', icon: Award },
+  { href: '/admin/labels', label: 'Labels diététiques', icon: Shield },
   {
     label: 'Ciqual',
     icon: Database,
@@ -79,6 +80,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/parse-tests', label: 'Tests parsing', icon: FlaskConical },
   { href: '/admin/parametres', label: 'Paramètres', icon: SlidersHorizontal },
   { href: '/admin/parametres/encouragements', label: 'Encouragements', icon: Sparkles },
+  { href: '/admin/tests', label: 'Tests E2E', icon: FlaskConical },
   { href: '/admin/compte', label: 'Compte', icon: Settings },
 ];
 

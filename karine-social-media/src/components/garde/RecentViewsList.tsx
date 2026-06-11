@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Clock, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clock, Trash2 } from 'lucide-react';
 import {
   clearRecentViews,
   getRecentViews,
@@ -28,6 +28,9 @@ function timeAgo(iso: string): string {
 
 export function RecentViewsList({ onItemClick }: { onItemClick?: () => void }) {
   const [items, setItems] = useState<RecentView[] | null>(null);
+  // Replié par défaut (UX Karine 2026-06-11) — l'utilisatrice clique
+  // sur le header "Vu récemment" pour dévoiler la liste si elle veut.
+  const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     setItems(getRecentViews());
@@ -50,21 +53,43 @@ export function RecentViewsList({ onItemClick }: { onItemClick?: () => void }) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between px-1">
-        <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-soft">
-          <Clock className="h-3 w-3" />
-          Vu récemment
-        </p>
         <button
           type="button"
-          onClick={handleClear}
-          aria-label="Effacer l’historique"
-          className="grid h-6 w-6 place-items-center rounded-full text-ink-soft transition hover:bg-coral-soft/40 hover:text-coral-dark"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-soft transition hover:text-coral-dark"
         >
-          <Trash2 className="h-3 w-3" />
+          {expanded ? (
+            <ChevronDown className="h-3 w-3" />
+          ) : (
+            <ChevronRight className="h-3 w-3" />
+          )}
+          <Clock className="h-3 w-3" />
+          Vu récemment ({items.length})
         </button>
+        {expanded && (
+          <button
+            type="button"
+            onClick={handleClear}
+            aria-label="Effacer l’historique"
+            className="grid h-6 w-6 place-items-center rounded-full text-ink-soft transition hover:bg-coral-soft/40 hover:text-coral-dark"
+          >
+            <Trash2 className="h-3 w-3" />
+          </button>
+        )}
       </div>
-      <ul className="space-y-1">
-        {items.slice(0, 8).map((it) => (
+      {!expanded && null}
+      {expanded && (
+        <>
+      {/* Affiche 3 items max sans scroll, puis scroll vertical doux.
+          Hauteur ≈ 3 × (40px image + 4px gap + 8px padding) = ~16rem.
+          UX (Karine 2026-06-11) : la liste reste compacte dans le burger
+          mais l'utilisatrice peut accéder à toutes ses récentes via scroll. */}
+      <ul
+        className="max-h-48 space-y-1 overflow-y-auto pr-1"
+        style={{ scrollbarColor: 'var(--color-coral) transparent' }}
+      >
+        {items.map((it) => (
           <li key={`${it.type}-${it.id}`}>
             <Link
               href={it.href}
@@ -98,6 +123,8 @@ export function RecentViewsList({ onItemClick }: { onItemClick?: () => void }) {
           </li>
         ))}
       </ul>
+      </>
+      )}
     </div>
   );
 }

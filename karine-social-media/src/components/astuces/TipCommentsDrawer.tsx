@@ -5,6 +5,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { Camera, Send, X } from 'lucide-react';
 import { InstaComments, type InstaComment } from '../recettes/InstaComments';
+import { compressMany } from '@/lib/compress-image';
 
 export type TipDrawerComment = {
   id: string | number;
@@ -90,7 +91,14 @@ export function TipCommentsDrawer({
       const fd = new FormData();
       fd.set('body', draft.trim());
       if (replyTo) fd.set('parentId', String(replyTo.id));
-      for (const f of draftPhotos) fd.append('photos', f);
+      // Compression client AVANT upload (règle projet). Aligné avec
+      // RecipeDetailView qui compresse pareillement ses photos comm.
+      const compressedPhotos = await compressMany(draftPhotos, {
+        maxDim: 1280,
+        quality: 0.8,
+        skipBelowKB: 150,
+      });
+      for (const f of compressedPhotos) fd.append('photos', f);
       const res = await fetch(`/api/tips/${tipSlug}/comments`, { method: 'POST', body: fd });
       const j = await res.json();
       if (!res.ok) throw new Error(j?.error || 'Échec');
@@ -118,11 +126,38 @@ export function TipCommentsDrawer({
   }
 
   async function likeComment(id: string | number) {
+    // Toggle anti-spam via localStorage Set des comment ids likés.
+    let wasLiked = false;
+    try {
+      const raw = localStorage.getItem('karine.liked-comments.v1');
+      const arr = raw ? (JSON.parse(raw) as Array<string | number>) : [];
+      wasLiked = arr.some((x) => String(x) === String(id));
+      if (wasLiked) {
+        const next = arr.filter((x) => String(x) !== String(id));
+        localStorage.setItem('karine.liked-comments.v1', JSON.stringify(next));
+      } else {
+        arr.push(id);
+        localStorage.setItem('karine.liked-comments.v1', JSON.stringify(arr));
+      }
+    } catch {
+      /* localStorage indispo : on continue quand même */
+    }
     setComments((c) =>
-      c.map((x) => (x.id === id ? { ...x, likesCount: x.likesCount + 1 } : x)),
+      c.map((x) =>
+        x.id === id
+          ? {
+              ...x,
+              likesCount: wasLiked
+                ? Math.max(0, x.likesCount - 1)
+                : x.likesCount + 1,
+            }
+          : x,
+      ),
     );
     try {
-      const res = await fetch(`/api/comments/${id}/like`, { method: 'POST' });
+      const res = await fetch(`/api/comments/${id}/like`, {
+        method: wasLiked ? 'DELETE' : 'POST',
+      });
       const j = await res.json().catch(() => null);
       if (res.ok && typeof j?.likes === 'number') {
         setComments((c) =>
@@ -130,7 +165,7 @@ export function TipCommentsDrawer({
         );
       }
     } catch {
-      /* like reste optimiste */
+      /* toggle reste optimiste */
     }
   }
 

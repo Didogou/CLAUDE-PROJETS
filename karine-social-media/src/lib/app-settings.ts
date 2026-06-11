@@ -21,7 +21,7 @@ export async function getAppSettings(): Promise<AppSettings> {
     const { data, error } = await (supabase as any)
       .from('app_settings')
       .select(
-        'patient_relance_cooldown_days, show_calories_in_counter, calorie_tracker_enabled, water_tracker_enabled, calorie_encouragements',
+        'patient_relance_cooldown_days, show_calories_in_counter, calorie_tracker_enabled, water_tracker_enabled, calorie_encouragements, about_page_content',
       )
       .eq('id', 1)
       .maybeSingle();
@@ -44,6 +44,10 @@ export async function getAppSettings(): Promise<AppSettings> {
           ? data.water_tracker_enabled
           : DEFAULT_APP_SETTINGS.waterTrackerEnabled,
       calorieEncouragements: parseEncouragements(data.calorie_encouragements),
+      aboutPageContent:
+        typeof data.about_page_content === 'string' && data.about_page_content.length > 0
+          ? data.about_page_content
+          : DEFAULT_APP_SETTINGS.aboutPageContent,
     };
   } catch {
     return DEFAULT_APP_SETTINGS;

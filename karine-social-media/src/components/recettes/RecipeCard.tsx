@@ -39,46 +39,79 @@ export function RecipeCard({
   nutriScore,
   highlighted = false,
 }: RecipeCardProps) {
-  // Like compteur + état "déjà liké" en localStorage (V1 anonyme,
-  // garde-fou anti-spam basique). Format : Set<slug> dans
-  // 'karine.liked-recipes.v1'.
-  const [likes, setLikes] = useState(recipe.likesCount ?? 0);
-  const [hasLiked, setHasLiked] = useState(false);
-  useEffect(() => {
+  // Like + état "déjà liké" en localStorage (V1 anonyme, anti-spam).
+  // Lazy init synchrone au mount pour éviter le flicker + floor à 1
+  // si l'user a liké localement mais que la DB ne le reflète pas
+  // encore (cas migration).
+  const [likes, setLikes] = useState(() => {
+    const base = recipe.likesCount ?? 0;
+    if (typeof window === 'undefined') return base;
     try {
       const raw = localStorage.getItem('karine.liked-recipes.v1');
-      if (raw) {
-        const set = new Set(JSON.parse(raw) as string[]);
-        setHasLiked(set.has(recipe.id));
-      }
+      const liked = raw
+        ? new Set(JSON.parse(raw) as string[]).has(recipe.id)
+        : false;
+      return liked ? Math.max(base, 1) : base;
     } catch {
-      /* localStorage indispo */
+      return base;
     }
-  }, [recipe.id]);
+  });
+  const [hasLiked, setHasLiked] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      return raw
+        ? new Set(JSON.parse(raw) as string[]).has(recipe.id)
+        : false;
+    } catch {
+      return false;
+    }
+  });
+  // Sync au changement de recipe (cas navigation entre cards si Recipe
+  // est ré-utilisé). Pas critique pour la grille mais cohérent.
+  useEffect(() => {
+    const base = recipe.likesCount ?? 0;
+    try {
+      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      const liked = raw
+        ? new Set(JSON.parse(raw) as string[]).has(recipe.id)
+        : false;
+      setHasLiked(liked);
+      setLikes(liked ? Math.max(base, 1) : base);
+    } catch {
+      setHasLiked(false);
+      setLikes(base);
+    }
+  }, [recipe.id, recipe.likesCount]);
   async function handleLike(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (hasLiked) return;
-    setLikes((n) => n + 1);
-    setHasLiked(true);
+    const wasLiked = hasLiked;
+    // Optimistic toggle
+    setLikes((n) => (wasLiked ? Math.max(0, n - 1) : n + 1));
+    setHasLiked(!wasLiked);
+    // Sync localStorage
     try {
-      // Persiste en localStorage AVANT l'appel pour bloquer un double-clic.
       const raw = localStorage.getItem('karine.liked-recipes.v1');
       const arr = raw ? (JSON.parse(raw) as string[]) : [];
-      if (!arr.includes(recipe.id)) arr.push(recipe.id);
+      const idx = arr.indexOf(recipe.id);
+      if (wasLiked) {
+        if (idx >= 0) arr.splice(idx, 1);
+      } else {
+        if (idx < 0) arr.push(recipe.id);
+      }
       localStorage.setItem('karine.liked-recipes.v1', JSON.stringify(arr));
     } catch {
       /* localStorage indispo */
     }
     try {
       const res = await fetch(`/api/recipes/${recipe.id}/like`, {
-        method: 'POST',
+        method: wasLiked ? 'DELETE' : 'POST',
       });
       if (!res.ok) throw new Error();
     } catch {
-      // Rollback compteur si l'API a échoué (mais on garde hasLiked
-      // pour pas re-spammer — V1 acceptable).
-      setLikes((n) => Math.max(0, n - 1));
+      // Pas de rollback visible : garde l'optimistic UI.
+      console.warn('[recipe-like] API failed');
     }
   }
   const isAccessible = userHasPlan || recipe.isPublic;
@@ -106,12 +139,13 @@ export function RecipeCard({
       data-recipe-id={recipe.id}
     >
       {/* Tags compacts au-dessus de l'image. Labels courts pour tenir
-          dans la largeur (~12-14rem). "Sans porc" reste un filtre
-          toggle mais pas affiché ici (englobé par Végé). */}
+          sur 1 ligne (max ~14rem). On affiche maintenant aussi
+          "Sans porc" (demande Karine 2026-06-11). */}
       {(recipe.isSeasonal ||
         dietary.isVegetarian ||
-        dietary.isGlutenFree) && (
-        <div className="mb-1 flex flex-wrap justify-center gap-0.5">
+        dietary.isGlutenFree ||
+        (dietary.isPorkFree && !dietary.isVegetarian)) && (
+        <div className="mb-1 flex flex-nowrap justify-center gap-0.5 overflow-hidden">
           {recipe.isSeasonal && (
             <span
               className="inline-flex items-center justify-center rounded-full bg-sage/15 p-1 text-sage ring-1 ring-sage/40"
@@ -144,21 +178,32 @@ export function RecipeCard({
           )}
           {dietary.isGlutenFree && (
             <span
-              className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-amber-700 ring-1 ring-amber-300"
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-amber-700 ring-1 ring-amber-300"
               title={
                 totalSheets > 1
                   ? `${gfCount}/${totalSheets} fiches sans gluten`
                   : 'Cette recette ne contient pas de gluten'
               }
             >
-              <Ban className="size-2.5 shrink-0" strokeWidth={2.5} />
-              Glu
+              <Ban className="size-2 shrink-0" strokeWidth={2.5} />
+              Sans Glu
               {totalSheets > 1 && (
                 <span className="opacity-70">
                   {' '}
                   {gfCount}/{totalSheets}
                 </span>
               )}
+            </span>
+          )}
+          {/* Sans porc — affiché si la recette en a au moins une fiche
+              sans porc ET n'est pas déjà étiquetée Végé (sinon redondant). */}
+          {dietary.isPorkFree && !dietary.isVegetarian && (
+            <span
+              className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-sky-700 ring-1 ring-sky-300"
+              title="Cette recette ne contient pas de porc"
+            >
+              <Ban className="size-2 shrink-0" strokeWidth={2.5} />
+              Sans porc
             </span>
           )}
         </div>
@@ -234,14 +279,14 @@ export function RecipeCard({
           />
         </button>
 
-        {/* Like (compteur public) — HAUT DROITE. */}
+        {/* Like (compteur public) — HAUT DROITE.
+            Toggle : tap pour liker, re-tap pour retirer le like. */}
         <button
           type="button"
           onClick={handleLike}
-          disabled={hasLiked}
-          aria-label={hasLiked ? `Tu as aimé (${likes})` : 'J\'aime'}
+          aria-label={hasLiked ? `Retirer mon j'aime (${likes})` : "J'aime"}
           aria-pressed={hasLiked}
-          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 shadow-sm transition hover:scale-110 disabled:hover:scale-100"
+          className="absolute right-2 top-2 z-20 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 shadow-sm transition hover:scale-110"
         >
           <Heart
             className={

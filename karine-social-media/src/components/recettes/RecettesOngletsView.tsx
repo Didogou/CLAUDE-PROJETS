@@ -558,7 +558,7 @@ export function RecettesOngletsView({
                 />
               )
             }
-            label="Gluten"
+            label="Sans gluten"
             activeBg="bg-amber-100"
             activeText="text-amber-700"
             activeRing="ring-amber-400"
@@ -578,7 +578,7 @@ export function RecettesOngletsView({
                 />
               )
             }
-            label="Porc"
+            label="Sans porc"
             activeBg="bg-sky-100"
             activeText="text-sky-700"
             activeRing="ring-sky-400"
@@ -906,13 +906,13 @@ function FilterToggle({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`flex w-full min-w-0 items-center justify-center gap-0.5 rounded-full px-1 py-0.5 text-[0.6rem] font-bold uppercase tracking-wider ring-1 transition ${
+      className={`flex w-full min-w-0 items-center justify-center gap-0.5 rounded-full px-0.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-tight ring-1 transition ${
         active
           ? `${activeBg} ${activeText} ${activeRing} shadow-sm`
           : 'bg-white/80 text-coral-dark/70 ring-coral-soft/40 hover:bg-white'
       }`}
     >
-      <span className="grid size-3 shrink-0 place-items-center text-[0.55rem]">
+      <span className="grid size-2.5 shrink-0 place-items-center text-[0.5rem]">
         {icon}
       </span>
       <span className="truncate">{label}</span>

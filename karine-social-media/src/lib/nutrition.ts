@@ -128,17 +128,49 @@ export async function getLast7DaysKcal(
   return days;
 }
 
-/** Bornes [start, end) en UTC d'une journée locale (Europe/Paris). */
+/**
+ * Bornes [start, end) UTC d'une journée locale Europe/Paris.
+ *
+ * Fix 2026-06-11 : sur Vercel le server tourne en UTC. Sans correction
+ * timezone, à minuit Paris (= 22h ou 23h UTC selon DST), la journée
+ * courante "reset" 1-2h en retard et les nouvelles entrées des 00h
+ * Paris sont attribuées à la veille. → totaux à 0 au passage de minuit.
+ *
+ * On calcule maintenant l'offset Paris vs UTC via Intl.DateTimeFormat
+ * (gère DST automatiquement).
+ */
 function todayBounds(): { start: string; end: string } {
-  // On utilise les bornes locales : tout ce qui a logged_at dans la
-  // journée locale FR est compté. Pour V1 on simplifie : start =
-  // début de la journée du serveur (UTC). Karine + abonnées sont FR
-  // → décalage 1-2h. Si problème, brancher Intl.DateTimeFormat plus
-  // tard.
+  const PARIS_TZ = 'Europe/Paris';
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  // "now" en composantes Paris
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: PARIS_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = Object.fromEntries(
+    fmt.formatToParts(now).map((p) => [p.type, p.value]),
+  );
+  // Date "à minuit Paris" représentée comme un Date UTC : on utilise
+  // l'astuce du toISOString en construisant un wall-clock string que
+  // l'on parse en tant qu'instant Paris, puis on calcule l'offset.
+  const parisMidnightAsIfUtc = new Date(
+    `${parts.year}-${parts.month}-${parts.day}T00:00:00Z`,
+  );
+  // Offset Paris = différence entre l'heure "wall clock Paris" et UTC
+  // au moment de "now".
+  const wallClockParisNowAsIfUtc = new Date(
+    `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}:${parts.second}Z`,
+  );
+  const offsetMs = wallClockParisNowAsIfUtc.getTime() - now.getTime();
+  // start UTC = minuit Paris - offset
+  const start = new Date(parisMidnightAsIfUtc.getTime() - offsetMs);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 

@@ -5,6 +5,8 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Eye, EyeOff, Heart, ImagePlus, Trash2 } from 'lucide-react';
 import type { FeaturedPhoto } from '@/data/featured-photos';
+import { ConfirmModal } from './ConfirmModal';
+import { compressImage } from '@/lib/compress-image';
 
 export function FeaturedPhotosView({ initial }: { initial: FeaturedPhoto[] }) {
   const router = useRouter();
@@ -19,8 +21,14 @@ export function FeaturedPhotosView({ initial }: { initial: FeaturedPhoto[] }) {
     setUploading(true);
     setError(null);
     try {
+      // Compression client AVANT upload (règle projet).
+      const compressed = await compressImage(file, {
+        maxDim: 1600,
+        quality: 0.85,
+        skipBelowKB: 400,
+      });
       const fd = new FormData();
-      fd.append('file', file);
+      fd.append('file', compressed);
       if (captionDraft.trim()) fd.append('caption', captionDraft.trim());
       const res = await fetch('/api/admin/featured-photos', {
         method: 'POST',
@@ -58,8 +66,10 @@ export function FeaturedPhotosView({ initial }: { initial: FeaturedPhoto[] }) {
     }
   }
 
+  // Confirmation via ConfirmModal (règle projet : no window.confirm).
+  const [removeTargetId, setRemoveTargetId] = useState<number | null>(null);
+
   async function remove(id: number) {
-    if (!window.confirm('Supprimer cette photo ?')) return;
     setBusyId(id);
     setError(null);
     try {
@@ -74,6 +84,7 @@ export function FeaturedPhotosView({ initial }: { initial: FeaturedPhoto[] }) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
       setBusyId(null);
+      setRemoveTargetId(null);
     }
   }
 
@@ -200,7 +211,7 @@ export function FeaturedPhotosView({ initial }: { initial: FeaturedPhoto[] }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => remove(p.id)}
+                  onClick={() => setRemoveTargetId(p.id)}
                   disabled={busyId === p.id}
                   aria-label="Supprimer"
                   className="grid h-8 w-8 place-items-center rounded-full bg-red-50 text-red-600 ring-1 ring-red-200 transition hover:bg-red-100 disabled:opacity-50"
@@ -219,6 +230,19 @@ export function FeaturedPhotosView({ initial }: { initial: FeaturedPhoto[] }) {
         {photos.filter((p) => p.published).length > 1 ? 's' : ''}&nbsp;:{' '}
         {photos.filter((p) => p.published).length}).
       </p>
+      <ConfirmModal
+        open={removeTargetId !== null}
+        title="Supprimer cette photo ?"
+        message="La photo sera retirée immédiatement (action irréversible)."
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        variant="danger"
+        loading={busyId === removeTargetId && removeTargetId !== null}
+        onConfirm={() => {
+          if (removeTargetId !== null) remove(removeTargetId);
+        }}
+        onCancel={() => setRemoveTargetId(null)}
+      />
     </div>
   );
 }

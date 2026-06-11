@@ -9,7 +9,11 @@
     "lint": "eslint",
     "optimize-images": "node scripts/optimize-images.mjs",
     "migrate-storage": "node scripts/migrate-storage-to-webp.mjs",
-    "cleanup-originals": "node scripts/cleanup-originals.mjs"
+    "cleanup-originals": "node scripts/cleanup-originals.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.100.1",
@@ -33,6 +37,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

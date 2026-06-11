@@ -164,12 +164,16 @@ export async function POST(request: NextRequest) {
     }> = [];
 
     if (sheetsRaw.length > 0) {
-      // Move chaque sheet temp → final
+      // Move chaque sheet temp → final. On COLLECTE les erreurs pour
+      // les remonter au client à la fin (au lieu d'échouer silencieusement
+      // sur certaines). Comme ça Karine sait précisément quelles fiches
+      // n'ont pas été enregistrées et pourquoi.
+      const moveErrors: string[] = [];
       for (let i = 0; i < sheetsRaw.length; i++) {
         const s = sheetsRaw[i];
         const tempPath = typeof s.tempPath === 'string' ? s.tempPath.trim() : '';
         if (!tempPath || !tempPath.startsWith('temp-recipe-sheets/')) {
-          console.warn(`[recipes POST] sheet ${i} skipped : tempPath invalide`);
+          moveErrors.push(`Fiche ${i + 1} : tempPath manquant ou invalide`);
           continue;
         }
         const finalPath = `recipes/${slug}/sheet-${i}-${Date.now()
@@ -180,11 +184,28 @@ export async function POST(request: NextRequest) {
           .move(tempPath, finalPath);
         if (mvShErr) {
           console.warn(`[recipes POST] move sheet ${i} failed:`, mvShErr);
+          const reason = /not found|no object/i.test(mvShErr.message ?? '')
+            ? 'fichier temporaire expiré (re-uploade la fiche)'
+            : mvShErr.message ?? 'erreur inconnue';
+          moveErrors.push(`Fiche ${i + 1} : ${reason}`);
           continue;
         }
         const sheetUrl = supabase.storage.from(BUCKET).getPublicUrl(finalPath).data
           .publicUrl;
         sheetsToInsert.push({ payload: s, coverUrl: sheetUrl });
+      }
+      // Si toutes les sheets ont échoué → on remonte une erreur claire
+      // pour que l'admin ne créé pas une recette vide.
+      if (sheetsToInsert.length === 0 && moveErrors.length > 0) {
+        return NextResponse.json(
+          {
+            error:
+              `Aucune fiche détaillée n'a pu être enregistrée :\n` +
+              moveErrors.join('\n') +
+              `\n\nAstuce : ferme et rouvre l'éditeur, puis re-uploade les fiches via le batch preview.`,
+          },
+          { status: 400 },
+        );
       }
     } else if (mainAsSheet && Array.isArray(mainAsSheet.ingredients) && mainAsSheet.ingredients.length > 0) {
       // La cover EST elle-même une fiche détaillée : on crée sheet 0

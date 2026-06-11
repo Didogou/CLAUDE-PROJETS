@@ -29,9 +29,13 @@ export async function AppHeader({
   pageTitle,
   backHref,
   hideTracking = false,
+  homeExtraTop = false,
 }: {
   withSlogan?: boolean;
   withIdeas?: boolean;
+  /** Padding-top supplémentaire sur le header. Utilisé uniquement sur
+   *  la page d'accueil pour décaler le wordmark vers le bas (UX 2026-06-12). */
+  homeExtraTop?: boolean;
   /** Titre de la page courante (Option C — pattern Hybride 2026-06-08).
    *  Quand fourni, le Logo passe automatiquement en mode forceCompact
    *  et le titre s'affiche sous le wordmark (à la place du slogan).
@@ -51,6 +55,21 @@ export async function AppHeader({
   const user = await getCurrentUser();
   const unreadCount =
     user.isAuthenticated && user.id ? await getMyUnreadCount(user.id) : 0;
+
+  // Avatar URL utilisée comme icône du badge profil (en haut à droite).
+  // Si présente, on l'affiche à la place de l'icône User Lucide générique.
+  let avatarUrl: string | null = null;
+  if (user.isAuthenticated && user.id) {
+    const { createServiceClient } = await import('@/lib/supabase/server');
+    const supabase = createServiceClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (data?.avatar_url) avatarUrl = data.avatar_url as string;
+  }
 
   const isAdmin = user.effectiveRole === 'admin';
   const allowedTracking =
@@ -87,6 +106,8 @@ export async function AppHeader({
       withIdeas={withIdeas}
       pageTitle={pageTitle}
       backHref={backHref}
+      avatarUrl={avatarUrl}
+      homeExtraTop={homeExtraTop}
     />
   );
 }

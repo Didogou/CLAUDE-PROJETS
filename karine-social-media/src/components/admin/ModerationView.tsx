@@ -5,6 +5,7 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { MicOff, Search, ShieldCheck, User as UserIcon, VolumeX } from 'lucide-react';
 import type { ProfileForModeration } from '@/lib/profiles-admin';
+import { ConfirmModal } from './ConfirmModal';
 
 export function ModerationView({ initial }: { initial: ProfileForModeration[] }) {
   const router = useRouter();
@@ -61,9 +62,12 @@ export function ModerationView({ initial }: { initial: ProfileForModeration[] })
     }
   }
 
+  // Confirmation via ConfirmModal (règle projet : no window.confirm).
+  const [unmuteTarget, setUnmuteTarget] = useState<ProfileForModeration | null>(
+    null,
+  );
+
   async function unmute(p: ProfileForModeration) {
-    if (!window.confirm(`Lever la modération de ${p.email ?? 'cette utilisatrice'} ?`))
-      return;
     setBusyId(p.id);
     setError(null);
     try {
@@ -82,6 +86,7 @@ export function ModerationView({ initial }: { initial: ProfileForModeration[] })
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
       setBusyId(null);
+      setUnmuteTarget(null);
     }
   }
 
@@ -135,7 +140,7 @@ export function ModerationView({ initial }: { initial: ProfileForModeration[] })
             {p.muted ? (
               <button
                 type="button"
-                onClick={() => unmute(p)}
+                onClick={() => setUnmuteTarget(p)}
                 disabled={busyId === p.id}
                 className="flex items-center gap-1.5 rounded-full bg-sage/15 px-3 py-1.5 text-xs font-bold text-sage transition hover:bg-sage/25 disabled:opacity-50"
               >
@@ -169,6 +174,22 @@ export function ModerationView({ initial }: { initial: ProfileForModeration[] })
           onConfirm={applyMute}
         />
       )}
+      <ConfirmModal
+        open={unmuteTarget !== null}
+        title="Lever la modération ?"
+        message={
+          unmuteTarget
+            ? `${unmuteTarget.email ?? 'Cette utilisatrice'} pourra à nouveau commenter et liker.`
+            : ''
+        }
+        confirmLabel="Lever la modération"
+        cancelLabel="Annuler"
+        loading={busyId !== null && unmuteTarget !== null}
+        onConfirm={() => {
+          if (unmuteTarget) unmute(unmuteTarget);
+        }}
+        onCancel={() => setUnmuteTarget(null)}
+      />
     </div>
   );
 }

@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { persistNutriscoreForSheet } from '@/lib/nutriscore-persist';
+import {
+  computeSheetMacros,
+  fetchCiqualForIngredients,
+} from '@/lib/recipe-macros';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -55,10 +59,16 @@ export async function POST(
         .move(tempPath, finalPath);
       if (mvErr) {
         console.warn('[admin/sheets POST] move temp failed:', mvErr);
-      } else {
-        coverImageUrl = supabase.storage.from(BUCKET).getPublicUrl(finalPath).data
-          .publicUrl;
+        // Erreur explicite côté client : le fichier temp n'existe plus
+        // (TTL Supabase, double-submit, session client perdue, etc.).
+        // Le user doit re-uploader la fiche depuis le bulk preview.
+        const msg = /not found|no object/i.test(mvErr.message ?? '')
+          ? "Le fichier temporaire a expiré (uploade plus ancien que l'attente Supabase). Re-uploade cette fiche depuis le batch preview."
+          : `Déplacement du fichier impossible : ${mvErr.message ?? 'erreur inconnue'}`;
+        return NextResponse.json({ error: msg }, { status: 400 });
       }
+      coverImageUrl = supabase.storage.from(BUCKET).getPublicUrl(finalPath).data
+        .publicUrl;
     }
 
     if (!coverImageUrl) {
@@ -79,22 +89,50 @@ export async function POST(
     const nextIndex =
       typeof lastSheet?.sheet_index === 'number' ? lastSheet.sheet_index + 1 : 0;
 
+    const sanitizedIngredients = sanitizeIngredients(body.ingredients);
+    const servings = clampInt(body.servings, 4, 1, 20);
+
+    // Calcul macros par portion depuis ingredients × Ciqual.
+    // Tolérant : si erreur ou couverture < 30%, retourne null partout.
+    let macrosProteins: number | null = null;
+    let macrosLipids: number | null = null;
+    let macrosCarbs: number | null = null;
+    try {
+      const ciqualById = await fetchCiqualForIngredients(
+        supabase,
+        sanitizedIngredients as unknown as RecipeIngredient[],
+      );
+      const computed = computeSheetMacros(
+        sanitizedIngredients as unknown as RecipeIngredient[],
+        servings,
+        ciqualById,
+      );
+      macrosProteins = computed.proteinsG;
+      macrosLipids = computed.lipidsG;
+      macrosCarbs = computed.carbsG;
+    } catch (e) {
+      console.warn('[sheets POST] macros compute failed (non-fatal):', e);
+    }
+
     const insertPayload = {
       recipe_id: recipeId,
       sheet_index: nextIndex,
       title: typeof body.title === 'string' ? body.title.trim() || null : null,
       cover_image_url: coverImageUrl,
-      servings: clampInt(body.servings, 4, 1, 20),
+      servings,
       calories: nullableInt(body.calories),
       prep_time_min: nullableInt(body.prepTimeMin),
       cook_time_min: nullableInt(body.cookTimeMin),
       tags: stringArray(body.tags),
       aliments: stringArray(body.aliments),
-      ingredients: sanitizeIngredients(body.ingredients),
+      ingredients: sanitizedIngredients,
       ingredients_text:
         typeof body.ingredientsText === 'string'
           ? body.ingredientsText.trim() || null
           : null,
+      proteins_g: macrosProteins,
+      lipids_g: macrosLipids,
+      carbs_g: macrosCarbs,
     };
 
     const { data: sheetData, error } = await (supabase as any)

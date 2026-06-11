@@ -5,6 +5,10 @@ import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 import { extractRecipeSheetFromImage } from '@/lib/claude-recipe-vision';
 
 const BUCKET = 'content-images';
+// Runtime Node.js explicite : la limite du body est plus permissive
+// qu'en Edge (4.5 MB → ~50+ MB en Node), ce qui évite l'erreur
+// "Failed to parse body as FormData" sur les uploads de 5-10 photos.
+export const runtime = 'nodejs';
 // N images en parallèle peut prendre 30s+. Cap à 60s, limite Vercel hobby.
 export const maxDuration = 60;
 
@@ -20,8 +24,23 @@ export const maxDuration = 60;
 export async function POST(request: NextRequest) {
   const denied = await requireAdmin();
   if (denied) return denied;
+  // Parse séparément pour donner un message clair sur les uploads trop
+  // gros (cause typique : 10 photos × 5 MB = 50 MB, dépasse la limite).
+  let form: FormData;
   try {
-    const form = await request.formData();
+    form = await request.formData();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '';
+    return NextResponse.json(
+      {
+        error: /failed to parse|body|size/i.test(msg)
+          ? 'Upload trop volumineux. Réduis la taille ou le nombre d\'images (essaye 3-4 à la fois maxi).'
+          : `Erreur de lecture du formulaire : ${msg || 'inconnue'}`,
+      },
+      { status: 413 },
+    );
+  }
+  try {
     const files = form
       .getAll('files')
       .filter((f): f is File => f instanceof File && f.size > 0);

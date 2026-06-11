@@ -28,6 +28,7 @@ import { MealCategoryAvatar } from './MealIcon';
 import { WaterSection } from './WaterSection';
 import { SecurePhoto } from './SecurePhoto';
 import { showToast, queueToastForNextPage } from '@/lib/toast';
+import { compressImage } from '@/lib/compress-image';
 import { IngredientCardCarousel } from './IngredientCardCarousel';
 import { MacroRing } from './MacroRing';
 
@@ -490,8 +491,15 @@ export function CalorieCounterSheetV2({
     setPhotoUploading(true);
     setError(null);
     try {
+      // Compression client AVANT upload (règle projet) :
+      // évite 413, bande passante 4G, plantage HEIC iPhone.
+      const compressed = await compressImage(file, {
+        maxDim: 1280,
+        quality: 0.8,
+        skipBelowKB: 150,
+      });
       const fd = new FormData();
-      fd.append('photo', file);
+      fd.append('photo', compressed);
       const res = await fetch('/api/nutrition/describe-meal', {
         method: 'POST',
         body: fd,

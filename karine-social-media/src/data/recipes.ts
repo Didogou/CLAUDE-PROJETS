@@ -46,6 +46,12 @@ export type RecipeSheet = {
   coverImageUrl: string;
   servings: number;
   calories: number | null;
+  /** Macros par PORTION, calculées automatiquement depuis
+   *  ingredients × Ciqual à la sauvegarde côté admin. Null si la
+   *  couverture Ciqual est insuffisante (< 30% des ingrédients). */
+  proteinsG: number | null;
+  lipidsG: number | null;
+  carbsG: number | null;
   prepTimeMin: number | null;
   cookTimeMin: number | null;
   tags: string[];

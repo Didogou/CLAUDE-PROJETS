@@ -2,6 +2,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { persistNutriscoreForSheet } from '@/lib/nutriscore-persist';
+import {
+  computeSheetMacros,
+  fetchCiqualForIngredients,
+} from '@/lib/recipe-macros';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -89,6 +93,41 @@ export async function PATCH(
 
     if (Object.keys(patch).length === 0) {
       return NextResponse.json({ error: 'Rien à mettre à jour.' }, { status: 400 });
+    }
+
+    // Si les ingrédients ou les portions ont été modifiés, recalcul
+    // automatique des macros par portion. Tolérant (non bloquant).
+    if (
+      patch.ingredients !== undefined ||
+      patch.servings !== undefined
+    ) {
+      try {
+        // Récupère l'état "sera" (patch ∪ existant) pour calcul cohérent
+        // même si le caller n'envoie que les ingredients sans servings.
+        const { data: current } = await (supabase as any)
+          .from('recipe_sheets')
+          .select('ingredients, servings')
+          .eq('id', sheetId)
+          .maybeSingle();
+        const ingredients =
+          (patch.ingredients as RecipeIngredient[] | undefined) ??
+          (current?.ingredients as RecipeIngredient[] | null) ??
+          [];
+        const servings =
+          (patch.servings as number | undefined) ??
+          Number(current?.servings) ??
+          4;
+        const ciqualById = await fetchCiqualForIngredients(
+          supabase,
+          ingredients,
+        );
+        const computed = computeSheetMacros(ingredients, servings, ciqualById);
+        patch.proteins_g = computed.proteinsG;
+        patch.lipids_g = computed.lipidsG;
+        patch.carbs_g = computed.carbsG;
+      } catch (e) {
+        console.warn('[sheets PATCH] macros compute failed (non-fatal):', e);
+      }
     }
 
     const { data, error } = await (supabase as any)

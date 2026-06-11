@@ -62,6 +62,18 @@ function mapSheetRow(row: any): RecipeSheet {
     coverImageUrl: row.cover_image_url ?? '',
     servings: typeof row.servings === 'number' ? row.servings : 4,
     calories: typeof row.calories === 'number' ? row.calories : null,
+    proteinsG:
+      row.proteins_g === null || row.proteins_g === undefined
+        ? null
+        : Number(row.proteins_g),
+    lipidsG:
+      row.lipids_g === null || row.lipids_g === undefined
+        ? null
+        : Number(row.lipids_g),
+    carbsG:
+      row.carbs_g === null || row.carbs_g === undefined
+        ? null
+        : Number(row.carbs_g),
     prepTimeMin: typeof row.prep_time_min === 'number' ? row.prep_time_min : null,
     cookTimeMin: typeof row.cook_time_min === 'number' ? row.cook_time_min : null,
     tags: Array.isArray(row.tags) ? row.tags : [],
@@ -248,7 +260,7 @@ export async function getPublishedRecipesLite(): Promise<Recipe[]> {
     const { data: sheetRows, error: shErr } = await (supabase as any)
       .from('recipe_sheets')
       .select(
-        'id, recipe_id, sheet_index, title, cover_image_url, servings, calories, prep_time_min, cook_time_min, tags, aliments, ingredients, likes_count, nutriscore_grade, nutriscore_confidence',
+        'id, recipe_id, sheet_index, title, cover_image_url, servings, calories, proteins_g, lipids_g, carbs_g, prep_time_min, cook_time_min, tags, aliments, ingredients, likes_count, nutriscore_grade, nutriscore_confidence',
       )
       .in('recipe_id', recipeIds)
       .order('sheet_index', { ascending: true });

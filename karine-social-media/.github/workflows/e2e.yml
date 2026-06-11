@@ -1,0 +1,110 @@
+name: E2E Tests (Playwright)
+
+on:
+  # Lance sur push/PR vers main
+  push:
+    branches: [main]
+    paths:
+      - 'karine-social-media/**'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'karine-social-media/**'
+  # Lance tous les jours à 4h du matin UTC (= 5h Paris hiver, 6h été)
+  # → détecte les régressions overnight (dépendances qui drift, etc.)
+  schedule:
+    - cron: '0 4 * * *'
+  # Lance manuellement depuis l'UI GitHub
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: Playwright sur ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium, mobile-iphone]
+    defaults:
+      run:
+        working-directory: karine-social-media
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: karine-social-media/package-lock.json
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('karine-social-media/package-lock.json') }}
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.project == 'mobile-iphone' && 'chromium' || matrix.project }}
+
+      - name: Build Next.js
+        run: npm run build
+        env:
+          # Variables d'env pour le build (ajoute ici les secrets nécessaires)
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Start Next.js (background)
+        run: |
+          npm run start &
+          # Attend que le port 3100 réponde (max 60s)
+          for i in {1..60}; do
+            if curl -sI http://localhost:3100 > /dev/null; then
+              echo "Server ready"
+              break
+            fi
+            sleep 1
+          done
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Run Playwright
+        run: npx playwright test --project=${{ matrix.project }}
+        env:
+          # Décommente quand tu auras créé un user de test Supabase de staging
+          # E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          # E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+          CI: 'true'
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ matrix.project }}
+          path: karine-social-media/playwright-report/
+          retention-days: 14
+
+      - name: Upload traces (échecs uniquement)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ matrix.project }}
+          path: karine-social-media/test-results/
+          retention-days: 7
+
+  # Job optionnel : notifier en cas d'échec (Slack/Discord/Email)
+  notify-failure:
+    needs: e2e
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify on failure
+        run: |
+          echo "Tests E2E nocturnes ont échoué — voir ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # TODO : webhook Slack/Discord ou email via Resend

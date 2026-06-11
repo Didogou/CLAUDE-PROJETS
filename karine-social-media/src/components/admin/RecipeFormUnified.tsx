@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type { RecipeIngredient } from '@/data/recipes';
 import { IngredientsChecklist } from './IngredientsChecklist';
+import { compressImage, compressMany } from '@/lib/compress-image';
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -82,8 +83,15 @@ export function RecipeFormUnified() {
     setError(null);
     setBusy('main');
     try {
+      // Compression client AVANT upload (règle projet, et alignement
+      // avec handleSheetsFiles qui compresse déjà).
+      const compressed = await compressImage(file, {
+        maxDim: 1600,
+        quality: 0.85,
+        skipBelowKB: 400,
+      });
       const fd = new FormData();
-      fd.set('file', file);
+      fd.set('file', compressed);
       const res = await fetch('/api/admin/recipes/preview-main', {
         method: 'POST',
         body: fd,
@@ -115,12 +123,23 @@ export function RecipeFormUnified() {
 
   // === Upload images détaillées (multi) ===
   async function handleSheetsFiles(e: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    if (files.length === 0) return;
+    const rawFiles = Array.from(e.target.files ?? []);
+    if (rawFiles.length === 0) return;
     setError(null);
     setBusy('sheets');
-    setProgress({ done: 0, total: files.length });
+    setProgress({ done: 0, total: rawFiles.length });
     try {
+      // 1) COMPRESSION CÔTÉ CLIENT obligatoire (règle projet) :
+      //    - Évite l'erreur 413 / "Failed to parse body" sur les uploads
+      //      volumineux (10 photos × 5 MB = 50 MB → throttle Next.js)
+      //    - Conversion HEIC iPhone → JPEG transparente (heic2any dynamic)
+      //    - Resize max 1600px + JPEG q85 → ~300 KB par image typique
+      //    - Si une image plante, le fichier original est utilisé (fallback)
+      const files = await compressMany(rawFiles, {
+        maxDim: 1600,
+        quality: 0.85,
+        skipBelowKB: 400,
+      });
       // Découpe en batchs de 10 max (limite serveur)
       const batches: File[][] = [];
       for (let i = 0; i < files.length; i += 10) {

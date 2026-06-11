@@ -251,6 +251,125 @@ export function resolveDietaryTag(
   return autoFn();
 }
 
+// ============================================================
+// AUDIT — détection AVEC justification (admin labels-check)
+// ============================================================
+
+/** Résultat détaillé pour un tag diététique sur une fiche. */
+export type DietaryAudit = {
+  /** Statut final du tag (avec override appliqué si présent). */
+  effective: boolean;
+  /** Statut auto-détecté sur les ingrédients (avant override). */
+  auto: boolean;
+  /** Override admin appliqué (true/false), ou null si pas d'override. */
+  override: boolean | null;
+  /** Label de l'ingrédient qui a fait échouer la détection auto.
+   *  Null si auto=true (aucun ingrédient ne matche). */
+  blockingIngredient: string | null;
+  /** Pattern regex qui a matché (sous forme de string lisible). */
+  matchedPattern: string | null;
+  /** Si pas d'ingrédients : true (conservateur — pas de tag). */
+  noIngredients: boolean;
+};
+
+/**
+ * Trouve le premier ingrédient qui matche un pattern d'exclusion.
+ * Sert UNIQUEMENT à la justification (audit admin) — la décision
+ * de tag elle-même est prise par computeSheetDietaryTags pour
+ * garantir 0 divergence avec ce qui est affiché côté utilisatrice.
+ */
+function findBlockingIngredient(
+  ingredients: RecipeIngredient[] | null | undefined,
+  patterns: RegExp[],
+): { label: string; pattern: string } | null {
+  if (!Array.isArray(ingredients)) return null;
+  for (const ing of ingredients) {
+    const label = ing.label ?? '';
+    if (!label.trim()) continue;
+    for (const re of patterns) {
+      if (re.test(label)) return { label, pattern: re.source };
+    }
+  }
+  return null;
+}
+
+/**
+ * Audit complet des 3 tags pour une fiche, avec justification.
+ *
+ * IMPORTANT : la décision finale (`effective`) utilise EXACTEMENT la
+ * même fonction `computeSheetDietaryTags` que les composants client
+ * (RecipeCard, SheetCarousel, MenuDayMealsCarousel). Cet audit ne fait
+ * QUE rajouter les "raisons" autour — il ne peut donc jamais diverger
+ * de ce que l'utilisatrice voit affiché.
+ */
+export function auditSheetDietary(
+  ingredients: RecipeIngredient[] | null | undefined,
+  vegetarianOverride: boolean | null | undefined,
+  glutenFreeOverride: boolean | null | undefined,
+  porkFreeOverride: boolean | null | undefined,
+): {
+  vegetarian: DietaryAudit;
+  glutenFree: DietaryAudit;
+  porkFree: DietaryAudit;
+} {
+  // 1) Décision finale via la fonction d'affichage (source de vérité).
+  const effective = computeSheetDietaryTags(
+    ingredients,
+    vegetarianOverride,
+    glutenFreeOverride,
+    porkFreeOverride,
+  );
+  // 2) Justification : auto (avant override) + ingrédient bloquant.
+  const autoVeg = isVegetarianAuto(ingredients);
+  const autoGlu = isGlutenFreeAuto(ingredients);
+  const autoPorc = isPorkFreeAuto(ingredients);
+  const noIngredients =
+    !Array.isArray(ingredients) || ingredients.length === 0;
+  const blockVeg = autoVeg
+    ? null
+    : findBlockingIngredient(ingredients, NON_VEGETARIAN_PATTERNS);
+  const blockGlu = autoGlu
+    ? null
+    : findBlockingIngredient(ingredients, GLUTEN_PATTERNS);
+  const blockPorc = autoPorc
+    ? null
+    : findBlockingIngredient(ingredients, PORK_PATTERNS);
+
+  return {
+    vegetarian: {
+      effective: effective.isVegetarian,
+      auto: autoVeg,
+      override:
+        vegetarianOverride === undefined
+          ? null
+          : (vegetarianOverride ?? null),
+      blockingIngredient: blockVeg?.label ?? null,
+      matchedPattern: blockVeg?.pattern ?? null,
+      noIngredients,
+    },
+    glutenFree: {
+      effective: effective.isGlutenFree,
+      auto: autoGlu,
+      override:
+        glutenFreeOverride === undefined
+          ? null
+          : (glutenFreeOverride ?? null),
+      blockingIngredient: blockGlu?.label ?? null,
+      matchedPattern: blockGlu?.pattern ?? null,
+      noIngredients,
+    },
+    porkFree: {
+      effective: effective.isPorkFree,
+      auto: autoPorc,
+      override:
+        porkFreeOverride === undefined ? null : (porkFreeOverride ?? null),
+      blockingIngredient: blockPorc?.label ?? null,
+      matchedPattern: blockPorc?.pattern ?? null,
+      noIngredients,
+    },
+  };
+}
+
 /** Compute les 3 tags effectifs pour une fiche (avec ses overrides). */
 export function computeSheetDietaryTags(
   ingredients: RecipeIngredient[] | null | undefined,

@@ -601,6 +601,7 @@ function ModifierRow({
   const [multiplier, setMultiplier] = useState(String(modifier.multiplier));
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [confirmDel, setConfirmDel] = useState(false);
 
   async function save() {
     const m = parseFloat(multiplier);
@@ -620,7 +621,7 @@ function ModifierRow({
   }
 
   async function del() {
-    if (!confirm(`Supprimer "${modifier.keyword}" ?`)) return;
+    setConfirmDel(false);
     await fetch(`/api/admin/portions/modifiers/${modifier.id}`, {
       method: 'DELETE',
     });
@@ -672,7 +673,7 @@ function ModifierRow({
           )}
           <button
             type="button"
-            onClick={del}
+            onClick={() => setConfirmDel(true)}
             aria-label="Supprimer"
             className="rounded-full p-1 text-admin-ink-soft hover:bg-rose-50 hover:text-rose-600"
           >
@@ -680,6 +681,16 @@ function ModifierRow({
           </button>
         </div>
       </td>
+      <ConfirmModal
+        open={confirmDel}
+        title="Supprimer ce modificateur ?"
+        message={`Le modificateur « ${modifier.keyword} » sera supprimé définitivement.`}
+        confirmLabel="Supprimer"
+        cancelLabel="Annuler"
+        variant="danger"
+        onConfirm={del}
+        onCancel={() => setConfirmDel(false)}
+      />
     </tr>
   );
 }

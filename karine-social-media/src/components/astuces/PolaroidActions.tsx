@@ -36,22 +36,25 @@ export function PolaroidActions({
 
   async function toggleLike(e: React.MouseEvent) {
     e.stopPropagation();
-    if (liked) return;
-    setLiked(true);
-    setLikes((n) => n + 1);
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikes((n) => (wasLiked ? Math.max(0, n - 1) : n + 1));
     try {
-      localStorage.setItem(LIKED_KEY_PREFIX + slug, '1');
+      if (wasLiked) localStorage.removeItem(LIKED_KEY_PREFIX + slug);
+      else localStorage.setItem(LIKED_KEY_PREFIX + slug, '1');
     } catch {
       /* localStorage indisponible */
     }
     try {
-      const res = await fetch(`/api/tips/${slug}/like`, { method: 'POST' });
+      const res = await fetch(`/api/tips/${slug}/like`, {
+        method: wasLiked ? 'DELETE' : 'POST',
+      });
       if (res.ok) {
         const j = await res.json();
         if (typeof j.likes === 'number') setLikes(j.likes);
       }
     } catch {
-      /* erreur réseau ignorée — le like reste optimiste */
+      /* erreur réseau ignorée — le toggle reste optimiste */
     }
   }
 

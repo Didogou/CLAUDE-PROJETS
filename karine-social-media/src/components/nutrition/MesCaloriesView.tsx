@@ -2,16 +2,14 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Image from 'next/image';
+import { HelpCircle, X } from 'lucide-react';
 import { MyInfoModal } from './MyInfoModal';
 import {
   CaloriesRepartition,
   WeekEvolutionChart,
   EncouragementBanner,
 } from './CaloriesSections';
-import {
-  KcalBurnedEditor,
-  type DayState,
-} from './CalorieCounterSheetV2';
+import { type DayState } from './CalorieCounterSheetV2';
 
 /**
  * MesCaloriesView — refonte from-scratch 2026-06-10 + responsive 2026-06-10.
@@ -34,14 +32,45 @@ const pctX = (px: number) => `${(px / REF_W) * 100}%`;
 const pctY = (px: number) => `${(px / REF_H) * 100}%`;
 const rem = (px: number) => `${px / 16}rem`;
 
-type Metrics = {
-  kcalBurned: number;
-};
+/**
+ * Interpolation linéaire entre 3 couleurs pastels selon le remplissage
+ * du cercle kcal :
+ *   - 0%     → rose très pâle  #F9D9E8 (début de journée doux)
+ *   - 50%    → rose moyen      #F3A3CA (mi-journée)
+ *   - 100%   → pourpre pastel  #C77BAE (objectif atteint, signal doux)
+ *   - 120%+  → pourpre profond #9B4D8C (dépassement clair, sans agression)
+ *
+ * Inspirée de Lifesum / MyFitnessPal qui font varier la couleur de
+ * l'anneau pour donner un retour visuel immédiat sur l'avancement de
+ * la journée sans afficher de chiffres anxiogènes.
+ */
+function interpolatePastelPurple(progress: number): string {
+  // Stops (progress 0..1.2) → [r,g,b]
+  const stops: Array<[number, [number, number, number]]> = [
+    [0, [249, 217, 232]], // #F9D9E8
+    [0.5, [243, 163, 202]], // #F3A3CA
+    [1, [199, 123, 174]], // #C77BAE
+    [1.2, [155, 77, 140]], // #9B4D8C
+  ];
+  const p = Math.max(0, Math.min(1.2, progress));
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [p1, c1] = stops[i];
+    const [p2, c2] = stops[i + 1];
+    if (p >= p1 && p <= p2) {
+      const t = (p - p1) / (p2 - p1 || 1);
+      const r = Math.round(c1[0] + (c2[0] - c1[0]) * t);
+      const g = Math.round(c1[1] + (c2[1] - c1[1]) * t);
+      const b = Math.round(c1[2] + (c2[2] - c1[2]) * t);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+  }
+  return '#9B4D8C';
+}
 
 export function MesCaloriesView() {
   const [day, setDay] = useState<DayState | null>(null);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [myInfoOpen, setMyInfoOpen] = useState(false);
+  const [howItWorksOpen, setHowItWorksOpen] = useState(false);
 
   const fetchToday = useCallback(async () => {
     try {
@@ -52,25 +81,19 @@ export function MesCaloriesView() {
     }
   }, []);
 
-  const fetchMetrics = useCallback(async () => {
-    try {
-      const res = await fetch('/api/nutrition/metrics', { cache: 'no-store' });
-      if (res.ok) setMetrics(await res.json());
-    } catch {
-      /* fail-soft */
-    }
-  }, []);
-
   useEffect(() => {
     void fetchToday();
-    void fetchMetrics();
-  }, [fetchToday, fetchMetrics]);
+  }, [fetchToday]);
 
   // === Donnees derivees ============================================
+  // Décision 2026-06-11 : on RETIRE le concept "kcal brûlées" du
+  // dashboard pour éviter le double-comptage avec le facteur d'activité
+  // déjà inclus dans le profil (Mifflin × ACTIVITY_FACTORS). L'utilisatrice
+  // déclare son niveau dans son profil, ça suffit. Voir bouton "Comment
+  // ça marche ?" pour l'explication user-facing.
   const totals = day?.totals.kcal ?? 0;
   const target = day?.target.dailyKcal ?? 2000;
-  const burned = metrics?.kcalBurned ?? 0;
-  const net = Math.max(0, totals - burned);
+  const net = totals;
   const remaining = Math.max(0, target - net);
 
   const macros = day?.totals ?? { kcal: 0, proteinsG: 0, lipidsG: 0, carbsG: 0 };
@@ -83,7 +106,10 @@ export function MesCaloriesView() {
   const ARC_R = 36;
   const ARC_CX = 50;
   const ARC_CY = 50;
-  const trueProgress = target > 0 ? Math.min(1, net / target) : 0;
+  // On clamp à 1.2 pour permettre un léger "dépassement" visuel : si
+  // l'utilisatrice mange plus que son objectif, l'arc reste plein mais
+  // la couleur vire vers pourpre profond pour signaler le dépassement.
+  const trueProgress = target > 0 ? Math.min(1.2, net / target) : 0;
 
   const [animatedProgress, setAnimatedProgress] = useState(0);
   useEffect(() => {
@@ -105,18 +131,28 @@ export function MesCaloriesView() {
   const progress = animatedProgress;
 
   let arcPathD = '';
-  if (progress >= 1) {
+  // Pour l'affichage du path : on plafonne à 1 (cercle complet).
+  const displayProgress = Math.min(1, progress);
+  if (displayProgress >= 1) {
     arcPathD =
       `M ${ARC_CX} ${ARC_CY + ARC_R}` +
       ` A ${ARC_R} ${ARC_R} 0 1 1 ${ARC_CX} ${ARC_CY - ARC_R}` +
       ` A ${ARC_R} ${ARC_R} 0 1 1 ${ARC_CX} ${ARC_CY + ARC_R}`;
-  } else if (progress > 0) {
-    const angle = progress * 2 * Math.PI;
+  } else if (displayProgress > 0) {
+    const angle = displayProgress * 2 * Math.PI;
     const endX = ARC_CX - ARC_R * Math.sin(angle);
     const endY = ARC_CY + ARC_R * Math.cos(angle);
-    const largeArc = progress > 0.5 ? 1 : 0;
+    const largeArc = displayProgress > 0.5 ? 1 : 0;
     arcPathD = `M ${ARC_CX} ${ARC_CY + ARC_R} A ${ARC_R} ${ARC_R} 0 ${largeArc} 1 ${endX} ${endY}`;
   }
+
+  // === Couleur pastel évolutive selon le remplissage ===
+  // 0%  → rose très pâle  (#F9D9E8)  doux quand on commence à peine
+  // 50% → rose moyen      (#F3A3CA)
+  // 100%→ pourpre pastel  (#C77BAE)  objectif quasi atteint
+  // 120%→ pourpre profond (#9B4D8C)  dépassement signalé
+  // On utilise une interpolation linéaire HEX sur 3 segments.
+  const arcColor = interpolatePastelPurple(progress);
 
   return (
     <div
@@ -173,10 +209,11 @@ export function MesCaloriesView() {
             <path
               d={arcPathD}
               fill="none"
-              stroke="#E879B5"
-              strokeOpacity="0.75"
+              stroke={arcColor}
+              strokeOpacity="0.85"
               strokeWidth="7"
               strokeLinecap="round"
+              style={{ transition: 'stroke 0.6s ease' }}
             />
           )}
         </svg>
@@ -198,7 +235,39 @@ export function MesCaloriesView() {
           }}
         />
 
-        {/* Cercle texte (RESTANT + chiffre + target + objectif atteint) */}
+        {/* Petit bloc "Tes besoins en calories : Objectif XXXX"
+            positionné AU-DESSUS du cercle texte (top=99). Remonté
+            à top=40 pour laisser de l'air visuel avec le cercle. */}
+        <div
+          className="absolute flex flex-col items-center justify-center text-center"
+          style={{
+            left: pctX(55),
+            top: pctY(40),
+            width: pctX(179),
+            zIndex: 4,
+          }}
+        >
+          <p
+            className="text-[0.6rem] font-semibold uppercase tracking-widest"
+            style={{ color: '#8A6B5E' }}
+          >
+            Tes besoins en calories
+          </p>
+          <p
+            className="mt-0.5 text-sm font-extrabold leading-none"
+            style={{ color: '#8A6B5E' }}
+          >
+            Objectif&nbsp;: {target}
+          </p>
+        </div>
+
+        {/* Cercle texte — convention MyFitnessPal :
+              [Restant]
+              [GROS CHIFFRE = remaining]
+              [kcal]
+            Le remplissage du cercle (arc autour) montre la progression
+            mangé/objectif. La couleur de l'arc/chiffre vire au pourpre
+            plus on s'approche/dépasse l'objectif. */}
         <div
           className="absolute flex flex-col items-center justify-center"
           style={{
@@ -210,62 +279,92 @@ export function MesCaloriesView() {
           }}
         >
           <span
-            className="flex items-center gap-1 text-[0.7rem] font-semibold uppercase tracking-widest"
+            className="text-[0.7rem] font-semibold uppercase tracking-widest"
             style={{ color: '#8A6B5E' }}
           >
-            <span className="text-coral">♡</span>
             Restant
           </span>
           <span
             className="font-bold leading-none"
-            style={{ fontSize: '2.5rem', color: '#C76B4A' }}
+            style={{
+              fontSize: '2.5rem',
+              color: arcColor,
+              transition: 'color 0.6s ease',
+            }}
           >
             {Math.round(Math.max(0, remaining))}
           </span>
-          <span className="text-[0.7rem]" style={{ color: '#8A6B5E' }}>
-            / {target} kcal
+          <span
+            className="text-[0.7rem] font-semibold uppercase tracking-widest"
+            style={{ color: '#8A6B5E' }}
+          >
+            kcal
           </span>
-          {remaining <= 0 && (
+          {net >= target && (
             <span
               className="mt-2 text-[0.7rem] font-semibold"
-              style={{ color: '#E8704F' }}
+              style={{ color: arcColor }}
             >
-              Objectif atteint ♡
+              {net > target * 1.05 ? 'Dépassement ⚠️' : 'Objectif atteint ♡'}
             </span>
           )}
         </div>
 
-        {/* Lien "Mes objectifs" au-dessus de la carte Depenses. */}
+        {/* Bouton "Renseigne tes objectifs" — aligné verticalement
+            avec le label "Tes besoins en calories" (top=40). Style
+            pastel coral-soft pour rester doux mais clairement
+            actionnable. */}
         <button
           type="button"
           onClick={() => setMyInfoOpen(true)}
-          className="absolute text-center text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark underline decoration-coral-soft/50 underline-offset-2 hover:decoration-coral"
-          style={{ left: pctX(270), top: pctY(88), width: pctX(105) }}
+          className="absolute flex items-center justify-center rounded-full bg-coral-soft px-2 py-1 text-center text-[0.6rem] font-bold uppercase leading-tight tracking-wider text-coral-dark shadow-sm ring-1 ring-coral-soft/60 transition hover:scale-[1.03] hover:bg-coral hover:text-white hover:ring-coral"
+          style={{
+            left: pctX(265),
+            top: pctY(40),
+            width: pctX(115),
+            zIndex: 5,
+          }}
         >
-          Mes objectifs
+          Renseigne
+          <br />
+          tes objectifs
         </button>
 
-        {/* Carte Depenses */}
-        <div
-          className="absolute flex flex-col items-center overflow-hidden rounded-2xl bg-white shadow-md ring-1 ring-coral-soft/20"
+        {/* Carte "Comment ça marche ?" — remplace l'ancien bloc
+            Dépenses (supprimé 2026-06-11 : faisait double-comptage
+            avec le facteur d'activité du profil).
+            Click → ouvre la modal d'explication simple. */}
+        <button
+          type="button"
+          onClick={() => setHowItWorksOpen(true)}
+          aria-label="Comment ça marche ?"
+          className="absolute flex flex-col items-center overflow-hidden rounded-2xl bg-white shadow-lg ring-2 ring-coral-soft transition hover:scale-[1.02] hover:shadow-xl hover:ring-coral"
           style={{
             left: pctX(270),
             top: pctY(112),
             width: pctX(105),
             height: pctY(149),
+            zIndex: 5,
           }}
         >
-          <div className="relative z-10 flex h-full w-full flex-col items-center px-1.5 pb-2 pt-6 text-center">
-            <KcalBurnedEditor
-              value={metrics?.kcalBurned ?? 0}
-              onSaved={(n) => {
-                setMetrics((m) =>
-                  m ? { ...m, kcalBurned: n } : { kcalBurned: n },
-                );
-              }}
-            />
+          <div className="relative z-10 flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 py-3 text-center">
+            <HelpCircle className="size-7" style={{ color: '#C77BAE' }} />
+            <span
+              className="text-[0.65rem] font-bold uppercase tracking-wider"
+              style={{ color: '#8A6B5E' }}
+            >
+              Comment
+              <br />
+              ça marche&nbsp;?
+            </span>
+            <span
+              className="text-[0.6rem] italic opacity-70"
+              style={{ color: '#8A6B5E' }}
+            >
+              Clique ici ♡
+            </span>
           </div>
-        </div>
+        </button>
 
         {/* Branche aquarelle (decoration sous carte Depenses) */}
         <Image
@@ -484,6 +583,120 @@ export function MesCaloriesView() {
         }}
         profileComplete={day?.profileComplete ?? false}
       />
+
+      {/* Modal "Comment ça marche ?" — explication simple, sans
+          jargon, pour rassurer l'utilisatrice sur la façon dont
+          son objectif kcal est calculé et lui donner confiance
+          dans le tracking. */}
+      {howItWorksOpen && (
+        <HowItWorksModal onClose={() => setHowItWorksOpen(false)} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Modal "Comment ça marche ?" — pédagogique, ton chaleureux Karine,
+ * 0 jargon. Rassure l'utilisatrice sur le fait que son sport est
+ * déjà compté dans son objectif (pas besoin de saisir manuellement).
+ */
+function HowItWorksModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/70 p-0 md:items-center md:p-4"
+    >
+      <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-cream shadow-2xl md:rounded-3xl">
+        <header className="sticky top-0 z-10 flex items-center justify-between border-b border-coral-soft/30 bg-cream px-5 py-3">
+          <h2 className="font-script text-2xl text-coral-dark">
+            Comment ça marche&nbsp;?
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Fermer"
+            className="grid h-8 w-8 place-items-center rounded-full text-coral-dark hover:bg-coral-soft/30"
+          >
+            <X className="size-5" />
+          </button>
+        </header>
+
+        <div className="space-y-4 px-5 py-4 text-sm leading-relaxed text-ink">
+          <p className="rounded-2xl bg-white p-3 ring-1 ring-coral-soft/40 shadow-sm">
+            ♡ Bonjour&nbsp;! Voici comment ton objectif de calories est
+            calculé, en toute transparence.
+          </p>
+
+          <section>
+            <h3 className="font-bold text-coral-dark">
+              1. Tes infos personnelles
+            </h3>
+            <p className="mt-1">
+              Quand tu remplis ton profil, tu donnes&nbsp;: ton{' '}
+              <strong>genre</strong>, ton <strong>âge</strong>, ton{' '}
+              <strong>poids</strong> et ta <strong>taille</strong>. À partir
+              de cela, on calcule ce que ton corps brûle naturellement, juste
+              en vivant (respirer, digérer, dormir…).
+            </p>
+          </section>
+
+          <section>
+            <h3 className="font-bold text-coral-dark">
+              2. Ton niveau d&apos;activité ⚡
+            </h3>
+            <p className="mt-1">
+              Tu nous dis si tu es plutôt <strong>sédentaire</strong>,{' '}
+              <strong>modérément active</strong> ou <strong>très active</strong>.
+              On ajoute alors les calories que tu dépenses{' '}
+              <strong>en moyenne avec ton sport</strong>.
+            </p>
+            <div className="mt-2 rounded-xl bg-coral-soft/30 p-2.5 text-xs">
+              👉 Pas besoin de saisir tes séances chaque jour&nbsp;! Ton sport
+              est déjà compté dans ton objectif.
+            </div>
+          </section>
+
+          <section>
+            <h3 className="font-bold text-coral-dark">3. Ton objectif 🌸</h3>
+            <p className="mt-1">
+              Tu choisis si tu veux <strong>maintenir</strong> ton poids ou{' '}
+              <strong>en perdre</strong> sur 3, 6 ou 12 mois. On ajuste alors
+              un petit déficit doux et progressif (jamais en dessous d&apos;un
+              minimum vital, ta santé d&apos;abord 💕).
+            </p>
+          </section>
+
+          <section className="rounded-2xl bg-white/70 p-3 ring-1 ring-coral-soft/30">
+            <h3 className="font-bold text-coral-dark">
+              Ce qu&apos;il te reste à faire 🍴
+            </h3>
+            <p className="mt-1">
+              Juste <strong>noter ce que tu manges</strong>. Le compteur
+              baisse au fur et à mesure, et le petit cercle se remplit en
+              douceur. Quand il devient pourpre, tu as atteint ton objectif
+              du jour 🌷
+            </p>
+          </section>
+
+          <p className="rounded-xl bg-amber-50 p-3 text-xs italic ring-1 ring-amber-200">
+            Cette méthode (formule Mifflin-St Jeor) est utilisée par les
+            diététicien·ne·s et reconnue par l&apos;ANSES (l&apos;agence
+            française de santé). Tu peux modifier ton profil à tout moment
+            via le bouton «&nbsp;Renseigne tes objectifs&nbsp;».
+          </p>
+        </div>
+
+        <footer className="sticky bottom-0 border-t border-coral-soft/30 bg-cream px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-full bg-coral px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-coral-dark"
+          >
+            J&apos;ai compris ♡
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }

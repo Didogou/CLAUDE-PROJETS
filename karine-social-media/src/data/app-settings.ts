@@ -15,6 +15,9 @@ export type AppSettings = {
   /** Phrases d'encouragement affichees sur /mes-calories selon
    *  l'etat d'avancement. Editees par Karine via /admin/parametres. */
   calorieEncouragements: CalorieEncouragements;
+  /** Contenu Markdown léger affiché sur /a-propos. Édité par Karine
+   *  via /admin/parametres → AboutPageEditor. */
+  aboutPageContent: string;
 };
 
 export const DEFAULT_ENCOURAGEMENTS: CalorieEncouragements = {
@@ -35,10 +38,24 @@ export const DEFAULT_ENCOURAGEMENTS: CalorieEncouragements = {
   ],
 };
 
+export const DEFAULT_ABOUT_PAGE_CONTENT = `# À propos de Karine Diététique
+
+Bienvenue ! Cette application a été pensée pour t'accompagner au quotidien dans tes choix alimentaires, avec bienveillance et sans culpabilité.
+
+## Mon approche
+
+Pas de régime restrictif, juste de l'équilibre, des recettes simples et de l'écoute de ton corps.
+
+## Contact
+
+Pour toute question, tu peux me joindre via le formulaire du menu burger.
+`;
+
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   patientRelanceCooldownDays: 3,
   showCaloriesInCounter: true,
   calorieTrackerEnabled: true,
   waterTrackerEnabled: true,
   calorieEncouragements: DEFAULT_ENCOURAGEMENTS,
+  aboutPageContent: DEFAULT_ABOUT_PAGE_CONTENT,
 };

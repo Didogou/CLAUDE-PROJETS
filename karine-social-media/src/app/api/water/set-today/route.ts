@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
       .select('glass_size_ml')
       .eq('user_id', user.id)
       .maybeSingle();
-    const ml = settings?.glass_size_ml ?? 250;
+    const ml = settings?.glass_size_ml ?? 125;
     const rows = Array.from({ length: delta }, () => ({
       user_id: user.id,
       ml,

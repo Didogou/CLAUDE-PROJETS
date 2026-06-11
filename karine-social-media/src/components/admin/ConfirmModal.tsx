@@ -49,12 +49,10 @@ export function ConfirmModal({
       aria-modal="true"
       aria-labelledby="confirm-modal-title"
       className="fixed inset-0 z-50 grid place-items-center bg-black/55 p-4 backdrop-blur-sm animate-[fadeIn_0.18s_ease-out]"
-      onClick={() => !loading && onCancel()}
     >
-      <div
-        className="w-full max-w-sm space-y-4 rounded-2xl bg-admin-surface p-6 shadow-2xl ring-1 ring-admin-border animate-[popIn_0.22s_ease-out]"
-        onClick={(e) => e.stopPropagation()}
-      >
+      {/* RÈGLE PROJET 2026-06-11 : pas de fermeture au clic backdrop —
+          l'utilisateur doit choisir explicitement (Esc ou bouton). */}
+      <div className="w-full max-w-sm space-y-4 rounded-2xl bg-admin-surface p-6 shadow-2xl ring-1 ring-admin-border animate-[popIn_0.22s_ease-out]">
         <div className="flex items-start justify-between gap-3">
           <h3 id="confirm-modal-title" className="text-base font-bold text-admin-ink">
             {title}

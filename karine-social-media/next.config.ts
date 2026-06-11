@@ -116,6 +116,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+
+  // Limite par défaut des body multipart Next 16 = ~1 MB → erreur
+  // "Failed to parse body as FormData" sur l'upload bulk de fiches
+  // détaillées (5-10 photos × 2-5 MB = 20-50 MB). On augmente à 50 MB
+  // pour le batch admin. ⚠️ Ne pas mettre trop haut : risque DoS si
+  // une route publique reçoit aussi des uploads (mais ici toutes les
+  // routes admin sont guard par requireAdmin).
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '50mb',
+    },
+  },
 };
 
 export default nextConfig;

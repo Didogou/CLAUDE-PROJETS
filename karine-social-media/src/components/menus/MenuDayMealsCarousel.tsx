@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
+  Ban,
   Bookmark,
   ChevronLeft,
   ChevronRight,
@@ -22,6 +23,7 @@ import { AddCaloriesButton } from '@/components/nutrition/AddCaloriesButton';
 import { PortionsStepper } from '@/components/recettes/PortionsStepper';
 import { scaleIngredients } from '@/lib/recipe-portions';
 import { pulseBottomNav } from '@/lib/bottom-nav-pulse';
+import { computeSheetDietaryTags } from '@/lib/dietary-tags';
 
 type Props = {
   menuTitle: string | null;
@@ -207,21 +209,59 @@ function MealCard({
   const [zoomOpen, setZoomOpen] = useState(false);
   const [favorited, setFavorited] = useState(initialFavorited);
   const [favoriteBusy, setFavoriteBusy] = useState(false);
-  const [likes, setLikes] = useState(sheet?.likesCount ?? 0);
-  const [hasLiked, setHasLiked] = useState(false);
-  // Charge l'état "a déjà liké" depuis localStorage (V1 anti-spam).
-  useEffect(() => {
-    if (!sheet) return;
+  // Lazy init pour lire localStorage SYNCHRONE au mount : si l'user
+  // a déjà liké et que le compteur DB est désynchronisé (ex. migration
+  // likes_count pas encore appliquée), on floor à 1 pour refléter
+  // l'action utilisatrice. Sinon on prend la valeur DB.
+  const [likes, setLikes] = useState(() => {
+    const base = sheet?.likesCount ?? 0;
+    if (typeof window === 'undefined' || !sheet) return base;
     try {
       const raw = localStorage.getItem('karine.liked-meals.v1');
-      if (raw) {
-        const set = new Set(JSON.parse(raw) as string[]);
-        setHasLiked(set.has(sheet.id));
-      }
+      const liked = raw
+        ? new Set(JSON.parse(raw) as string[]).has(sheet.id)
+        : false;
+      return liked ? Math.max(base, 1) : base;
     } catch {
-      /* localStorage indispo */
+      return base;
     }
-  }, [sheet?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  });
+  const [hasLiked, setHasLiked] = useState(() => {
+    if (typeof window === 'undefined' || !sheet) return false;
+    try {
+      const raw = localStorage.getItem('karine.liked-meals.v1');
+      return raw
+        ? new Set(JSON.parse(raw) as string[]).has(sheet.id)
+        : false;
+    } catch {
+      return false;
+    }
+  });
+  // Sync `favorited` avec la prop `initialFavorited` : la page parente
+  // recharge les favoris à chaque visite (force-dynamic), et MealCard
+  // peut être remountée avec une prop différente (changement de jour
+  // ou retour depuis /favoris). useState n'est pris qu'au mount donc
+  // sans ce useEffect le bookmark reste vide visuellement.
+  useEffect(() => {
+    setFavorited(initialFavorited);
+  }, [initialFavorited]);
+  // Sync `likes` ET `hasLiked` quand la sheet change (= changement de
+  // jour). Resynchronise depuis DB + localStorage pour rester cohérent.
+  useEffect(() => {
+    if (!sheet) return;
+    const base = sheet.likesCount ?? 0;
+    try {
+      const raw = localStorage.getItem('karine.liked-meals.v1');
+      const liked = raw
+        ? new Set(JSON.parse(raw) as string[]).has(sheet.id)
+        : false;
+      setHasLiked(liked);
+      setLikes(liked ? Math.max(base, 1) : base);
+    } catch {
+      setHasLiked(false);
+      setLikes(base);
+    }
+  }, [sheet?.id, sheet?.likesCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Si servings change (refresh / autre sheet), on resync.
   useEffect(() => {
@@ -277,22 +317,34 @@ function MealCard({
   async function handleLike(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (!sheet || hasLiked) return;
-    setLikes((n) => n + 1);
-    setHasLiked(true);
+    if (!sheet) return;
+    const wasLiked = hasLiked;
+    // Optimistic toggle
+    setLikes((n) => (wasLiked ? Math.max(0, n - 1) : n + 1));
+    setHasLiked(!wasLiked);
+    // Sync localStorage anti-spam : add ou remove selon état.
     try {
       const raw = localStorage.getItem('karine.liked-meals.v1');
       const arr = raw ? (JSON.parse(raw) as string[]) : [];
-      if (!arr.includes(sheet.id)) arr.push(sheet.id);
+      const idx = arr.indexOf(sheet.id);
+      if (wasLiked) {
+        if (idx >= 0) arr.splice(idx, 1);
+      } else {
+        if (idx < 0) arr.push(sheet.id);
+      }
       localStorage.setItem('karine.liked-meals.v1', JSON.stringify(arr));
     } catch {
       /* localStorage indispo */
     }
     try {
-      const res = await fetch(`/api/meals/${sheet.id}/like`, { method: 'POST' });
+      const res = await fetch(`/api/meals/${sheet.id}/like`, {
+        method: wasLiked ? 'DELETE' : 'POST',
+      });
       if (!res.ok) throw new Error();
     } catch {
-      setLikes((n) => Math.max(0, n - 1));
+      // Pas de rollback visible : si l'API échoue (ex. migration
+      // likes_count pas encore appliquée), on garde l'optimistic UI.
+      console.warn('[meal-like] API failed (migration manquante ?)');
     }
   }
 
@@ -318,6 +370,67 @@ function MealCard({
           {label}
         </span>
       </header>
+
+      {/* Badges diététiques au-dessus de l'image (Sans Glu, Sans porc,
+          Végé). Calculés depuis les ingrédients via computeSheetDietaryTags
+          (mêmes règles que pour les fiches recettes). */}
+      {sheet.coverImageUrl && (() => {
+        // ShoppingListItem ≈ RecipeIngredient (mêmes champs) sauf que
+        // `note` est `string | null | undefined`. Normalise pour TS.
+        const ingredientsForDietary = sheet.ingredients.map((it) => ({
+          category: it.category,
+          label: it.label,
+          quantity: it.quantity,
+          unit: it.unit,
+          note: it.note ?? null,
+        }));
+        const dietary = computeSheetDietaryTags(
+          ingredientsForDietary,
+          null,
+          null,
+          null,
+        );
+        if (
+          !dietary.isVegetarian &&
+          !dietary.isGlutenFree &&
+          !dietary.isPorkFree
+        )
+          return null;
+        return (
+          <div className="mx-auto flex w-full max-w-md flex-nowrap justify-center gap-1 overflow-hidden">
+            {dietary.isVegetarian && (
+              <span
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-emerald-700 ring-1 ring-emerald-300"
+                title="Sans viande, poisson ni œufs"
+              >
+                <span
+                  aria-hidden
+                  className="block size-2 shrink-0 rounded-full bg-emerald-600"
+                />
+                Végé
+              </span>
+            )}
+            {dietary.isGlutenFree && (
+              <span
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-amber-700 ring-1 ring-amber-300"
+                title="Sans gluten"
+              >
+                <Ban className="size-2 shrink-0" strokeWidth={2.5} />
+                Sans Glu
+              </span>
+            )}
+            {dietary.isPorkFree && !dietary.isVegetarian && (
+              <span
+                className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-sky-700 ring-1 ring-sky-300"
+                title="Sans porc"
+              >
+                <Ban className="size-2 shrink-0" strokeWidth={2.5} />
+                Sans porc
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Image entière (object-contain) centrée. Hauteur cappée pour
           rester visible d'un coup sur PC sans scroll. Click → zoom.
@@ -358,14 +471,14 @@ function MealCard({
               strokeWidth={2}
             />
           </button>
-          {/* Heart = like public (haut droite) avec compteur. */}
+          {/* Heart = like public (haut droite) avec compteur.
+              Toggle : tap pour liker, re-tap pour retirer le like. */}
           <button
             type="button"
             onClick={handleLike}
-            disabled={hasLiked}
-            aria-label={hasLiked ? `Tu as aimé (${likes})` : "J'aime"}
+            aria-label={hasLiked ? `Retirer mon j'aime (${likes})` : "J'aime"}
             aria-pressed={hasLiked}
-            className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1.5 shadow-md transition hover:scale-110 disabled:hover:scale-100"
+            className="absolute right-3 top-3 z-10 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1.5 shadow-md transition hover:scale-110"
           >
             <Heart
               className={
@@ -407,6 +520,9 @@ function MealCard({
             sourceRefId={sheet.id}
             label={sheet.title || `${label} (menu)`}
             kcal={sheet.calories}
+            proteinsG={sheet.proteinsG}
+            lipidsG={sheet.lipidsG}
+            carbsG={sheet.carbsG}
           />
         )}
         <ActionIconButton icon={Share2} label="Partager" onClick={handleShare} />

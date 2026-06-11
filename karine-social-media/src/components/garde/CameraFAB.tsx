@@ -7,6 +7,7 @@ import {
   MEAL_URL_SLUG,
   defaultMealForHour,
 } from '@/components/nutrition/CalorieCounterSheetV2';
+import { compressImage } from '@/lib/compress-image';
 
 /**
  * Bouton appareil-photo flottant CENTRÉ dans la BottomNav.
@@ -36,9 +37,18 @@ export function CameraFAB({ homeMode = false }: { homeMode?: boolean } = {}) {
       const cat = defaultMealForHour(new Date());
       const slug = MEAL_URL_SLUG[cat];
 
-      // 2. Upload + analyse Vision (peut prendre 2-5s)
+      // 2. Compression client AVANT upload (règle projet) :
+      // resize 1280 + JPEG q80 + conversion HEIC iPhone auto.
+      // Évite : 413 Vercel, bande passante 4G, plantage sharp HEIC.
+      const compressed = await compressImage(file, {
+        maxDim: 1280,
+        quality: 0.8,
+        skipBelowKB: 150,
+      });
+
+      // 3. Upload + analyse Vision (peut prendre 2-5s)
       const fd = new FormData();
-      fd.append('photo', file);
+      fd.append('photo', compressed);
       const res = await fetch('/api/nutrition/describe-meal', {
         method: 'POST',
         body: fd,

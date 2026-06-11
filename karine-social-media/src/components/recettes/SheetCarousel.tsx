@@ -348,6 +348,9 @@ export function SheetCarousel({
             sourceRefId={sheet.id}
             label={sheet.title || recipeTitle || 'Recette'}
             kcal={sheet.calories}
+            proteinsG={sheet.proteinsG}
+            lipidsG={sheet.lipidsG}
+            carbsG={sheet.carbsG}
           />
         )}
         <ActionIconButton icon={Share2} label="Partager" onClick={handleShare} />
@@ -564,7 +567,7 @@ function SheetDietaryTags({
     <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-end gap-1 overflow-hidden">
       {dietary.isVegetarian && (
         <span
-          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-emerald-700 ring-1 ring-emerald-300"
+          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-emerald-700 ring-1 ring-emerald-300"
           title="Cette fiche ne contient ni viande, ni poisson, ni œufs"
         >
           <span
@@ -576,20 +579,20 @@ function SheetDietaryTags({
       )}
       {dietary.isGlutenFree && (
         <span
-          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-amber-700 ring-1 ring-amber-300"
+          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-amber-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-amber-700 ring-1 ring-amber-300"
           title="Cette fiche ne contient pas de gluten"
         >
-          <Ban className="size-2.5 shrink-0" strokeWidth={2.5} />
-          Glu
+          <Ban className="size-2 shrink-0" strokeWidth={2.5} />
+          Sans Glu
         </span>
       )}
       {dietary.isPorkFree && (
         <span
-          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-100 px-1.5 py-0.5 text-[0.55rem] font-bold uppercase tracking-wider text-sky-700 ring-1 ring-sky-300"
+          className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-sky-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-sky-700 ring-1 ring-sky-300"
           title="Cette fiche ne contient pas de porc"
         >
-          <Ban className="size-2.5 shrink-0" strokeWidth={2.5} />
-          Porc
+          <Ban className="size-2 shrink-0" strokeWidth={2.5} />
+          Sans porc
         </span>
       )}
     </div>

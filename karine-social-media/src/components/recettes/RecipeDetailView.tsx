@@ -75,17 +75,33 @@ export function RecipeDetailView({
   const isLast = index === images.length - 1;
 
   async function toggleLike() {
-    // Spawn d'un cœur flottant à chaque tap, même répétés (visuel encourageant).
+    // Spawn d'un cœur flottant à chaque tap (visuel encourageant).
     const heartId = Date.now() + Math.random();
     setFloatingHearts((arr) => [...arr, heartId]);
     setTimeout(() => setFloatingHearts((arr) => arr.filter((x) => x !== heartId)), 1100);
 
-    // Anti double-like en DB (V1 anonyme).
-    if (liked) return;
-    setLiked(true);
-    setLikes((n) => n + 1);
+    // Toggle like (règle globale 2026-06-11) : tap = like, re-tap =
+    // unlike. localStorage anti-spam + branche POST/DELETE selon état.
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+    setLikes((n) => (wasLiked ? Math.max(0, n - 1) : n + 1));
     try {
-      const res = await fetch(`/api/recipes/${slug}/like`, { method: 'POST' });
+      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      const arr = raw ? (JSON.parse(raw) as string[]) : [];
+      const idx = arr.indexOf(slug);
+      if (wasLiked) {
+        if (idx >= 0) arr.splice(idx, 1);
+      } else {
+        if (idx < 0) arr.push(slug);
+      }
+      localStorage.setItem('karine.liked-recipes.v1', JSON.stringify(arr));
+    } catch {
+      /* localStorage indispo */
+    }
+    try {
+      const res = await fetch(`/api/recipes/${slug}/like`, {
+        method: wasLiked ? 'DELETE' : 'POST',
+      });
       const json = await res.json();
       if (res.ok && typeof json.likes === 'number') setLikes(json.likes);
     } catch {
@@ -167,12 +183,38 @@ export function RecipeDetailView({
   }
 
   async function likeComment(commentId: string | number) {
-    // Optimistic
+    // Toggle anti-spam via localStorage Set des comment ids likés.
+    let wasLiked = false;
+    try {
+      const raw = localStorage.getItem('karine.liked-comments.v1');
+      const arr = raw ? (JSON.parse(raw) as Array<string | number>) : [];
+      wasLiked = arr.some((x) => String(x) === String(commentId));
+      if (wasLiked) {
+        const next = arr.filter((x) => String(x) !== String(commentId));
+        localStorage.setItem('karine.liked-comments.v1', JSON.stringify(next));
+      } else {
+        arr.push(commentId);
+        localStorage.setItem('karine.liked-comments.v1', JSON.stringify(arr));
+      }
+    } catch {
+      /* localStorage indispo */
+    }
     setComments((c) =>
-      c.map((x) => (x.id === commentId ? { ...x, likesCount: x.likesCount + 1 } : x)),
+      c.map((x) =>
+        x.id === commentId
+          ? {
+              ...x,
+              likesCount: wasLiked
+                ? Math.max(0, x.likesCount - 1)
+                : x.likesCount + 1,
+            }
+          : x,
+      ),
     );
     try {
-      const res = await fetch(`/api/comments/${commentId}/like`, { method: 'POST' });
+      const res = await fetch(`/api/comments/${commentId}/like`, {
+        method: wasLiked ? 'DELETE' : 'POST',
+      });
       if (res.ok) {
         const json = await res.json();
         if (typeof json.likes === 'number') {
@@ -182,7 +224,7 @@ export function RecipeDetailView({
         }
       }
     } catch {
-      // silent V1
+      // toggle reste optimiste
     }
   }
 

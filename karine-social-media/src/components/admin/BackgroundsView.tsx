@@ -5,6 +5,8 @@ import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ImagePlus, Smartphone, Monitor, Trash2 } from 'lucide-react';
 import type { BackgroundVariantKey } from '@/data/background-images';
+import { ConfirmModal } from './ConfirmModal';
+import { compressImage } from '@/lib/compress-image';
 
 export type BackgroundRow = {
   key: BackgroundVariantKey;
@@ -30,10 +32,17 @@ export function BackgroundsView({ rows }: { rows: BackgroundRow[] }) {
     setBusy(id);
     setError(null);
     try {
+      // Compression client AVANT upload (règle projet). 1920 max
+      // suffit pour les wallpapers de fond — au-delà c'est invisible.
+      const compressed = await compressImage(file, {
+        maxDim: 1920,
+        quality: 0.85,
+        skipBelowKB: 400,
+      });
       const fd = new FormData();
       fd.append('variant', variant);
       fd.append('kind', kind);
-      fd.append('file', file);
+      fd.append('file', compressed);
       const res = await fetch('/api/admin/background-images', {
         method: 'POST',
         body: fd,
@@ -48,9 +57,15 @@ export function BackgroundsView({ rows }: { rows: BackgroundRow[] }) {
     }
   }
 
+  // Confirmation via ConfirmModal (règle projet : no window.confirm).
+  // L'utilisatrice clique le bouton "Restaurer" → ouvre le modal, qui
+  // appelle ensuite la fonction d'API si confirmé.
+  const [resetTarget, setResetTarget] = useState<
+    { variant: BackgroundVariantKey; kind: 'portrait' | 'paysage' } | null
+  >(null);
+
   async function reset(variant: BackgroundVariantKey, kind: 'portrait' | 'paysage') {
     const id = `${variant}-${kind}`;
-    if (!window.confirm(`Restaurer le fond ${kind} par défaut pour « ${variant} » ?`)) return;
     setBusy(id);
     setError(null);
     try {
@@ -65,6 +80,7 @@ export function BackgroundsView({ rows }: { rows: BackgroundRow[] }) {
       setError(err instanceof Error ? err.message : 'Erreur');
     } finally {
       setBusy(null);
+      setResetTarget(null);
     }
   }
 
@@ -109,7 +125,7 @@ export function BackgroundsView({ rows }: { rows: BackgroundRow[] }) {
               hasOverride={!!row.portraitUrl}
               isBusy={busy === `${row.key}-portrait`}
               onUpload={(f) => upload(row.key, 'portrait', f)}
-              onReset={() => reset(row.key, 'portrait')}
+              onReset={() => setResetTarget({ variant: row.key, kind: 'portrait' })}
             />
             <Slot
               icon={<Monitor className="h-4 w-4" />}
@@ -118,11 +134,28 @@ export function BackgroundsView({ rows }: { rows: BackgroundRow[] }) {
               hasOverride={!!row.paysageUrl}
               isBusy={busy === `${row.key}-paysage`}
               onUpload={(f) => upload(row.key, 'paysage', f)}
-              onReset={() => reset(row.key, 'paysage')}
+              onReset={() => setResetTarget({ variant: row.key, kind: 'paysage' })}
             />
           </div>
         </section>
       ))}
+      <ConfirmModal
+        open={resetTarget !== null}
+        title="Restaurer le fond par défaut ?"
+        message={
+          resetTarget
+            ? `Le fond ${resetTarget.kind} de « ${resetTarget.variant} » sera remplacé par celui par défaut. Action irréversible.`
+            : ''
+        }
+        confirmLabel="Restaurer"
+        cancelLabel="Annuler"
+        variant="danger"
+        loading={busy !== null && resetTarget !== null}
+        onConfirm={() => {
+          if (resetTarget) reset(resetTarget.variant, resetTarget.kind);
+        }}
+        onCancel={() => setResetTarget(null)}
+      />
     </div>
   );
 }

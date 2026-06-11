@@ -5,7 +5,8 @@ import { FeatureTile } from '@/components/garde/FeatureTile';
 import { SaviezVousFil } from '@/components/garde/SaviezVousFil';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
-import { LegalFooter } from '@/components/garde/LegalFooter';
+// LegalFooter déplacé vers /a-propos (2026-06-11). L'utilisatrice accède
+// aux infos légales via le menu burger → À propos.
 import { getPublishedFeaturedPhotos } from '@/lib/featured-photos';
 import { getUserFavorites } from '@/lib/favorites';
 import { discoverPages } from '@/lib/discover-pages';
@@ -123,10 +124,12 @@ export default async function Home({
       {/* "Une idée ?" est maintenant un FAB flottant en bas à droite
           (cf. <IdeasFloatingButton variant="fab" /> plus bas), donc le
           header n'a plus besoin de la 2e ligne. AppHeader sans withIdeas. */}
-      <AppHeader />
+      {/* homeExtraTop : pousse le wordmark "Karine Diététique" un peu
+          plus bas pour aérer le haut de la page d'accueil (UX 2026-06-12). */}
+      <AppHeader homeExtraTop />
       <WelcomeBlock />
 
-      <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 pb-6 lg:max-w-7xl lg:px-10 lg:pb-4">
+      <main className="mx-auto flex w-full max-w-md flex-1 flex-col px-5 pb-6 pt-3 lg:max-w-7xl lg:px-10 lg:pb-4">
         <div className="grid auto-rows-fr grid-cols-2 gap-3 lg:grid-cols-4">
           {tilesWithAccess.map((tile) => (
             <FeatureTile
@@ -161,8 +164,6 @@ export default async function Home({
           </div>
         )}
       </main>
-
-      <LegalFooter />
 
       {/* L'ampoule "Une idée" est integree dans la BottomNav home
           (a droite du FAB camera, taille inline-small) — pas besoin

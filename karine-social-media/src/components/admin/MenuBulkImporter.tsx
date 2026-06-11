@@ -225,9 +225,19 @@ export function MenuBulkImporter() {
     setStep('review');
     setExtractProgress({ done: 0, total: files.length });
 
+    // Compression CLIENT en amont (règle projet) — fait SÉQUENTIELLEMENT
+    // ici plutôt qu'en parallèle dans runWithConcurrency : heic2any est
+    // chargé dynamiquement, on évite de le re-importer 14 fois.
+    // resize 1600 + JPEG q85 = ~300 KB par photo (au lieu de 5 MB).
+    const compressedFiles = await Promise.all(
+      files.map((f) =>
+        compressImage(f, { maxDim: 1600, quality: 0.85, skipBelowKB: 400 }),
+      ),
+    );
+
     // Limite à 3 simultanés pour ménager Vision Haiku + bande passante
     let completed = 0;
-    await runWithConcurrency(files, 3, async (file, idx) => {
+    await runWithConcurrency(compressedFiles, 3, async (file, idx) => {
       const fd = new FormData();
       fd.set('file', file);
       try {
@@ -980,17 +990,24 @@ async function uploadAsset(
  * 2. PUT /shopping-list → persiste portions + items dans
  *    weekly_menus.shopping_list_items.
  *
- * Pas de compression côté front : la route /shopping-list/extract
- * fait déjà optimizeUploadToWebp. Compresser ici donnerait une double
- * conversion lossy.
+ * Compression CLIENT avant upload (règle projet) : la compression
+ * server-side ne résout PAS le 413 Vercel ni la bande passante 4G de
+ * Karine. La double conversion (JPEG q85 → WebP q85) est invisible
+ * à l'œil et économise ~90% de la taille à l'upload.
  */
 async function extractAndSaveShoppingList(
   menuId: string,
   file: File,
 ): Promise<void> {
+  // 0) Compression client
+  const compressed = await compressImage(file, {
+    maxDim: 1600,
+    quality: 0.85,
+    skipBelowKB: 400,
+  });
   // 1) extract + Vision
   const extractFd = new FormData();
-  extractFd.set('file', file);
+  extractFd.set('file', compressed);
   const ex = await fetch(
     `/api/admin/menus/${menuId}/shopping-list/extract`,
     { method: 'POST', body: extractFd },

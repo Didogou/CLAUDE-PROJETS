@@ -10,6 +10,7 @@ import {
   Check,
 } from 'lucide-react';
 import type { ShoppingListItem } from '@/data/menus';
+import { compressImage } from '@/lib/compress-image';
 
 type Props = {
   /** ID du menu (mode édition). null = mode création : on utilise le
@@ -94,8 +95,14 @@ export function ShoppingListEditor({
     setError(null);
     setBusy('extracting');
     try {
+      // Compression client AVANT upload (règle projet).
+      const compressed = await compressImage(file, {
+        maxDim: 1600,
+        quality: 0.85,
+        skipBelowKB: 400,
+      });
       const fd = new FormData();
-      fd.set('file', file);
+      fd.set('file', compressed);
       // Mode création : preview endpoint (upload temp + Vision, pas de menuId)
       // Mode édition : extract endpoint rattaché au menu existant.
       const url = isCreateMode

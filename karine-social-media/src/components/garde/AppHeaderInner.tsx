@@ -8,6 +8,7 @@ import { Logo } from '@/components/brand/Logo';
 import { MainDrawer } from './MainDrawer';
 import { IdeasFloatingButton } from '@/components/ideas/IdeasFloatingButton';
 import { TrackingPill } from '@/components/nutrition/TrackingPill';
+import { WaterPill } from '@/components/nutrition/WaterPill';
 
 /**
  * Partie client de l'AppHeader.
@@ -31,6 +32,8 @@ export function AppHeaderInner({
   withIdeas,
   pageTitle,
   backHref,
+  avatarUrl,
+  homeExtraTop = false,
 }: {
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -50,6 +53,12 @@ export function AppHeaderInner({
   pageTitle?: string;
   /** Si fourni, REMPLACE le burger menu par une flèche retour. */
   backHref?: string;
+  /** Photo de profil de l'utilisatrice. Si fournie, affichée dans
+   *  le badge profil à la place de l'icône Lucide générique. */
+  avatarUrl?: string | null;
+  /** Padding-top supplémentaire — uniquement utilisé sur la page
+   *  d'accueil pour décaler le wordmark vers le bas (UX 2026-06-12). */
+  homeExtraTop?: boolean;
 }) {
   const [scrolled, setScrolled] = useState(false);
   // Si l'admin a clique "Voir le site abonne" depuis /admin, il
@@ -112,7 +121,9 @@ export function AppHeaderInner({
       className={`sticky top-0 z-40 flex flex-col px-5 transition-[padding,box-shadow,background-color,backdrop-filter] duration-500 ease-in-out ${
         scrolled
           ? 'bg-blush/85 py-1.5 shadow-sm backdrop-blur-xl backdrop-saturate-150 lg:py-2'
-          : 'bg-transparent py-3 lg:py-5'
+          : homeExtraTop
+            ? 'bg-transparent pb-3 pt-6 lg:pb-5 lg:pt-9'
+            : 'bg-transparent py-3 lg:py-5'
       }`}
     >
       <div className="flex items-center justify-between">
@@ -156,7 +167,7 @@ export function AppHeaderInner({
               // text-balance pour break naturel + line-clamp anti
               // chevauchement des icônes back/account aux extrémités.
               // max-w-[14rem] sm:max-w-[20rem] pour cap la largeur.
-              className={`mx-auto block max-w-[14rem] overflow-hidden text-center font-script leading-tight text-coral-dark transition-all duration-500 ease-in-out sm:max-w-[20rem] ${
+              className={`mx-auto block max-w-[14rem] overflow-hidden pb-2 text-center font-script leading-snug text-coral-dark transition-all duration-500 ease-in-out sm:max-w-[20rem] ${
                 scrolled
                   ? 'mt-0 max-h-8 truncate whitespace-nowrap text-xl opacity-100'
                   : `mt-4 line-clamp-2 text-balance opacity-100 sm:mt-5 ${
@@ -177,6 +188,14 @@ export function AppHeaderInner({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Verre d'eau à GAUCHE de la flamme calorie. Affiché si la
+              feature water tracking est activée globalement (feature flag
+              parallèle à trackingBehavior). Au clic : ouvre la sheet
+              slide-up (même design que l'ancien Mes calories). */}
+          {trackingBehavior && (
+            <WaterPill isAuthenticated={isAuthenticated} />
+          )}
+
           {/* Flame de suivi calorique : toujours visible si la feature
               est activée globalement. Le clic est routé selon le statut
               (sheet/plan/login). Voir TrackingPill. */}
@@ -188,7 +207,7 @@ export function AppHeaderInner({
           )}
 
           {isAuthenticated ? (
-            <ProfileMenu unreadCount={unreadCount} />
+            <ProfileMenu unreadCount={unreadCount} avatarUrl={avatarUrl} />
           ) : (
             /* Visiteuse non connectée : icône LogIn en cercle compact
                (h-8), même format visuel que Flame et le bouton Profil.
@@ -228,7 +247,13 @@ export function AppHeaderInner({
  * - Tap outside / Escape → ferme
  * - Tap sur Profil ou Notifications → navigue (Link Next.js)
  */
-function ProfileMenu({ unreadCount }: { unreadCount: number }) {
+function ProfileMenu({
+  unreadCount,
+  avatarUrl,
+}: {
+  unreadCount: number;
+  avatarUrl?: string | null;
+}) {
   const [open, setOpen] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
@@ -260,9 +285,19 @@ function ProfileMenu({ unreadCount }: { unreadCount: number }) {
         }
         aria-haspopup="menu"
         aria-expanded={open}
-        className="relative grid h-8 w-8 place-items-center rounded-full bg-white/50 text-ink ring-2 ring-coral-soft backdrop-blur transition hover:bg-white/80"
+        className="relative grid h-8 w-8 place-items-center overflow-hidden rounded-full bg-white/50 text-ink ring-2 ring-coral-soft backdrop-blur transition hover:bg-white/80"
       >
-        <User className="h-4 w-4" strokeWidth={2} />
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatarUrl}
+            alt=""
+            aria-hidden
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <User className="h-4 w-4" strokeWidth={2} />
+        )}
         {/* Badge unreadCount sur l'avatar — l'utilisatrice voit
             qu'elle a des notifications sans avoir 2 icones. */}
         {unreadCount > 0 && (

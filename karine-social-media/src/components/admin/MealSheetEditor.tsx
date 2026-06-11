@@ -11,6 +11,7 @@ import {
   Upload,
 } from 'lucide-react';
 import type { MenuMealSheet, MealKind, ShoppingListItem } from '@/data/menus';
+import { compressImage } from '@/lib/compress-image';
 import { IngredientsChecklist } from './IngredientsChecklist';
 
 type Props = {
@@ -72,8 +73,14 @@ export function MealSheetEditor({
     setError(null);
     setBusy('extracting');
     try {
+      // Compression client AVANT upload (règle projet).
+      const compressed = await compressImage(file, {
+        maxDim: 1600,
+        quality: 0.85,
+        skipBelowKB: 400,
+      });
       const fd = new FormData();
-      fd.set('file', file);
+      fd.set('file', compressed);
       const res = await fetch(
         `/api/admin/menus/${menuId}/meal-sheet/preview`,
         { method: 'POST', body: fd },

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Heart } from 'lucide-react';
+import { Bookmark, Trash2 } from 'lucide-react';
 import type { FavoriteItem } from '@/data/favorites';
 
 /**
@@ -54,15 +54,28 @@ export function FavoriteCard({ item }: { item: FavoriteItem }) {
         {item.label}
       </p>
 
-      {/* Bouton retrait — coeur plein, click stop propagation */}
+      {/* Bookmark coral plein en HAUT GAUCHE pour montrer que l'item
+          est favori (convention nouvelle, cohérence avec /recettes
+          et /menus). Décoratif (le tap retrait est sur le bouton à
+          droite). */}
+      <span
+        aria-hidden
+        className="absolute left-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-white/90 shadow-sm ring-1 ring-coral-soft/40"
+      >
+        <Bookmark className="h-3.5 w-3.5 fill-coral text-coral" strokeWidth={2} />
+      </span>
+
+      {/* Bouton retrait EXPLICITE — icône poubelle pour être clair que
+          tap = supprimer le favori. Animation fade-out via removing. */}
       <button
         type="button"
         onClick={remove}
         disabled={removing}
         aria-label="Retirer des favoris"
-        className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 shadow-sm ring-1 ring-coral-soft/40 transition hover:scale-110"
+        title="Retirer des favoris"
+        className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-full bg-white/95 text-coral-dark shadow-sm ring-1 ring-coral-soft/40 transition hover:scale-110 hover:bg-rose-50 hover:text-rose-600"
       >
-        <Heart className="h-4 w-4 fill-coral text-coral" strokeWidth={0} />
+        <Trash2 className="h-4 w-4" strokeWidth={2.2} />
       </button>
     </Link>
   );

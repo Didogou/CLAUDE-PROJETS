@@ -2,7 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight, Heart, Sparkles } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Heart,
+  Sparkles,
+} from 'lucide-react';
 import { SaviezVousLightbox } from './SaviezVousLightbox';
 
 /**
@@ -45,6 +52,9 @@ export function SaviezVousFil({
   favoritedIds?: Set<string>;
 }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null);
+  // Section dépliée/repliée (UX 2026-06-11 : repliée par défaut pour
+  // décharger l'écran d'accueil ; clic sur le titre pour développer).
+  const [expanded, setExpanded] = useState(false);
   // Index du polaroid actuellement le plus proche du centre du scroller
   // — sert à afficher son caption en grand sous le titre de la section.
   const [activeIdx, setActiveIdx] = useState(0);
@@ -117,13 +127,44 @@ export function SaviezVousFil({
 
   return (
     <>
-      <section className="relative rounded-[var(--radius-card)] bg-gradient-to-br from-cream via-blush/40 to-peach/30 px-3 pb-6 pt-4 shadow-sm lg:px-5 lg:pb-7 lg:pt-5">
-        <header className="mb-1 flex items-center justify-between px-2">
+      <section
+        className={`relative rounded-[var(--radius-card)] bg-gradient-to-br from-cream via-blush/40 to-peach/30 shadow-sm transition-all duration-300 ${
+          expanded
+            ? 'px-3 pb-6 pt-4 lg:px-5 lg:pb-7 lg:pt-5'
+            : 'px-3 py-2 lg:px-5 lg:py-3'
+        }`}
+      >
+        {/* Header cliquable — toggle expanded.
+            Replié : "Le saviez-vous ? · Cliquer ici" + ChevronDown
+            Déplié : "Le saviez-vous ?" + Sparkles + ChevronUp pour replier */}
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          aria-label={expanded ? 'Replier la section' : 'Déplier la section'}
+          className="flex w-full items-center justify-between gap-2 px-2 text-left transition hover:opacity-80"
+        >
           <h2 className="flex items-center gap-1.5 font-script text-3xl text-coral lg:text-4xl">
             Le saviez-vous&nbsp;?
+            {!expanded && (
+              <span className="font-sans text-xs font-semibold italic text-coral-dark/70">
+                — Cliquer ici
+              </span>
+            )}
           </h2>
-          <Sparkles className="h-5 w-5 text-tangerine" aria-hidden />
-        </header>
+          <span className="flex items-center gap-1">
+            <Sparkles className="h-5 w-5 text-tangerine" aria-hidden />
+            {expanded ? (
+              <ChevronUp className="h-4 w-4 text-coral-dark/60" aria-hidden />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-coral-dark/60" aria-hidden />
+            )}
+          </span>
+        </button>
+
+        {/* Contenu déplié : tout ce qui suit n'est rendu que si expanded. */}
+        {expanded && (
+          <>
 
         {/* Wrapper relatif qui ancre le fil au niveau des pinces. */}
         <div className="relative">
@@ -210,6 +251,8 @@ export function SaviezVousFil({
             </ul>
           </div>
         </div>
+          </>
+        )}
       </section>
 
       {openIdx !== null && (

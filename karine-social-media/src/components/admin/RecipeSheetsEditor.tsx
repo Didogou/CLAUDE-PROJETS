@@ -22,6 +22,7 @@ import {
   isPorkFreeAuto,
   isVegetarianAuto,
 } from '@/lib/dietary-tags';
+import { compressImage } from '@/lib/compress-image';
 
 type PreviewData = {
   tempPath: string;
@@ -68,8 +69,14 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
     setError(null);
     setBusy('extracting');
     try {
+      // Compression client AVANT upload (règle projet).
+      const compressed = await compressImage(file, {
+        maxDim: 1600,
+        quality: 0.85,
+        skipBelowKB: 400,
+      });
       const fd = new FormData();
-      fd.set('file', file);
+      fd.set('file', compressed);
       const res = await fetch(
         `/api/admin/recipes/${recipeSlug}/sheets/preview`,
         { method: 'POST', body: fd },
@@ -129,6 +136,18 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
             coverImageUrl: sheet.cover_image_url,
             servings: sheet.servings,
             calories: sheet.calories,
+            proteinsG:
+              sheet.proteins_g === null || sheet.proteins_g === undefined
+                ? null
+                : Number(sheet.proteins_g),
+            lipidsG:
+              sheet.lipids_g === null || sheet.lipids_g === undefined
+                ? null
+                : Number(sheet.lipids_g),
+            carbsG:
+              sheet.carbs_g === null || sheet.carbs_g === undefined
+                ? null
+                : Number(sheet.carbs_g),
             prepTimeMin: sheet.prep_time_min,
             cookTimeMin: sheet.cook_time_min,
             tags: sheet.tags ?? [],
