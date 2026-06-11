@@ -35,7 +35,7 @@ export function WaterPill({
       setTarget(
         Math.max(
           1,
-          Math.round((data.targetMl ?? 1500) / (data.glassSizeMl ?? 125)),
+          Math.round((data.targetMl ?? 1500) / (data.glassSizeMl ?? 150)),
         ),
       );
     } catch {

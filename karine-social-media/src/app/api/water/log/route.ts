@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
       .select('glass_size_ml')
       .eq('user_id', user.id)
       .maybeSingle();
-    ml = settings?.glass_size_ml ?? 125;
+    ml = settings?.glass_size_ml ?? 150;
   }
 
   if (ml === null || ml <= 0 || ml > 2000) {

@@ -8,11 +8,11 @@ export type WaterDayState = {
   entries: { id: string; loggedAt: string; ml: number }[];
 };
 
-// Décision Karine 2026-06-11 : un "verre" français standard = 125 ml
-// (verre à eau classique de table, pas grand verre américain 250 ml).
+// Décision Karine 2026-06-12 : un "verre" français standard = 150 ml
+// (verre à eau classique de table, ajusté de 125 → 150 ml).
 // Affecte uniquement les utilisatrices qui n'ont jamais réglé leur taille
 // (les autres gardent leur valeur custom en user_water_settings).
-const DEFAULT_GLASS_ML = 125;
+const DEFAULT_GLASS_ML = 150;
 const DEFAULT_TARGET_ML = 1500;
 
 /**
