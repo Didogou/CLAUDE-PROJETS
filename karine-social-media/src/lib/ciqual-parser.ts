@@ -25,6 +25,10 @@ export type CiqualRow = {
   carbs_g: number | null;
   fibers_g: number | null;
   sugars_g: number | null;
+  /** AG saturés (g/100g) — critique pour le calcul Nutri-Score précis.
+   *  Sans cette colonne on doit estimer à 30% des lipides totaux, ce
+   *  qui sous-estime gravement les recettes beurre/fromage/crème. */
+  saturated_fat_g: number | null;
   water_g: number | null;
   salt_g: number | null;
   sodium_mg: number | null;
@@ -57,6 +61,15 @@ const COLUMN_HINTS = {
   carbs: ['glucides'],
   fibers: ['fibres alimentaires', 'fibres'],
   sugars: ['sucres'],
+  // AG saturés Ciqual ANSES — variantes 2020/2024/2025 :
+  //   "AG saturés (g/100 g)" / "AG saturés" / "Acides gras saturés"
+  // Hints sans accents (normalize() les retire avant comparaison).
+  saturated_fat: [
+    'ag satures',
+    'ags ',
+    'acides gras satures',
+    'saturated fatty acids',
+  ],
   water: ['eau '],
   salt: ['sel chlorure', 'sel '],
   sodium: ['sodium'],
@@ -241,6 +254,7 @@ export function parseCiqualXlsx(buffer: Buffer): CiqualParseResult {
     carbs: findColumn(headers, COLUMN_HINTS.carbs),
     fibers: findColumn(headers, COLUMN_HINTS.fibers),
     sugars: findColumn(headers, COLUMN_HINTS.sugars),
+    saturated_fat: findColumn(headers, COLUMN_HINTS.saturated_fat),
     water: findColumn(headers, COLUMN_HINTS.water),
     salt: findColumn(headers, COLUMN_HINTS.salt),
     sodium: findColumn(headers, COLUMN_HINTS.sodium),
@@ -286,6 +300,9 @@ export function parseCiqualXlsx(buffer: Buffer): CiqualParseResult {
       carbs_g: cols.carbs ? parseCell(row[cols.carbs]) : null,
       fibers_g: cols.fibers ? parseCell(row[cols.fibers]) : null,
       sugars_g: cols.sugars ? parseCell(row[cols.sugars]) : null,
+      saturated_fat_g: cols.saturated_fat
+        ? parseCell(row[cols.saturated_fat])
+        : null,
       water_g: cols.water ? parseCell(row[cols.water]) : null,
       salt_g: cols.salt ? parseCell(row[cols.salt]) : null,
       sodium_mg: cols.sodium ? parseCell(row[cols.sodium]) : null,

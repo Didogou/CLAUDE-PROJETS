@@ -17,6 +17,10 @@ export type CiqualFoodLite = {
   carbs_g: number | null;
   fibers_g: number | null;
   sugars_g: number | null;
+  /** AG saturés (g/100g) — source Ciqual ANSES.
+   *  Si null, on retombe sur lipids_g × 0.3 (approximation moyenne).
+   *  Utilisé pour calculer le point AGS du Nutri-Score. */
+  saturated_fat_g: number | null;
   salt_g: number | null;
   sodium_mg: number | null;
   /** Poids moyen d'1 unité de cet aliment (1 tomate, 1 œuf…) en g.
@@ -422,6 +426,10 @@ export function aggregateIngredients(
   let totalSugars = 0;
   let totalFibers = 0;
   let totalLipids = 0;
+  let totalSaturatedFat = 0;
+  // Suit séparément la couverture AGS : si certains ingrédients n'ont
+  // pas de saturated_fat_g connu, on devra fallback sur 30% pour eux.
+  let totalLipidsWithoutAgs = 0;
   let totalSodium = 0;
   let fvlGrams = 0;
 
@@ -491,6 +499,15 @@ export function aggregateIngredients(
     totalLipids += (grams * lipids) / 100;
     totalSodium += (grams * sodiumPer100) / 100;
 
+    // AGS : on préfère la valeur Ciqual exacte. Si null (ancien import,
+    // aliment custom), on accumule les lipides dans un seau séparé pour
+    // appliquer le fallback 30% à la fin uniquement sur cette partie.
+    if (match.saturated_fat_g !== null && match.saturated_fat_g !== undefined) {
+      totalSaturatedFat += (grams * match.saturated_fat_g) / 100;
+    } else {
+      totalLipidsWithoutAgs += (grams * lipids) / 100;
+    }
+
     // FVL : si le groupe Ciqual contient "fruit", "légume" ou "légumineuse"
     const group = (ciqualGroups.get(match.id) ?? '').toLowerCase();
     if (/fruit|legume|légume|legumineuse|légumineuse/.test(group)) {
@@ -515,9 +532,15 @@ export function aggregateIngredients(
   // on extrapole : "à composition similaire, voilà ce que ferait 100g
   // de plat". La confiance < 100 % dit que c'est une estimation.
   const factor = 100 / totalGramsMatched;
-  // AGS estimés à 30% des lipides (approximation usuelle, plus précis si
-  // Ciqual le fournissait nativement — colonne à ajouter au Palier 3)
-  const saturatedFat = (totalLipids * factor) * 0.3;
+  // AGS Nutri-Score (fix 2026-06-12 — agent C bug critique #2) :
+  // - Pour les ingrédients avec saturated_fat_g connu en Ciqual : valeur exacte.
+  // - Pour ceux sans (ancien import, aliment custom) : fallback 30% des
+  //   lipides UNIQUEMENT pour leur fraction (pas sur le total).
+  // Avant le fix : 30% global → quiches/gratins beurre+fromage affichés A-B
+  // alors qu'ils devraient être C-D. Maintenant : valeur réelle = beurre 65%,
+  // comté 60%, huile d'olive 14%, donc le score reflète la réalité.
+  const saturatedFat =
+    (totalSaturatedFat + totalLipidsWithoutAgs * 0.3) * factor;
 
   const per100g: NutriscoreInput = {
     kcal: totalKcal * factor,

@@ -35,7 +35,7 @@ async function fetchCiqualPaginated(supa: any): Promise<CiqualFoodLite[]> {
     const { data } = await supa
       .from('ciqual_foods')
       .select(
-        'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg',
+        'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, saturated_fat_g, salt_g, sodium_mg',
       )
       .order('id', { ascending: true })
       .range(offset, offset + 999);

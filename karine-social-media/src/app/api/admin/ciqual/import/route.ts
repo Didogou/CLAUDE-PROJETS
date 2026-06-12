@@ -136,6 +136,7 @@ function rowToDbPayload(r: CiqualRow) {
     carbs_g: r.carbs_g,
     fibers_g: r.fibers_g,
     sugars_g: r.sugars_g,
+    saturated_fat_g: r.saturated_fat_g,
     water_g: r.water_g,
     salt_g: r.salt_g,
     sodium_mg: r.sodium_mg,
