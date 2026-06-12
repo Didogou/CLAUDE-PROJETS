@@ -6,6 +6,7 @@ import { Ban, Bookmark, Heart, Flame, Leaf, Lock, Sparkles } from 'lucide-react'
 import type { Recipe } from '@/data/recipes';
 import { RealBadge } from './RealBadge';
 import { NutriScoreBadge } from './NutriScoreBadge';
+import { getScopedItem, setScopedItem } from '@/lib/user-scoped-storage';
 
 export type RecipeAvgScore = {
   grade: 'A' | 'B' | 'C' | 'D' | 'E';
@@ -47,7 +48,7 @@ export function RecipeCard({
     const base = recipe.likesCount ?? 0;
     if (typeof window === 'undefined') return base;
     try {
-      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      const raw = getScopedItem('karine.liked-recipes.v1');
       const liked = raw
         ? new Set(JSON.parse(raw) as string[]).has(recipe.id)
         : false;
@@ -59,7 +60,7 @@ export function RecipeCard({
   const [hasLiked, setHasLiked] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
-      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      const raw = getScopedItem('karine.liked-recipes.v1');
       return raw
         ? new Set(JSON.parse(raw) as string[]).has(recipe.id)
         : false;
@@ -72,7 +73,7 @@ export function RecipeCard({
   useEffect(() => {
     const base = recipe.likesCount ?? 0;
     try {
-      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      const raw = getScopedItem('karine.liked-recipes.v1');
       const liked = raw
         ? new Set(JSON.parse(raw) as string[]).has(recipe.id)
         : false;
@@ -92,7 +93,7 @@ export function RecipeCard({
     setHasLiked(!wasLiked);
     // Sync localStorage
     try {
-      const raw = localStorage.getItem('karine.liked-recipes.v1');
+      const raw = getScopedItem('karine.liked-recipes.v1');
       const arr = raw ? (JSON.parse(raw) as string[]) : [];
       const idx = arr.indexOf(recipe.id);
       if (wasLiked) {
@@ -100,7 +101,7 @@ export function RecipeCard({
       } else {
         if (idx < 0) arr.push(recipe.id);
       }
-      localStorage.setItem('karine.liked-recipes.v1', JSON.stringify(arr));
+      setScopedItem('karine.liked-recipes.v1', JSON.stringify(arr));
     } catch {
       /* localStorage indispo */
     }

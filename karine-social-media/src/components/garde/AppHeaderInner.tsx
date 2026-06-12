@@ -23,6 +23,7 @@ import { WaterPill } from '@/components/nutrition/WaterPill';
  *   contenu derrière. Transition CSS smooth 250ms.
  */
 export function AppHeaderInner({
+  userId,
   isAuthenticated,
   isAdmin,
   unreadCount,
@@ -35,6 +36,10 @@ export function AppHeaderInner({
   avatarUrl,
   homeExtraTop = false,
 }: {
+  /** UUID de l'utilisatrice connectée, null si visiteuse. Sert à
+   *  scoper les clés localStorage (likes, favoris, courses) par compte
+   *  pour éviter les fuites entre comptes sur appareil familial. */
+  userId: string | null;
   isAuthenticated: boolean;
   isAdmin: boolean;
   unreadCount: number;
@@ -61,6 +66,21 @@ export function AppHeaderInner({
   homeExtraTop?: boolean;
 }) {
   const [scrolled, setScrolled] = useState(false);
+
+  // Sync l'user ID dans un cookie lisible côté client pour permettre
+  // au helper `user-scoped-storage` de préfixer les clés localStorage
+  // par compte (anti fuite likes/courses entre comptes sur appareil
+  // familial — fix audit 2026-06-12).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // Import dynamique pour éviter d'ajouter le helper au bundle initial.
+    void import('@/lib/user-scoped-storage').then(
+      ({ setCurrentUserScope, clearCurrentUserScope }) => {
+        if (userId) setCurrentUserScope(userId);
+        else clearCurrentUserScope();
+      },
+    );
+  }, [userId]);
   // Si l'admin a clique "Voir le site abonne" depuis /admin, il
   // navigue avec ?as=visitor sur la home. Le flag est stocke en
   // sessionStorage des qu'on l'a vu une fois, puis AppHeader sur

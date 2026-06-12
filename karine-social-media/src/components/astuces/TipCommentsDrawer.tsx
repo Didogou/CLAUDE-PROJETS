@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { Camera, Send, X } from 'lucide-react';
 import { InstaComments, type InstaComment } from '../recettes/InstaComments';
 import { compressMany } from '@/lib/compress-image';
+import { useObjectURLs } from '@/hooks/useObjectURLs';
 
 export type TipDrawerComment = {
   id: string | number;
@@ -39,6 +40,8 @@ export function TipCommentsDrawer({
   const [loading, setLoading] = useState(false);
   const [draft, setDraft] = useState('');
   const [draftPhotos, setDraftPhotos] = useState<File[]>([]);
+  // URLs blob avec cleanup auto (anti fuite mémoire — audit 2026-06-12).
+  const draftPreviewUrls = useObjectURLs(draftPhotos);
   const [replyTo, setReplyTo] = useState<TipDrawerComment | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -266,10 +269,10 @@ export function TipCommentsDrawer({
             </div>
             {draftPhotos.length > 0 && (
               <div className="flex gap-2">
-                {draftPhotos.map((f, i) => (
+                {draftPhotos.map((_, i) => (
                   <span key={i} className="relative block h-14 w-14">
                     <img
-                      src={URL.createObjectURL(f)}
+                      src={draftPreviewUrls[i]}
                       alt=""
                       className="h-full w-full rounded-lg object-cover shadow-sm"
                     />

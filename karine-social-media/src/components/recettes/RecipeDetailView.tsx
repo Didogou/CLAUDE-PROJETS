@@ -9,6 +9,7 @@ import { InstaComments } from './InstaComments';
 import { FireworkBurst } from './FireworkBurst';
 import { compressImage } from '@/lib/compress-image';
 import { ZoomableImage } from '@/components/ui/ZoomableImage';
+import { useObjectURLs } from '@/hooks/useObjectURLs';
 
 type Comment = {
   id: string | number;
@@ -64,6 +65,8 @@ export function RecipeDetailView({
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [draft, setDraft] = useState('');
   const [draftPhotos, setDraftPhotos] = useState<File[]>([]);
+  // URLs blob avec cleanup auto (anti fuite mémoire — audit 2026-06-12).
+  const draftPreviewUrls = useObjectURLs(draftPhotos);
   // Si non null, le prochain commentaire posté sera une réponse à ce commentaire
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   // Cœurs flottants spawnés à chaque tap sur le like
@@ -344,7 +347,7 @@ export function RecipeDetailView({
               <span key={i} className="relative block h-14 w-14">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={URL.createObjectURL(f)}
+                  src={draftPreviewUrls[i]}
                   alt=""
                   className="h-full w-full rounded-lg object-cover shadow-sm"
                 />

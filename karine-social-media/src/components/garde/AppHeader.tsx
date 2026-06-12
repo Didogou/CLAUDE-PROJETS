@@ -94,6 +94,7 @@ export async function AppHeader({
 
   return (
     <AppHeaderInner
+      userId={user.isAuthenticated ? (user.id ?? null) : null}
       isAuthenticated={user.isAuthenticated}
       isAdmin={user.isAdmin}
       unreadCount={unreadCount}
