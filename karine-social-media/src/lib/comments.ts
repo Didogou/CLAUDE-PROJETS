@@ -47,7 +47,9 @@ export async function getVisibleCommentsForRecipe(slug: string): Promise<Comment
   const { data, error } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('comments' as any)
-    .select('*')
+    .select(
+      'id, recipe_slug, tip_slug, author_name, body, photos, likes_count, parent_id, status, created_at',
+    )
     .eq('recipe_slug', slug)
     .eq('status', 'visible')
     .order('created_at', { ascending: false })
@@ -77,7 +79,9 @@ export async function getVisibleCommentsForTip(slug: string): Promise<Comment[]>
   const { data, error } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('comments' as any)
-    .select('*')
+    .select(
+      'id, recipe_slug, tip_slug, author_name, body, photos, likes_count, parent_id, status, created_at',
+    )
     .eq('tip_slug', slug)
     .eq('status', 'visible')
     .order('created_at', { ascending: false })
@@ -130,7 +134,9 @@ export async function getAllCommentsAdmin(): Promise<Comment[]> {
   const { data, error } = await supabase
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .from('comments' as any)
-    .select('*')
+    .select(
+      'id, recipe_slug, tip_slug, author_name, body, photos, likes_count, parent_id, status, created_at',
+    )
     .order('created_at', { ascending: false })
     .limit(200);
   if (error) {

@@ -5,7 +5,7 @@ import { FloralBackground } from '@/components/garde/FloralBackground';
 import { ShoppingListPage } from '@/components/courses/ShoppingListPage';
 import { getCurrentUser } from '@/lib/current-user';
 import { getOrCreateActiveList } from '@/lib/shopping-lists';
-import { getPublishedMenus } from '@/lib/menus';
+import { getCachedPublishedMenus } from '@/lib/cached-content';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +17,7 @@ export default async function CoursesPage() {
 
   const [list, menus] = await Promise.all([
     getOrCreateActiveList(user.id),
-    getPublishedMenus(),
+    getCachedPublishedMenus(),
   ]);
 
   // Cover du menu de la semaine = le menu publié le plus récent

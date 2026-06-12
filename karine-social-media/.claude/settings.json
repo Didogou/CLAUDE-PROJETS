@@ -302,7 +302,9 @@
       "Bash(ls src/app/editor-test/layout.tsx)",
       "Read(//c/c/Users/didie/Documents/Projets/CLAUDE-PROJETS/**)",
       "Read(//c/c/Users/didie/Documents/Projets/CLAUDE-PROJETS/ComfyUI/**)",
-      "Read(//c/c/Users/didie/Documents/Projets/CLAUDE-PROJETS/karine-social-media/**)"
+      "Read(//c/c/Users/didie/Documents/Projets/CLAUDE-PROJETS/karine-social-media/**)",
+      "Bash(grep -n \"select\\('\\\\*'\\\\|\\\\\\\\.select\\('\\\\*'\" src/lib/recipes.ts src/lib/comments.ts)",
+      "Bash(grep -n \"row.slug\\\\|row.title\\\\|row.cover\\\\|row.is_\\\\|row.published_\\\\|row.category\\\\|row.likes\\\\|row.prep_\\\\|row.slides\\\\|r\\\\\\\\.slug\\\\|r\\\\\\\\.is_\\\\|r\\\\\\\\.title\" src/lib/recipes.ts)"
     ],
     "additionalDirectories": [
       "\\tmp",
