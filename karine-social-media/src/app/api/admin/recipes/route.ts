@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { persistNutriscoreForSheet } from '@/lib/nutriscore-persist';
+import { revalidateRecipes } from '@/lib/cached-content';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -290,6 +291,9 @@ export async function POST(request: NextRequest) {
         console.warn(`[recipes POST] persistNutriscore sheet ${sheetId} failed:`, e);
       }
     }
+
+    // Invalidation cache pages publiques (/recettes, /recettes/[id], home)
+    revalidateRecipes();
 
     return NextResponse.json({
       ok: true,

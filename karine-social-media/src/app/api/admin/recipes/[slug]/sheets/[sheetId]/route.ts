@@ -6,6 +6,7 @@ import {
   computeSheetMacros,
   fetchCiqualForIngredients,
 } from '@/lib/recipe-macros';
+import { upsertUtensils } from '@/lib/utensils';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -56,6 +57,10 @@ export async function PATCH(
     if (typeof body.ingredientsText === 'string') {
       patch.ingredients_text = body.ingredientsText.trim() || null;
     }
+    if (body.preparationSteps !== undefined)
+      patch.preparation_steps = stringArray(body.preparationSteps);
+    if (body.utensils !== undefined)
+      patch.utensils = await upsertUtensils(supabase, body.utensils);
     // Overrides admin tags diététiques (Auto = null, true/false = forcé).
     if (body.isVegetarianOverride !== undefined) {
       patch.is_vegetarian_override =

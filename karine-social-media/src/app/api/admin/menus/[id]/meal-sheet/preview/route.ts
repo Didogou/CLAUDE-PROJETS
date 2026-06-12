@@ -100,6 +100,8 @@ export async function POST(
       tags: extracted?.tags ?? [],
       aliments: extracted?.aliments ?? [],
       ingredients,
+      preparationSteps: extracted?.preparationSteps ?? [],
+      utensils: extracted?.utensils ?? [],
     });
   } catch (e) {
     console.error('[admin/menus meal-sheet/preview] error:', e);

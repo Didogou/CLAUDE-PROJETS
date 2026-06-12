@@ -33,6 +33,7 @@ import {
   Download,
   ChevronDown,
   ChevronRight,
+  Utensils,
 } from 'lucide-react';
 
 // Un menu peut etre un lien direct, ou un groupe qui contient des
@@ -68,6 +69,7 @@ const SECTIONS: Section[] = [
   },
   { href: '/admin/stats', label: 'Trafic', icon: TrendingUp },
   { href: '/admin/menus', label: 'Menus', icon: ClipboardList },
+  { href: '/admin/ustensiles', label: 'Ustensiles', icon: Utensils },
   { href: '/admin/conseils', label: 'Conseils', icon: Leaf },
   { href: '/admin/astuces', label: 'Astuces', icon: Sparkles },
   { href: '/admin/avis', label: 'Avis', icon: MessageSquare },

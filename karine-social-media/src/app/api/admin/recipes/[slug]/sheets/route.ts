@@ -6,6 +6,7 @@ import {
   computeSheetMacros,
   fetchCiqualForIngredients,
 } from '@/lib/recipe-macros';
+import { upsertUtensils } from '@/lib/utensils';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -92,6 +93,9 @@ export async function POST(
     const sanitizedIngredients = sanitizeIngredients(body.ingredients);
     const servings = clampInt(body.servings, 4, 1, 20);
 
+    // Ustensiles : labels → slugs normalisés + upsert catalogue auto-alimenté.
+    const utensilSlugs = await upsertUtensils(supabase, body.utensils);
+
     // Calcul macros par portion depuis ingredients × Ciqual.
     // Tolérant : si erreur ou couverture < 30%, retourne null partout.
     let macrosProteins: number | null = null;
@@ -133,6 +137,8 @@ export async function POST(
       proteins_g: macrosProteins,
       lipids_g: macrosLipids,
       carbs_g: macrosCarbs,
+      preparation_steps: stringArray(body.preparationSteps),
+      utensils: utensilSlugs,
     };
 
     const { data: sheetData, error } = await (supabase as any)

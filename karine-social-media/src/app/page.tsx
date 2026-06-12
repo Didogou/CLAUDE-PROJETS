@@ -7,7 +7,7 @@ import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 // LegalFooter déplacé vers /a-propos (2026-06-11). L'utilisatrice accède
 // aux infos légales via le menu burger → À propos.
-import { getPublishedFeaturedPhotos } from '@/lib/featured-photos';
+import { getCachedFeaturedPhotos } from '@/lib/cached-content';
 import { getUserFavorites } from '@/lib/favorites';
 import { discoverPages } from '@/lib/discover-pages';
 import { getCurrentUser } from '@/lib/current-user';
@@ -88,7 +88,7 @@ export default async function Home({
     user.effectiveRole === 'admin';
   const [capabilities, saviezVousPhotos, favRows] = await Promise.all([
     userHasPlan ? Promise.resolve([]) : getAllCapabilities(),
-    getPublishedFeaturedPhotos(),
+    getCachedFeaturedPhotos(),
     user.id ? getUserFavorites(user.id) : Promise.resolve([]),
   ]);
   const capByKey = new Map(capabilities.map((c) => [c.key, c]));

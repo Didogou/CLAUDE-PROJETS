@@ -59,6 +59,11 @@ export type RecipeSheet = {
   ingredients: RecipeIngredient[];
   /** Texte brut éditable (Karine peut le corriger après extraction). */
   ingredientsText: string | null;
+  /** Étapes de préparation ordonnées (haut → bas de la fiche),
+   *  extraites par Vision. Contenu réservé (paywall) côté abonnée. */
+  preparationSteps: string[];
+  /** Slugs d'ustensiles référençant le catalogue public.utensils. */
+  utensils: string[];
   /** Compteur de likes (dénormalisé sur recipe_sheets.likes_count). */
   likesCount: number;
   /** Nutri-Score persisté en BDD (calculé à la sauvegarde admin).

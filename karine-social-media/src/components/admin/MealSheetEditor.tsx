@@ -13,6 +13,7 @@ import {
 import type { MenuMealSheet, MealKind, ShoppingListItem } from '@/data/menus';
 import { compressImage } from '@/lib/compress-image';
 import { IngredientsChecklist } from './IngredientsChecklist';
+import { PreparationStepsEditor } from './PreparationStepsEditor';
 
 type Props = {
   menuId: string;
@@ -36,6 +37,8 @@ type PreviewData = {
   tags: string[];
   aliments: string[];
   ingredients: ShoppingListItem[];
+  preparationSteps: string[];
+  utensils: string[];
 };
 
 /**
@@ -101,6 +104,8 @@ export function MealSheetEditor({
         tags: j.tags ?? [],
         aliments: j.aliments ?? [],
         ingredients: j.ingredients ?? [],
+        preparationSteps: j.preparationSteps ?? [],
+        utensils: j.utensils ?? [],
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
@@ -133,6 +138,8 @@ export function MealSheetEditor({
           tags: preview.tags,
           aliments: preview.aliments,
           ingredients: preview.ingredients,
+          preparationSteps: preview.preparationSteps,
+          utensils: preview.utensils,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -155,6 +162,8 @@ export function MealSheetEditor({
         tags: s.tags ?? [],
         aliments: s.aliments ?? [],
         ingredients: s.ingredients ?? [],
+        preparationSteps: s.preparation_steps ?? [],
+        utensils: s.utensils ?? [],
         likesCount: typeof s.likes_count === 'number' ? s.likes_count : 0,
       });
       setPreview(null);
@@ -289,6 +298,8 @@ export function MealSheetEditor({
                 tags: persisted.tags,
                 aliments: persisted.aliments,
                 ingredients: persisted.ingredients,
+                preparationSteps: persisted.preparationSteps,
+                utensils: persisted.utensils,
               }}
               onChange={() => {
                 /* lecture seule — re-upload pour modifier */
@@ -493,6 +504,17 @@ function PreviewForm({
             })),
           })
         }
+      />
+      <PreparationStepsEditor
+        steps={data.preparationSteps}
+        onChange={(next) => onChange({ preparationSteps: next })}
+        readOnly={readOnly}
+      />
+      <CsvField
+        label="Ustensiles"
+        values={data.utensils}
+        onChange={(v) => onChange({ utensils: v })}
+        readOnly={readOnly}
       />
     </div>
   );

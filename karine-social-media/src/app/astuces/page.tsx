@@ -3,7 +3,7 @@ import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { TipsGrid } from '@/components/astuces/TipsGrid';
 import { TipsFireworkBurst } from '@/components/astuces/TipsFireworkBurst';
-import { getPublishedTips } from '@/lib/tips';
+import { getCachedPublishedTips } from '@/lib/cached-content';
 import { getTipCommentCounts } from '@/lib/comments';
 import { getCurrentUser } from '@/lib/current-user';
 import { getUserFavorites } from '@/lib/favorites';
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function AstucesPage() {
   const user = await getCurrentUser();
-  const tips = await getPublishedTips();
+  const tips = await getCachedPublishedTips();
   const [commentCounts, favRows, userHasPlan] = await Promise.all([
     getTipCommentCounts(tips.map((t) => t.id)),
     user.id ? getUserFavorites(user.id) : Promise.resolve([]),

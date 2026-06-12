@@ -2,7 +2,8 @@ import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { MenusPagerView } from '@/components/menus/MenusPagerView';
-import { getPublishedMenus, getPublishedMenusLite } from '@/lib/menus';
+import { getPublishedMenus } from '@/lib/menus';
+import { getCachedPublishedMenus } from '@/lib/cached-content';
 import { getCurrentUser } from '@/lib/current-user';
 
 export const dynamic = 'force-dynamic';
@@ -22,9 +23,13 @@ export default async function MenusPage() {
     user.effectiveRole === 'patient' ||
     user.effectiveRole === 'subscriber' ||
     user.effectiveRole === 'admin';
+  // Abonnés : version FULL (avec ingredients) — pas cachée car liée
+  // à leur droit d'accès (plus rare → cache moins utile).
+  // Visiteurs : version LITE cachée 60s + tag 'menus' → invalidation
+  // immédiate à la publication d'un menu côté admin.
   const menus = isSubscriber
     ? await getPublishedMenus()
-    : await getPublishedMenusLite();
+    : await getCachedPublishedMenus();
 
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">

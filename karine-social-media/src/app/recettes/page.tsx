@@ -3,10 +3,12 @@ import { AppHeader } from '@/components/garde/AppHeader';
 import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { RecettesOngletsView } from '@/components/recettes/RecettesOngletsView';
-import { getPublishedRecipesLite } from '@/lib/recipes';
+import { getCachedPublishedRecipes } from '@/lib/cached-content';
 import { getCurrentUser } from '@/lib/current-user';
 import { getUserFavorites } from '@/lib/favorites';
 
+// Page user-aware (favoris) mais le contenu RECETTES est caché 60s
+// via unstable_cache + tag 'recipes' (invalidé au save admin).
 export const dynamic = 'force-dynamic';
 
 export type RecipeAvgScore = {
@@ -41,7 +43,7 @@ export default async function RecettesPage() {
     // Lite : exclut ingredients + ingredients_text du payload envoyé au
     // navigateur. Le détail n'est fetché qu'au clic, et seulement si
     // l'utilisatrice a un plan actif (gate dans /recettes/[id]/page.tsx).
-    getPublishedRecipesLite(),
+    getCachedPublishedRecipes(),
     getCurrentUser(),
   ]);
   const userHasPlan =

@@ -81,6 +81,16 @@ function mapSheetRow(row: any): RecipeSheet {
     ingredients,
     ingredientsText:
       typeof row.ingredients_text === 'string' ? row.ingredients_text : null,
+    preparationSteps: Array.isArray(row.preparation_steps)
+      ? (row.preparation_steps as unknown[]).filter(
+          (s): s is string => typeof s === 'string',
+        )
+      : [],
+    utensils: Array.isArray(row.utensils)
+      ? (row.utensils as unknown[]).filter(
+          (s): s is string => typeof s === 'string',
+        )
+      : [],
     likesCount: typeof row.likes_count === 'number' ? row.likes_count : 0,
     // Colonnes Nutri-Score persistées (migration 20260608120000).
     // Calculées par persistNutriscoreForSheet au save admin.

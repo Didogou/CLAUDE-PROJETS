@@ -65,6 +65,11 @@ export type MenuMealSheet = {
    *  pouvoir agréger directement dans la liste de courses sans
    *  conversion. */
   ingredients: ShoppingListItem[];
+  /** Étapes de préparation ordonnées (extraites par Vision). Contenu
+   *  réservé (paywall) côté abonnée. */
+  preparationSteps: string[];
+  /** Slugs d'ustensiles référençant le catalogue public.utensils. */
+  utensils: string[];
   likesCount: number;
 };
 

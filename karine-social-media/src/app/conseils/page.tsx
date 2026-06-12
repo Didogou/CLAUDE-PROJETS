@@ -3,7 +3,7 @@ import { BottomNav } from '@/components/garde/BottomNav';
 import { FloralBackground } from '@/components/garde/FloralBackground';
 import { AdviceGrid } from '@/components/conseils/AdviceGrid';
 import { AdviceFireworkBurst } from '@/components/conseils/AdviceFireworkBurst';
-import { getPublishedAdvice } from '@/lib/advice';
+import { getCachedPublishedAdvice } from '@/lib/cached-content';
 import { getCurrentUser } from '@/lib/current-user';
 import { getUserFavorites } from '@/lib/favorites';
 import { userHasPlanAccess } from '@/lib/user-access';
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 export default async function ConseilsPage() {
   const user = await getCurrentUser();
   const [items, favRows, userHasPlan] = await Promise.all([
-    getPublishedAdvice(),
+    getCachedPublishedAdvice(),
     user.id ? getUserFavorites(user.id) : Promise.resolve([]),
     userHasPlanAccess(),
   ]);

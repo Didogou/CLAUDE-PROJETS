@@ -311,6 +311,16 @@ function mapMealSheet(row: any): MenuMealSheet {
     tags: Array.isArray(row.tags) ? row.tags : [],
     aliments: Array.isArray(row.aliments) ? row.aliments : [],
     ingredients,
+    preparationSteps: Array.isArray(row.preparation_steps)
+      ? (row.preparation_steps as unknown[]).filter(
+          (s): s is string => typeof s === 'string',
+        )
+      : [],
+    utensils: Array.isArray(row.utensils)
+      ? (row.utensils as unknown[]).filter(
+          (s): s is string => typeof s === 'string',
+        )
+      : [],
     likesCount: typeof row.likes_count === 'number' ? row.likes_count : 0,
   };
 }

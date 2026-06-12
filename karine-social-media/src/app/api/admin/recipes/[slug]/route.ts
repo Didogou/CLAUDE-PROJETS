@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { optimizeUploadToWebp } from '@/lib/optimize-upload';
 import { extractIngredientsFromText } from '@/lib/claude-recipe-ingredients';
+import { revalidateRecipes } from '@/lib/cached-content';
 
 export const maxDuration = 60;
 
@@ -220,6 +221,7 @@ export async function PATCH(
     const { error } = await supabase.from('recipes').update(update as any).eq('slug', slug);
     if (error) throw error;
 
+    revalidateRecipes(); // invalide /recettes, /recettes/[id], home
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = 'Erreur serveur';
@@ -247,6 +249,7 @@ export async function DELETE(
     const { error } = await supabase.from('recipes').delete().eq('slug', slug);
     if (error) throw error;
 
+    revalidateRecipes();
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = 'Erreur serveur';

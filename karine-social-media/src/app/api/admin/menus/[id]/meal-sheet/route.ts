@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { persistNutriscoreForMenuMealSheet } from '@/lib/nutriscore-persist';
+import { upsertUtensils } from '@/lib/utensils';
 import type { ShoppingListItem } from '@/data/menus';
 
 const BUCKET = 'content-images';
@@ -84,6 +85,9 @@ export async function POST(
 
     const sanitizedIngredients = sanitizeIngredients(body.ingredients);
 
+    // Ustensiles : labels → slugs normalisés + upsert catalogue auto-alimenté.
+    const utensilSlugs = await upsertUtensils(supabase, body.utensils);
+
     const insertPayload = {
       menu_id: menuId,
       day_index: dayIndex,
@@ -100,6 +104,8 @@ export async function POST(
       tags: stringArray(body.tags),
       aliments: stringArray(body.aliments),
       ingredients: sanitizedIngredients,
+      preparation_steps: stringArray(body.preparationSteps),
+      utensils: utensilSlugs,
     };
     const { data, error } = await (supabase as any)
       .from('menu_meal_sheets')

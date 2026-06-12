@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type { RecipeIngredient, RecipeSheet } from '@/data/recipes';
 import { IngredientsChecklist } from './IngredientsChecklist';
+import { PreparationStepsEditor } from './PreparationStepsEditor';
 import {
   isGlutenFreeAuto,
   isPorkFreeAuto,
@@ -35,6 +36,8 @@ type PreviewData = {
   tags: string[];
   aliments: string[];
   ingredients: RecipeIngredient[];
+  preparationSteps: string[];
+  utensils: string[];
   isVegetarianOverride?: boolean | null;
   isGlutenFreeOverride?: boolean | null;
   isPorkFreeOverride?: boolean | null;
@@ -58,10 +61,42 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
   const [sheets, setSheets] = useState(initialSheets);
   const [addingPreview, setAddingPreview] = useState<PreviewData | null>(null);
   const [busy, setBusy] = useState<
-    'idle' | 'extracting' | 'saving' | 'patching' | 'deleting'
+    'idle' | 'extracting' | 'saving' | 'patching' | 'deleting' | 'backfill'
   >('idle');
   const [error, setError] = useState<string | null>(null);
+  const [confirmBackfill, setConfirmBackfill] = useState(false);
+  const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  /**
+   * Rattrapage des fiches DÉJÀ uploadées : relance Vision sur chaque
+   * fiche pour extraire préparation + ustensiles (sans toucher aux
+   * ingrédients/macros). Recharge la page au succès.
+   */
+  async function backfillPreparation() {
+    setBusy('backfill');
+    setError(null);
+    setBackfillMsg(null);
+    try {
+      const res = await fetch(
+        `/api/admin/recipes/${recipeSlug}/extract-preparation`,
+        { method: 'POST' },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error || 'Erreur');
+      setBackfillMsg(
+        `Préparation extraite : ${j.updated}/${j.processed} fiche(s)` +
+          (j.errors?.length ? ` · ${j.errors.length} erreur(s)` : '') +
+          '. Rechargement…',
+      );
+      setTimeout(() => window.location.reload(), 1300);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+      setBusy('idle');
+    } finally {
+      setConfirmBackfill(false);
+    }
+  }
 
   async function handleAddFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -94,6 +129,8 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
         tags: j.tags ?? [],
         aliments: j.aliments ?? [],
         ingredients: j.ingredients ?? [],
+        preparationSteps: j.preparationSteps ?? [],
+        utensils: j.utensils ?? [],
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur');
@@ -121,6 +158,8 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
           tags: addingPreview.tags,
           aliments: addingPreview.aliments,
           ingredients: addingPreview.ingredients,
+          preparationSteps: addingPreview.preparationSteps,
+          utensils: addingPreview.utensils,
         }),
       });
       const j = await res.json().catch(() => ({}));
@@ -154,6 +193,8 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
             aliments: sheet.aliments ?? [],
             ingredients: sheet.ingredients ?? [],
             ingredientsText: sheet.ingredients_text,
+            preparationSteps: sheet.preparation_steps ?? [],
+            utensils: sheet.utensils ?? [],
             likesCount: typeof sheet.likes_count === 'number' ? sheet.likes_count : 0,
             nutriscoreGrade: sheet.nutriscore_grade ?? null,
             nutriscoreConfidence:
@@ -203,6 +244,9 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
       if (patch.tags !== undefined) body.tags = patch.tags;
       if (patch.aliments !== undefined) body.aliments = patch.aliments;
       if (patch.ingredients !== undefined) body.ingredients = patch.ingredients;
+      if (patch.preparationSteps !== undefined)
+        body.preparationSteps = patch.preparationSteps;
+      if (patch.utensils !== undefined) body.utensils = patch.utensils;
       if (patch.isVegetarianOverride !== undefined)
         body.isVegetarianOverride = patch.isVegetarianOverride;
       if (patch.isGlutenFreeOverride !== undefined)
@@ -249,16 +293,68 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
 
   return (
     <section className="rounded-2xl border border-admin-border bg-admin-surface/40 p-4">
-      <header className="mb-4">
-        <h3 className="font-script text-2xl text-admin-primary-dark">
-          📋 Fiches détaillées
-        </h3>
-        <p className="mt-1 text-xs text-admin-ink-soft">
-          Chaque fiche est une recette à part entière. Upload une image de
-          fiche, Claude Vision Haiku 4.5 extrait tout (titre, calories,
-          temps, ingrédients, tags). Tu corriges, tu enregistres.
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="font-script text-2xl text-admin-primary-dark">
+            📋 Fiches détaillées
+          </h3>
+          <p className="mt-1 text-xs text-admin-ink-soft">
+            Chaque fiche est une recette à part entière. Upload une image de
+            fiche, Claude Vision Haiku 4.5 extrait tout (titre, calories,
+            temps, ingrédients, préparation, ustensiles, tags). Tu corriges,
+            tu enregistres.
+          </p>
+        </div>
+        {/* Rattrapage : recettes déjà uploadées avant l'extraction
+            préparation/ustensiles. Confirm inline (réécrit les étapes). */}
+        {sheets.length > 0 && (
+          <div className="shrink-0">
+            {confirmBackfill ? (
+              <div className="flex items-center gap-1.5 rounded-full bg-admin-soft/60 p-1 pl-3">
+                <span className="text-[0.7rem] font-semibold text-admin-ink">
+                  Re-extraire prépa&nbsp;?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setConfirmBackfill(false)}
+                  disabled={busy === 'backfill'}
+                  className="rounded-full bg-white px-2.5 py-1 text-[0.7rem] font-semibold text-admin-ink-soft"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={backfillPreparation}
+                  disabled={busy === 'backfill'}
+                  className="flex items-center gap-1 rounded-full bg-admin-primary px-2.5 py-1 text-[0.7rem] font-bold text-white shadow-sm"
+                >
+                  {busy === 'backfill' && (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  )}
+                  Confirmer
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmBackfill(true)}
+                disabled={busy !== 'idle'}
+                title="Relance Vision sur les fiches existantes pour extraire préparation + ustensiles"
+                className="flex items-center gap-1.5 rounded-full border border-admin-primary/40 bg-white px-3 py-1.5 text-xs font-semibold text-admin-primary-dark transition hover:bg-admin-soft/40 disabled:opacity-50"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Extraire Préparation
+              </button>
+            )}
+          </div>
+        )}
       </header>
+
+      {backfillMsg && (
+        <div className="mb-3 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          {backfillMsg}
+        </div>
+      )}
 
       {error && (
         <div className="mb-3 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -401,6 +497,8 @@ function SheetCard({
               tags: sheet.tags,
               aliments: sheet.aliments,
               ingredients: sheet.ingredients,
+              preparationSteps: sheet.preparationSteps,
+              utensils: sheet.utensils,
             }}
             onChange={(p) => onPatch(p as Partial<RecipeSheet>)}
             busy={busy}
@@ -560,6 +658,19 @@ function SheetEditableForm({
       <IngredientsChecklist
         ingredients={data.ingredients}
         onChange={(next) => onChange({ ingredients: next })}
+      />
+
+      {/* Étapes de préparation (ordonnées) */}
+      <PreparationStepsEditor
+        steps={data.preparationSteps}
+        onChange={(next) => onChange({ preparationSteps: next })}
+      />
+
+      {/* Ustensiles (catalogue auto-alimenté) */}
+      <CsvField
+        label="Ustensiles"
+        values={data.utensils}
+        onChange={(v) => onChange({ utensils: v })}
       />
 
       {!hideSave && (

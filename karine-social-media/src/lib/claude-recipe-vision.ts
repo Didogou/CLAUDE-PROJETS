@@ -37,6 +37,10 @@ export type ExtractedRecipeSheet = {
   tags: string[];
   aliments: string[];
   ingredients: RecipeIngredient[];
+  /** Étapes de préparation, ordonnées (haut → bas de la fiche). */
+  preparationSteps: string[];
+  /** Ustensiles (labels canoniques singuliers ; inférence autorisée). */
+  utensils: string[];
 };
 
 type MediaType = 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif';
@@ -105,7 +109,9 @@ export async function extractRecipeSheetFromImage(
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const message = await client.messages.create({
     model: MODEL,
-    max_tokens: 2048,
+    // 4096 (et pas 2048) : les étapes de préparation peuvent être longues
+    // et faisaient déborder/tronquer la sortie tool sur les fiches denses.
+    max_tokens: 4096,
     tools: [
       {
         name: 'save_recipe_sheet',
@@ -206,6 +212,18 @@ export async function extractRecipeSheetFromImage(
                 required: ['category', 'label', 'quantity', 'unit', 'note'],
               },
             },
+            preparationSteps: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'Étapes de préparation de la recette, DANS L\'ORDRE de la fiche (de haut en bas). 1 entrée = 1 étape. Reste fidèle au texte, ne reformule pas et n\'invente jamais d\'étape. Retire la numérotation de tête ("1.", "Étape 2 :") — l\'ordre du tableau suffit. Tableau vide si aucune préparation lisible.',
+            },
+            utensils: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'Ustensiles de cuisine nécessaires, en nom canonique SINGULIER et minuscule ("four", "poêle", "casserole", "saladier", "fouet", "couteau", "plaque de cuisson", "mixeur"). ⚠️ Contrairement aux ingrédients, l\'INFÉRENCE est autorisée ICI : déduis l\'ustensile du verbe de cuisson même s\'il n\'est pas écrit ("enfourner"/"au four" → "four" ; "poêler"/"faire revenir" → "poêle" ; "mixer" → "mixeur" ; "fouetter" → "fouet"). Déduplique. Maximum ~8. Tableau vide si rien d\'exploitable.',
+            },
           },
           required: [
             'sheetNumber',
@@ -220,6 +238,8 @@ export async function extractRecipeSheetFromImage(
             'tags',
             'aliments',
             'ingredients',
+            'preparationSteps',
+            'utensils',
           ],
         },
       },
@@ -276,6 +296,18 @@ décimal), jamais dans le label.
 - Calories : "kcal par portion" est le format standard ; renvoie le nombre.
 - Macros : si tu vois "Protéines : 25 g", "Lipides : 12 g", "Glucides : 40 g" (par portion), renseigne proteinsG/lipidsG/carbsG. Cherche aussi des icônes nutritionnelles (camembert macros) ou pavé "Pour 1 portion : 25g P / 12g L / 40g G". null si non visible.
 - Tags : "riche en protéines", "saine", "équilibrée", "gourmande", etc.
+
+📝 PRÉPARATION (preparationSteps) :
+- Recopie les étapes DANS L'ORDRE de la fiche (haut → bas), 1 entrée par étape.
+- Reste fidèle au texte, ne reformule pas, n'invente jamais une étape absente.
+- Enlève la numérotation de tête ("1.", "Étape 2 :", "•") — l'ordre du tableau suffit.
+- Si la fiche n'a pas de préparation lisible : tableau vide.
+
+🍳 USTENSILES (utensils) :
+- Liste les ustensiles nécessaires, nom canonique SINGULIER minuscule ("four", "poêle", "casserole", "saladier", "fouet", "couteau", "plaque de cuisson", "mixeur", "robot", "passoire").
+- ⚠️ INFÉRENCE AUTORISÉE pour ce champ (≠ ingrédients) : déduis l'ustensile du verbe même non écrit. Exemples : "enfourner"/"au four"/"180°C" → "four" ; "poêler"/"faire revenir" → "poêle" ; "porter à ébullition" → "casserole" ; "mixer"/"mixez" → "mixeur" ; "fouetter" → "fouet" ; "mélanger dans un saladier" → "saladier".
+- Déduplique (un seul "four" même si mentionné 3 fois). Maximum ~8.
+- Tableau vide si rien d'exploitable.
 
 Appelle save_recipe_sheet.`,
           },
@@ -384,5 +416,33 @@ Appelle save_recipe_sheet.`,
           .filter(Boolean)
       : [],
     ingredients,
+    // Étapes : on retire une éventuelle numérotation de tête laissée par
+    // le modèle ("1.", "Étape 2 :", "- ", "• ") — l'ordre du tableau fait foi.
+    preparationSteps: Array.isArray(input.preparationSteps)
+      ? (input.preparationSteps as unknown[])
+          .filter((s): s is string => typeof s === 'string')
+          .map((s) =>
+            s
+              .trim()
+              .replace(
+                /^\s*(?:\d+\s*[.)°:-]\s*|étape\s*\d+\s*[:.)-]?\s*|[-–•*]\s*)/i,
+                '',
+              )
+              .trim(),
+          )
+          .filter(Boolean)
+      : [],
+    // Ustensiles : trim + minuscule + dédup (la slugification finale et
+    // l'upsert catalogue se font à la sauvegarde via lib/utensils).
+    utensils: Array.isArray(input.utensils)
+      ? Array.from(
+          new Set(
+            (input.utensils as unknown[])
+              .filter((u): u is string => typeof u === 'string')
+              .map((u) => u.trim().toLowerCase())
+              .filter(Boolean),
+          ),
+        )
+      : [],
   };
 }
