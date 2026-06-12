@@ -112,13 +112,40 @@ export async function resolveUnitWeights(
     if (!uniqueById.has(it.ciqualId)) uniqueById.set(it.ciqualId, it.ciqualName);
   }
 
-  for (const [ciqualId, name] of uniqueById) {
-    const w = await resolveUnitWeight(ciqualId, name);
-    if (typeof w === 'number') out.set(ciqualId, w);
-    // Throttle : 1 req/s strict pour Mistral free tier.
-    // Si le lookup BDD a évité Mistral, ce sleep est superflu mais
-    // pas mesurable (sleep court).
-    await new Promise((r) => setTimeout(r, 1100));
+  // 1) BULK lookup BDD en 1 query (au lieu de N selects séquentiels).
+  // Fix perf 2026-06-12 : avant cette optim, on faisait sleep(1100) entre
+  // CHAQUE ingrédient même quand le poids était en cache → ~11s pour
+  // 10 ingrédients connus, tous gratuits. Maintenant : 0s sur cache hits.
+  const ids = [...uniqueById.keys()];
+  const { data } = await supa()
+    .from('ciqual_foods')
+    .select('id, avg_unit_weight_g')
+    .in('id', ids);
+  const cachedById = new Map<number, number | null>();
+  for (const row of (data ?? []) as Array<{
+    id: number;
+    avg_unit_weight_g: number | null;
+  }>) {
+    const w = row.avg_unit_weight_g;
+    if (typeof w === 'number') {
+      cachedById.set(Number(row.id), w === NULL_SENTINEL ? null : w);
+    }
+  }
+  for (const [id, value] of cachedById) {
+    if (value !== null) out.set(id, value);
+  }
+
+  // 2) Pour ce qui n'est pas en cache : appel Mistral séquentiel avec
+  // sleep 1100ms entre 2 appels uniquement (free tier 1 req/s strict).
+  const unknownIds = ids.filter((id) => !cachedById.has(id));
+  for (let i = 0; i < unknownIds.length; i++) {
+    const id = unknownIds[i];
+    const name = uniqueById.get(id)!;
+    const w = await resolveUnitWeight(id, name);
+    if (typeof w === 'number') out.set(id, w);
+    if (i < unknownIds.length - 1) {
+      await new Promise((r) => setTimeout(r, 1100));
+    }
   }
   return out;
 }

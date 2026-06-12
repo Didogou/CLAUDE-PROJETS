@@ -1,21 +1,29 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
-// V1 anonyme : on incrémente le compteur sans vérifier l'identité.
-// Rate-limiting basique côté client via localStorage (pas robuste mais limite le spam).
-// V2 : passera par une table recipe_likes(user_id, recipe_id) quand les abonnés
-// auront un compte, avec contrainte unique pour empêcher les doubles likes.
+// V1 anonyme : pas d'auth (les visiteurs peuvent liker).
+// Rate-limit par IP 20/min : suffit pour un usage humain légitime
+// (cliquer 10-15 likes en parcourant /recettes) mais bloque le vandalisme
+// automatisé (curl en boucle qui pétait les compteurs avant 2026-06-12).
+// V2 : table recipe_likes(user_id, recipe_id) avec contrainte unique.
+
+const RATE = { windowMs: 60_000, max: 20 };
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   ctx: { params: Promise<{ slug: string }> },
 ) {
+  const rl = checkRateLimit({ req: request, key: 'like-recipe', ...RATE });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: rl.error },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    );
+  }
   try {
     const { slug } = await ctx.params;
     const supabase = createServiceClient();
-
-    // increment atomique via RPC ou via select+update. Pas de RPC ici → on fait
-    // une lecture puis update. Course possible mais V1 acceptable.
     const { data: current, error: readErr } = await supabase
       .from('recipes')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -37,24 +45,28 @@ export async function POST(
 
     return NextResponse.json({ likes: next });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[recipes/like POST]', e);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
 
 /**
  * DELETE /api/recipes/[slug]/like — décrémente le compteur (clamp à 0).
- * V1 anonyme : le client est responsable de ne décrémenter qu'après
- * avoir liké (cf. localStorage karine.liked-recipes.v1).
  */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   ctx: { params: Promise<{ slug: string }> },
 ) {
+  const rl = checkRateLimit({ req: request, key: 'like-recipe', ...RATE });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: rl.error },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    );
+  }
   try {
     const { slug } = await ctx.params;
     const supabase = createServiceClient();
-
     const { data: current, error: readErr } = await supabase
       .from('recipes')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,7 +88,7 @@ export async function DELETE(
 
     return NextResponse.json({ likes: next });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[recipes/like DELETE]', e);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

@@ -1,26 +1,30 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
+
+// V1 anonyme + rate-limit IP 20/min (anti-vandalisme 2026-06-12).
+const RATE = { windowMs: 60_000, max: 20 };
 
 /**
- * POST /api/meals/[id]/like
- *
- * V1 anonyme : incrémente likes_count sur menu_meal_sheets.
- * Garde-fou anti-spam côté client via localStorage (cf. RecipeCard).
- * V2 : table dédiée meal_sheet_likes(user_id, meal_sheet_id) avec
- * contrainte unique quand les abonnés auront un compte.
+ * POST /api/meals/[id]/like — increment likes_count sur menu_meal_sheets.
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const rl = checkRateLimit({ req: request, key: 'like-meal', ...RATE });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: rl.error },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    );
+  }
   try {
     const { id } = await ctx.params;
     if (!id || typeof id !== 'string') {
       return NextResponse.json({ error: 'id invalide' }, { status: 400 });
     }
     const supabase = createServiceClient();
-
-    // Read + update (pas de RPC pour rester simple V1). Course possible.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: current, error: readErr } = await (supabase as any)
       .from('menu_meal_sheets')
@@ -28,9 +32,7 @@ export async function POST(
       .eq('id', id)
       .maybeSingle();
     if (readErr) throw readErr;
-    if (!current) {
-      return NextResponse.json({ error: 'Repas introuvable' }, { status: 404 });
-    }
+    if (!current) return NextResponse.json({ error: 'Repas introuvable' }, { status: 404 });
 
     const prev = (current as { likes_count?: number | null }).likes_count ?? 0;
     const next = prev + 1;
@@ -44,29 +46,28 @@ export async function POST(
 
     return NextResponse.json({ likes: next });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[meals/like POST]', e);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
 
-/**
- * DELETE /api/meals/[id]/like
- *
- * Décrémente likes_count (clamp à 0). V1 anonyme : le serveur ne
- * peut pas vérifier que c'est BIEN l'utilisateur qui avait liké
- * précédemment, on fait confiance au client (localStorage anti-spam).
- */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   ctx: { params: Promise<{ id: string }> },
 ) {
+  const rl = checkRateLimit({ req: request, key: 'like-meal', ...RATE });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: rl.error },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    );
+  }
   try {
     const { id } = await ctx.params;
     if (!id || typeof id !== 'string') {
       return NextResponse.json({ error: 'id invalide' }, { status: 400 });
     }
     const supabase = createServiceClient();
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: current, error: readErr } = await (supabase as any)
       .from('menu_meal_sheets')
@@ -74,9 +75,7 @@ export async function DELETE(
       .eq('id', id)
       .maybeSingle();
     if (readErr) throw readErr;
-    if (!current) {
-      return NextResponse.json({ error: 'Repas introuvable' }, { status: 404 });
-    }
+    if (!current) return NextResponse.json({ error: 'Repas introuvable' }, { status: 404 });
 
     const prev = (current as { likes_count?: number | null }).likes_count ?? 0;
     const next = Math.max(0, prev - 1);
@@ -90,7 +89,7 @@ export async function DELETE(
 
     return NextResponse.json({ likes: next });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[meals/like DELETE]', e);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

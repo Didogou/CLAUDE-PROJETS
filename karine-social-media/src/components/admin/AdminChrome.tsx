@@ -54,6 +54,7 @@ const SECTIONS: Section[] = [
   { href: '/admin/recettes', label: 'Recettes', icon: ChefHat },
   { href: '/admin/recettes/nutriscore', label: 'Nutri-Score', icon: Award },
   { href: '/admin/labels', label: 'Labels diététiques', icon: Shield },
+  { href: '/admin/recipes-meal-test', label: 'Test analyse repas', icon: FlaskConical },
   {
     label: 'Ciqual',
     icon: Database,

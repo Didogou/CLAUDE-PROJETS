@@ -1,15 +1,24 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
+import { checkRateLimit } from '@/lib/rate-limit';
 
-// V1 anonyme : +1 sur likes_count (idem recettes).
+// V1 anonyme + rate-limit IP 20/min (anti-vandalisme 2026-06-12).
+const RATE = { windowMs: 60_000, max: 20 };
+
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   ctx: { params: Promise<{ slug: string }> },
 ) {
+  const rl = checkRateLimit({ req: request, key: 'like-advice', ...RATE });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: rl.error },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    );
+  }
   try {
     const { slug } = await ctx.params;
     const supabase = createServiceClient();
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: current, error: readErr } = await (supabase as any)
       .from('health_advice')
@@ -31,20 +40,25 @@ export async function POST(
 
     return NextResponse.json({ likes: next });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[advice/like POST]', e);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
 
-/** DELETE = unlike (clamp à 0). Cohérence règle globale toggle. */
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   ctx: { params: Promise<{ slug: string }> },
 ) {
+  const rl = checkRateLimit({ req: request, key: 'like-advice', ...RATE });
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: rl.error },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    );
+  }
   try {
     const { slug } = await ctx.params;
     const supabase = createServiceClient();
-
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: current, error: readErr } = await (supabase as any)
       .from('health_advice')
@@ -66,7 +80,7 @@ export async function DELETE(
 
     return NextResponse.json({ likes: next });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[advice/like DELETE]', e);
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
