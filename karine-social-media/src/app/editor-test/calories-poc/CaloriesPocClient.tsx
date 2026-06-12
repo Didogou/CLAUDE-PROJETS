@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Copy, Download, RotateCcw, Smartphone, Monitor, User } from 'lucide-react';
+import { ConfirmModal } from '@/components/admin/ConfirmModal';
+import { showToast } from '@/lib/toast';
 
 /**
  * POC editor /editor-test/calories-poc — outil de positionnement
@@ -83,6 +85,7 @@ export function CaloriesPocClient() {
   const [elements, setElements] = useState<Record<Device, Element[]>>(DEFAULT_ELEMENTS);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   // Charge depuis localStorage au mount
   useEffect(() => {
@@ -113,13 +116,13 @@ export function CaloriesPocClient() {
   }
 
   function reset() {
-    if (!confirm('Réinitialiser les positions par défaut ?')) return;
-    setElements(DEFAULT_ELEMENTS);
+    // Règle projet ⛔ : pas de window.confirm/alert. ConfirmModal thémé.
+    setConfirmReset(true);
   }
 
   function copyJson() {
     navigator.clipboard.writeText(JSON.stringify(elements, null, 2));
-    alert('JSON copié dans le presse-papier');
+    showToast('JSON copié dans le presse-papier ✓');
   }
 
   const currentElements = elements[device];
@@ -291,6 +294,20 @@ export function CaloriesPocClient() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmReset}
+        title="Réinitialiser ?"
+        message="Les positions reviennent à leurs valeurs par défaut. Ta config en cours sera perdue."
+        confirmLabel="Réinitialiser"
+        cancelLabel="Annuler"
+        variant="danger"
+        onConfirm={() => {
+          setElements(DEFAULT_ELEMENTS);
+          setConfirmReset(false);
+        }}
+        onCancel={() => setConfirmReset(false)}
+      />
     </div>
   );
 }

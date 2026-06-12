@@ -242,11 +242,9 @@ function SheetsDrawer({
       aria-modal="true"
       aria-label={`Fiches de ${recipe.title}`}
       className="fixed inset-0 z-[80] flex items-end justify-center bg-black/50 p-0 md:items-center md:p-4"
-      onClick={onClose}
     >
       <div
         className="anim-slide-up flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl md:max-h-[80vh] md:rounded-3xl"
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <header className="flex items-start justify-between gap-3 border-b border-admin-border px-5 py-3">

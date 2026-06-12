@@ -3442,10 +3442,8 @@ function EntryEditModal({
       className="anim-fade-in fixed inset-0 z-[80] flex items-end justify-center bg-black/40 backdrop-blur-sm md:items-center"
       role="dialog"
       aria-modal="true"
-      onClick={onClose}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         className="anim-slide-up w-full max-w-sm space-y-4 rounded-t-3xl bg-white p-5 shadow-2xl md:rounded-3xl"
       >
         <div className="flex items-center justify-between">

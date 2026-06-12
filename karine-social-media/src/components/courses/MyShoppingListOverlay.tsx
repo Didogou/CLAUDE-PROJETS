@@ -253,9 +253,9 @@ export function MyShoppingListOverlay({ onClose }: Props) {
       role="dialog"
       aria-modal="true"
       aria-label="Ma liste de courses"
-      // Click extérieur ferme l'overlay SAUF si la modal de confirmation
-      // est ouverte (volonté Didier : pas de fermeture accidentelle).
-      onClick={confirmClearOpen ? undefined : onClose}
+      // Règle projet ⛔ : pas de fermeture backdrop. Karine coche des
+      // items en cours — un tap accidentel ne doit jamais fermer.
+      // Utiliser le bouton X dans le header.
     >
       <div
         onClick={(e) => e.stopPropagation()}

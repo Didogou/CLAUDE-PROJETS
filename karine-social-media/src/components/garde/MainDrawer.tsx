@@ -83,7 +83,6 @@ export function MainDrawer({
           ? 'pointer-events-auto bg-black/40'
           : 'pointer-events-none bg-transparent'
       }`}
-      onClick={() => setOpen(false)}
       role="dialog"
       aria-modal="true"
       aria-label="Menu principal"

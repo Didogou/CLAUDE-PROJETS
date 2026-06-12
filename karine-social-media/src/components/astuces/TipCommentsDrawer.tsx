@@ -180,12 +180,13 @@ export function TipCommentsDrawer({
       aria-modal="true"
       aria-label={`Commentaires — ${tipLabel}`}
     >
-      {/* backdrop */}
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Fermer"
-        className="absolute inset-0 cursor-default bg-black/40"
+      {/* Backdrop — décoratif uniquement. Règle projet ⛔ : pas de
+          fermeture au clic backdrop (Karine peut être en train de rédiger
+          un avis avec photos, tap accidentel = tout perdu). Utiliser le
+          bouton X dans le header ou Escape. */}
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-black/40"
       />
       {/* panel */}
       <aside
