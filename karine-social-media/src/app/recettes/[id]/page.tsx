@@ -16,7 +16,6 @@ import {
   quickMatchCiqual,
   type CiqualFoodLite,
 } from '@/lib/nutriscore-aggregate';
-import { searchCiqualFoods } from '@/lib/ciqual';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 export const dynamic = 'force-dynamic';
@@ -80,61 +79,39 @@ export default async function RecipeDetailPage({
   }
   let ciqualByIdEntries: Array<[number, CiqualFoodLite]> = [];
   const supa = createServiceClient() as any;
-
-  // Stratégie 2026-06-12 (audit perf B #2) :
-  // Avant : si UN seul ingrédient était unlinked, on téléchargeait TOUTE
-  // la Ciqual (4 round-trips, ~600 KB JSON parsé) → +1-3s de TTFB.
-  // Maintenant : pour chaque label unlinked, on appelle searchCiqualFoods
-  // (RPC qui exploite l'index GIN trigram) en parallèle, max 10 candidats
-  // par label. Puis on collecte tous les ids candidats + linkedIds et on
-  // fait UNE seule query `.in(ids)` pour récupérer les rows complètes
-  // avec avg_unit_weight_g (nécessaire à la modale Détail nutritionnel).
   if (hasUnlinkedIngredients) {
-    // Collecte les labels unlinked
-    const unlinkedLabels: string[] = [];
-    for (const sheet of recipe.sheets) {
-      for (const ing of sheet.ingredients) {
-        if (typeof ing.ciqual_food_id === 'number') continue;
-        if (typeof ing.quantity !== 'number' || ing.quantity <= 0) continue;
-        unlinkedLabels.push(ing.label);
-      }
-    }
-    // RPC search en parallèle pour les unlinked
-    const searchResults = await Promise.all(
-      unlinkedLabels.map((label) =>
-        searchCiqualFoods(label, 10).catch(() => []),
-      ),
-    );
-    // Collecte tous les ids candidats (search) + linked
-    const allIds = new Set<number>(linkedCiqualIds);
-    for (const r of searchResults) {
-      for (const cand of r) allIds.add(cand.id);
-    }
-    if (allIds.size > 0) {
-      // UNE query pour les Lite avec tous les champs nécessaires
-      const { data } = await supa
+    // Fetch complet Ciqual (paginé, PostgREST max 1000/req) pour pouvoir
+    // matcher en mémoire les ingrédients sans lien.
+    const ciqualAll: CiqualFoodLite[] = [];
+    for (let offset = 0; offset < 10000; offset += 1000) {
+      const { data: page } = await supa
         .from('ciqual_foods')
         .select(
           'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
         )
-        .in('id', Array.from(allIds));
-      const pool = (data ?? []) as CiqualFoodLite[];
-      const collected = new Map<number, CiqualFoodLite>();
-      // Garde les liens explicites
-      for (const c of pool) {
-        if (linkedCiqualIds.has(c.id)) collected.set(c.id, c);
-      }
-      // Match orphelins sur le pool restreint
-      for (const sheet of recipe.sheets) {
-        for (const ing of sheet.ingredients) {
-          if (typeof ing.ciqual_food_id === 'number') continue;
-          if (typeof ing.quantity !== 'number' || ing.quantity <= 0) continue;
-          const m = quickMatchCiqual(ing.label, pool);
-          if (m && !collected.has(m.id)) collected.set(m.id, m);
-        }
-      }
-      ciqualByIdEntries = Array.from(collected.entries());
+        .order('id', { ascending: true })
+        .range(offset, offset + 999);
+      const arr = (page ?? []) as CiqualFoodLite[];
+      if (arr.length === 0) break;
+      ciqualAll.push(...arr);
+      if (arr.length < 1000) break;
     }
+    const collected = new Map<number, CiqualFoodLite>();
+    // Garde tous les liens explicites
+    for (const id of linkedCiqualIds) {
+      const c = ciqualAll.find((f) => f.id === id);
+      if (c) collected.set(id, c);
+    }
+    // Match auto pour les orphelins
+    for (const sheet of recipe.sheets) {
+      for (const ing of sheet.ingredients) {
+        if (typeof ing.ciqual_food_id === 'number') continue;
+        if (typeof ing.quantity !== 'number' || ing.quantity <= 0) continue;
+        const m = quickMatchCiqual(ing.label, ciqualAll);
+        if (m && !collected.has(m.id)) collected.set(m.id, m);
+      }
+    }
+    ciqualByIdEntries = Array.from(collected.entries());
   } else if (linkedCiqualIds.size > 0) {
     const { data } = await supa
       .from('ciqual_foods')
