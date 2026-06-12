@@ -7,6 +7,7 @@ import {
   fetchCiqualForIngredients,
 } from '@/lib/recipe-macros';
 import { upsertUtensils } from '@/lib/utensils';
+import { revalidateRecipes } from '@/lib/cached-content';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -150,6 +151,7 @@ export async function PATCH(
       await persistNutriscoreForSheet(sheetId);
     }
 
+    revalidateRecipes();
     return NextResponse.json({ ok: true, sheet: data });
   } catch (e) {
     const message = 'Erreur serveur';
@@ -195,6 +197,7 @@ export async function DELETE(
       }
     }
 
+    revalidateRecipes();
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = 'Erreur serveur';

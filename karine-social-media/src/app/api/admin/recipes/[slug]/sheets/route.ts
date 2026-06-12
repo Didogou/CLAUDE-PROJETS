@@ -7,6 +7,7 @@ import {
   fetchCiqualForIngredients,
 } from '@/lib/recipe-macros';
 import { upsertUtensils } from '@/lib/utensils';
+import { revalidateRecipes } from '@/lib/cached-content';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -160,6 +161,7 @@ export async function POST(
       }
     }
 
+    revalidateRecipes();
     return NextResponse.json({ ok: true, sheet: sheetData });
   } catch (e) {
     console.error('[admin/recipes sheets POST] error:', e);

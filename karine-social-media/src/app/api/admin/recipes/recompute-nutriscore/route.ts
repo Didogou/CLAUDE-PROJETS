@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { persistNutriscoreForSheet } from '@/lib/nutriscore-persist';
+import { revalidateRecipes } from '@/lib/cached-content';
 
 export const runtime = 'nodejs';
 // 5 min max : assez pour 30-50 sheets avec auto-link Ciqual cached
@@ -233,6 +234,12 @@ export async function POST(request: NextRequest) {
 
   const changedCount = results.filter((r) => r.changed).length;
   const errorCount = results.filter((r) => r.error).length;
+
+  // Invalide le cache uniquement si on a vraiment écrit (pas dry-run)
+  // ET au moins une fiche a changé.
+  if (!dryRun && changedCount > 0) {
+    revalidateRecipes();
+  }
 
   return NextResponse.json({
     dryRun,
