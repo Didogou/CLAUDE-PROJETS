@@ -78,10 +78,15 @@ const COLUMN_HINTS = {
 };
 
 function normalize(s: string): string {
+  // Ciqual 2025 utilise des sauts de ligne \r\n et tabulations DANS les
+  // titres de colonnes (ex: "AG\r\nsaturés\r\n(g\r\n100 g)"). Sans
+  // normaliser ces whitespaces vers de l'espace simple, les hints
+  // (.includes('ag satures')) ne matchent pas.
   return s
     .toLowerCase()
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ') // \r \n \t multi-espaces → 1 espace
     .trim();
 }
 
