@@ -295,7 +295,8 @@
       "WebFetch(domain:www.afdiag.fr)",
       "WebFetch(domain:because-gus.com)",
       "WebFetch(domain:laroutedelaforme.fr)",
-      "Bash(grep -n \"^}$\\\\|return null\\\\|return \\(\" src/app/editor-test/calories-poc/CaloriesPocClient.tsx)"
+      "Bash(grep -n \"^}$\\\\|return null\\\\|return \\(\" src/app/editor-test/calories-poc/CaloriesPocClient.tsx)",
+      "Bash(node scripts/sweep-safe-error.mjs)"
     ],
     "additionalDirectories": [
       "\\tmp",

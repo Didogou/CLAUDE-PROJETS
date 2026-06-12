@@ -55,7 +55,7 @@ export async function POST(
     });
   } catch (e) {
     console.error('[admin/recipes sheets/preview] error:', e);
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

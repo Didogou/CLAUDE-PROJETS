@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import crypto from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/server';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -22,8 +23,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
     }
     console.warn('[cron/purge-page-views] CRON_SECRET absent (DEV ONLY)');
-  } else if (authHeader !== `Bearer ${expected}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  } else {
+    // Comparaison timing-safe (audit agent A 2026-06-12).
+    const provided = Buffer.from(authHeader ?? '', 'utf8');
+    const compare = Buffer.from(`Bearer ${expected}`, 'utf8');
+    const ok =
+      provided.length === compare.length &&
+      crypto.timingSafeEqual(provided, compare);
+    if (!ok) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {

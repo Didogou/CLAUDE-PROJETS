@@ -118,7 +118,7 @@ export async function POST(
     return NextResponse.json({ ok: true, sheet: data });
   } catch (e) {
     console.error('[admin/menus meal-sheet POST] error:', e);
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -176,7 +176,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

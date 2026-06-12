@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
       results.push({
         sheetId: sId,
         before: beforeSnap,
-        error: e instanceof Error ? e.message : 'Erreur inconnue',
+        error: 'Erreur serveur',
       });
     }
   }

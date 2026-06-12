@@ -269,7 +269,7 @@ ${
         : null;
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Mistral indisponible' },
+      { error: 'Erreur serveur' },
       { status: 502 },
     );
   }

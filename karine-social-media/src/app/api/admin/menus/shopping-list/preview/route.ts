@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (e) {
     console.error('[admin/menus shopping-list/preview] error:', e);
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

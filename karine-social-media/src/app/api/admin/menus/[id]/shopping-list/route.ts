@@ -77,7 +77,7 @@ export async function PUT(
     return NextResponse.json({ ok: true, portions, items });
   } catch (e) {
     console.error('[admin/menus shopping-list] error:', e);
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

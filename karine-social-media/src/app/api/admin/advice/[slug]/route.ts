@@ -66,7 +66,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -93,7 +93,7 @@ export async function DELETE(
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

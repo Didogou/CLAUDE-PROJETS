@@ -39,7 +39,7 @@ export async function PATCH(request: NextRequest) {
     if (error) throw error;
     return NextResponse.json({ ok: true, householdSize: value });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

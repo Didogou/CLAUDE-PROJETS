@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   try {
     form = await request.formData();
   } catch (e) {
-    const msg = e instanceof Error ? e.message : '';
+    const msg = 'Erreur serveur';
     return NextResponse.json(
       {
         error: /failed to parse|body|size/i.test(msg)
@@ -130,7 +130,7 @@ export async function POST(request: NextRequest) {
         results.push({
           ok: false,
           fileName: file.name,
-          error: e instanceof Error ? e.message : 'Erreur',
+          error: 'Erreur serveur',
         });
       }
     }
@@ -138,7 +138,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ sheets: results });
   } catch (e) {
     console.error('[admin/recipes sheets-preview-bulk] error:', e);
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -37,8 +37,11 @@ export async function POST(request: NextRequest) {
   try {
     event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Signature invalide';
-    return NextResponse.json({ error: message }, { status: 400 });
+    // Ne jamais retourner le message Stripe brut au client : il leak
+    // des infos sur la version SDK, hashes payload, timestamps. Log
+    // côté serveur uniquement. Constante côté client.
+    console.error('[stripe webhook] signature verification failed', err);
+    return NextResponse.json({ error: 'Signature invalide' }, { status: 400 });
   }
 
   const supabase = createServiceClient();

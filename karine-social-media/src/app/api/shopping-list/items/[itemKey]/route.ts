@@ -51,7 +51,7 @@ export async function PATCH(
     const list = await toggleItemChecked(auth.user.id, decoded);
     return NextResponse.json({ list });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -69,7 +69,7 @@ export async function DELETE(
     const list = await removeItem(auth.user.id, decoded);
     return NextResponse.json({ list });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

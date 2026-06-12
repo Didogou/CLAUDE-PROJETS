@@ -10,7 +10,7 @@ export async function GET() {
     const lists = await getArchivedLists(auth.user.id);
     return NextResponse.json({ lists });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

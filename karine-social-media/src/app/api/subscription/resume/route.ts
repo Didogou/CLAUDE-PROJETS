@@ -59,7 +59,7 @@ export async function POST(_request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

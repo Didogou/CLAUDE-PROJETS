@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     const newList = await archiveActiveList(auth.user.id, finalName);
     return NextResponse.json({ list: newList });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import crypto from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/server';
 import { callMistralJson } from '@/lib/mistral';
 
@@ -30,8 +31,17 @@ export async function GET(request: NextRequest) {
     }
     // En dev local : on accepte pour les tests manuels mais on log.
     console.warn('[cron/daily-summary] CRON_SECRET absent en dev — endpoint ouvert (DEV ONLY)');
-  } else if (authHeader !== `Bearer ${expected}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  } else {
+    // Comparaison timing-safe : éviter de leaker des bits du secret
+    // via le temps d'exécution (audit agent A 2026-06-12).
+    const provided = Buffer.from(authHeader ?? '', 'utf8');
+    const compare = Buffer.from(`Bearer ${expected}`, 'utf8');
+    const ok =
+      provided.length === compare.length &&
+      crypto.timingSafeEqual(provided, compare);
+    if (!ok) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   // Heure courante Europe/Paris (l app cible des abonnees FR).

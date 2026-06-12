@@ -103,7 +103,11 @@ export async function searchCiqualFoods(
 
   const searchTokens = tokens.length > 0 ? tokens : [q.toLowerCase()];
   const POOL = 60;
-  const qNorm = normalize(q);
+  // Sanitize qNorm pour PostgREST `.or()` : retire les caractères qui
+  // cassent le parser de filtres (virgule, parenthèses, deux-points,
+  // wildcards LIKE %, _, *, anti-slash). Garde lettres unicode, chiffres,
+  // espace, apostrophe, tiret. Fix audit agent C 2026-06-12.
+  const qNorm = normalize(q).replace(/[^\p{L}\p{N}\s'-]/gu, '');
 
   // === Recherche en parallèle dans 2 sources ===
   //  (1) RPC search_ciqual_foods : matche les tokens contre name/group/subgroup

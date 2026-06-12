@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
     raw = res.content;
   } catch (e) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : 'Mistral error' },
+      { error: 'Erreur serveur' },
       { status: 502 },
     );
   }

@@ -404,7 +404,7 @@ export async function POST(request: NextRequest) {
     });
     parsed = JSON.parse(result.content) as { items?: MistralItem[] };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erreur Mistral';
+    const msg = 'Erreur serveur';
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 

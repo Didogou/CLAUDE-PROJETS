@@ -10,7 +10,7 @@ export async function GET() {
     const settings = await getAppSettings();
     return NextResponse.json({ settings });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -87,7 +87,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

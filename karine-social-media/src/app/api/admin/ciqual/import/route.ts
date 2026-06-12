@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
     parsed = parseCiqualXlsx(buffer);
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Parsing XLSX impossible';
+    const msg = 'Erreur serveur';
     return NextResponse.json({ error: msg }, { status: 422 });
   }
 

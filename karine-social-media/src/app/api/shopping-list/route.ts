@@ -13,7 +13,7 @@ export async function GET() {
     const list = await getOrCreateActiveList(auth.user.id);
     return NextResponse.json({ list, householdSize: auth.user.householdSize });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -31,7 +31,7 @@ export async function PATCH(request: NextRequest) {
     const list = await renameActiveList(auth.user.id, name);
     return NextResponse.json({ list });
   } catch (e) {
-    const message = e instanceof Error ? e.message : 'Erreur inconnue';
+    const message = 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
