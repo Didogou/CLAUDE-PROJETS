@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { optimizeUploadToWebp } from '@/lib/optimize-upload';
+import { revalidateAdvice } from '@/lib/cached-content';
 
 const BUCKET = 'content-images';
 
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest) {
     const { error } = await (supabase as any).from('health_advice').insert(insertPayload);
     if (error) throw error;
 
+    revalidateAdvice();
     return NextResponse.json({ ok: true, slug });
   } catch (e) {
     const message = 'Erreur serveur';

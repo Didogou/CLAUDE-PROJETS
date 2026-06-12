@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { revalidateMenus } from '@/lib/cached-content';
 import type { ShoppingListItem } from '@/data/menus';
 
 const BUCKET = 'content-images';
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
     const { error: dErr } = await (supabase.from('weekly_menu_days' as any) as any).insert(dayInserts);
     if (dErr) throw dErr;
 
+    revalidateMenus();
     return NextResponse.json({ ok: true, id: menu.id });
   } catch (e) {
     const message = 'Erreur serveur';

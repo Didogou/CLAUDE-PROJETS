@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { revalidateAdvice } from '@/lib/cached-content';
 
 const BUCKET = 'content-images';
 
@@ -64,6 +65,7 @@ export async function PATCH(
     const { error } = await (supabase as any).from('health_advice').update(update).eq('slug', slug);
     if (error) throw error;
 
+    revalidateAdvice();
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = 'Erreur serveur';
@@ -91,6 +93,7 @@ export async function DELETE(
     const { error } = await (supabase as any).from('health_advice').delete().eq('slug', slug);
     if (error) throw error;
 
+    revalidateAdvice();
     return NextResponse.json({ ok: true });
   } catch (e) {
     const message = 'Erreur serveur';

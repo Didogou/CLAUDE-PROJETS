@@ -64,16 +64,14 @@ export const MOCK_RECIPE: CookRecipe = {
     {
       title: 'Préparer les ingrédients',
       utensils: [U.planche, U.couteau, U.saladier],
+      // Seulement les ingrédients de CETTE étape (pas toute la recette) :
+      // une personne qui cuisine doit tout voir sans scroller.
       ingredients: [
         { label: 'poivrons rouges', quantity: 4, unit: null, note: null, emoji: '🫑' },
-        { label: 'thon au naturel', quantity: 120, unit: 'g', note: 'égoutté', emoji: '🐟' },
         { label: 'tomates cerises', quantity: 250, unit: 'g', note: null, emoji: '🍅' },
-        { label: 'feta', quantity: 100, unit: 'g', note: null, emoji: '🧀' },
-        { label: 'boulgour', quantity: 150, unit: 'g', note: 'cru', emoji: '🌾' },
-        { label: "huile d'olive", quantity: 1, unit: 'c. à soupe', note: null, emoji: '🫒' },
       ],
       action: 'Découper les poivrons en deux et les évider',
-      detail: 'Rince et coupe les tomates cerises en deux pendant que tu y es.',
+      detail: 'Coupe aussi les tomates cerises en deux.',
     },
     {
       title: 'Cuire le boulgour',

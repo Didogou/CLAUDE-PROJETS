@@ -7,6 +7,7 @@ import {
   deleteFeaturedPhoto,
   updateFeaturedPhoto,
 } from '@/lib/featured-photos';
+import { revalidateFeaturedPhotos } from '@/lib/cached-content';
 
 export const runtime = 'nodejs';
 
@@ -88,6 +89,7 @@ export async function POST(req: Request) {
   if (!created.ok) {
     return NextResponse.json({ error: created.reason }, { status: 500 });
   }
+  revalidateFeaturedPhotos();
   return NextResponse.json({ ok: true, photo: created.photo });
 }
 
@@ -127,6 +129,7 @@ export async function PATCH(req: Request) {
 
   const r = await updateFeaturedPhoto({ id, patch });
   if (!r.ok) return NextResponse.json({ error: r.reason }, { status: 500 });
+  revalidateFeaturedPhotos();
   return NextResponse.json({ ok: true });
 }
 
@@ -143,5 +146,6 @@ export async function DELETE(req: Request) {
   }
   const r = await deleteFeaturedPhoto(id);
   if (!r.ok) return NextResponse.json({ error: r.reason }, { status: 500 });
+  revalidateFeaturedPhotos();
   return NextResponse.json({ ok: true });
 }

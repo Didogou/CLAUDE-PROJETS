@@ -143,8 +143,14 @@ function StepScreen({
         </div>
       </header>
 
-      {/* Contenu — keyé sur l'index pour rejouer le reveal "un à un" */}
-      <div key={index} className="flex-1 space-y-6 overflow-y-auto px-5 pb-5 pt-4">
+      {/* Contenu — keyé sur l'index pour rejouer le reveal "un à un".
+          Conçu pour tenir SANS scroll (mains sales = pas de scroll) :
+          chaque étape ne montre que ses propres ingrédients. overflow-y-auto
+          = filet de sécurité sur très petits écrans, pas le cas nominal. */}
+      <div
+        key={index}
+        className="flex min-h-0 flex-1 flex-col justify-start gap-5 overflow-y-auto px-5 pb-4 pt-3"
+      >
         {/* Ustensiles */}
         {step.utensils.length > 0 && (
           <section>
@@ -167,9 +173,9 @@ function StepScreen({
         )}
 
         {/* Titre de l'étape (gros script) */}
-        <h2 className="cook-rise flex items-center justify-center gap-2 text-center font-script text-4xl leading-tight text-coral">
+        <h2 className="cook-rise flex items-center justify-center gap-2 text-center font-script text-3xl leading-tight text-coral">
           {step.title}
-          <Heart className="h-5 w-5 shrink-0 text-coral-soft" fill="currentColor" />
+          <Heart className="h-4 w-4 shrink-0 text-coral-soft" fill="currentColor" />
         </h2>
 
         {/* Ingrédients */}

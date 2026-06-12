@@ -299,7 +299,10 @@
       "Bash(node scripts/sweep-safe-error.mjs)",
       "Bash(node scripts/inspect-ciqual.mjs \"C:/Users/didie/Downloads/Table Ciqual 2025_FR_2025_11_03 \\(2\\).xlsx\")",
       "Bash(ls src/app/editor-test/)",
-      "Bash(ls src/app/editor-test/layout.tsx)"
+      "Bash(ls src/app/editor-test/layout.tsx)",
+      "Read(//c/c/Users/didie/Documents/Projets/CLAUDE-PROJETS/**)",
+      "Read(//c/c/Users/didie/Documents/Projets/CLAUDE-PROJETS/ComfyUI/**)",
+      "Read(//c/c/Users/didie/Documents/Projets/CLAUDE-PROJETS/karine-social-media/**)"
     ],
     "additionalDirectories": [
       "\\tmp",

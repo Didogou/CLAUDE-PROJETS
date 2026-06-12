@@ -298,12 +298,6 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
           <h3 className="font-script text-2xl text-admin-primary-dark">
             📋 Fiches détaillées
           </h3>
-          <p className="mt-1 text-xs text-admin-ink-soft">
-            Chaque fiche est une recette à part entière. Upload une image de
-            fiche, Claude Vision Haiku 4.5 extrait tout (titre, calories,
-            temps, ingrédients, préparation, ustensiles, tags). Tu corriges,
-            tu enregistres.
-          </p>
         </div>
         {/* Rattrapage : recettes déjà uploadées avant l'extraction
             préparation/ustensiles. Confirm inline (réécrit les étapes). */}

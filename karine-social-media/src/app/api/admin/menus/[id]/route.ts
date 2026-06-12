@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
+import { revalidateMenus } from '@/lib/cached-content';
 
 const BUCKET = 'content-images';
 
@@ -126,6 +127,7 @@ export async function DELETE(
     const { error } = await (supabase.from('weekly_menus' as any) as any).delete().eq('id', id);
     if (error) throw error;
 
+    revalidateMenus();
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('[admin/menus PATCH/DELETE] error:', e);

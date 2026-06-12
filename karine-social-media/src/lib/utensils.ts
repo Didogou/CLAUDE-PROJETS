@@ -54,10 +54,11 @@ export function slugifyUtensil(label: string): string {
     .replace(/^-+|-+$/g, ''); // trim des tirets
 }
 
-/** Label d'affichage propre : trim + 1ʳᵉ lettre en minuscule (ex: "Four" → "four"). */
+/** Label d'affichage propre : trim + 1ʳᵉ lettre en MAJUSCULE (ex: "four" → "Four").
+ *  Le slug (clé) reste en minuscule via slugifyUtensil — seul l'affichage capitalise. */
 function cleanLabel(label: string): string {
   const t = label.trim().replace(/\s+/g, ' ');
-  return t.charAt(0).toLowerCase() + t.slice(1);
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 /**
