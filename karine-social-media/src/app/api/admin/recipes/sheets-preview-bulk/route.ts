@@ -86,6 +86,8 @@ export async function POST(request: NextRequest) {
           tags: string[];
           aliments: string[];
           ingredients: unknown[];
+          preparationSteps: unknown[];
+          utensils: string[];
         }
       | { ok: false; fileName: string; error: string }
     > = [];
@@ -125,6 +127,8 @@ export async function POST(request: NextRequest) {
           tags: extracted?.tags ?? [],
           aliments: extracted?.aliments ?? [],
           ingredients: extracted?.ingredients ?? [],
+          preparationSteps: extracted?.preparationSteps ?? [],
+          utensils: extracted?.utensils ?? [],
         });
       } catch (e) {
         results.push({

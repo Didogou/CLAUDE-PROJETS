@@ -3,6 +3,11 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { persistNutriscoreForSheet } from '@/lib/nutriscore-persist';
 import { revalidateRecipes } from '@/lib/cached-content';
+import {
+  upsertUtensils,
+  sanitizePreparationSteps,
+  collectUtensilLabels,
+} from '@/lib/utensils';
 import type { RecipeIngredient } from '@/data/recipes';
 
 const BUCKET = 'content-images';
@@ -46,6 +51,8 @@ type SheetPayload = {
   tags?: string[];
   aliments?: string[];
   ingredients?: RecipeIngredient[];
+  preparationSteps?: unknown;
+  utensils?: string[];
 };
 
 /**
@@ -255,6 +262,12 @@ export async function POST(request: NextRequest) {
     const insertedSheetIds: string[] = [];
     for (let i = 0; i < sheetsToInsert.length; i++) {
       const { payload, coverUrl: shCover } = sheetsToInsert[i];
+      // Préparation + ustensiles extraits par Vision dès la création
+      // (parité fiche menu) : upsert catalogue ustensiles puis persist.
+      const utensilSlugs = await upsertUtensils(
+        supabase,
+        collectUtensilLabels(payload.utensils, payload.preparationSteps),
+      );
       const sheetPayload = {
         recipe_id: recipeId,
         sheet_index: finalSheetIndices.get(i) ?? i,
@@ -268,6 +281,8 @@ export async function POST(request: NextRequest) {
         tags: stringArray(payload.tags),
         aliments: stringArray(payload.aliments),
         ingredients: sanitizeIngredients(payload.ingredients),
+        preparation_steps: sanitizePreparationSteps(payload.preparationSteps),
+        utensils: utensilSlugs,
       };
       const { data: insertedSheet, error: shErr } = await (supabase as any)
         .from('recipe_sheets')

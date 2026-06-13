@@ -61,6 +61,8 @@ export async function POST(request: NextRequest) {
       tags: extracted?.tags ?? [],
       aliments: extracted?.aliments ?? [],
       ingredients: extracted?.ingredients ?? [],
+      preparationSteps: extracted?.preparationSteps ?? [],
+      utensils: extracted?.utensils ?? [],
     });
   } catch (e) {
     console.error('[admin/recipes preview-main] error:', e);

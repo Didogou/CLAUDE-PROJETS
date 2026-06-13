@@ -15,8 +15,9 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import type { RecipeIngredient } from '@/data/recipes';
+import type { RecipeIngredient, PreparationStep } from '@/data/recipes';
 import { IngredientsChecklist } from './IngredientsChecklist';
+import { PreparationStepsEditor } from './PreparationStepsEditor';
 import { compressImage, compressMany } from '@/lib/compress-image';
 
 /* eslint-disable @next/next/no-img-element */
@@ -30,6 +31,8 @@ type ExtractedData = {
   tags: string[];
   aliments: string[];
   ingredients: RecipeIngredient[];
+  preparationSteps: PreparationStep[];
+  utensils: string[];
 };
 
 type MainData = ExtractedData & {
@@ -109,6 +112,8 @@ export function RecipeFormUnified() {
         tags: j.tags ?? [],
         aliments: j.aliments ?? [],
         ingredients: j.ingredients ?? [],
+        preparationSteps: j.preparationSteps ?? [],
+        utensils: j.utensils ?? [],
       };
       setMainData(data);
       // Pré-remplir le titre si Karine ne l'a pas déjà saisi
@@ -169,6 +174,8 @@ export function RecipeFormUnified() {
               tags: s.tags ?? [],
               aliments: s.aliments ?? [],
               ingredients: s.ingredients ?? [],
+              preparationSteps: s.preparationSteps ?? [],
+              utensils: s.utensils ?? [],
             });
           }
         }
@@ -215,6 +222,8 @@ export function RecipeFormUnified() {
               tags: mainData.tags,
               aliments: mainData.aliments,
               ingredients: mainData.ingredients,
+              preparationSteps: mainData.preparationSteps,
+              utensils: mainData.utensils,
             }
           : undefined;
 
@@ -240,6 +249,8 @@ export function RecipeFormUnified() {
             tags: s.tags,
             aliments: s.aliments,
             ingredients: s.ingredients,
+            preparationSteps: s.preparationSteps,
+            utensils: s.utensils,
           })),
         }),
       });
@@ -585,7 +596,7 @@ function SheetEditableForm({
         placeholder="Titre de la variante"
         className="input h-8 text-sm"
       />
-      <div className="grid gap-2 grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Stat label="Pers" value={data.servings} onChange={(v) => onChange({ servings: v })} />
         <Stat label="kcal" value={data.calories} onChange={(v) => onChange({ calories: v })} />
         <Stat label="Prep" value={data.prepTimeMin} onChange={(v) => onChange({ prepTimeMin: v })} suffix="min" />
@@ -596,6 +607,17 @@ function SheetEditableForm({
       <IngredientsChecklist
         ingredients={data.ingredients}
         onChange={(next) => onChange({ ingredients: next })}
+      />
+      {/* Étapes de préparation + ustensiles extraits par Vision (parité
+          fiche menu) — visibles et éditables dès la création. */}
+      <PreparationStepsEditor
+        steps={data.preparationSteps}
+        onChange={(next) => onChange({ preparationSteps: next })}
+      />
+      <CsvField
+        label="Ustensiles"
+        values={data.utensils}
+        onChange={(v) => onChange({ utensils: v })}
       />
     </div>
   );
