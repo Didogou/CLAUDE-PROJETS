@@ -6,7 +6,7 @@ export const metadata = { title: 'Politique de confidentialité — Karine Diét
 export default async function ConfidentialitePage() {
   const s = await getPublicLegalSettings();
   return (
-    <LegalLayout title="Politique de confidentialité" lastUpdated="9 juin 2026">
+    <LegalLayout title="Politique de confidentialité" lastUpdated="13 juin 2026">
       <p>
         La présente politique décrit la manière dont <Blank value={s.companyName} placeholder="NOM SOCIÉTÉ" />{' '}
         (« nous ») collecte, utilise et protège vos données personnelles dans
@@ -200,15 +200,23 @@ export default async function ConfidentialitePage() {
         auprès de la <strong>CNIL</strong> (cnil.fr).
       </p>
 
-      <h2>8. Cookies et traceurs</h2>
+      <h2>8. Cookies, traceurs et stockages locaux</h2>
       <p>
-        Le Service utilise les cookies et traceurs suivants&nbsp;:
+        Le Service utilise les cookies, traceurs et stockages côté navigateur
+        suivants&nbsp;:
       </p>
       <ul>
         <li>
           <strong>Cookies strictement nécessaires</strong> à l&apos;authentification
           et à la sécurité (Supabase Auth). Sans ces cookies, le Service ne peut
           fonctionner.
+        </li>
+        <li>
+          <strong>Service Worker</strong> (sw.js) — petit programme installé par
+          votre navigateur qui permet à l&apos;application de fonctionner en mode
+          hors-ligne partiel et de mettre en cache des ressources volumineuses
+          (cf. modèle vocal ci-dessous). Strictement technique, aucune donnée
+          personnelle traitée.
         </li>
         <li>
           <strong>Mesures de performance Vercel SpeedInsights</strong>&nbsp;:
@@ -227,6 +235,42 @@ export default async function ConfidentialitePage() {
         Aucun cookie de tracking publicitaire n&apos;est déposé. Le Service ne
         partage aucune donnée avec des régies publicitaires.
       </p>
+
+      <h3>8.1 Stockage local du modèle vocal (option « Mains libres »)</h3>
+      <p>
+        Si vous activez explicitement l&apos;option <strong>« Mains libres »</strong>{' '}
+        sur la cuisine guidée d&apos;une recette, votre navigateur télécharge et
+        conserve dans son cache local un modèle de reconnaissance vocale
+        (<em>Vosk</em>, logiciel libre sous licence Apache 2.0) d&apos;environ
+        44&nbsp;Mo.
+      </p>
+      <ul>
+        <li>
+          Ce modèle reste <strong>uniquement sur votre appareil</strong>. Aucun
+          enregistrement audio n&apos;est transmis à un serveur, ni à Karine
+          Diététique, ni à un service tiers. La reconnaissance des commandes
+          vocales (« suivant », « précédent », « minuteur »…) est effectuée
+          intégralement en local par votre navigateur.
+        </li>
+        <li>
+          Le téléchargement n&apos;a lieu qu&apos;<strong>après votre clic
+          explicite</strong> sur l&apos;activation. Le fichier est mis en cache
+          pour ne pas être re-téléchargé à chaque session (économie de données
+          mobiles).
+        </li>
+        <li>
+          Vous pouvez supprimer ce cache à tout moment depuis les paramètres
+          de votre navigateur (« Effacer les données du site »), ce qui
+          n&apos;affecte pas votre compte ni vos données personnelles.
+        </li>
+        <li>
+          Base légale&nbsp;: ressource technique <em>strictement nécessaire</em>{' '}
+          au service vocal que vous avez expressément demandé, exemptée du
+          consentement préalable au titre de l&apos;article 82 de la loi
+          Informatique et Libertés (recommandations CNIL sur les traceurs,
+          octobre 2020).
+        </li>
+      </ul>
 
       <h2>9. Sécurité</h2>
       <p>
