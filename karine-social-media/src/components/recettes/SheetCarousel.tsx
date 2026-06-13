@@ -249,10 +249,11 @@ export function SheetCarousel({
       </header>
 
       {/* Bouton pastel : lance la recette guidée (page cuisine) pour la
-          fiche actuellement affichée. */}
+          fiche actuellement affichée. Halo qui pulse en continu pour
+          attirer l'œil de Karine dès l'arrivée sur la page recette. */}
       <Link
         href={`${pathname}/cuisiner?sheet=${active}`}
-        className="mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-full bg-coral-soft px-6 py-3 text-base font-bold text-coral-dark shadow-sm transition hover:bg-coral-soft/80 active:scale-[0.98]"
+        className="cook-start-pulse mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-full bg-coral-soft px-6 py-3 text-base font-bold text-coral-dark shadow-sm transition hover:bg-coral-soft/80 active:scale-[0.98]"
       >
         <ChefHat className="h-5 w-5" />
         Commencer la recette

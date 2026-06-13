@@ -308,3 +308,27 @@ body {
   }
 }
 
+/* Halo qui pulse autour du bouton "Commencer la recette" pour attirer
+   l'œil dès l'arrivée sur la page recette/repas. Toutes les valeurs en
+   rem (règle projet : pas de px), le halo s'étend jusqu'à 0.75rem puis
+   se dissipe. Boucle douce 2,2 s. */
+@keyframes cook-start-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(226, 120, 141, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 0.75rem rgba(226, 120, 141, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(226, 120, 141, 0);
+  }
+}
+.cook-start-pulse {
+  animation: cook-start-pulse 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cook-start-pulse {
+    animation: none;
+  }
+}
+

@@ -448,10 +448,11 @@ function MealCard({
       })()}
 
       {/* Bouton « Commencer la recette » AU-DESSUS de l'image, identique
-          aux fiches recettes (SheetCarousel) → page cuisine guidée du repas. */}
+          aux fiches recettes (SheetCarousel) → page cuisine guidée du repas.
+          Halo qui pulse pour attirer l'œil (cf. .cook-start-pulse global). */}
       <Link
         href={`/menus/${sheet.menuId}/cuisiner/${sheet.id}`}
-        className="mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-full bg-coral-soft px-6 py-3 text-base font-bold text-coral-dark shadow-sm transition hover:bg-coral-soft/80 active:scale-[0.98]"
+        className="cook-start-pulse mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-full bg-coral-soft px-6 py-3 text-base font-bold text-coral-dark shadow-sm transition hover:bg-coral-soft/80 active:scale-[0.98]"
       >
         <ChefHat className="h-5 w-5" />
         Commencer la recette
