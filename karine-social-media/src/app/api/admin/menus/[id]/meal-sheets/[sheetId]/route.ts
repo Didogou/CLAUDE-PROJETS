@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
 import { persistNutriscoreForMenuMealSheet } from '@/lib/nutriscore-persist';
+import { sanitizePreparationSteps } from '@/lib/utensils';
 import type { RecipeIngredient } from '@/data/recipes';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -9,14 +10,13 @@ import type { RecipeIngredient } from '@/data/recipes';
 /**
  * PATCH /api/admin/menus/[id]/meal-sheets/[sheetId]
  *
- * Met à jour une fiche repas d'un menu hebdomadaire. Utilisé par la page
- * admin Nutri-Score quand Karine complète quantités / lie des ingrédients
- * à Ciqual sur une recette de menu.
+ * Met à jour une fiche repas d'un menu — édition CHAMP PAR CHAMP (parité
+ * recettes). Body PARTIEL : on n'écrit que les colonnes fournies parmi
+ * title, servings, calories, proteins_g, lipids_g, carbs_g, prep_time_min,
+ * cook_time_min, tags, aliments, ingredients, preparation_steps, utensils.
  *
- * Body : { ingredients: RecipeIngredient[] }
- *
- * Persistance : on remplace la jsonb `ingredients`, puis on déclenche
- * persistNutriscoreForMenuMealSheet pour recalculer + stocker le grade.
+ * Si ingredients OU servings changent → recompute + persist du Nutri-Score
+ * (renvoyé dans la réponse pour rafraîchir la vignette).
  */
 function sanitize(it: any): RecipeIngredient {
   return {
@@ -51,27 +51,87 @@ export async function PATCH(
 
   const { sheetId } = await ctx.params;
   const body = await req.json().catch(() => null);
-  if (!body || typeof body !== 'object' || !Array.isArray(body.ingredients)) {
-    return NextResponse.json(
-      { error: 'Body { ingredients: [...] } attendu.' },
-      { status: 400 },
-    );
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json({ error: 'Body JSON attendu.' }, { status: 400 });
   }
 
-  const ingredients = (body.ingredients as any[])
-    .map(sanitize)
-    .filter((i) => i.category && i.label);
+  // Whitelist : on ne met à jour QUE les colonnes fournies (patch partiel).
+  const update: Record<string, any> = {};
+  const strOrNull = (v: any) =>
+    typeof v === 'string' ? v.trim() || null : v === null ? null : undefined;
+  const numOrNull = (v: any) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : v === null ? null : undefined;
+  const strArray = (v: any) =>
+    Array.isArray(v) ? v.filter((s) => typeof s === 'string') : undefined;
+
+  if ('title' in body) {
+    const t = strOrNull(body.title);
+    if (t !== undefined) update.title = t;
+  }
+  for (const [bodyKey, col] of [
+    ['servings', 'servings'],
+    ['calories', 'calories'],
+    ['proteins_g', 'proteins_g'],
+    ['lipids_g', 'lipids_g'],
+    ['carbs_g', 'carbs_g'],
+    ['prep_time_min', 'prep_time_min'],
+    ['cook_time_min', 'cook_time_min'],
+  ] as const) {
+    if (bodyKey in body) {
+      const n = numOrNull(body[bodyKey]);
+      if (n !== undefined) update[col] = n;
+    }
+  }
+  if ('tags' in body) {
+    const a = strArray(body.tags);
+    if (a) update.tags = a;
+  }
+  if ('aliments' in body) {
+    const a = strArray(body.aliments);
+    if (a) update.aliments = a;
+  }
+  if ('utensils' in body) {
+    const a = strArray(body.utensils);
+    if (a) update.utensils = a;
+  }
+  if ('preparation_steps' in body) {
+    update.preparation_steps = sanitizePreparationSteps(body.preparation_steps);
+  }
+  const ingredientsProvided = Array.isArray(body.ingredients);
+  if (ingredientsProvided) {
+    update.ingredients = (body.ingredients as any[])
+      .map(sanitize)
+      .filter((i) => i.category && i.label);
+  }
+
+  if (Object.keys(update).length === 0) {
+    return NextResponse.json({ error: 'Aucun champ valide à mettre à jour.' }, { status: 400 });
+  }
 
   const supabase = createServiceClient() as any;
   const { error } = await supabase
     .from('menu_meal_sheets')
-    .update({ ingredients })
+    .update(update)
     .eq('id', sheetId);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  await persistNutriscoreForMenuMealSheet(sheetId);
+  // Recompute Nutri-Score si la nutrition a pu changer (ingrédients / portions).
+  let nutriscore: { grade: string | null; confidence: number | null } | null = null;
+  if (ingredientsProvided || 'servings' in update) {
+    await persistNutriscoreForMenuMealSheet(sheetId);
+    const { data } = await supabase
+      .from('menu_meal_sheets')
+      .select('nutriscore_grade, nutriscore_confidence')
+      .eq('id', sheetId)
+      .maybeSingle();
+    nutriscore = {
+      grade: data?.nutriscore_grade ?? null,
+      confidence:
+        data?.nutriscore_confidence == null ? null : Number(data.nutriscore_confidence),
+    };
+  }
 
-  return NextResponse.json({ ok: true, count: ingredients.length });
+  return NextResponse.json({ ok: true, nutriscore });
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import {
   Check,
   ChevronDown,
@@ -128,6 +128,54 @@ export function MealSheetEditor({
       setError(e instanceof Error ? e.message : 'Erreur');
     } finally {
       setBusy('idle');
+    }
+  }
+
+  // Édition champ-par-champ d'une fiche persistée (parité recettes).
+  // Commit onBlur (via PreviewForm) → PATCH partiel sur la route menu.
+  async function patchField(patch: Partial<PreviewData>) {
+    if (!persisted) return;
+    // Optimiste : les clés de PreviewData matchent MenuMealSheet.
+    setPersisted((prev) => (prev ? ({ ...prev, ...patch } as MenuMealSheet) : prev));
+    setError(null);
+    const b: Record<string, unknown> = {};
+    if ('title' in patch) b.title = patch.title;
+    if ('servings' in patch) b.servings = patch.servings;
+    if ('calories' in patch) b.calories = patch.calories;
+    if ('proteinsG' in patch) b.proteins_g = patch.proteinsG;
+    if ('lipidsG' in patch) b.lipids_g = patch.lipidsG;
+    if ('carbsG' in patch) b.carbs_g = patch.carbsG;
+    if ('prepTimeMin' in patch) b.prep_time_min = patch.prepTimeMin;
+    if ('cookTimeMin' in patch) b.cook_time_min = patch.cookTimeMin;
+    if ('tags' in patch) b.tags = patch.tags;
+    if ('aliments' in patch) b.aliments = patch.aliments;
+    if ('ingredients' in patch) b.ingredients = patch.ingredients;
+    if ('preparationSteps' in patch) b.preparation_steps = patch.preparationSteps;
+    if ('utensils' in patch) b.utensils = patch.utensils;
+    try {
+      const res = await fetch(
+        `/api/admin/menus/${menuId}/meal-sheets/${persisted.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(b),
+        },
+      );
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error || 'Erreur sauvegarde');
+      if (j.nutriscore) {
+        setPersisted((prev) =>
+          prev
+            ? {
+                ...prev,
+                nutriscoreGrade: j.nutriscore.grade ?? null,
+                nutriscoreConfidence: j.nutriscore.confidence ?? null,
+              }
+            : prev,
+        );
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur sauvegarde');
     }
   }
 
@@ -384,10 +432,7 @@ export function MealSheetEditor({
                 preparationSteps: persisted.preparationSteps,
                 utensils: persisted.utensils,
               }}
-              onChange={() => {
-                /* lecture seule — re-upload pour modifier */
-              }}
-              readOnly
+              onChange={patchField}
             />
             {/* Actions parité recettes : extraction prépa (Vision) + voix Karine */}
             <div className="mt-3 flex flex-wrap gap-2">
@@ -515,6 +560,10 @@ function PreviewForm({
   onChange: (patch: Partial<PreviewData>) => void;
   readOnly?: boolean;
 }) {
+  const [titleLocal, setTitleLocal] = useState(data.title ?? '');
+  useEffect(() => {
+    setTitleLocal(data.title ?? '');
+  }, [data.title]);
   return (
     <div className="space-y-2">
       <div className="grid min-w-0 gap-2 sm:grid-cols-[7rem_minmax(0,1fr)]">
@@ -525,8 +574,9 @@ function PreviewForm({
         <div className="min-w-0 space-y-1.5">
           <input
             type="text"
-            value={data.title ?? ''}
-            onChange={(e) => onChange({ title: e.target.value })}
+            value={titleLocal}
+            onChange={(e) => setTitleLocal(e.target.value)}
+            onBlur={() => onChange({ title: titleLocal })}
             placeholder="Titre du plat"
             disabled={readOnly}
             className="input h-8 text-sm"
@@ -650,6 +700,18 @@ function Stat({
   readOnly?: boolean;
   allowDecimal?: boolean;
 }) {
+  // State local + commit onBlur : la frappe ne déclenche pas de PATCH
+  // (sinon re-render serveur qui reset l'input).
+  const [local, setLocal] = useState(value === null ? '' : String(value));
+  useEffect(() => {
+    setLocal(value === null ? '' : String(value));
+  }, [value]);
+  const commit = () => {
+    if (local.trim() === '') return onChange(null);
+    const n = Number(local);
+    if (!Number.isFinite(n)) return onChange(null);
+    onChange(Math.max(0, allowDecimal ? Math.round(n * 10) / 10 : Math.round(n)));
+  };
   return (
     <label className="block">
       <span className="block text-[0.55rem] font-semibold uppercase tracking-wider text-admin-ink-soft">
@@ -660,15 +722,9 @@ function Stat({
         type="number"
         min="0"
         step={allowDecimal ? 0.1 : 1}
-        value={value ?? ''}
-        onChange={(e) => {
-          if (e.target.value === '') return onChange(null);
-          const n = Number(e.target.value);
-          if (!Number.isFinite(n)) return onChange(null);
-          onChange(
-            Math.max(0, allowDecimal ? Math.round(n * 10) / 10 : Math.round(n)),
-          );
-        }}
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={commit}
         readOnly={readOnly}
         className="input h-7 w-full px-1 text-center text-xs"
       />
@@ -687,6 +743,17 @@ function CsvField({
   onChange: (v: string[]) => void;
   readOnly?: boolean;
 }) {
+  const [local, setLocal] = useState(values.join(', '));
+  useEffect(() => {
+    setLocal(values.join(', '));
+  }, [values.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const commit = () =>
+    onChange(
+      local
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
   return (
     <label className="block">
       <span className="block text-[0.55rem] font-semibold uppercase tracking-wider text-admin-ink-soft">
@@ -694,15 +761,9 @@ function CsvField({
       </span>
       <input
         type="text"
-        value={values.join(', ')}
-        onChange={(e) =>
-          onChange(
-            e.target.value
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean),
-          )
-        }
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={commit}
         readOnly={readOnly}
         className="input h-7 w-full px-1.5 text-xs"
       />
