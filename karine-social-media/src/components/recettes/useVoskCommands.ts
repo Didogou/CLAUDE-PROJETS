@@ -115,6 +115,19 @@ async function fetchModelWithProgress(
   return URL.createObjectURL(blob);
 }
 
+/**
+ * Étape courante du loading. Permet à l'UI d'afficher un message précis
+ * (sinon Karine voit la barre rester bloquée à 100 % pendant que le
+ * Worker Vosk décompresse + initialise Kaldi en RAM, ce qui peut prendre
+ * 10-30 s sur Android sans aucun feedback visuel).
+ */
+export type VoskStage =
+  | 'idle'
+  | 'downloading'
+  | 'extracting'
+  | 'starting-mic'
+  | 'ready';
+
 export function useVoskCommands({
   enabled,
   muted,
@@ -131,6 +144,8 @@ export function useVoskCommands({
   loading: boolean;
   /** Progression du DL du modèle (0 à 1). 0 = pas commencé, 1 = terminé. */
   loadProgress: number;
+  /** Étape précise du loading pour afficher un message clair à Karine. */
+  loadStage: VoskStage;
 } {
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
@@ -142,6 +157,7 @@ export function useVoskCommands({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadProgress, setLoadProgress] = useState(0);
+  const [loadStage, setLoadStage] = useState<VoskStage>('idle');
 
   // Support : Web Worker + AudioContext + getUserMedia (vérifié au mount).
   useEffect(() => {
@@ -173,6 +189,7 @@ export function useVoskCommands({
         setLoading(true);
         setError(null);
         setLoadProgress(0);
+        setLoadStage('downloading');
 
         // 1. DL streamé du modèle avec progression visible. Le Service
         // Worker (public/sw.js) intercepte et sert depuis Cache API si
@@ -187,21 +204,27 @@ export function useVoskCommands({
           },
           abortController.signal,
         );
-        console.log('[vosk] modèle DL terminé, init vosk-browser…');
+        console.log('[vosk] modèle DL terminé, décompression Kaldi…');
         if (cancelled) {
           if (blobUrl) URL.revokeObjectURL(blobUrl);
           return;
         }
 
         // 2. Lazy import vosk-browser (WASM + worker), puis init avec
-        // l'URL blob locale (pas de second DL).
+        // l'URL blob locale (pas de second DL). C'est ICI que ça peut
+        // bloquer 10-30 s sur Android : le Worker décompresse le tar.gz
+        // (44 Mo → ~150 Mo en RAM) et initialise les matrices Kaldi.
+        // Sans le changement de stage, Karine voit la barre à 100 %
+        // sans rien comprendre.
+        setLoadStage('extracting');
         const { createModel } = await import('vosk-browser');
         model = await createModel(blobUrl);
         // Le modèle est désormais chargé en mémoire du worker, on peut
         // libérer le blob URL (référencer une URL révoquée ne plante pas).
         URL.revokeObjectURL(blobUrl);
         blobUrl = null;
-        console.log('[vosk] modèle Vosk prêt');
+        console.log('[vosk] moteur Kaldi prêt, demande micro…');
+        setLoadStage('starting-mic');
         if (cancelled) {
           model?.terminate();
           return;
@@ -287,7 +310,9 @@ export function useVoskCommands({
         recognizerNode.connect(audioContext.destination);
 
         setLoading(false);
+        setLoadStage('ready');
         setListening(true);
+        console.log('[vosk] tout est prêt, en écoute');
       } catch (e) {
         // AbortError = annulation volontaire (cleanup useEffect, StrictMode
         // dev qui mount/démonte 2×, toggle Mains libres OFF pendant DL).
@@ -301,11 +326,13 @@ export function useVoskCommands({
         ) {
           setLoading(false);
           setLoadProgress(0);
+          setLoadStage('idle');
           return;
         }
         if (cancelled) return;
         setLoading(false);
         setListening(false);
+        setLoadStage('idle');
         // Log explicite : on ne masque PAS l'erreur originale, c'est
         // essentiel pour diagnostiquer en prod ("ne télécharge pas").
         console.error('[vosk] init failed:', e);
@@ -372,5 +399,5 @@ export function useVoskCommands({
     }
   }
 
-  return { supported, listening, error, loading, loadProgress };
+  return { supported, listening, error, loading, loadProgress, loadStage };
 }

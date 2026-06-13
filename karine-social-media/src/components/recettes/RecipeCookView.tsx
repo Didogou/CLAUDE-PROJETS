@@ -26,7 +26,7 @@ import {
 // (envoyait l'audio chez Google → non documenté CNIL). Vosk = tout en
 // local sur l'appareil, pas de bip "activation" Chrome toutes les 30 s.
 // Cf. memory project_karine_voice_recognition_parked.md
-import { useVoskCommands } from './useVoskCommands';
+import { useVoskCommands, type VoskStage } from './useVoskCommands';
 import {
   durationLabel,
   formatTimer,
@@ -252,6 +252,7 @@ export function RecipeCookView({
     error: voiceError,
     loading: voiceLoading,
     loadProgress: voiceLoadProgress,
+    loadStage: voiceLoadStage,
   } = useVoskCommands({
     enabled: handsFree && idx < total,
     // Muté pendant la narration (anti auto-déclenchement), pendant les
@@ -296,6 +297,7 @@ export function RecipeCookView({
           voiceListening={voiceListening}
           voiceLoading={voiceLoading}
           voiceLoadProgress={voiceLoadProgress}
+          voiceLoadStage={voiceLoadStage}
           voiceError={voiceError}
           onStart={() => setIdx(0)}
         />
@@ -374,6 +376,7 @@ function Intro({
   voiceListening,
   voiceLoading,
   voiceLoadProgress,
+  voiceLoadStage,
   voiceError,
   onStart,
 }: {
@@ -388,6 +391,7 @@ function Intro({
   voiceListening: boolean;
   voiceLoading: boolean;
   voiceLoadProgress: number;
+  voiceLoadStage: VoskStage;
   voiceError: string | null;
   onStart: () => void;
 }) {
@@ -443,25 +447,49 @@ function Intro({
               // Premier chargement : ~44 Mo de modèle vocal local à
               // télécharger. Mis en cache (Service Worker → Cache API)
               // ensuite, ré-utilisable indéfiniment sans nouveau DL.
+              //
+              // Sur Android, la phase "extracting" (décompression Kaldi +
+              // init matrices) peut durer 10-30 s après le DL. Sans
+              // changer le message, Karine voyait la barre figée à 100 %
+              // et croyait que c'était planté.
               <div className="space-y-1.5">
                 <p className="text-ink-soft">
-                  Téléchargement du modèle vocal local…{' '}
-                  <span className="font-semibold text-coral-dark">
-                    {Math.round(voiceLoadProgress * 100)}%
-                  </span>
+                  {voiceLoadStage === 'downloading' && (
+                    <>
+                      Téléchargement du modèle vocal local…{' '}
+                      <span className="font-semibold text-coral-dark">
+                        {Math.round(voiceLoadProgress * 100)}%
+                      </span>
+                    </>
+                  )}
+                  {voiceLoadStage === 'extracting' && (
+                    <>Préparation du moteur vocal…</>
+                  )}
+                  {voiceLoadStage === 'starting-mic' && (
+                    <>Connexion au microphone…</>
+                  )}
                 </p>
-                {/* Barre de progression : remplie au prorata du DL.
-                    Sur le 1er DL, Karine voit ~44 Mo arriver progressivement.
-                    Sur les usages suivants (SW cache hit), elle passe en
-                    flash de 0 % à 100 % en moins d'une seconde. */}
+                {/* Barre de progression : remplie au prorata du DL pendant
+                    la phase 'downloading'. Sur les phases suivantes
+                    (extracting / starting-mic), on garde 100 % rempli +
+                    pulse pour indiquer une activité indéterminée. */}
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-coral-soft/30">
                   <div
-                    className="h-full rounded-full bg-coral transition-[width] duration-150 ease-out"
-                    style={{ width: `${Math.max(2, voiceLoadProgress * 100)}%` }}
+                    className={`h-full rounded-full bg-coral transition-[width] duration-150 ease-out ${
+                      voiceLoadStage !== 'downloading' ? 'animate-pulse' : ''
+                    }`}
+                    style={{
+                      width:
+                        voiceLoadStage === 'downloading'
+                          ? `${Math.max(2, voiceLoadProgress * 100)}%`
+                          : '100%',
+                    }}
                   />
                 </div>
                 <p className="italic text-ink-soft/80">
-                  Une seule fois, puis tout sera local et sans connexion.
+                  {voiceLoadStage === 'extracting'
+                    ? 'Décompression du modèle… (10-30 s sur mobile)'
+                    : 'Une seule fois, puis tout sera local et sans connexion.'}
                 </p>
               </div>
             ) : voiceListening ? (

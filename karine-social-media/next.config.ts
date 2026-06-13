@@ -65,13 +65,17 @@ const nextConfig: NextConfig = {
           // utilise eval() pour reconstruire les callstacks (debug,
           // erreurs lisibles). En prod, React n'utilise jamais eval()
           // donc on le retire (surface XSS réduite).
-          // 'wasm-unsafe-eval' nécessaire pour Vosk (reconnaissance vocale
-          // locale, WASM exécuté dans un Web Worker pour la cuisine guidée).
-          // 'blob:' nécessaire pour le Worker que Vosk instancie depuis un
-          // blob URL (worker bundle généré dynamiquement).
+          // 'wasm-unsafe-eval' : nécessaire pour exécuter le WASM Vosk.
+          // 'blob:' : Worker que Vosk instancie depuis un blob URL.
+          // 'unsafe-eval' : nécessaire AUSSI en prod parce que le Worker
+          // Vosk utilise new Function(...) pour étendre les classes
+          // d'erreur Kaldi (cf. EvalError vu en prod 2026-06-13). Sans ça,
+          // Vosk plante après le DL du modèle. Compromis sécurité accepté
+          // pour permettre la reco vocale locale (alternative = laisser
+          // l'audio chez Google Speech, pire CNIL).
           process.env.NODE_ENV === 'development'
             ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://*.stripe.com https://va.vercel-scripts.com"
-            : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://*.stripe.com https://va.vercel-scripts.com",
+            : "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://*.stripe.com https://va.vercel-scripts.com",
           // worker-src explicite pour les Web Workers (Vosk + futurs).
           // 'self' couvre les workers bundlés par Next, 'blob:' couvre
           // ceux instanciés via URL.createObjectURL (cas vosk-browser).
