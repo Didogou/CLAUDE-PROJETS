@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Check, Loader2, RefreshCcw, Trash2, Wand2 } from 'lucide-react';
+import { Check, Loader2, RefreshCcw, Search, Trash2, Wand2 } from 'lucide-react';
 
 type Candidate = {
   ciqualId: number;
@@ -44,6 +44,9 @@ export function CiqualAliasesConflictView() {
   const [busy, setBusy] = useState<string | null>(null); // alias en cours d'action
   const [autoResolveBusy, setAutoResolveBusy] = useState(false);
   const [autoResolveResult, setAutoResolveResult] = useState<string | null>(null);
+  const [exactBusy, setExactBusy] = useState(false);
+  const [exactResult, setExactResult] = useState<string | null>(null);
+  const [q, setQ] = useState('');
 
   async function load() {
     setError(null);
@@ -99,6 +102,37 @@ export function CiqualAliasesConflictView() {
     }
   }
 
+  async function runAutoAssignExact() {
+    setExactBusy(true);
+    setExactResult(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/admin/ciqual-aliases/auto-assign-exact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error || `HTTP ${res.status}`);
+      }
+      const j = (await res.json()) as {
+        scanned: number;
+        assigned: number;
+        rejected: number;
+      };
+      setExactResult(
+        `✅ ${j.assigned} alias auto-assignés par correspondance exacte · ` +
+          `${j.rejected} candidats écartés (sur ${j.scanned} conflits scannés).`,
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setExactBusy(false);
+    }
+  }
+
   async function resolve(
     alias: string,
     keepCiqualId: number | null,
@@ -145,6 +179,15 @@ export function CiqualAliasesConflictView() {
       </div>
     );
   }
+
+  const needle = q.trim().toLowerCase();
+  const filtered = needle
+    ? data.conflicts.filter(
+        (c) =>
+          c.alias.toLowerCase().includes(needle) ||
+          c.candidates.some((cand) => cand.name.toLowerCase().includes(needle)),
+      )
+    : data.conflicts;
 
   return (
     <div className="space-y-4">
@@ -197,32 +240,97 @@ export function CiqualAliasesConflictView() {
         )}
       </div>
 
-      {/* Liste des conflits */}
+      {/* Bouton "Auto-assigner si correspondance exacte" : pour chaque
+          conflit, si UN candidat porte exactement le terme de l'alias, on
+          l'assigne (resolved) et on rejette les autres. */}
+      <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-admin-ink">
+              🎯 Auto-assigner — nom contenant tous les mots
+            </p>
+            <p className="mt-0.5 text-xs text-admin-ink-soft">
+              Pour chaque conflit, on garde le candidat dont le nom Ciqual
+              contient <strong>tous les mots</strong> de l&apos;alias
+              («&nbsp;huile olive&nbsp;» → «&nbsp;Huile d&apos;olive vierge
+              extra&nbsp;», «&nbsp;côte porc&nbsp;» → «&nbsp;Porc, côte,
+              crue&nbsp;»). Si l&apos;alias dit <strong>cru/crue</strong>, on ne
+              garde que la version crue. On privilégie les candidats où les mots
+              suivent le même <strong>ordre</strong>. Si plusieurs conviennent
+              encore, on prend le plus <strong>court/canonique</strong> ; en cas
+              d&apos;égalité → résolution manuelle.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={runAutoAssignExact}
+            disabled={exactBusy}
+            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-admin-primary px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-admin-primary-dark disabled:opacity-50"
+          >
+            {exactBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Wand2 className="h-4 w-4" />
+            )}
+            {exactBusy ? 'En cours…' : 'Lancer'}
+          </button>
+        </div>
+        {exactResult && (
+          <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-900 ring-1 ring-emerald-200">
+            {exactResult}
+          </p>
+        )}
+      </div>
+
+      {/* Recherche + liste des conflits */}
       {data.conflicts.length === 0 ? (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center text-sm text-emerald-900">
           🎉 Aucun conflit à résoudre. Tous les aliases pending sont
           uniques par alimentaire.
         </div>
       ) : (
-        <ul className="space-y-3">
-          {data.conflicts.map((c) => (
-            <ConflictCard
-              key={c.alias}
-              conflict={c}
-              busy={busy === c.alias}
-              onKeep={(keepId) =>
-                resolve(
-                  c.alias,
-                  keepId,
-                  c.candidates.filter((x) => x.ciqualId !== keepId).map((x) => x.ciqualId),
-                )
-              }
-              onRejectAll={() =>
-                resolve(c.alias, null, c.candidates.map((x) => x.ciqualId))
-              }
+        <>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-admin-ink-soft" />
+            <input
+              type="search"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Filtrer par alias ou nom Ciqual…"
+              className="w-full rounded-full border border-stone-200 bg-white py-2 pl-10 pr-4 text-sm focus:border-admin-primary focus:outline-none focus:ring-2 focus:ring-admin-primary/20"
             />
-          ))}
-        </ul>
+            {q && (
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-admin-ink-soft">
+                {filtered.length}/{data.conflicts.length}
+              </span>
+            )}
+          </div>
+          {filtered.length === 0 ? (
+            <div className="rounded-2xl bg-stone-50 px-4 py-6 text-center text-sm italic text-admin-ink-soft">
+              Aucun conflit ne correspond à «&nbsp;{q}&nbsp;».
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {filtered.map((c) => (
+                <ConflictCard
+                  key={c.alias}
+                  conflict={c}
+                  busy={busy === c.alias}
+                  onKeep={(keepId) =>
+                    resolve(
+                      c.alias,
+                      keepId,
+                      c.candidates.filter((x) => x.ciqualId !== keepId).map((x) => x.ciqualId),
+                    )
+                  }
+                  onRejectAll={() =>
+                    resolve(c.alias, null, c.candidates.map((x) => x.ciqualId))
+                  }
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </div>
   );

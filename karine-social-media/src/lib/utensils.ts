@@ -1,6 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createServiceClient } from '@/lib/supabase/server';
+import type { PreparationStep } from '@/data/recipes';
 
 export type Utensil = {
   id: string;
@@ -42,6 +43,71 @@ export async function getAllUtensils(): Promise<Utensil[]> {
  *
  * Karine cure ensuite la liste dans l'admin (image, fusion, renommage).
  */
+
+/**
+ * Sanitize les étapes de préparation reçues du client/Vision en
+ * PreparationStep[] prêtes à persister (jsonb) :
+ *   - text trimé (étape sans texte ignorée) ;
+ *   - ingredients = labels (sous-ensemble de la liste fiche) ;
+ *   - utensils = SLUGS normalisés (slugifyUtensil) → réf. catalogue.
+ * Tolère un ancien format `string` (devient { text }).
+ */
+export function sanitizePreparationSteps(v: unknown): PreparationStep[] {
+  if (!Array.isArray(v)) return [];
+  const strArr = (x: unknown): string[] =>
+    Array.isArray(x)
+      ? x.filter((s): s is string => typeof s === 'string').map((s) => s.trim()).filter(Boolean)
+      : [];
+  const out: PreparationStep[] = [];
+  for (const raw of v) {
+    let text = '';
+    let ingredients: string[] = [];
+    let utensilsRaw: string[] = [];
+    let audioUrl: string | null = null;
+    if (typeof raw === 'string') {
+      text = raw.trim();
+    } else if (raw && typeof raw === 'object') {
+      const o = raw as Record<string, unknown>;
+      text = typeof o.text === 'string' ? o.text.trim() : '';
+      ingredients = strArr(o.ingredients);
+      utensilsRaw = strArr(o.utensils);
+      // Préserve la voix déjà générée (la régénération se fait via la route TTS).
+      audioUrl = typeof o.audioUrl === 'string' ? o.audioUrl : null;
+    }
+    if (!text) continue;
+    const utensils = Array.from(
+      new Set(utensilsRaw.map((u) => slugifyUtensil(u)).filter(Boolean)),
+    );
+    out.push({ text, ingredients, utensils, audioUrl });
+  }
+  return out;
+}
+
+/**
+ * Collecte tous les labels d'ustensiles d'une fiche = niveau fiche + ceux
+ * de chaque étape. Sert à cataloguer L'UNION (sinon un ustensile présent
+ * seulement dans une étape référencerait un slug absent du catalogue).
+ */
+export function collectUtensilLabels(
+  sheetUtensils: unknown,
+  rawSteps: unknown,
+): string[] {
+  const sheet = Array.isArray(sheetUtensils)
+    ? sheetUtensils.filter((s): s is string => typeof s === 'string')
+    : [];
+  const fromSteps = Array.isArray(rawSteps)
+    ? rawSteps.flatMap((s) => {
+        const u =
+          s && typeof s === 'object'
+            ? (s as Record<string, unknown>).utensils
+            : undefined;
+        return Array.isArray(u)
+          ? u.filter((x): x is string => typeof x === 'string')
+          : [];
+      })
+    : [];
+  return [...sheet, ...fromSteps];
+}
 
 /** Slug normalisé d'un ustensile : minuscule, sans accent, tirets. */
 export function slugifyUtensil(label: string): string {

@@ -1,6 +1,7 @@
 import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
 import { getRecipeScoresBySlug } from '@/lib/menu-nutriscore';
+import { parsePreparationSteps } from '@/data/recipes';
 import type {
   WeeklyMenu,
   WeeklyMenuDay,
@@ -311,11 +312,7 @@ function mapMealSheet(row: any): MenuMealSheet {
     tags: Array.isArray(row.tags) ? row.tags : [],
     aliments: Array.isArray(row.aliments) ? row.aliments : [],
     ingredients,
-    preparationSteps: Array.isArray(row.preparation_steps)
-      ? (row.preparation_steps as unknown[]).filter(
-          (s): s is string => typeof s === 'string',
-        )
-      : [],
+    preparationSteps: parsePreparationSteps(row.preparation_steps),
     utensils: Array.isArray(row.utensils)
       ? (row.utensils as unknown[]).filter(
           (s): s is string => typeof s === 'string',

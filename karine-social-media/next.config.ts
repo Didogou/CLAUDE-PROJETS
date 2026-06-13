@@ -64,6 +64,10 @@ const nextConfig: NextConfig = {
             : "script-src 'self' 'unsafe-inline' https://*.stripe.com https://va.vercel-scripts.com",
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https://*.supabase.co https://*.stripe.com",
+          // Audio (voix ElevenLabs des étapes) servi depuis Supabase Storage.
+          // Sans media-src explicite, ça retombe sur default-src 'self' et le
+          // navigateur bloque la lecture (« violates default-src 'self' »).
+          "media-src 'self' blob: https://*.supabase.co",
           "font-src 'self' data:",
           "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.mistral.ai https://api.anthropic.com https://api.resend.com https://vitals.vercel-insights.com",
           "frame-src https://*.stripe.com https://hooks.stripe.com",

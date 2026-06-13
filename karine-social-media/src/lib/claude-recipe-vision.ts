@@ -21,6 +21,16 @@ import type { RecipeIngredient } from '@/data/recipes';
 
 const MODEL = 'claude-haiku-4-5-20251001';
 
+/** Une étape de préparation structurée (option A). */
+export type ExtractedStep = {
+  /** Le texte de l'étape (fidèle à la fiche). */
+  text: string;
+  /** Labels d'ingrédients utilisés à cette étape (sous-ensemble de la liste). */
+  ingredients: string[];
+  /** Ustensiles de cette étape (labels canoniques singuliers ; inférence ok). */
+  utensils: string[];
+};
+
 export type ExtractedRecipeSheet = {
   /** Numéro de fiche imprimé sur l'image (« Recette 1 », « Fiche 2 »,
    *  etc.). null si absent / illisible. Utilisé pour calculer le
@@ -37,9 +47,9 @@ export type ExtractedRecipeSheet = {
   tags: string[];
   aliments: string[];
   ingredients: RecipeIngredient[];
-  /** Étapes de préparation, ordonnées (haut → bas de la fiche). */
-  preparationSteps: string[];
-  /** Ustensiles (labels canoniques singuliers ; inférence autorisée). */
+  /** Étapes de préparation structurées, ordonnées (haut → bas de la fiche). */
+  preparationSteps: ExtractedStep[];
+  /** Union de tous les ustensiles de la recette (labels singuliers). */
   utensils: string[];
 };
 
@@ -109,9 +119,9 @@ export async function extractRecipeSheetFromImage(
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const message = await client.messages.create({
     model: MODEL,
-    // 4096 (et pas 2048) : les étapes de préparation peuvent être longues
-    // et faisaient déborder/tronquer la sortie tool sur les fiches denses.
-    max_tokens: 4096,
+    // Étapes STRUCTURÉES (texte + ingrédients + ustensiles par étape) =
+    // sortie plus volumineuse → 6000 pour éviter toute troncature.
+    max_tokens: 6000,
     tools: [
       {
         name: 'save_recipe_sheet',
@@ -214,9 +224,31 @@ export async function extractRecipeSheetFromImage(
             },
             preparationSteps: {
               type: 'array',
-              items: { type: 'string' },
               description:
-                'Étapes de préparation de la recette, DANS L\'ORDRE de la fiche (de haut en bas). 1 entrée = 1 étape. Reste fidèle au texte, ne reformule pas et n\'invente jamais d\'étape. Retire la numérotation de tête ("1.", "Étape 2 :") — l\'ordre du tableau suffit. Tableau vide si aucune préparation lisible.',
+                'Étapes de préparation DANS L\'ORDRE de la fiche (haut → bas). 1 entrée = 1 étape. Reste fidèle au texte, n\'invente jamais d\'étape.',
+              items: {
+                type: 'object',
+                properties: {
+                  text: {
+                    type: 'string',
+                    description:
+                      'Texte de l\'étape, fidèle à la fiche. Retire la numérotation de tête ("1.", "Étape 2 :").',
+                  },
+                  ingredients: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description:
+                      'Labels des ingrédients utilisés À CETTE ÉTAPE — UNIQUEMENT des labels présents dans le tableau "ingredients" ci-dessus (mêmes mots exacts). Ex: l\'étape "mélanger thon et feta" → ["thon", "feta"]. Tableau vide si l\'étape ne manipule aucun ingrédient (ex: "préchauffer le four").',
+                  },
+                  utensils: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description:
+                      'Ustensiles de CETTE étape, nom canonique SINGULIER minuscule. INFÉRENCE autorisée depuis le verbe ("enfourner"→"four", "poêler"→"poêle", "mixer"→"mixeur", "fouetter"→"fouet"). Déduplique. Tableau vide si rien.',
+                  },
+                },
+                required: ['text', 'ingredients', 'utensils'],
+              },
             },
             utensils: {
               type: 'array',
@@ -297,17 +329,14 @@ décimal), jamais dans le label.
 - Macros : si tu vois "Protéines : 25 g", "Lipides : 12 g", "Glucides : 40 g" (par portion), renseigne proteinsG/lipidsG/carbsG. Cherche aussi des icônes nutritionnelles (camembert macros) ou pavé "Pour 1 portion : 25g P / 12g L / 40g G". null si non visible.
 - Tags : "riche en protéines", "saine", "équilibrée", "gourmande", etc.
 
-📝 PRÉPARATION (preparationSteps) :
-- Recopie les étapes DANS L'ORDRE de la fiche (haut → bas), 1 entrée par étape.
-- Reste fidèle au texte, ne reformule pas, n'invente jamais une étape absente.
-- Enlève la numérotation de tête ("1.", "Étape 2 :", "•") — l'ordre du tableau suffit.
-- Si la fiche n'a pas de préparation lisible : tableau vide.
+📝 PRÉPARATION (preparationSteps) — étapes STRUCTURÉES, dans l'ordre (haut → bas), 1 entrée par étape :
+- text : le texte de l'étape, fidèle à la fiche (n'invente jamais une étape, retire la numérotation de tête).
+- ingredients : les labels d'ingrédients utilisés À CETTE étape, UNIQUEMENT pris dans le tableau "ingredients" ci-dessus (mêmes mots). Ex : "Mélangez le thon et la feta" → ["thon", "feta"]. Vide si l'étape ne manipule pas d'ingrédient ("préchauffer le four").
+- utensils : les ustensiles de CETTE étape (nom canonique SINGULIER minuscule). INFÉRENCE autorisée depuis le verbe : "enfourner"/"180°C" → "four" ; "poêler"/"faire revenir" → "poêle" ; "porter à ébullition" → "casserole" ; "mixer" → "mixeur" ; "fouetter" → "fouet" ; "mélanger dans un saladier" → "saladier". Vide si rien.
+- Si aucune préparation lisible : tableau vide.
 
-🍳 USTENSILES (utensils) :
-- Liste les ustensiles nécessaires, nom canonique SINGULIER minuscule ("four", "poêle", "casserole", "saladier", "fouet", "couteau", "plaque de cuisson", "mixeur", "robot", "passoire").
-- ⚠️ INFÉRENCE AUTORISÉE pour ce champ (≠ ingrédients) : déduis l'ustensile du verbe même non écrit. Exemples : "enfourner"/"au four"/"180°C" → "four" ; "poêler"/"faire revenir" → "poêle" ; "porter à ébullition" → "casserole" ; "mixer"/"mixez" → "mixeur" ; "fouetter" → "fouet" ; "mélanger dans un saladier" → "saladier".
-- Déduplique (un seul "four" même si mentionné 3 fois). Maximum ~8.
-- Tableau vide si rien d'exploitable.
+🍳 USTENSILES (utensils, niveau recette) :
+- L'UNION de tous les ustensiles utilisés dans la recette (mêmes noms canoniques que dans les étapes), dédupliquée. Maximum ~8.
 
 Appelle save_recipe_sheet.`,
           },
@@ -365,6 +394,40 @@ Appelle save_recipe_sheet.`,
     }
   }
 
+  // --- Étapes structurées (option A) ---------------------------------------
+  const STRIP_NUM = /^\s*(?:\d+\s*[.)°:-]\s*|étape\s*\d+\s*[:.)-]?\s*|[-–•*]\s*)/i;
+  const strList = (v: unknown): string[] =>
+    Array.isArray(v)
+      ? v
+          .filter((x): x is string => typeof x === 'string')
+          .map((x) => x.trim())
+          .filter(Boolean)
+      : [];
+  const lowerDedup = (arr: string[]): string[] =>
+    Array.from(new Set(arr.map((x) => x.toLowerCase()).filter(Boolean)));
+
+  const preparationSteps: ExtractedStep[] = Array.isArray(input.preparationSteps)
+    ? (input.preparationSteps as unknown[])
+        .map((raw) => {
+          const s = (raw ?? {}) as Record<string, unknown>;
+          return {
+            text:
+              typeof s.text === 'string'
+                ? s.text.trim().replace(STRIP_NUM, '').trim()
+                : '',
+            ingredients: strList(s.ingredients),
+            utensils: lowerDedup(strList(s.utensils)),
+          };
+        })
+        .filter((s) => s.text.length > 0)
+    : [];
+
+  // Ustensiles niveau recette = union (top-level + tous ceux des étapes).
+  const utensils: string[] = lowerDedup([
+    ...strList(input.utensils),
+    ...preparationSteps.flatMap((s) => s.utensils),
+  ]);
+
   return {
     // sheetNumber : entier positif uniquement (Vision peut renvoyer 0
     // ou négatif si confusion). Filtre à `null` dans ces cas.
@@ -416,33 +479,7 @@ Appelle save_recipe_sheet.`,
           .filter(Boolean)
       : [],
     ingredients,
-    // Étapes : on retire une éventuelle numérotation de tête laissée par
-    // le modèle ("1.", "Étape 2 :", "- ", "• ") — l'ordre du tableau fait foi.
-    preparationSteps: Array.isArray(input.preparationSteps)
-      ? (input.preparationSteps as unknown[])
-          .filter((s): s is string => typeof s === 'string')
-          .map((s) =>
-            s
-              .trim()
-              .replace(
-                /^\s*(?:\d+\s*[.)°:-]\s*|étape\s*\d+\s*[:.)-]?\s*|[-–•*]\s*)/i,
-                '',
-              )
-              .trim(),
-          )
-          .filter(Boolean)
-      : [],
-    // Ustensiles : trim + minuscule + dédup (la slugification finale et
-    // l'upsert catalogue se font à la sauvegarde via lib/utensils).
-    utensils: Array.isArray(input.utensils)
-      ? Array.from(
-          new Set(
-            (input.utensils as unknown[])
-              .filter((u): u is string => typeof u === 'string')
-              .map((u) => u.trim().toLowerCase())
-              .filter(Boolean),
-          ),
-        )
-      : [],
+    preparationSteps,
+    utensils,
   };
 }

@@ -128,8 +128,8 @@ export function NutriScoreDetailLink({
       tSalt = 0;
     for (const ing of ingredients) {
       const ciqual =
-        typeof ing.ciqual_food_id === 'number'
-          ? ciqualMap.get(ing.ciqual_food_id)
+        typeof ing.ciqual_alim_code === 'number'
+          ? ciqualMap.get(ing.ciqual_alim_code)
           : null;
       // On lit le poids unitaire (avg_unit_weight_g) directement sur
       // le Ciqual lié. Si absent ou sentinel "pas de sens", grams = 0

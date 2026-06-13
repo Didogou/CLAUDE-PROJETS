@@ -28,6 +28,12 @@ function sanitize(it: any): RecipeIngredient {
         : null,
     unit: typeof it?.unit === 'string' ? it.unit.trim() || null : null,
     note: typeof it?.note === 'string' ? it.note.trim() || null : null,
+    // Clé canonique = alim_code STABLE ; ciqual_food_id deprecated.
+    ciqual_alim_code:
+      typeof it?.ciqual_alim_code === 'number' &&
+      Number.isFinite(it.ciqual_alim_code)
+        ? it.ciqual_alim_code
+        : null,
     ciqual_food_id:
       typeof it?.ciqual_food_id === 'number' &&
       Number.isFinite(it.ciqual_food_id)

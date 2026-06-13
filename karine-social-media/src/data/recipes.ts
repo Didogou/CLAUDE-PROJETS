@@ -14,18 +14,68 @@ export type RecipeCategory =
 /** Structure d'un ingrédient (réutilise la même shape que les items de
  *  liste de courses pour pouvoir agréger sans conversion).
  *
- *  `ciqual_food_id` : lien vers la table Ciqual pour le calcul
- *  Nutri-Score. Ajouté 2026-06-08, optionnel — vaut null sur les
- *  recettes existantes tant que Karine ne l'a pas renseigné via la
- *  page admin Nutri-Score. */
+ *  `ciqual_alim_code` : lien vers la table Ciqual via le code ANSES
+ *  STABLE (alim_code), qui survit aux ré-imports. C'est le champ
+ *  canonique depuis 2026-06-12.
+ *
+ *  `ciqual_food_id` : ANCIEN lien via l'id interne (auto-increment),
+ *  volatile — cassé par le ré-import du 2026-06-12. Conservé en
+ *  lecture le temps de la bascule, ne plus écrire dessus. Voir
+ *  l'incident dans la mémoire projet. */
 export type RecipeIngredient = {
   category: string;
   label: string;
   quantity: number | null;
   unit: string | null;
   note: string | null;
+  /** Code ANSES stable (clé Ciqual canonique). */
+  ciqual_alim_code?: number | null;
+  /** @deprecated id interne volatile — lecture seule pendant la transition. */
   ciqual_food_id?: number | null;
 };
+
+/**
+ * Une étape de préparation STRUCTURÉE (option A) :
+ *   - text        : le texte de l'étape (ordre = ordre d'affichage)
+ *   - ingredients : labels d'ingrédients utilisés à cette étape
+ *                   (sous-ensemble de la liste `ingredients` de la fiche)
+ *   - utensils    : slugs d'ustensiles (réf. catalogue public.utensils)
+ */
+export type PreparationStep = {
+  text: string;
+  ingredients: string[];
+  utensils: string[];
+  /** URL de la voix (TTS ElevenLabs) de l'étape. null/absent = pas encore
+   *  générée (ou texte modifié depuis → à régénérer). */
+  audioUrl?: string | null;
+};
+
+/** Parse une valeur jsonb (DB) en PreparationStep[] tolérant. Étapes sans
+ *  texte ignorées. Rétro-compatible : un ancien `string` devient { text }. */
+export function parsePreparationSteps(v: unknown): PreparationStep[] {
+  if (!Array.isArray(v)) return [];
+  const strArr = (x: unknown): string[] =>
+    Array.isArray(x) ? x.filter((s): s is string => typeof s === 'string') : [];
+  const out: PreparationStep[] = [];
+  for (const raw of v) {
+    if (typeof raw === 'string') {
+      if (raw.trim()) out.push({ text: raw.trim(), ingredients: [], utensils: [] });
+      continue;
+    }
+    if (!raw || typeof raw !== 'object') continue;
+    const o = raw as Record<string, unknown>;
+    const text = typeof o.text === 'string' ? o.text.trim() : '';
+    if (!text) continue;
+    const audioUrl = typeof o.audioUrl === 'string' ? o.audioUrl : null;
+    out.push({
+      text,
+      ingredients: strArr(o.ingredients),
+      utensils: strArr(o.utensils),
+      audioUrl,
+    });
+  }
+  return out;
+}
 
 /**
  * Une fiche détaillée d'une recette. Chaque fiche est une recette
@@ -59,9 +109,10 @@ export type RecipeSheet = {
   ingredients: RecipeIngredient[];
   /** Texte brut éditable (Karine peut le corriger après extraction). */
   ingredientsText: string | null;
-  /** Étapes de préparation ordonnées (haut → bas de la fiche),
-   *  extraites par Vision. Contenu réservé (paywall) côté abonnée. */
-  preparationSteps: string[];
+  /** Étapes de préparation STRUCTURÉES, ordonnées (haut → bas de la fiche).
+   *  Chaque étape porte ses ingrédients (labels) + ustensiles (slugs).
+   *  Contenu réservé (paywall) côté abonnée. */
+  preparationSteps: PreparationStep[];
   /** Slugs d'ustensiles référençant le catalogue public.utensils. */
   utensils: string[];
   /** Compteur de likes (dénormalisé sur recipe_sheets.likes_count). */

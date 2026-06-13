@@ -79,28 +79,30 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServiceClient();
 
-  if (replaceAll) {
-    const { error: delErr } = await (supabase as any)
-      .from('ciqual_foods')
-      .delete()
-      // delete-all garde-fou : on cible alim_code > 0 (tous les codes
-      // Ciqual valides), évite delete sans where qui serait refusé par
-      // certains setups Supabase.
-      .gt('alim_code', 0);
-    if (delErr) {
-      return NextResponse.json(
-        { error: `Purge impossible : ${delErr.message}` },
-        { status: 500 },
-      );
-    }
-  }
+  // ⚠️ GARDE-FOU 2026-06-12 : on NE supprime PLUS la table avant import.
+  // L'ancien DELETE-all + ré-INSERT changeait tous les `id` (auto-increment)
+  // → cassait les liens des recettes ET déclenchait ON DELETE CASCADE sur
+  // ciqual_aliases (toute la curation de Karine effacée d'un coup), en plus
+  // de remettre image_url à null. Cf. incident.
+  //
+  // Désormais : UNIQUEMENT un upsert sur `alim_code` (clé STABLE). Les
+  // lignes existantes sont mises à jour EN PLACE → id conservé → alias,
+  // liens recettes et images préservés.
+  //
+  // `replaceAll` est conservé mais rendu NON destructif : on tamponne les
+  // lignes de ce fichier avec `importStamp`, et on supprime à la fin
+  // SEULEMENT les aliments absents du nouveau fichier (codes réellement
+  // disparus). Pour un ré-import du fichier ANSES complet → 0 suppression.
+  const importStamp = new Date().toISOString();
 
   const BATCH_SIZE = 500;
   let imported = 0;
   const batchErrors: string[] = [];
 
   for (let i = 0; i < parsed.rows.length; i += BATCH_SIZE) {
-    const batch = parsed.rows.slice(i, i + BATCH_SIZE).map(rowToDbPayload);
+    const batch = parsed.rows
+      .slice(i, i + BATCH_SIZE)
+      .map((r) => ({ ...rowToDbPayload(r), imported_at: importStamp }));
     const { error: upErr } = await (supabase as any)
       .from('ciqual_foods')
       .upsert(batch, { onConflict: 'alim_code' });
@@ -111,6 +113,23 @@ export async function POST(request: NextRequest) {
       continue;
     }
     imported += batch.length;
+  }
+
+  // Purge SÛRE (replaceAll) : on retire uniquement les aliments NON présents
+  // dans ce fichier (tampon != importStamp) — donc des codes réellement
+  // disparus. Les lignes ré-importées gardent leur id → alias/liens/images
+  // intacts. On ne purge PAS si un batch a échoué (sinon on supprimerait
+  // des lignes qui n'ont simplement pas pu être ré-importées).
+  if (replaceAll && batchErrors.length === 0) {
+    const { error: pruneErr } = await (supabase as any)
+      .from('ciqual_foods')
+      .delete()
+      .neq('imported_at', importStamp);
+    if (pruneErr) {
+      batchErrors.push(
+        `Purge des codes obsolètes impossible : ${pruneErr.message}`,
+      );
+    }
   }
 
   return NextResponse.json({

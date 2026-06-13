@@ -66,12 +66,12 @@ export default async function RecipeDetailPage({
   //   on fetch tout Ciqual (paginé), on résout les matches en mémoire,
   //   on collecte les Ciqual matchés. Lent (~4 queries) mais évite à
   //   l'utilisatrice d'attendre le re-run du batch admin.
-  const linkedCiqualIds = new Set<number>();
+  const linkedCodes = new Set<number>();
   let hasUnlinkedIngredients = false;
   for (const sheet of recipe.sheets) {
     for (const ing of sheet.ingredients) {
-      if (typeof ing.ciqual_food_id === 'number') {
-        linkedCiqualIds.add(ing.ciqual_food_id);
+      if (typeof ing.ciqual_alim_code === 'number') {
+        linkedCodes.add(ing.ciqual_alim_code);
       } else if (typeof ing.quantity === 'number' && ing.quantity > 0) {
         hasUnlinkedIngredients = true;
       }
@@ -87,7 +87,7 @@ export default async function RecipeDetailPage({
       const { data: page } = await supa
         .from('ciqual_foods')
         .select(
-          'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
+          'id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
         )
         .order('id', { ascending: true })
         .range(offset, offset + 999);
@@ -97,30 +97,30 @@ export default async function RecipeDetailPage({
       if (arr.length < 1000) break;
     }
     const collected = new Map<number, CiqualFoodLite>();
-    // Garde tous les liens explicites
-    for (const id of linkedCiqualIds) {
-      const c = ciqualAll.find((f) => f.id === id);
-      if (c) collected.set(id, c);
+    // Garde tous les liens explicites (par alim_code STABLE)
+    for (const code of linkedCodes) {
+      const c = ciqualAll.find((f) => f.alim_code === code);
+      if (c) collected.set(code, c);
     }
     // Match auto pour les orphelins
     for (const sheet of recipe.sheets) {
       for (const ing of sheet.ingredients) {
-        if (typeof ing.ciqual_food_id === 'number') continue;
+        if (typeof ing.ciqual_alim_code === 'number') continue;
         if (typeof ing.quantity !== 'number' || ing.quantity <= 0) continue;
         const m = quickMatchCiqual(ing.label, ciqualAll);
-        if (m && !collected.has(m.id)) collected.set(m.id, m);
+        if (m && !collected.has(m.alim_code)) collected.set(m.alim_code, m);
       }
     }
     ciqualByIdEntries = Array.from(collected.entries());
-  } else if (linkedCiqualIds.size > 0) {
+  } else if (linkedCodes.size > 0) {
     const { data } = await supa
       .from('ciqual_foods')
       .select(
-        'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
+        'id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
       )
-      .in('id', Array.from(linkedCiqualIds));
+      .in('alim_code', Array.from(linkedCodes));
     const arr = (data ?? []) as CiqualFoodLite[];
-    ciqualByIdEntries = arr.map((c) => [c.id, c]);
+    ciqualByIdEntries = arr.map((c) => [c.alim_code, c]);
   }
 
   // Patch des ingrédients pour que la modale retrouve le ciqual_food_id
@@ -130,10 +130,10 @@ export default async function RecipeDetailPage({
     const ciqualPool = ciqualByIdEntries.map(([, c]) => c);
     for (const sheet of recipe.sheets) {
       sheet.ingredients = sheet.ingredients.map((ing) => {
-        if (typeof ing.ciqual_food_id === 'number') return ing;
+        if (typeof ing.ciqual_alim_code === 'number') return ing;
         if (typeof ing.quantity !== 'number' || ing.quantity <= 0) return ing;
         const m = quickMatchCiqual(ing.label, ciqualPool);
-        return m ? { ...ing, ciqual_food_id: m.id } : ing;
+        return m ? { ...ing, ciqual_alim_code: m.alim_code } : ing;
       });
     }
   }

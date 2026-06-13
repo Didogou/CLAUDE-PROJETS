@@ -200,26 +200,27 @@ export async function getNutritionDayState(userId: string): Promise<NutritionDay
   // Joindre les images Ciqual : pour toutes les entries source='ciqual'
   // avec un source_ref_id numerique, on lookup ciqual_foods.image_url
   // en 1 query batch pour ne pas faire N requetes.
-  const ciqualIds = new Set<number>();
+  // source_ref_id (source='ciqual') = alim_code STABLE depuis 2026-06-12.
+  const ciqualCodes = new Set<number>();
   for (const r of rows) {
     if (r.source === 'ciqual' && r.source_ref_id) {
       const n = Number(r.source_ref_id);
-      if (Number.isFinite(n)) ciqualIds.add(n);
+      if (Number.isFinite(n)) ciqualCodes.add(n);
     }
   }
-  const ciqualImageById = new Map<number, string | null>();
-  const ciqualWeightById = new Map<number, number | null>();
-  if (ciqualIds.size > 0) {
+  const ciqualImageByCode = new Map<number, string | null>();
+  const ciqualWeightByCode = new Map<number, number | null>();
+  if (ciqualCodes.size > 0) {
     const { data: imgs } = await (supabase as any)
       .from('ciqual_foods')
-      .select('id, image_url, avg_unit_weight_g')
-      .in('id', [...ciqualIds]);
-    for (const row of ((imgs ?? []) as Array<{ id: number; image_url: string | null; avg_unit_weight_g: number | null }>)) {
-      ciqualImageById.set(Number(row.id), row.image_url ?? null);
+      .select('alim_code, image_url, avg_unit_weight_g')
+      .in('alim_code', [...ciqualCodes]);
+    for (const row of ((imgs ?? []) as Array<{ alim_code: number; image_url: string | null; avg_unit_weight_g: number | null }>)) {
+      ciqualImageByCode.set(Number(row.alim_code), row.image_url ?? null);
       // Sentinel 0.0001 = "1 unite n'a pas de sens" (huile, sel) → null
       const w = row.avg_unit_weight_g;
-      ciqualWeightById.set(
-        Number(row.id),
+      ciqualWeightByCode.set(
+        Number(row.alim_code),
         typeof w === 'number' && w > 0.01 ? Number(w) : null,
       );
     }
@@ -241,8 +242,8 @@ export async function getNutritionDayState(userId: string): Promise<NutritionDay
       portions: Number(r.portions),
       mealCategory: (r.meal_category as MealCategory | null) ?? null,
       photoUrl: (r.photo_url as string | null) ?? null,
-      ciqualImageUrl: refId !== null ? ciqualImageById.get(refId) ?? null : null,
-      unitWeightG: refId !== null ? ciqualWeightById.get(refId) ?? null : null,
+      ciqualImageUrl: refId !== null ? ciqualImageByCode.get(refId) ?? null : null,
+      unitWeightG: refId !== null ? ciqualWeightByCode.get(refId) ?? null : null,
     };
   });
 

@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   Ban,
+  ChefHat,
   ChevronLeft,
   ChevronRight,
   Clock,
@@ -128,6 +130,8 @@ export function SheetCarousel({
   // Explosion de cœurs déclenchée à chaque like (UX feedback)
   const [likeBursts, fireLikeBurst] = useHeartBurst();
   const router = useRouter();
+  // Chemin courant (/recettes/<slug>) → on dérive l'URL de la page cuisine.
+  const pathname = usePathname();
 
   async function toggleLike() {
     // Optimistic update : on change le state immédiatement, on rollback
@@ -229,21 +233,6 @@ export function SheetCarousel({
             navigation entre fiches. Inclut Sans porc cette fois (vs la
             card mère où c'est englobé par Végé). */}
         <SheetDietaryTags dietary={sheet.dietary} />
-        {total > 1 && (
-          <div className="flex items-center gap-1.5">
-            {sheets.map((_, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setActive(i)}
-                aria-label={`Voir fiche ${i + 1}`}
-                className={`h-1.5 rounded-full transition ${
-                  i === active ? 'w-6 bg-coral' : 'w-1.5 bg-coral-soft'
-                }`}
-              />
-            ))}
-          </div>
-        )}
         <FavoriteButton
           targetType="recipe"
           targetId={recipeId}
@@ -254,6 +243,16 @@ export function SheetCarousel({
           labelShort
         />
       </header>
+
+      {/* Bouton pastel : lance la recette guidée (page cuisine) pour la
+          fiche actuellement affichée. */}
+      <Link
+        href={`${pathname}/cuisiner?sheet=${active}`}
+        className="mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-full bg-coral-soft px-6 py-3 text-base font-bold text-coral-dark shadow-sm transition hover:bg-coral-soft/80 active:scale-[0.98]"
+      >
+        <ChefHat className="h-5 w-5" />
+        Commencer la recette
+      </Link>
 
       {/* Image + chevrons HORS DE L'IMAGE, dans les marges blanches de la
           carte. Layout flex 3 colonnes : chevron G / image / chevron D.
@@ -564,7 +563,7 @@ function SheetDietaryTags({
     return null;
   }
   return (
-    <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-end gap-1 overflow-hidden">
+    <div className="flex min-w-0 flex-1 flex-nowrap items-center justify-center gap-1 overflow-hidden">
       {dietary.isVegetarian && (
         <span
           className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-emerald-100 px-1 py-0.5 text-[0.5rem] font-bold uppercase tracking-tight text-emerald-700 ring-1 ring-emerald-300"

@@ -46,7 +46,7 @@ export default async function NutriScoreRealPage() {
 
   // Pagination Ciqual : on assemble les 3500+ aliments en 4 fetches.
   const CIQUAL_FIELDS =
-    'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg';
+    'id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg';
   const ciqualAccum: any[] = [];
   for (let offset = 0; offset < 10000; offset += 1000) {
     const { data: page } = await supa

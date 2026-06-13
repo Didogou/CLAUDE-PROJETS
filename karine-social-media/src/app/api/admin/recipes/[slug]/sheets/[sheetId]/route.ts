@@ -6,7 +6,11 @@ import {
   computeSheetMacros,
   fetchCiqualForIngredients,
 } from '@/lib/recipe-macros';
-import { upsertUtensils } from '@/lib/utensils';
+import {
+  upsertUtensils,
+  sanitizePreparationSteps,
+  collectUtensilLabels,
+} from '@/lib/utensils';
 import { revalidateRecipes } from '@/lib/cached-content';
 import type { RecipeIngredient } from '@/data/recipes';
 
@@ -59,9 +63,16 @@ export async function PATCH(
       patch.ingredients_text = body.ingredientsText.trim() || null;
     }
     if (body.preparationSteps !== undefined)
-      patch.preparation_steps = stringArray(body.preparationSteps);
-    if (body.utensils !== undefined)
-      patch.utensils = await upsertUtensils(supabase, body.utensils);
+      patch.preparation_steps = sanitizePreparationSteps(body.preparationSteps);
+    // Catalogue l'UNION (fiche + étapes) pour éviter des slugs orphelins,
+    // même quand le PATCH ne porte que sur l'un des deux champs.
+    if (body.utensils !== undefined || body.preparationSteps !== undefined) {
+      const slugs = await upsertUtensils(
+        supabase,
+        collectUtensilLabels(body.utensils, body.preparationSteps),
+      );
+      if (body.utensils !== undefined) patch.utensils = slugs;
+    }
     // Overrides admin tags diététiques (Auto = null, true/false = forcé).
     if (body.isVegetarianOverride !== undefined) {
       patch.is_vegetarian_override =
@@ -247,7 +258,13 @@ function sanitizeIngredients(v: unknown): RecipeIngredient[] {
       unit: typeof obj.unit === 'string' ? obj.unit.trim() || null : null,
       note: typeof obj.note === 'string' ? obj.note.trim() || null : null,
       // Lien vers la table Ciqual posé par Karine via la page admin
-      // Nutri-Score. Optionnel, persiste tel quel quand fourni.
+      // Nutri-Score. Clé canonique = alim_code STABLE. On garde
+      // ciqual_food_id (deprecated) le temps de la transition.
+      ciqual_alim_code:
+        typeof obj.ciqual_alim_code === 'number' &&
+        Number.isFinite(obj.ciqual_alim_code)
+          ? obj.ciqual_alim_code
+          : null,
       ciqual_food_id:
         typeof obj.ciqual_food_id === 'number' &&
         Number.isFinite(obj.ciqual_food_id)

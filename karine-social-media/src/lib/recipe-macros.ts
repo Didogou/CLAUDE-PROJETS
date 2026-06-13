@@ -28,6 +28,8 @@ import type { RecipeIngredient } from '@/data/recipes';
 
 export type CiqualMacroRow = {
   id: number;
+  /** Code ANSES STABLE — clé de liaison canonique. */
+  alim_code: number;
   proteins_g: number | null;
   lipids_g: number | null;
   carbs_g: number | null;
@@ -97,15 +99,15 @@ function toGrams(
 /**
  * Calcule les macros d'une fiche.
  *
- * @param ingredients  Liste des ingrédients de la fiche (avec ciqual_food_id idéalement)
+ * @param ingredients  Liste des ingrédients de la fiche (avec ciqual_alim_code idéalement)
  * @param servings     Nombre de portions de la fiche
- * @param ciqualById   Map id Ciqual → ligne nutritionnelle
+ * @param ciqualByCode Map alim_code Ciqual → ligne nutritionnelle
  * @returns Macros PAR PORTION + couverture
  */
 export function computeSheetMacros(
   ingredients: RecipeIngredient[] | null | undefined,
   servings: number,
-  ciqualById: Map<number, CiqualMacroRow>,
+  ciqualByCode: Map<number, CiqualMacroRow>,
 ): ComputedMacros {
   if (!Array.isArray(ingredients) || ingredients.length === 0) {
     return {
@@ -126,12 +128,12 @@ export function computeSheetMacros(
   const skipped: string[] = [];
 
   for (const ing of ingredients) {
-    const ciqualId = ing.ciqual_food_id ?? null;
-    if (!ciqualId) {
+    const alimCode = ing.ciqual_alim_code ?? null;
+    if (!alimCode) {
       skipped.push(ing.label);
       continue;
     }
-    const ciqual = ciqualById.get(ciqualId);
+    const ciqual = ciqualByCode.get(alimCode);
     if (!ciqual) {
       skipped.push(ing.label);
       continue;
@@ -189,19 +191,19 @@ export async function fetchCiqualForIngredients(
 ): Promise<Map<number, CiqualMacroRow>> {
   const map = new Map<number, CiqualMacroRow>();
   if (!Array.isArray(ingredients) || ingredients.length === 0) return map;
-  const ids = new Set<number>();
+  const codes = new Set<number>();
   for (const ing of ingredients) {
-    if (ing.ciqual_food_id && Number.isFinite(ing.ciqual_food_id)) {
-      ids.add(Number(ing.ciqual_food_id));
+    if (ing.ciqual_alim_code && Number.isFinite(ing.ciqual_alim_code)) {
+      codes.add(Number(ing.ciqual_alim_code));
     }
   }
-  if (ids.size === 0) return map;
+  if (codes.size === 0) return map;
   const { data } = await supabase
     .from('ciqual_foods')
-    .select('id, proteins_g, lipids_g, carbs_g, kcal_per_100g, avg_unit_weight_g')
-    .in('id', [...ids]);
+    .select('id, alim_code, proteins_g, lipids_g, carbs_g, kcal_per_100g, avg_unit_weight_g')
+    .in('alim_code', [...codes]);
   for (const row of (data ?? []) as CiqualMacroRow[]) {
-    map.set(Number(row.id), row);
+    map.set(Number(row.alim_code), row);
   }
   return map;
 }

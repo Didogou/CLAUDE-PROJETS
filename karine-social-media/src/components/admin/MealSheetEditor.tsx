@@ -11,6 +11,7 @@ import {
   Upload,
 } from 'lucide-react';
 import type { MenuMealSheet, MealKind, ShoppingListItem } from '@/data/menus';
+import type { PreparationStep } from '@/data/recipes';
 import { compressImage } from '@/lib/compress-image';
 import { IngredientsChecklist } from './IngredientsChecklist';
 import { PreparationStepsEditor } from './PreparationStepsEditor';
@@ -37,7 +38,7 @@ type PreviewData = {
   tags: string[];
   aliments: string[];
   ingredients: ShoppingListItem[];
-  preparationSteps: string[];
+  preparationSteps: PreparationStep[];
   utensils: string[];
 };
 

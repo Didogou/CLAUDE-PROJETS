@@ -1,3 +1,5 @@
+import type { PreparationStep } from './recipes';
+
 export const DAYS_LABELS = [
   'Lundi',
   'Mardi',
@@ -65,9 +67,9 @@ export type MenuMealSheet = {
    *  pouvoir agréger directement dans la liste de courses sans
    *  conversion. */
   ingredients: ShoppingListItem[];
-  /** Étapes de préparation ordonnées (extraites par Vision). Contenu
-   *  réservé (paywall) côté abonnée. */
-  preparationSteps: string[];
+  /** Étapes de préparation STRUCTURÉES (texte + ingrédients + ustensiles).
+   *  Contenu réservé (paywall) côté abonnée. */
+  preparationSteps: PreparationStep[];
   /** Slugs d'ustensiles référençant le catalogue public.utensils. */
   utensils: string[];
   likesCount: number;

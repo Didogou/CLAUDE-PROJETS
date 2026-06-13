@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -14,8 +15,13 @@ import {
   Plus,
   Trash2,
   Upload,
+  Volume2,
 } from 'lucide-react';
-import type { RecipeIngredient, RecipeSheet } from '@/data/recipes';
+import type {
+  PreparationStep,
+  RecipeIngredient,
+  RecipeSheet,
+} from '@/data/recipes';
 import { IngredientsChecklist } from './IngredientsChecklist';
 import { PreparationStepsEditor } from './PreparationStepsEditor';
 import {
@@ -36,7 +42,7 @@ type PreviewData = {
   tags: string[];
   aliments: string[];
   ingredients: RecipeIngredient[];
-  preparationSteps: string[];
+  preparationSteps: PreparationStep[];
   utensils: string[];
   isVegetarianOverride?: boolean | null;
   isGlutenFreeOverride?: boolean | null;
@@ -61,12 +67,73 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
   const [sheets, setSheets] = useState(initialSheets);
   const [addingPreview, setAddingPreview] = useState<PreviewData | null>(null);
   const [busy, setBusy] = useState<
-    'idle' | 'extracting' | 'saving' | 'patching' | 'deleting' | 'backfill'
+    'idle' | 'extracting' | 'saving' | 'patching' | 'deleting' | 'backfill' | 'audio'
   >('idle');
   const [error, setError] = useState<string | null>(null);
   const [confirmBackfill, setConfirmBackfill] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState<string | null>(null);
+  const [audioMsg, setAudioMsg] = useState<string | null>(null);
+  const [voices, setVoices] = useState<{ id: string; name: string }[]>([]);
+  const [voiceId, setVoiceId] = useState('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Charge les voix ElevenLabs du compte pour le sélecteur.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/elevenlabs/voices');
+        if (!res.ok) return;
+        const j = await res.json();
+        if (!cancelled && Array.isArray(j.voices)) {
+          setVoices(j.voices);
+          // Voix de Karine par défaut (sinon 1ʳᵉ voix dispo).
+          const karine = j.voices.find((v: { name?: string }) =>
+            /karine/i.test(v.name ?? ''),
+          );
+          const def = karine ?? j.voices[0];
+          if (def) setVoiceId((cur) => cur || def.id);
+        }
+      } catch {
+        /* silencieux */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** Génère (ElevenLabs) la voix de CHAQUE étape de TOUTES les fiches. */
+  async function generateAudio() {
+    setBusy('audio');
+    setError(null);
+    setAudioMsg(null);
+    try {
+      const res = await fetch(`/api/admin/recipes/${recipeSlug}/generate-audio`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ voiceId }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(j?.error || 'Erreur');
+      const firstErr = Array.isArray(j.errors) && j.errors[0] ? ` (${j.errors[0]})` : '';
+      setAudioMsg(
+        `Voix générées : ${j.generated}/${j.total}` +
+          (j.errors?.length ? ` · ${j.errors.length} erreur(s)${firstErr}` : '') +
+          (j.generated > 0 ? '. Rechargement…' : ''),
+      );
+      // On ne recharge QUE si au moins une voix a été générée — sinon on
+      // laisse le message d'erreur visible (ex: voix non configurée).
+      if (j.generated > 0) {
+        setTimeout(() => window.location.reload(), 1300);
+      } else {
+        setBusy('idle');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur');
+      setBusy('idle');
+    }
+  }
 
   /**
    * Rattrapage des fiches DÉJÀ uploadées : relance Vision sur chaque
@@ -302,7 +369,7 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
         {/* Rattrapage : recettes déjà uploadées avant l'extraction
             préparation/ustensiles. Confirm inline (réécrit les étapes). */}
         {sheets.length > 0 && (
-          <div className="shrink-0">
+          <div className="flex shrink-0 flex-col items-end gap-2">
             {confirmBackfill ? (
               <div className="flex items-center gap-1.5 rounded-full bg-admin-soft/60 p-1 pl-3">
                 <span className="text-[0.7rem] font-semibold text-admin-ink">
@@ -340,6 +407,42 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
                 Extraire Préparation
               </button>
             )}
+
+            {/* Voix ElevenLabs : sélecteur + génération, SOUS « Extraire ».
+                Recette entière (toutes les fiches × toutes les étapes). */}
+            <div className="flex items-center gap-1.5">
+              <select
+                value={voiceId}
+                onChange={(e) => setVoiceId(e.target.value)}
+                disabled={busy !== 'idle' || voices.length === 0}
+                title="Voix ElevenLabs"
+                className="max-w-[8rem] rounded-full border border-violet-300 bg-white px-2 py-1 text-[0.7rem] font-semibold text-violet-700 disabled:opacity-50"
+              >
+                {voices.length === 0 ? (
+                  <option value="">(voix indispo)</option>
+                ) : (
+                  voices.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <button
+                type="button"
+                onClick={generateAudio}
+                disabled={busy !== 'idle'}
+                title="Générer la voix de chaque étape de toutes les fiches (ElevenLabs)"
+                className="flex items-center gap-1.5 rounded-full border border-violet-300 bg-white px-3 py-1.5 text-xs font-semibold text-violet-700 transition hover:bg-violet-50 disabled:opacity-50"
+              >
+                {busy === 'audio' ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Volume2 className="h-3.5 w-3.5" />
+                )}
+                Générer les voix
+              </button>
+            </div>
           </div>
         )}
       </header>
@@ -347,6 +450,12 @@ export function RecipeSheetsEditor({ recipeSlug, initialSheets }: Props) {
       {backfillMsg && (
         <div className="mb-3 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
           {backfillMsg}
+        </div>
+      )}
+
+      {audioMsg && (
+        <div className="mb-3 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-sm text-violet-800">
+          {audioMsg}
         </div>
       )}
 

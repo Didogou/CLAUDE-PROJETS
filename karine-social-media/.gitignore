@@ -45,6 +45,12 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# outils de maintenance Nutri-Score / Ciqual (cache + sorties d'audit, local)
+scripts/.portion-weight-cache.json
+scripts/.unit-weight-cache.json
+ciqual-match-audit.txt
+ciqual-unmatched.txt
+
 # bibliothèque source d'images (local uniquement)
 # ⚠️ contient des données sensibles (photos patients = données de santé RGPD)
 # ne JAMAIS commiter/pousser. Les visuels web vivent dans public/images/.

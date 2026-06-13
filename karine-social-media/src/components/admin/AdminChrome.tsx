@@ -34,6 +34,7 @@ import {
   ChevronDown,
   ChevronRight,
   Utensils,
+  Mic,
 } from 'lucide-react';
 
 // Un menu peut etre un lien direct, ou un groupe qui contient des
@@ -54,8 +55,8 @@ const SECTIONS: Section[] = [
   { href: '/admin', label: 'Tableau de bord', icon: LayoutDashboard },
   { href: '/admin/recettes', label: 'Recettes', icon: ChefHat },
   { href: '/admin/recettes/nutriscore', label: 'Nutri-Score', icon: Award },
+  { href: '/admin/recettes/batch-prepa-audio', label: 'Préparations + voix', icon: Mic },
   { href: '/admin/labels', label: 'Labels diététiques', icon: Shield },
-  { href: '/admin/recipes-meal-test', label: 'Test analyse repas', icon: FlaskConical },
   {
     label: 'Ciqual',
     icon: Database,
@@ -80,10 +81,22 @@ const SECTIONS: Section[] = [
   { href: '/admin/abonnes', label: 'Abonnés', icon: Users },
   { href: '/admin/permissions', label: 'Permissions', icon: Shield },
   { href: '/admin/informations-legales', label: 'Infos légales & banque', icon: FileText },
-  { href: '/admin/parse-tests', label: 'Tests parsing', icon: FlaskConical },
   { href: '/admin/parametres', label: 'Paramètres', icon: SlidersHorizontal },
   { href: '/admin/parametres/encouragements', label: 'Encouragements', icon: Sparkles },
-  { href: '/admin/tests', label: 'Tests E2E', icon: FlaskConical },
+  // Regroupement des pages de test/QA (2026-06-12). Plus elles sont
+  // nombreuses, plus le burger devient illisible si elles restent à
+  // plat. Le groupe est plié par défaut (auto-ouvert si on est sur
+  // une sous-page de test).
+  {
+    label: 'Tests',
+    icon: FlaskConical,
+    children: [
+      { href: '/admin/tests/visitor-home', label: 'Accès visiteur — Accueil', icon: FlaskConical },
+      { href: '/admin/recipes-meal-test', label: 'Test analyse repas', icon: FlaskConical },
+      { href: '/admin/parse-tests', label: 'Tests parsing', icon: FlaskConical },
+      { href: '/admin/tests', label: 'Tests E2E', icon: FlaskConical },
+    ],
+  },
   { href: '/admin/compte', label: 'Compte', icon: Settings },
 ];
 
@@ -91,10 +104,18 @@ const SECTIONS: Section[] = [
 const FLAT_ITEMS: NavItem[] = SECTIONS.flatMap((s) =>
   isGroup(s) ? s.children : [s],
 );
+const ALL_HREFS = new Set(FLAT_ITEMS.map((i) => i.href));
 
 function isActive(pathname: string, href: string) {
   if (href === '/admin') return pathname === '/admin';
-  return pathname === href || pathname.startsWith(href + '/');
+  if (pathname === href) return true;
+  // Si pathname matche EXACTEMENT un autre href listé (ex: une sous-route
+  // a sa propre entrée dans le menu), on ne match plus le préfixe parent.
+  // Sinon on aurait /admin/tests ET /admin/tests/visitor-home tous deux
+  // surlignés quand on est sur le second. Améliore aussi /admin/recettes
+  // qui ne reste plus actif quand on est sur /admin/recettes/nutriscore.
+  if (ALL_HREFS.has(pathname)) return false;
+  return pathname.startsWith(href + '/');
 }
 
 function currentTitle(pathname: string): string {

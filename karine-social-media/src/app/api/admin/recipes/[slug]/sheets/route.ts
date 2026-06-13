@@ -6,7 +6,11 @@ import {
   computeSheetMacros,
   fetchCiqualForIngredients,
 } from '@/lib/recipe-macros';
-import { upsertUtensils } from '@/lib/utensils';
+import {
+  upsertUtensils,
+  sanitizePreparationSteps,
+  collectUtensilLabels,
+} from '@/lib/utensils';
 import { revalidateRecipes } from '@/lib/cached-content';
 import type { RecipeIngredient } from '@/data/recipes';
 
@@ -94,8 +98,11 @@ export async function POST(
     const sanitizedIngredients = sanitizeIngredients(body.ingredients);
     const servings = clampInt(body.servings, 4, 1, 20);
 
-    // Ustensiles : labels → slugs normalisés + upsert catalogue auto-alimenté.
-    const utensilSlugs = await upsertUtensils(supabase, body.utensils);
+    // Ustensiles : union (fiche + étapes) → slugs + upsert catalogue.
+    const utensilSlugs = await upsertUtensils(
+      supabase,
+      collectUtensilLabels(body.utensils, body.preparationSteps),
+    );
 
     // Calcul macros par portion depuis ingredients × Ciqual.
     // Tolérant : si erreur ou couverture < 30%, retourne null partout.
@@ -138,7 +145,7 @@ export async function POST(
       proteins_g: macrosProteins,
       lipids_g: macrosLipids,
       carbs_g: macrosCarbs,
-      preparation_steps: stringArray(body.preparationSteps),
+      preparation_steps: sanitizePreparationSteps(body.preparationSteps),
       utensils: utensilSlugs,
     };
 

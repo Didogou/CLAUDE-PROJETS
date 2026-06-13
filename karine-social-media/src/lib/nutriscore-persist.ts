@@ -4,10 +4,11 @@ import {
   aggregateIngredients,
   applySaltDefault,
   quickMatchCiqual,
+  isMassUnit,
   type CiqualFoodLite,
 } from '@/lib/nutriscore-aggregate';
 import { computeNutriscore } from '@/lib/nutriscore';
-import { resolveUnitWeights } from '@/lib/ciqual-unit-weight';
+import { resolvePortionWeights } from '@/lib/portion-weight';
 import type { RecipeIngredient } from '@/data/recipes';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -35,7 +36,7 @@ async function fetchCiqualPaginated(supa: any): Promise<CiqualFoodLite[]> {
     const { data } = await supa
       .from('ciqual_foods')
       .select(
-        'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, saturated_fat_g, salt_g, sodium_mg',
+        'id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, saturated_fat_g, salt_g, sodium_mg',
       )
       .order('id', { ascending: true })
       .range(offset, offset + 999);
@@ -94,37 +95,33 @@ export async function persistNutriscoreForSheet(sheetId: string): Promise<void> 
     // ingrédient sans devoir relancer le matching côté client.
     let linkMutated = false;
     const resolvedIngredients = saltNormalized.map((ing) => {
-      if (typeof ing.ciqual_food_id === 'number') return ing;
+      if (typeof ing.ciqual_alim_code === 'number') return ing;
       const match = quickMatchCiqual(ing.label, ciqualFoods);
       if (!match) return ing;
       linkMutated = true;
-      return { ...ing, ciqual_food_id: match.id };
+      return { ...ing, ciqual_alim_code: match.alim_code };
     });
     const mutated = saltMutated || linkMutated;
 
-    // Pour les ingrédients sans unit de poids/volume mais avec un
-    // Ciqual lié, on a besoin du poids unitaire (« 1 tomate cerise ≈ 15g »).
-    // resolveUnitWeights lookup BDD puis fallback Mistral pour ce qui
-    // manque. Throttle interne 1 req/s pour Mistral free tier.
-    const needWeight = resolvedIngredients
+    // Poids de PORTION par label (« 1 gousse d'ail » → 5g, « 1 grosse
+    // tomate » → 180g) pour tout ingrédient dont l'unité n'est pas une
+    // masse/volume directe. Résolution Mistral + cache (portion-weight.ts).
+    const portionLabels = resolvedIngredients
       .filter(
         (ing) =>
           typeof ing.quantity === 'number' &&
           ing.quantity > 0 &&
-          (!ing.unit || ing.unit.trim() === '') &&
-          typeof ing.ciqual_food_id === 'number',
+          !isMassUnit(ing.unit),
       )
-      .map((ing) => {
-        const c = ciqualFoods.find((f) => f.id === ing.ciqual_food_id);
-        return { ciqualId: ing.ciqual_food_id as number, ciqualName: c?.name ?? ing.label };
-      });
-    const ciqualUnitWeights = await resolveUnitWeights(needWeight);
+      .map((ing) => ing.label);
+    const portionWeights = await resolvePortionWeights(portionLabels);
 
     const agg = aggregateIngredients(
       resolvedIngredients,
       ciqualFoods,
       ciqualGroups,
-      ciqualUnitWeights,
+      new Map(),
+      portionWeights,
     );
 
     if (agg.totalGrams === 0) {
@@ -211,34 +208,31 @@ export async function persistNutriscoreForMenuMealSheet(
       applySaltDefault(ingredients);
     let linkMutated = false;
     const resolvedIngredients = saltNormalized.map((ing) => {
-      if (typeof ing.ciqual_food_id === 'number') return ing;
+      if (typeof ing.ciqual_alim_code === 'number') return ing;
       const match = quickMatchCiqual(ing.label, ciqualFoods);
       if (!match) return ing;
       linkMutated = true;
-      return { ...ing, ciqual_food_id: match.id };
+      return { ...ing, ciqual_alim_code: match.alim_code };
     });
     const mutated = saltMutated || linkMutated;
 
-    // Résolution poids unitaire pour ingrédients sans unit (cf. helper recipe).
-    const needWeight = resolvedIngredients
+    // Poids de portion par label (cf. helper recette) — Mistral + cache.
+    const portionLabels = resolvedIngredients
       .filter(
         (ing) =>
           typeof ing.quantity === 'number' &&
           ing.quantity > 0 &&
-          (!ing.unit || ing.unit.trim() === '') &&
-          typeof ing.ciqual_food_id === 'number',
+          !isMassUnit(ing.unit),
       )
-      .map((ing) => {
-        const c = ciqualFoods.find((f) => f.id === ing.ciqual_food_id);
-        return { ciqualId: ing.ciqual_food_id as number, ciqualName: c?.name ?? ing.label };
-      });
-    const ciqualUnitWeights = await resolveUnitWeights(needWeight);
+      .map((ing) => ing.label);
+    const portionWeights = await resolvePortionWeights(portionLabels);
 
     const agg = aggregateIngredients(
       resolvedIngredients,
       ciqualFoods,
       ciqualGroups,
-      ciqualUnitWeights,
+      new Map(),
+      portionWeights,
     );
 
     if (agg.totalGrams === 0) {

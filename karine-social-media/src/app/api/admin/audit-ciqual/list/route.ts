@@ -53,31 +53,32 @@ export async function GET() {
   const sheets = (sheetsRaw ?? []) as Array<{
     recipe_id: number;
     sheet_index: number;
-    ingredients: Array<{ label?: string; ciqual_food_id?: number }> | null;
+    ingredients: Array<{ label?: string; ciqual_alim_code?: number }> | null;
   }>;
 
-  // 3) On collecte les ciqual_food_id référencés pour aller chercher
+  // 3) On collecte les ciqual_alim_code référencés pour aller chercher
   //    leur nom en une seule requête (paginée). PostgREST limite à
   //    1000 lignes par requête.
-  const ciqualIds = new Set<number>();
+  const ciqualCodes = new Set<number>();
   for (const s of sheets) {
     if (!Array.isArray(s.ingredients)) continue;
     for (const ing of s.ingredients) {
-      if (typeof ing?.ciqual_food_id === 'number') ciqualIds.add(ing.ciqual_food_id);
+      if (typeof ing?.ciqual_alim_code === 'number') ciqualCodes.add(ing.ciqual_alim_code);
     }
   }
 
+  // Indexé par alim_code STABLE (clé de liaison canonique).
   const ciqualName = new Map<number, string>();
-  const idsArr = [...ciqualIds];
+  const codesArr = [...ciqualCodes];
   const CHUNK = 500;
-  for (let i = 0; i < idsArr.length; i += CHUNK) {
-    const slice = idsArr.slice(i, i + CHUNK);
+  for (let i = 0; i < codesArr.length; i += CHUNK) {
+    const slice = codesArr.slice(i, i + CHUNK);
     const { data } = await supa
       .from('ciqual_foods')
-      .select('id, name')
-      .in('id', slice);
-    for (const row of (data ?? []) as Array<{ id: number; name: string }>) {
-      ciqualName.set(row.id, row.name);
+      .select('alim_code, name')
+      .in('alim_code', slice);
+    for (const row of (data ?? []) as Array<{ alim_code: number; name: string }>) {
+      ciqualName.set(row.alim_code, row.name);
     }
   }
 
@@ -91,12 +92,12 @@ export async function GET() {
     if (!title) continue;
     if (!Array.isArray(s.ingredients)) continue;
     for (const ing of s.ingredients) {
-      if (typeof ing?.ciqual_food_id !== 'number') continue;
+      if (typeof ing?.ciqual_alim_code !== 'number') continue;
       if (!ing.label) continue;
-      const cname = ciqualName.get(ing.ciqual_food_id);
+      const cname = ciqualName.get(ing.ciqual_alim_code);
       if (!cname) continue;
 
-      const key = `${normLabel(ing.label)}|${ing.ciqual_food_id}`;
+      const key = `${normLabel(ing.label)}|${ing.ciqual_alim_code}`;
       const existing = dedup.get(key);
       if (existing) {
         // Eviter d'ajouter 2 fois la meme recette (au cas ou plusieurs
@@ -115,7 +116,7 @@ export async function GET() {
         dedup.set(key, {
           key,
           ingredient_label: ing.label,
-          ciqual_id: ing.ciqual_food_id,
+          ciqual_id: ing.ciqual_alim_code,
           ciqual_name: cname,
           recipes: [
             { id: s.recipe_id, title, sheet_index: s.sheet_index },

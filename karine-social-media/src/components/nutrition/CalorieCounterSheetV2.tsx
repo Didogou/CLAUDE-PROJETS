@@ -590,7 +590,8 @@ export function CalorieCounterSheetV2({
           entries: [
             {
               source: 'ciqual',
-              sourceRefId: String(s.ciqualId),
+              // alim_code STABLE (pas l'id interne volatile).
+              sourceRefId: String(s.alimCode),
               label: s.name,
               kcal: s.defaultKcalForPortion ?? 0,
               proteinsG:

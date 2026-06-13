@@ -1,6 +1,7 @@
 import 'server-only';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
+  parsePreparationSteps,
   type DietaryTags,
   type Recipe,
   type RecipeCategory,
@@ -53,6 +54,12 @@ function mapSheetRow(row: any): RecipeSheet {
           quantity: typeof it.quantity === 'number' ? it.quantity : null,
           unit: typeof it.unit === 'string' ? it.unit : null,
           note: typeof it.note === 'string' ? it.note : null,
+          // Lien Ciqual (image + nutrition). Sans ça, la page cuisine ne
+          // retrouve pas la vignette de l'ingrédient.
+          ciqual_alim_code:
+            typeof it.ciqual_alim_code === 'number' ? it.ciqual_alim_code : null,
+          ciqual_food_id:
+            typeof it.ciqual_food_id === 'number' ? it.ciqual_food_id : null,
         }))
     : [];
   return {
@@ -81,11 +88,7 @@ function mapSheetRow(row: any): RecipeSheet {
     ingredients,
     ingredientsText:
       typeof row.ingredients_text === 'string' ? row.ingredients_text : null,
-    preparationSteps: Array.isArray(row.preparation_steps)
-      ? (row.preparation_steps as unknown[]).filter(
-          (s): s is string => typeof s === 'string',
-        )
-      : [],
+    preparationSteps: parsePreparationSteps(row.preparation_steps),
     utensils: Array.isArray(row.utensils)
       ? (row.utensils as unknown[]).filter(
           (s): s is string => typeof s === 'string',

@@ -97,7 +97,7 @@ export default async function AdminNutriScorePage() {
   // à 1000 lignes par requête, même avec .range(0, 9999). Pour
   // récupérer tout, on doit paginer manuellement en 4 fetches.
   const CIQUAL_FIELDS =
-    'id, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g';
+    'id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g';
   const PAGE_SIZE = 1000;
   const ciqualBootstrap: CiqualFoodLite[] = [];
   for (let offset = 0; offset < 10000; offset += PAGE_SIZE) {

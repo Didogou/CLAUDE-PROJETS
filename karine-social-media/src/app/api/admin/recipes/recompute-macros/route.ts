@@ -45,23 +45,23 @@ export async function POST() {
   const sheetRows = (sheets ?? []) as SheetRow[];
 
   // 2) Charge UNE FOIS toutes les lignes Ciqual nécessaires (batch global)
-  const allIds = new Set<number>();
+  const allCodes = new Set<number>();
   for (const s of sheetRows) {
     for (const ing of s.ingredients ?? []) {
-      if (ing.ciqual_food_id && Number.isFinite(ing.ciqual_food_id)) {
-        allIds.add(Number(ing.ciqual_food_id));
+      if (ing.ciqual_alim_code && Number.isFinite(ing.ciqual_alim_code)) {
+        allCodes.add(Number(ing.ciqual_alim_code));
       }
     }
   }
-  const ciqualById = new Map<number, CiqualMacroRow>();
-  if (allIds.size > 0) {
+  const ciqualByCode = new Map<number, CiqualMacroRow>();
+  if (allCodes.size > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: cRows } = await (supabase as any)
       .from('ciqual_foods')
-      .select('id, proteins_g, lipids_g, carbs_g, kcal_per_100g, avg_unit_weight_g')
-      .in('id', [...allIds]);
+      .select('id, alim_code, proteins_g, lipids_g, carbs_g, kcal_per_100g, avg_unit_weight_g')
+      .in('alim_code', [...allCodes]);
     for (const row of (cRows ?? []) as CiqualMacroRow[]) {
-      ciqualById.set(Number(row.id), row);
+      ciqualByCode.set(Number(row.alim_code), row);
     }
   }
 
@@ -74,7 +74,7 @@ export async function POST() {
     const result = computeSheetMacros(
       s.ingredients,
       Number(s.servings) || 4,
-      ciqualById,
+      ciqualByCode,
     );
     coverageSum += result.coverage;
     if (result.proteinsG !== null) withMacros++;
@@ -116,26 +116,26 @@ export async function POST() {
   const mmsArr = (mmsRows ?? []) as MMSRow[];
 
   // Charge les ciqual_ids manquants depuis les fiches menus
-  const additionalIds = new Set<number>();
+  const additionalCodes = new Set<number>();
   for (const m of mmsArr) {
     for (const ing of m.ingredients ?? []) {
       if (
-        ing.ciqual_food_id &&
-        Number.isFinite(ing.ciqual_food_id) &&
-        !ciqualById.has(Number(ing.ciqual_food_id))
+        ing.ciqual_alim_code &&
+        Number.isFinite(ing.ciqual_alim_code) &&
+        !ciqualByCode.has(Number(ing.ciqual_alim_code))
       ) {
-        additionalIds.add(Number(ing.ciqual_food_id));
+        additionalCodes.add(Number(ing.ciqual_alim_code));
       }
     }
   }
-  if (additionalIds.size > 0) {
+  if (additionalCodes.size > 0) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: cRows2 } = await (supabase as any)
       .from('ciqual_foods')
-      .select('id, proteins_g, lipids_g, carbs_g, kcal_per_100g, avg_unit_weight_g')
-      .in('id', [...additionalIds]);
+      .select('id, alim_code, proteins_g, lipids_g, carbs_g, kcal_per_100g, avg_unit_weight_g')
+      .in('alim_code', [...additionalCodes]);
     for (const row of (cRows2 ?? []) as CiqualMacroRow[]) {
-      ciqualById.set(Number(row.id), row);
+      ciqualByCode.set(Number(row.alim_code), row);
     }
   }
 
@@ -147,7 +147,7 @@ export async function POST() {
     const result = computeSheetMacros(
       m.ingredients,
       Number(m.servings) || 4,
-      ciqualById,
+      ciqualByCode,
     );
     mmsCoverageSum += result.coverage;
     if (result.proteinsG !== null) mmsWithMacros++;

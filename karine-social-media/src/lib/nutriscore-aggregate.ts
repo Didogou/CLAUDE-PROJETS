@@ -10,6 +10,8 @@ import type { NutriscoreInput } from './nutriscore';
 
 export type CiqualFoodLite = {
   id: number;
+  /** Code ANSES STABLE — clé de liaison canonique (survit aux ré-imports). */
+  alim_code: number;
   name: string;
   kcal_per_100g: number | null;
   proteins_g: number | null;
@@ -38,7 +40,9 @@ export type RecipeIngredientLite = {
   note?: string | null;
   /** Lien explicite vers Ciqual quand Karine l'a renseigné via la
    *  page admin Nutri-Score. Quand présent, on l'utilise directement
-   *  sans passer par le quick-match. */
+   *  sans passer par le quick-match. Clé = alim_code STABLE. */
+  ciqual_alim_code?: number | null;
+  /** @deprecated id interne volatile — lecture seule pendant la transition. */
   ciqual_food_id?: number | null;
 };
 
@@ -84,19 +88,27 @@ const UNIT_TO_GRAMS: Record<string, number> = {
 function unitToGrams(
   qty: number,
   unit: string | null,
-  ciqualFoodId: number | null | undefined,
-  ciqualUnitWeights: Map<number, number>,
+  labelKey: string,
+  portionWeights: Map<string, number>, // keyée par label normalisé (« 1 gousse d'ail » → 5g)
+  ciqualAlimCode: number | null | undefined,
+  ciqualUnitWeights: Map<number, number>, // fallback hérité, keyé par alim_code
 ): number {
   if (typeof qty !== 'number' || qty <= 0) return 0;
   const u = (unit ?? '').trim().toLowerCase();
   if (u) {
     const factor = UNIT_TO_GRAMS[u];
     if (typeof factor === 'number') return qty * factor;
-    // Unité inconnue (ex. "g/c" sans signification claire) → on bascule
-    // sur le poids unitaire Ciqual si dispo. Sinon 0.
+    // Unité non standard (« tranche », « gousse », « boite »…) → on tente le
+    // poids de portion par label ci-dessous.
   }
-  if (typeof ciqualFoodId === 'number') {
-    const w = ciqualUnitWeights.get(ciqualFoodId);
+  // Poids d'UNE portion telle qu'écrite dans la recette (« 1 grosse tomate »,
+  // « 1 tranche de jambon »). Clé = label normalisé → résout adjectif + mot
+  // d'unité que le code Ciqual seul ne peut pas distinguer.
+  const pw = portionWeights.get(labelKey);
+  if (typeof pw === 'number' && pw > 0) return qty * pw;
+  // Fallback hérité : poids unitaire générique de l'aliment Ciqual.
+  if (typeof ciqualAlimCode === 'number') {
+    const w = ciqualUnitWeights.get(ciqualAlimCode);
     if (typeof w === 'number' && w > 0) return qty * w;
   }
   return 0;
@@ -119,6 +131,26 @@ function normalize(s: string): string {
     // s'appliquer car "œufs" devient "oeufs" qui passe la barre des 5).
     .replace(/œ/g, 'oe')
     .replace(/æ/g, 'ae');
+}
+
+/**
+ * Clé de cache « poids de portion » dérivée du LABEL d'ingrédient.
+ * Normalise accents/ligatures, sépare sur ponctuation/apostrophes, et
+ * singularise chaque token (« gousses d'ail » → "gousse d ail",
+ * « grosses tomates » → "grosse tomate"). Conserve les adjectifs et le
+ * mot d'unité (« tranche », « gousse ») qui portent l'info de poids.
+ */
+export function normalizeLabelKey(label: string): string {
+  const toks = normalize(label ?? '')
+    .split(/[\s,()/'’%.-]+/)
+    .filter(Boolean);
+  return toks.map(stem).join(' ');
+}
+
+/** true si l'unité est une masse/volume convertible directement (g, ml, cs…). */
+export function isMassUnit(unit: string | null | undefined): boolean {
+  const u = (unit ?? '').trim().toLowerCase();
+  return !!u && typeof UNIT_TO_GRAMS[u] === 'number';
 }
 
 /** Matching ingrédient → Ciqual, placeholder côté client en attendant
@@ -216,6 +248,121 @@ const LABEL_TRANSFORMATION_RE =
 const normalizeKeep = (s: string) => s.toLowerCase();
 
 /**
+ * DICTIONNAIRE DE BASIQUES (2026-06-12). Les labels de recettes sont
+ * descriptifs/pluriels (« grosses tomates », « gousses d'ail ») ; le
+ * scoring naïf retombe alors sur des entrées ANSES bizarres (poivre →
+ * « Pâté au poivre vert », sel → « Sel au céleri »). Pour ces aliments
+ * courants on force le bon `alim_code` (forme nature/crue), avec des
+ * exclusions pour ne PAS écraser les formes transformées (« coulis de
+ * tomate », « lait de coco », « farine de riz »…).
+ *
+ * S'applique PARTOUT (relink + auto-link des futures recettes) car c'est
+ * dans le matcher partagé. Karine peut toujours surcharger via un lien
+ * explicite dans l'admin Nutri-Score (qui court-circuite ce matcher).
+ *
+ *  - `any` : au moins un de ces mots présent (token, pluriel toléré).
+ *  - `req` : (optionnel) au moins un de ces mots EN PLUS.
+ *  - `not` : aucun token ne doit COMMENCER par l'un de ces préfixes.
+ */
+const STAPLES: Array<{ code: number; any: string[]; req?: string[]; not: string[] }> = [
+  { code: 11017, any: ['sel'], not: ['celeri', 'gomasio'] },
+  { code: 11015, any: ['poivre'], not: ['pate', 'sauce'] },
+  { code: 20260, any: ['tomate'], req: ['sauce', 'base', 'couli'], not: ['cerise'] },
+  { code: 20385, any: ['tomate'], not: ['couli', 'concentr', 'concass', 'pele', 'sech', 'confit', 'sauce', 'ceris', 'soup', 'farci'] },
+  { code: 20034, any: ['oignon'], not: ['sech', 'vinaigr', 'frit', 'poudr'] },
+  { code: 11166, any: ['yaourt', 'yogourt'], req: ['sauce'], not: [] },
+  { code: 11000, any: ['ail'], not: ['poudr', 'sech', 'roti', 'grill', 'aille', 'sauce', 'yaourt', 'beurre', 'aioli'] },
+  { code: 20020, any: ['courgette'], not: ['pure', 'cuit', 'grill', 'surgel', 'farci'] },
+  { code: 22000, any: ['oeuf'], not: ['blanc', 'jaune', 'poudre', 'caille', 'cane', 'dur', 'poche', 'coque', 'plat', 'brouill', 'omelett', 'mimosa', 'mollet', 'cocotte'] },
+  { code: 11003, any: ['ciboulette', 'ciboule'], not: ['sech'] },
+  { code: 11014, any: ['persil'], not: ['sech'] },
+  { code: 11033, any: ['basilic'], not: ['sech'] },
+  { code: 11094, any: ['coriandre'], not: ['graine', 'poudre', 'moulu', 'sech'] },
+  { code: 11039, any: ['safran', 'saffran'], not: [] },
+  { code: 15000, any: ['amande'], not: ['grill', 'sale', 'sel', 'lait', 'pate', 'beurre', 'huile', 'sirop', 'pralin', 'fum', 'chocolat', 'enrob'] },
+  { code: 13004, any: ['avocat', 'avocado'], not: ['huile'] },
+  { code: 15005, any: ['noix'], not: ['muscade', 'coco', 'cajou', 'pecan', 'macadamia', 'bresil', 'kola', 'jacques', 'saint', 'beurre', 'huile', 'pin'] },
+  { code: 15025, any: ['pignon', 'pigeon'], req: ['pin'], not: [] },
+  { code: 16400, any: ['beurre'], not: ['cacahuet', 'arachid', 'demi', 'sale', 'sel', 'karit', 'pomme', 'noisett', 'amand', 'allege', 'coco', 'biscuit'] },
+  { code: 15006, any: ['coco'], req: ['beurre', 'noix', 'chair', 'rape'], not: ['lait', 'creme', 'eau', 'sucre', 'huile', 'farine', 'sirop'] },
+  { code: 20057, any: ['brocoli'], not: ['cuit', 'pure', 'surgel', 'bouilli', 'vapeur', 'fondant', 'croquant'] },
+  { code: 20045, any: ['radis'], not: ['noir'] },
+  { code: 20171, any: ['romaine'], not: [] },
+  { code: 18100, any: ['cacao'], not: ['beurre', 'grue', 'feve'] },
+  { code: 20009, any: ['carotte'], not: ['cuit', 'pure', 'vichy', 'salade', 'jus', 'surgel', 'conserve', 'glace'] },
+  { code: 20503, any: ['haricot'], req: ['noir'], not: [] },
+  { code: 20061, any: ['haricot'], req: ['vert'], not: ['cuit', 'pure', 'appertis', 'surgel', 'bouilli', 'conserve'] },
+  { code: 7815, any: ['tortilla', 'tortillas', 'wrap'], not: [] },
+  { code: 20066, any: ['mais'], not: ['epi', 'grill', 'farine', 'huile', 'semoule', 'soja', 'maizena', 'pop', 'tortilla'] },
+  { code: 9811, any: ['linguine', 'spaghetti', 'spaghettis', 'penne', 'tagliatelle', 'tagliatelles', 'fusilli', 'macaroni', 'coquillette', 'coquillettes', 'farfalle', 'rigatoni', 'vermicelle', 'vermicelles', 'tortellini', 'orzo', 'risoni', 'nouille', 'nouilles', 'pasta'], req: ['cuit'], not: [] },
+  { code: 9810, any: ['linguine', 'spaghetti', 'spaghettis', 'penne', 'tagliatelle', 'tagliatelles', 'fusilli', 'macaroni', 'coquillette', 'coquillettes', 'farfalle', 'rigatoni', 'vermicelle', 'vermicelles', 'tortellini', 'orzo', 'risoni', 'nouille', 'nouilles', 'pasta'], not: ['cuit', 'fraiche', 'oeuf', 'asiatique'] },
+  { code: 9104, any: ['riz'], req: ['cuit'], not: ['complet', 'sauvage', 'rouge', 'noir', 'basmati', 'thai', 'lait', 'soja', 'galette'] },
+  { code: 9100, any: ['riz'], not: ['cuit', 'complet', 'sauvage', 'rouge', 'noir', 'basmati', 'thai', 'lait', 'soja', 'galette', 'souffle', 'poudr', 'farine', 'vinaigre'] },
+  { code: 20056, any: ['champignon'], not: ['cepe', 'girolle', 'shiitake', 'shitake', 'pleurote', 'morille', 'trompette', 'conserve', 'sec', 'surgel', 'farci'] },
+  { code: 31005, any: ['chocolat'], req: ['noir'], not: ['fourr', 'pralin', 'fruit', 'menthe', 'blanc', 'lait', 'patiss'] },
+  { code: 12805, any: ['chevre'], req: ['frais'], not: ['buche', 'cendre', 'affine', 'sec'] },
+  { code: 12066, any: ['feta'], not: [] },
+  { code: 12069, any: ['fromage'], req: ['leger', 'allege'], not: ['chevre', 'brebis', 'tete', 'rape', 'blanc', 'chocolat', 'aperitif'] },
+  { code: 12068, any: ['fromage'], req: ['frais', 'moret', 'tartiner'], not: ['chevre', 'brebis', 'tete', 'rape', 'blanc', 'chocolat'] },
+  { code: 12118, any: ['fromage'], req: ['rape'], not: ['vegetal', 'soja', 'chevre'] },
+  { code: 19644, any: ['skyr'], not: [] },
+  { code: 19593, any: ['yaourt', 'yogourt'], not: ['sauce', 'grec', 'aromatis', 'sucre', 'fruit', 'boire', 'soja', 'chevre', 'brebis', 'glace', 'bulgare'] },
+  { code: 24009, any: ['speculo', 'speculoos', 'speculos'], not: [] },
+  { code: 13009, any: ['citron'], not: ['vert', 'zeste', 'jus', 'confit', 'presse', 'sirop'] },
+  { code: 13151, any: ['compote'], req: ['sans', 'allege'], not: [] },
+  { code: 13212, any: ['compote'], req: ['pomme'], not: [] },
+  { code: 31016, any: ['sucre'], not: ['roux', 'vanill', 'glace', 'complet', 'canne', 'coco', 'non', 'cacao', 'chocolat', 'sans', 'ajoute', 'compote'] },
+  { code: 18111, any: ['lait', 'boisson'], req: ['amande'], not: [] },
+  { code: 18113, any: ['lait', 'boisson'], req: ['vegetal', 'soja'], not: ['demi', 'ecreme'] },
+  { code: 19050, any: ['lait'], req: ['ecreme'], not: ['demi', 'amande', 'soja', 'coco', 'chevre', 'brebis', 'poudr'] },
+  { code: 19041, any: ['lait'], not: ['coco', 'chevr', 'soja', 'amand', 'ribot', 'poudr', 'concentr', 'brebis', 'jument', 'avoin', 'riz', 'noisett', 'entier', 'vegetal'] },
+  { code: 19410, any: ['creme'], req: ['fraiche', 'epaisse'], not: ['legere', 'liquide', 'cassis', 'marron', 'dessert', 'anglaise', 'patiss', 'soja', 'coco', 'avoine', 'chantilly', 'brulee', 'caramel', 'glace', 'citron'] },
+  { code: 9445, any: ['farine'], req: ['semi'], not: ['riz', 'mais', 'soja', 'pois', 'chataign', 'sarrasin', 'coco', 'amand', 'seigle', 'epeautr', 'chanvr', 'maizena', 'avoin'] },
+  { code: 9410, any: ['farine'], req: ['complet', 'integral'], not: ['semi', 'riz', 'mais', 'soja', 'pois', 'chataign', 'sarrasin', 'coco', 'amand', 'seigle', 'epeautr', 'chanvr', 'maizena'] },
+  { code: 9436, any: ['farine'], not: ['riz', 'mais', 'chataign', 'sarrasin', 'pois', 'lentill', 'coco', 'amand', 'complet', 'semi', 'integral', 'seigle', 'epeautr', 'chanvr', 'maizena', 'avoin', 'soja', 'gluten'] },
+  // Poulet : grillé/cuit AVANT cru (1er match gagne).
+  { code: 36018, any: ['poulet'], req: ['grill', 'roti', 'cuit', 'poele', 'rissol', 'saute'], not: ['boudin', 'jambon', 'nugget', 'pane', 'cordon', 'saucisse', 'fume', 'bouillon'] },
+  { code: 36017, any: ['poulet'], not: ['boudin', 'jambon', 'nugget', 'pane', 'cordon', 'saucisse', 'fume', 'bouillon', 'tranche'] },
+  // Crackers / biscuits salés (apéritif) → cracker nature.
+  { code: 7347, any: ['cracker', 'craquelin'], not: [] },
+  { code: 7347, any: ['biscuit'], req: ['sale', 'aperit'], not: [] },
+  { code: 28925, any: ['jambon'], req: ['blanc', 'paris'], not: ['dinde', 'poulet', 'volaille', 'cru', 'sec', 'fume', 'bayonne', 'serrano', 'aoste'] },
+  { code: 26036, any: ['saumon'], not: ['fume', 'marine', 'appertis', 'conserve', 'sauce', 'rillette', 'terrine', 'tartare'] },
+  { code: 11005, any: ['curry'], req: ['pate'], not: [] },
+  // (Bœuf/viande hachée géré séparément dans matchStaple, selon le %MG.)
+];
+
+/** Renvoie l'alim_code basique pour un label, ou null. Premier match gagne. */
+function matchStaple(label: string): number | null {
+  const ln = normalize(label);
+
+  // Bœuf / viande hachée (ou steak) → code selon le %MG (défaut 15%). Les
+  // chiffres étant retirés par la tokenisation, on lit le %MG sur le label.
+  if (
+    /(hach|steak)/.test(ln) &&
+    /(boeuf|viande|bidoche|steak)/.test(ln) &&
+    !/(poisson|saumon|thon|cabillaud|poulet|dinde|volaille|veau|porc|agneau|cheval|vegetal|soja|tofu)/.test(ln)
+  ) {
+    const m = ln.match(/(\d{1,2})\s*%/);
+    const mg = m ? Number(m[1]) : 15;
+    return mg <= 5 ? 6250 : mg <= 10 ? 6252 : mg <= 15 ? 6254 : 6256;
+  }
+
+  const toks = ln.split(/[\s,()/'’0-9%-]+/).filter(Boolean);
+  if (toks.length === 0) return null;
+  const stems = new Set(toks.map(stem));
+  const hasWord = (kw: string) => stems.has(stem(kw));
+  const hasPrefix = (kw: string) => toks.some((t) => t.startsWith(kw));
+  for (const s of STAPLES) {
+    if (!s.any.some(hasWord)) continue;
+    if (s.req && !s.req.some(hasPrefix)) continue;
+    if (s.not.some(hasPrefix)) continue;
+    return s.code;
+  }
+  return null;
+}
+
+/**
  * Alias resolu (`status='resolved'`) qui forcera un match direct
  * vers un ciqual_id donne. Karine peut en creer manuellement depuis
  * /admin/recettes/ciqual-base (bouton "+ alias").
@@ -232,6 +379,14 @@ export function quickMatchCiqual(
   ciqualFoods: CiqualFoodLite[],
   aliases?: CiqualAlias[],
 ): CiqualFoodLite | null {
+  // PRIORITÉ MAX — dictionnaire de basiques (sel, poivre, tomate, lait…) :
+  // mappe directement vers la bonne entrée ANSES nature/crue (cf. STAPLES).
+  const stapleCode = matchStaple(label);
+  if (stapleCode !== null) {
+    const f = ciqualFoods.find((c) => c.alim_code === stapleCode);
+    if (f) return f;
+  }
+
   // PRIORITE ABSOLUE aux aliases resolus : si le label normalise
   // matche EXACTEMENT un alias, on retourne le Ciqual associe sans
   // passer par le scoring naif. C'est ce qui permet a Karine de
@@ -416,7 +571,8 @@ export function aggregateIngredients(
   ingredients: RecipeIngredientLite[],
   ciqualFoods: CiqualFoodLite[],
   ciqualGroups: Map<number, string>, // id → group_name
-  ciqualUnitWeights: Map<number, number> = new Map(), // id → avg_unit_weight_g
+  ciqualUnitWeights: Map<number, number> = new Map(), // alim_code → avg_unit_weight_g (fallback hérité)
+  portionWeights: Map<string, number> = new Map(), // labelKey → poids portion (Mistral, prioritaire)
 ): AggregateResult {
   let totalGrams = 0;          // poids tenté (qty renseignée)
   let totalGramsMatched = 0;   // poids effectivement matché Ciqual
@@ -444,7 +600,14 @@ export function aggregateIngredients(
       problems.push({ label: ing.label, reason: 'no-quantity' });
       continue;
     }
-    const grams = unitToGrams(ing.quantity, ing.unit, ing.ciqual_food_id ?? null, ciqualUnitWeights);
+    const grams = unitToGrams(
+      ing.quantity,
+      ing.unit,
+      normalizeLabelKey(ing.label),
+      portionWeights,
+      ing.ciqual_alim_code ?? null,
+      ciqualUnitWeights,
+    );
     if (grams <= 0) {
       // Pas de g convertible ET pas de poids unitaire connu sur le
       // Ciqual lié → ingrédient non quantifiable. On le trace pour
@@ -468,11 +631,12 @@ export function aggregateIngredients(
 
     totalGrams += grams;
 
-    // Si Karine a explicitement renseigné le ciqual_food_id (via la
-    // page admin), on l'utilise tel quel. Sinon, quick-match par nom.
+    // Si Karine a explicitement renseigné le lien Ciqual (via la page
+    // admin), on l'utilise tel quel — via le alim_code STABLE. Sinon,
+    // quick-match par nom.
     let match: CiqualFoodLite | null = null;
-    if (typeof ing.ciqual_food_id === 'number') {
-      match = ciqualFoods.find((f) => f.id === ing.ciqual_food_id) ?? null;
+    if (typeof ing.ciqual_alim_code === 'number') {
+      match = ciqualFoods.find((f) => f.alim_code === ing.ciqual_alim_code) ?? null;
     }
     if (!match) {
       match = quickMatchCiqual(ing.label, ciqualFoods);

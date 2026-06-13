@@ -25,11 +25,11 @@ export function LegalLayout({
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-5 pb-8 pt-2">
         <Link
-          href="/"
+          href="/a-propos"
           className="mb-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-ink-soft transition hover:bg-white/60 hover:text-coral-dark"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Retour à l&apos;accueil
+          Retour à À propos
         </Link>
 
         <article className="rounded-2xl bg-white/85 px-5 py-6 shadow-sm backdrop-blur-sm sm:px-8 sm:py-8">

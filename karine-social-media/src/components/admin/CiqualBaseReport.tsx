@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Search, Sparkles, ImageOff, Tag, AlertCircle, Plus, Check, X, Loader2 } from 'lucide-react';
 import type { CiqualBaseEntry } from '@/app/admin/(panel)/recettes/ciqual-base/page';
+import { CiqualAliasGenPanel, type GroupCount } from './CiqualAliasGenPanel';
 
 /**
  * Rapport admin de la base Ciqual EFFECTIVEMENT utilisée par Karine
@@ -28,6 +29,21 @@ export function CiqualBaseReport({
   // Aliases ajoutes en live (sans refresh page) : on les memorise pour
   // les afficher tout de suite sous l'aliment concerne.
   const [extraAliases, setExtraAliases] = useState<Record<number, string[]>>({});
+  // Onglet actif : base (rapport lecture) ou génération d'alias (batch Mistral).
+  const [tab, setTab] = useState<'base' | 'generate'>('base');
+
+  // Catégories (group_name) avec compteurs, sur TOUTE la base — input de
+  // l'onglet génération (choix des catégories à traiter).
+  const groupCounts = useMemo<GroupCount[]>(() => {
+    const m = new Map<string, number>();
+    for (const e of entries) {
+      const g = e.groupName ?? '(sans groupe)';
+      m.set(g, (m.get(g) ?? 0) + 1);
+    }
+    return [...m.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [entries]);
 
   function handleAliasAdded(ciqualId: number, aliasDisplay: string) {
     setExtraAliases((prev) => ({
@@ -85,6 +101,36 @@ export function CiqualBaseReport({
 
   return (
     <div className="flex h-[calc(100dvh-4rem)] flex-col gap-4 p-4">
+      {/* Onglets */}
+      <div className="flex gap-1 rounded-full bg-coral-soft/15 p-1 text-sm font-semibold">
+        <button
+          type="button"
+          onClick={() => setTab('base')}
+          className={`flex-1 rounded-full px-4 py-1.5 transition ${
+            tab === 'base'
+              ? 'bg-white text-coral-dark shadow-sm'
+              : 'text-coral-dark/70 hover:text-coral-dark'
+          }`}
+        >
+          Base de connaissances
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('generate')}
+          className={`flex-1 rounded-full px-4 py-1.5 transition ${
+            tab === 'generate'
+              ? 'bg-white text-coral-dark shadow-sm'
+              : 'text-coral-dark/70 hover:text-coral-dark'
+          }`}
+        >
+          Génération alias
+        </button>
+      </div>
+
+      {tab === 'generate' ? (
+        <CiqualAliasGenPanel groups={groupCounts} />
+      ) : (
+       <>
       {/* Stats en tête */}
       <header className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-coral-soft/30">
         <h1 className="font-script text-2xl text-coral-dark">Base Ciqual</h1>
@@ -174,6 +220,8 @@ export function CiqualBaseReport({
           ))
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }

@@ -154,7 +154,7 @@ export function NutriScoreAdminClient({
     const ciqualUnitWeights = new Map<number, number>(
       ciqualPool
         .filter((c) => typeof c.avg_unit_weight_g === 'number' && (c.avg_unit_weight_g as number) > 0.01)
-        .map((c) => [c.id, c.avg_unit_weight_g as number]),
+        .map((c) => [c.alim_code, c.avg_unit_weight_g as number]),
     );
     const recipeById = new Map(recipes.map((r) => [r.id, r]));
     return sheets
@@ -564,9 +564,9 @@ function RecipeEditor({
   const [ings, setIngs] = useState<RecipeIngredient[]>(() => {
     const initial = sheet.ingredients ?? [];
     return initial.map((ing) => {
-      if (typeof ing.ciqual_food_id === 'number') return ing;
+      if (typeof ing.ciqual_alim_code === 'number') return ing;
       const match = quickMatchCiqual(ing.label, ciqualPool);
-      return match ? { ...ing, ciqual_food_id: match.id } : ing;
+      return match ? { ...ing, ciqual_alim_code: match.alim_code } : ing;
     });
   });
   const [saving, setSaving] = useState(false);
@@ -587,7 +587,7 @@ function RecipeEditor({
     const ciqualUnitWeights = new Map<number, number>(
       ciqualPool
         .filter((c) => typeof c.avg_unit_weight_g === 'number' && (c.avg_unit_weight_g as number) > 0.01)
-        .map((c) => [c.id, c.avg_unit_weight_g as number]),
+        .map((c) => [c.alim_code, c.avg_unit_weight_g as number]),
     );
     return aggregateIngredients(ings, ciqualPool, ciqualGroups, ciqualUnitWeights);
   }, [ings, ciqualPool]);
@@ -796,8 +796,8 @@ function IngredientRow({
 }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const linkedFood =
-    typeof ing.ciqual_food_id === 'number'
-      ? ciqualPool.find((c) => c.id === ing.ciqual_food_id)
+    typeof ing.ciqual_alim_code === 'number'
+      ? ciqualPool.find((c) => c.alim_code === ing.ciqual_alim_code)
       : null;
   const hasQty = typeof ing.quantity === 'number' && ing.quantity > 0;
 
@@ -899,7 +899,7 @@ function IngredientRow({
         <CiqualPicker
           initialQuery={ing.label}
           onPick={(food) => {
-            onChange({ ciqual_food_id: food.id });
+            onChange({ ciqual_alim_code: food.alim_code });
             onCiqualPoolUpdate([food]);
             setPickerOpen(false);
           }}
@@ -1234,9 +1234,9 @@ function MenuMealSheetEditor({
   const [ings, setIngs] = useState<RecipeIngredient[]>(() => {
     const initial = sheet.ingredients ?? [];
     return initial.map((ing) => {
-      if (typeof ing.ciqual_food_id === 'number') return ing;
+      if (typeof ing.ciqual_alim_code === 'number') return ing;
       const match = quickMatchCiqual(ing.label, ciqualPool);
-      return match ? { ...ing, ciqual_food_id: match.id } : ing;
+      return match ? { ...ing, ciqual_alim_code: match.alim_code } : ing;
     });
   });
   const [saving, setSaving] = useState(false);
