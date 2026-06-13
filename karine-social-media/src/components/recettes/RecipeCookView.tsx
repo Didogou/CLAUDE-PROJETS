@@ -71,22 +71,20 @@ export function RecipeCookView({
   const [voiceOn, setVoiceOn] = useState(true);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  // Joue la voix de l'étape courante à chaque changement d'étape (si la
-  // narration est activée). Déclenché après un geste (Commencer / Suivant
-  // / Précédent) → autoplay autorisé. Si on coupe la voix, on met en pause.
-  //
-  // Quand on navigue (prev/next), on s'assure que l'audio précédent est
-  // coupé NET (pause + currentTime=0) AVANT de charger la nouvelle source.
-  // Sinon : 1) overlap son entre 2 narrations possible sur certains
-  // navigateurs, 2) fenêtre courte où playing=false → micro actif → peut
-  // capter la fin d'un mot ou un bruit parasite et déclencher next/prev
-  // intempestivement.
+  // Tracker des étapes dont la voix a déjà été jouée (au moins une fois).
+  // Permet d'autoplay UNIQUEMENT à la 1re visite d'une étape — si on
+  // revient en arrière (bouton ←), pas de relance automatique : il faut
+  // un clic explicite sur ▶ pour ré-écouter. UX validée 2026-06-13.
+  const playedStepsRef = useRef<Set<number>>(new Set());
+
+  // Joue la voix de l'étape courante (si jamais entendue ET narration ON).
+  // À chaque changement d'idx : pause/reset NET de l'audio précédent
+  // (évite overlap son + capture micro parasite sur la transition).
   useEffect(() => {
     if (idx < 0 || idx >= total) return;
     const a = audioRef.current;
     if (!a) return;
-    // Coupe TOUJOURS l'audio précédent en premier (idempotent, n'a pas
-    // d'effet si déjà en pause).
+    // Coupe TOUJOURS l'audio précédent en premier (idempotent).
     try {
       a.pause();
       a.currentTime = 0;
@@ -98,9 +96,14 @@ export function RecipeCookView({
     if (!url) return;
     a.src = url;
     a.currentTime = 0;
-    a.play().catch(() => {
-      /* autoplay bloqué : l'utilisatrice utilisera le bouton ▶ */
-    });
+    // Autoplay UNIQUEMENT à la 1re visite. Sur retour en arrière, on a
+    // chargé la source (clic ▶ marche) mais on ne re-joue pas tout seul.
+    if (!playedStepsRef.current.has(idx)) {
+      playedStepsRef.current.add(idx);
+      a.play().catch(() => {
+        /* autoplay bloqué : l'utilisatrice utilisera le bouton ▶ */
+      });
+    }
   }, [idx, steps, total, voiceOn]);
 
   // Fenêtre de transition entre étapes : on mute le micro pendant 600 ms
@@ -800,34 +803,44 @@ function Step({
           ⚠️ paddingBottom inclut env(safe-area-inset-bottom) : sur iPhone
           la home indicator (la barre noire en bas) empiète ~34 px sur
           l'écran ; sans cette safe-area, le bouton "Suivant" / "Terminer"
-          est rogné par cette zone sur les étapes chargées. */}
+          est rogné par cette zone sur les étapes chargées.
+          ⚠️ Footer compacté 2026-06-13 quand un minuteur est présent :
+          pt-3 au lieu de pt-6, h-[8dvh] au lieu de h-[12dvh] pour
+          l'instruction, mt réduits — sinon le bouton "Suivant" devenait
+          peu accessible (4-5 cm sous le pouce). */}
       <div
-        className="shrink-0 bg-gradient-to-t from-white via-white/80 to-transparent px-5 pt-6"
-        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+        className={`shrink-0 bg-gradient-to-t from-white via-white/80 to-transparent px-5 ${
+          !isCookingStep && timerSec ? 'pt-3' : 'pt-5'
+        }`}
+        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
       >
         <SectionHeading>Instruction</SectionHeading>
         <div
-          className="cook-rise mt-2 flex h-[12dvh] min-h-0 items-start gap-3 overflow-y-auto overscroll-contain"
+          className={`cook-rise mt-1.5 flex min-h-0 items-start gap-3 overflow-y-auto overscroll-contain ${
+            !isCookingStep && timerSec ? 'h-[8dvh]' : 'h-[11dvh]'
+          }`}
           style={{ animationDelay: `${(uCount + 1 + step.ingredients.length) * 110}ms` }}
         >
           <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-coral text-sm font-bold text-white">
             {index + 1}
           </span>
-          <p className="text-lg leading-snug text-ink">{step.text}</p>
+          <p className="text-base leading-snug text-ink sm:text-lg">{step.text}</p>
         </div>
         {/* Minuteur proposé si une durée est détectée — sauf sur les étapes
-            de cuisson, qui ont déjà leur gros compteur central. */}
+            de cuisson, qui ont déjà leur gros compteur central. Bouton
+            compact (py-1.5 + text-xs) pour gagner ~20 px verticaux et
+            laisser le bouton "Suivant" dans la zone confortable du pouce. */}
         {!isCookingStep && timerSec && (
           <button
             type="button"
             onClick={() => onStartTimer(timerSec)}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-coral-soft/15 px-4 py-2.5 text-sm font-semibold text-coral-dark transition hover:bg-coral-soft/30 active:scale-[0.98]"
+            className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-full bg-coral-soft/15 px-3 py-1.5 text-xs font-semibold text-coral-dark transition hover:bg-coral-soft/30 active:scale-[0.98]"
           >
-            <Timer className="h-4 w-4" />
-            Lancer le minuteur · {durationLabel(timerSec)}
+            <Timer className="h-3.5 w-3.5" />
+            Minuteur · {durationLabel(timerSec)}
           </button>
         )}
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-2 flex items-center gap-3">
           <button
             type="button"
             onClick={onPrev}
@@ -840,7 +853,7 @@ function Step({
           <button
             type="button"
             onClick={onNext}
-            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-coral py-4 text-base font-bold text-white shadow-[0_12px_28px_-12px_rgba(226,120,141,0.95)] transition hover:bg-coral-dark active:scale-[0.98]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-coral py-3.5 text-base font-bold text-white shadow-[0_12px_28px_-12px_rgba(226,120,141,0.95)] transition hover:bg-coral-dark active:scale-[0.98]"
           >
             {isLast ? (
               <>
