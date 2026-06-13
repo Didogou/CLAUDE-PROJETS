@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   Ban,
   Bookmark,
+  ChefHat,
   ChevronLeft,
   ChevronRight,
   Heart,
@@ -523,6 +524,19 @@ function MealCard({
           ciqualByIdEntries={ciqualByIdEntries}
           portionWeightEntries={portionWeightEntries}
         />
+      )}
+
+      {/* Cuisine guidée du repas (même écran que les recettes) — si des
+          étapes de préparation existent. */}
+      {sheet.preparationSteps.length > 0 && (
+        <div className="flex justify-center">
+          <Link
+            href={`/menus/${sheet.menuId}/cuisiner/${sheet.id}`}
+            className="inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-coral-dark active:scale-95"
+          >
+            <ChefHat className="h-4 w-4" /> Cuisiner ce repas
+          </Link>
+        </div>
       )}
 
       {/* Bandeau d'actions : portions stepper + mes courses + kcal +
