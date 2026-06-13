@@ -90,9 +90,15 @@ const nextConfig: NextConfig = {
           // data: nécessaire pour Vosk : la lib bundle son WASM en base64
           // inline et fait un fetch('data:application/octet-stream;base64,...')
           // pour le décoder. Sans data: en connect-src, le CSP refuse et
-          // l'init échoue. Risque limité : data: en connect-src ne permet
-          // de fetch QUE des data URLs construites par le code déjà bundlé.
-          "connect-src 'self' data: https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.mistral.ai https://api.anthropic.com https://api.resend.com https://vitals.vercel-insights.com",
+          // l'init échoue.
+          //
+          // blob: nécessaire pour Vosk (suite) : on télécharge le modèle
+          // en streaming côté main thread (pour afficher une vraie barre
+          // de progression), on construit un Blob, puis on passe son
+          // URL.createObjectURL() au Worker Vosk. Le Worker fetch alors
+          // ce blob URL — sans blob: en connect-src, refused. Risque
+          // limité aux blobs créés par notre propre code.
+          "connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.mistral.ai https://api.anthropic.com https://api.resend.com https://vitals.vercel-insights.com",
           "frame-src https://*.stripe.com https://hooks.stripe.com",
           "frame-ancestors 'none'",
           "object-src 'none'",
