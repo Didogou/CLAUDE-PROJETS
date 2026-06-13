@@ -12,6 +12,7 @@ import { isFavorited } from '@/lib/favorites';
 import { getUserLikedSheetIds } from '@/lib/sheet-likes';
 import { userHasPlanAccess } from '@/lib/user-access';
 import { createServiceClient } from '@/lib/supabase/server';
+import { getAllUtensils } from '@/lib/utensils';
 import {
   quickMatchCiqual,
   normalizeLabelKey,
@@ -140,6 +141,45 @@ export default async function RecipeDetailPage({
     }
   }
 
+  // ─── Images Ciqual des ingrédients + catalogue des ustensiles ─────
+  // Pour afficher des vignettes à côté de chaque ingrédient (section
+  // « Ingrédients ») et au-dessus de la section « Préparation ».
+  // Refonte 2026-06-13 — visuel plus joli, plus parlant en cuisine.
+  const ciqualImageEntries: Array<[number, string]> = [];
+  if (linkedCodes.size > 0 || ciqualByIdEntries.length > 0) {
+    const codes = new Set<number>(linkedCodes);
+    for (const [code] of ciqualByIdEntries) codes.add(code);
+    if (codes.size > 0) {
+      const { data: imgRows } = await supa
+        .from('ciqual_foods')
+        .select('alim_code, image_url')
+        .in('alim_code', [...codes])
+        .not('image_url', 'is', null);
+      for (const r of (imgRows ?? []) as Array<{
+        alim_code: number;
+        image_url: string | null;
+      }>) {
+        if (r.image_url) ciqualImageEntries.push([Number(r.alim_code), r.image_url]);
+      }
+    }
+  }
+
+  // Catalogue ustensiles (slug → {label, imageUrl}) : on n'envoie que les
+  // ustensiles UTILISÉS par les sheets de cette recette (filtrage par
+  // intersection après fetch — la table est petite, OK).
+  const usedUtensilSlugs = new Set<string>();
+  for (const sheet of recipe.sheets) {
+    for (const slug of sheet.utensils) usedUtensilSlugs.add(slug);
+    for (const step of sheet.preparationSteps) {
+      for (const slug of step.utensils) usedUtensilSlugs.add(slug);
+    }
+  }
+  const allUtensils = usedUtensilSlugs.size > 0 ? await getAllUtensils() : [];
+  const utensilsEntries: Array<[string, { label: string; imageUrl: string | null }]> =
+    allUtensils
+      .filter((u) => usedUtensilSlugs.has(u.slug))
+      .map((u) => [u.slug, { label: u.label, imageUrl: u.imageUrl }]);
+
   // Poids de portion par label (modale « Détail nutritionnel ») — alignés
   // sur le calcul serveur via la table ingredient_portion_weights.
   let portionWeightEntries: Array<[string, number]> = [];
@@ -210,6 +250,8 @@ export default async function RecipeDetailPage({
             initialLikedSheetIds={[...likedSheetIds]}
             ciqualByIdEntries={ciqualByIdEntries}
             portionWeightEntries={portionWeightEntries}
+            ciqualImageEntries={ciqualImageEntries}
+            utensilsEntries={utensilsEntries}
           />
 
           {/* Aside commentaires PC uniquement (colonne droite) */}

@@ -12,11 +12,17 @@ import {
   Flame,
   Heart,
   Leaf,
+  Play,
   Printer,
   Share2,
   Users,
+  Utensils as UtensilsIcon,
 } from 'lucide-react';
-import type { RecipeSheet, RecipeIngredient } from '@/data/recipes';
+import type {
+  RecipeSheet,
+  RecipeIngredient,
+  PreparationStep,
+} from '@/data/recipes';
 import { scaleIngredients } from '@/lib/recipe-portions';
 import { AddSheetToListButton } from '@/components/courses/AddSheetToListButton';
 import { AddCaloriesButton } from '@/components/nutrition/AddCaloriesButton';
@@ -48,6 +54,13 @@ type Props = {
   /** Poids de portion par label normalisé (« 1 gousse d'ail » → 5g),
    *  pour aligner la modale détail sur le calcul serveur. */
   portionWeightEntries?: Array<[string, number]>;
+  /** Images Ciqual des ingrédients (mapping alim_code → URL image).
+   *  Affichées en vignette à gauche de chaque ingrédient avec rotation
+   *  -10° + ombre douce (refonte UX 2026-06-13). */
+  ciqualImageEntries?: Array<[number, string]>;
+  /** Catalogue des ustensiles UTILISÉS par les sheets (slug →
+   *  {label, imageUrl}). Sert à la nouvelle section "Préparation". */
+  utensilsEntries?: Array<[string, { label: string; imageUrl: string | null }]>;
 };
 
 /**
@@ -72,7 +85,23 @@ export function SheetCarousel({
   initialLikedSheetIds,
   ciqualByIdEntries,
   portionWeightEntries,
+  ciqualImageEntries,
+  utensilsEntries,
 }: Props) {
+  // Maps construites une fois pour usage dans IngredientsList + PreparationSection.
+  const ciqualImagesByCode = useMemo(
+    () => new Map((ciqualImageEntries ?? []) as Array<[number, string]>),
+    [ciqualImageEntries],
+  );
+  const utensilsCatalog = useMemo(
+    () =>
+      new Map(
+        (utensilsEntries ?? []) as Array<
+          [string, { label: string; imageUrl: string | null }]
+        >,
+      ),
+    [utensilsEntries],
+  );
   const [active, setActive] = useState(0);
   /** Likes PAR sheet (pas par recette mère) : la fiche n°1 et la fiche
    *  n°2 sont 2 recettes différentes, chacune avec son propre like.
@@ -380,7 +409,7 @@ export function SheetCarousel({
           "Voir mes courses →" qui flotte en absolute sous le bouton
           d'action courses (sinon le titre vient se coller dessus). */}
       {sheet.title && (
-        <h2 className="mt-10 text-center font-script text-2xl text-coral-dark sm:text-3xl lg:text-4xl">
+        <h2 className="mt-10 text-center font-script text-4xl font-bold text-coral-dark sm:text-5xl lg:text-6xl">
           {sheet.title}
         </h2>
       )}
@@ -398,12 +427,25 @@ export function SheetCarousel({
         <Stat icon={Clock} label="Cuis" value={sheet.cookTimeMin} suffix="min" />
       </div>
 
-      {/* Ingrédients groupés */}
+      {/* Ingrédients groupés (refonte 2026-06-13 : vignettes Ciqual à
+          gauche avec rotation -10° et ombre, layout en colonne aérée). */}
       {sheet.ingredients.length > 0 && (
         <IngredientsList
           ingredients={sheet.ingredients}
           baseServings={sheet.servings}
           customPortions={customPortions}
+          ciqualImagesByCode={ciqualImagesByCode}
+        />
+      )}
+
+      {/* Section Préparation : ustensiles en ligne (taille adaptive) +
+          étapes numérotées (format inspiré de la cuisine guidée). */}
+      {(sheet.utensils.length > 0 || sheet.preparationSteps.length > 0) && (
+        <PreparationSection
+          utensilSlugs={sheet.utensils}
+          steps={sheet.preparationSteps}
+          utensilsCatalog={utensilsCatalog}
+          cookHref={`${pathname}/cuisiner?sheet=${active}`}
         />
       )}
 
@@ -497,10 +539,14 @@ function IngredientsList({
   ingredients,
   baseServings,
   customPortions,
+  ciqualImagesByCode,
 }: {
   ingredients: RecipeIngredient[];
   baseServings: number;
   customPortions: number;
+  /** Vignettes Ciqual (aquarelle) par alim_code. Affichées rotation
+   *  -10° + ombre pour un effet "carnet manuscrit" — refonte UX 2026-06-13. */
+  ciqualImagesByCode: Map<number, string>;
 }) {
   const factor =
     baseServings > 0 && customPortions > 0 ? customPortions / baseServings : 1;
@@ -515,20 +561,194 @@ function IngredientsList({
   }, [ingredients, factor]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-2 pt-2">
-      <h3 className="font-script text-xl text-coral">Ingrédients</h3>
+    <div className="mx-auto max-w-2xl space-y-3 pt-2">
+      <h3 className="text-center font-script text-3xl font-bold text-coral">
+        Ingrédients
+      </h3>
       {grouped.map(([cat, items]) => (
         <div key={cat}>
-          <p className="text-[0.65rem] font-bold uppercase tracking-wider text-coral-dark">
+          <p className="text-sm font-bold uppercase tracking-wider text-coral-dark">
             {cat}
           </p>
-          <ul className="text-sm text-ink">
-            {items.map((it, idx) => (
-              <li key={idx}>• {formatIngredient(it)}</li>
-            ))}
+          <ul className="mt-1.5 space-y-2">
+            {items.map((it, idx) => {
+              const imageUrl =
+                typeof it.ciqual_alim_code === 'number'
+                  ? ciqualImagesByCode.get(it.ciqual_alim_code) ?? null
+                  : null;
+              return (
+                // gap-5 (1.25rem) : décale le label vers la droite,
+                // l'air plus aéré entre la vignette et le texte
+                // (demande UX Karine 2026-06-13).
+                <li key={idx} className="flex items-center gap-5">
+                  {/* Vignette à GAUCHE, rotation -10° + ombre douce coral
+                      → effet "carnet de recettes" manuscrit. Si pas de
+                      vignette Ciqual liée, placeholder discret avec
+                      l'initiale du label (lisible mais non intrusif). */}
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+                    {imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={imageUrl}
+                        alt=""
+                        aria-hidden
+                        className="h-12 w-12 -rotate-[10deg] object-contain drop-shadow-[0_0.2rem_0.3rem_rgba(120,60,75,0.28)]"
+                      />
+                    ) : (
+                      <span className="grid h-10 w-10 -rotate-[10deg] place-items-center rounded-full bg-coral-soft/30 text-[0.8rem] font-bold text-coral-dark drop-shadow-[0_0.15rem_0.2rem_rgba(120,60,75,0.2)]">
+                        {it.label.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  {/* Texte ingrédient à droite : text-base (1rem) au lieu
+                      de text-sm (0.875rem) → plus lisible en cuisine.
+                      Quantité en coral pour attirer l'œil. */}
+                  <p className="min-w-0 flex-1 text-base leading-snug text-ink [overflow-wrap:anywhere]">
+                    {formatIngredient(it)}
+                  </p>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Section « Préparation » : ustensiles en ligne horizontale (taille
+ * adaptative selon le nombre) + étapes numérotées (format inspiré de
+ * la cuisine guidée).
+ *
+ * Ajout 2026-06-13 sur demande Karine. Les ustensiles proviennent du
+ * catalogue public.utensils (résolus serveur via getAllUtensils →
+ * passés en prop par SheetCarousel parent). Les étapes proviennent
+ * directement de sheet.preparationSteps.
+ */
+function PreparationSection({
+  utensilSlugs,
+  steps,
+  utensilsCatalog,
+  cookHref,
+}: {
+  utensilSlugs: string[];
+  steps: PreparationStep[];
+  utensilsCatalog: Map<string, { label: string; imageUrl: string | null }>;
+  /** URL de la cuisine guidée associée à cette sheet — affiche un bouton
+   *  Play à côté du titre "Préparation" pour lancer le mode pas à pas. */
+  cookHref?: string;
+}) {
+  // Résout les slugs en {slug, label, imageUrl} pour rendu propre. Si un
+  // slug n'est pas dans le catalogue (donnée incohérente), on retombe sur
+  // le slug brut comme label — au moins on affiche quelque chose.
+  const utensils = useMemo(
+    () =>
+      utensilSlugs.map((slug) => {
+        const entry = utensilsCatalog.get(slug);
+        return {
+          slug,
+          label: entry?.label ?? slug,
+          imageUrl: entry?.imageUrl ?? null,
+        };
+      }),
+    [utensilSlugs, utensilsCatalog],
+  );
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-4 pt-4">
+      {/* Titre + bouton Play : le titre reste centré (grâce au spacer
+          gauche invisible), le bouton Play à droite mène à la cuisine
+          guidée. Layout flex à 3 colonnes (spacer / titre / Play) pour
+          que "Préparation" reste pile au milieu de la fiche. */}
+      <div className="flex items-center justify-between gap-3">
+        {/* Spacer invisible de la même taille que le bouton Play pour
+            que le titre reste centré visuellement. */}
+        <span aria-hidden className="h-11 w-11 shrink-0" />
+        <h3 className="flex-1 text-center font-script text-3xl font-bold text-coral">
+          Préparation
+        </h3>
+        {cookHref ? (
+          <Link
+            href={cookHref}
+            aria-label="Lancer la recette guidée"
+            title="Lancer la recette guidée"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-coral text-white shadow-[0_0.4rem_0.8rem_-0.3rem_rgba(226,120,141,0.85)] transition hover:scale-110 hover:bg-coral-dark active:scale-95"
+          >
+            <Play
+              className="h-5 w-5 fill-current"
+              strokeWidth={2}
+              style={{ marginLeft: '0.1rem' }}
+            />
+          </Link>
+        ) : (
+          <span aria-hidden className="h-11 w-11 shrink-0" />
+        )}
+      </div>
+
+      {/* Ustensiles : grid à N colonnes équivalentes pour qu'ils tiennent
+          tous sur UNE seule ligne, taille adaptée au nombre. Largeur
+          plafonnée à 5rem pour éviter qu'avec 1-2 ustensiles ils soient
+          énormes. */}
+      {utensils.length > 0 && (
+        <div>
+          <p className="text-center text-sm font-bold uppercase tracking-wider text-coral-dark">
+            Ustensiles
+          </p>
+          <div
+            className="mt-2 grid items-start gap-3"
+            style={{
+              // Grid CSS pour répartir équitablement, peu importe N.
+              // minmax(0, 1fr) garantit que les colonnes peuvent shrink
+              // sous leur contenu si beaucoup d'ustensiles.
+              gridTemplateColumns: `repeat(${utensils.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {utensils.map((u) => (
+              <div key={u.slug} className="flex flex-col items-center gap-1.5">
+                {u.imageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={u.imageUrl}
+                    alt={u.label}
+                    className="aspect-square w-full max-w-[5rem] object-contain drop-shadow-[0_0.25rem_0.4rem_rgba(120,60,75,0.22)]"
+                  />
+                ) : (
+                  <span className="grid aspect-square w-full max-w-[5rem] place-items-center rounded-full bg-coral-soft/20 text-coral/70">
+                    <UtensilsIcon className="h-1/2 w-1/2" />
+                  </span>
+                )}
+                <span className="text-center text-xs font-medium leading-tight text-ink">
+                  {u.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Étapes : liste numérotée, cercle coral à gauche + texte à droite.
+          Format inspiré de la cuisine guidée (RecipeCookView) pour cohérence
+          visuelle entre la page recette et l'écran « pas à pas ». */}
+      {steps.length > 0 && (
+        <div>
+          <p className="text-center text-sm font-bold uppercase tracking-wider text-coral-dark">
+            Étapes
+          </p>
+          <ol className="mt-2 space-y-3">
+            {steps.map((step, idx) => (
+              <li key={idx} className="flex items-start gap-3">
+                <span className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full bg-coral text-sm font-bold text-white shadow-sm">
+                  {idx + 1}
+                </span>
+                <p className="min-w-0 flex-1 text-sm leading-relaxed text-ink">
+                  {step.text}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
     </div>
   );
 }
