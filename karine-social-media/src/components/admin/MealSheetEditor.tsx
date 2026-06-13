@@ -531,7 +531,7 @@ function PreviewForm({
             disabled={readOnly}
             className="input h-8 text-sm"
           />
-          <div className="grid min-w-0 grid-cols-4 gap-1.5 [&>*]:min-w-0">
+          <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:grid-cols-4 [&>*]:min-w-0">
             <Stat
               label="Pers"
               value={data.servings}
@@ -560,7 +560,7 @@ function PreviewForm({
             />
           </div>
           {/* Macros : Protéines / Lipides / Glucides */}
-          <div className="grid min-w-0 grid-cols-3 gap-1.5 [&>*]:min-w-0">
+          <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:grid-cols-3 [&>*]:min-w-0">
             <Stat
               label="Prot"
               suffix="g"

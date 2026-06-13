@@ -675,6 +675,12 @@ function SheetEditableForm({
     return out;
   }, [data.ingredients]);
 
+  // Titre : state local + commit onBlur (pas de PATCH par frappe).
+  const [titleLocal, setTitleLocal] = useState(data.title ?? '');
+  useEffect(() => {
+    setTitleLocal(data.title ?? '');
+  }, [data.title]);
+
   return (
     <div className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
@@ -691,12 +697,13 @@ function SheetEditableForm({
         <div className="space-y-2">
           <input
             type="text"
-            value={data.title ?? ''}
-            onChange={(e) => onChange({ title: e.target.value })}
+            value={titleLocal}
+            onChange={(e) => setTitleLocal(e.target.value)}
+            onBlur={() => onChange({ title: titleLocal })}
             placeholder="Titre de la variante"
             className="input h-9 text-sm"
           />
-          <div className="grid gap-2 grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Stat
               label="Pers"
               value={data.servings}
@@ -818,6 +825,16 @@ function Stat({
   onChange: (v: number | null) => void;
   suffix?: string;
 }) {
+  // State local + commit onBlur : la frappe ne déclenche PAS de PATCH
+  // (sinon re-render serveur qui reset l'input). On commit en quittant.
+  const [local, setLocal] = useState(value === null ? '' : String(value));
+  useEffect(() => {
+    setLocal(value === null ? '' : String(value));
+  }, [value]);
+  const commit = () => {
+    const v = local.trim() === '' ? null : Math.max(0, Number(local) || 0);
+    onChange(v);
+  };
   return (
     <label className="block">
       <span className="block text-[0.6rem] font-semibold uppercase tracking-wider text-admin-ink-soft">
@@ -827,10 +844,9 @@ function Stat({
       <input
         type="number"
         min="0"
-        value={value ?? ''}
-        onChange={(e) =>
-          onChange(e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0))
-        }
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={commit}
         className="input h-8 w-full px-1.5 text-center text-sm"
       />
     </label>
@@ -846,6 +862,18 @@ function CsvField({
   values: string[];
   onChange: (v: string[]) => void;
 }) {
+  // State local + commit onBlur (cf. Stat).
+  const [local, setLocal] = useState(values.join(', '));
+  useEffect(() => {
+    setLocal(values.join(', '));
+  }, [values.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  const commit = () =>
+    onChange(
+      local
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    );
   return (
     <label className="block">
       <span className="block text-[0.6rem] font-semibold uppercase tracking-wider text-admin-ink-soft">
@@ -853,15 +881,9 @@ function CsvField({
       </span>
       <input
         type="text"
-        value={values.join(', ')}
-        onChange={(e) =>
-          onChange(
-            e.target.value
-              .split(',')
-              .map((s) => s.trim())
-              .filter(Boolean),
-          )
-        }
+        value={local}
+        onChange={(e) => setLocal(e.target.value)}
+        onBlur={commit}
         className="input h-8 w-full px-2 text-xs"
       />
     </label>
