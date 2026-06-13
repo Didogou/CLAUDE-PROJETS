@@ -75,12 +75,16 @@ async function fetchModelWithProgress(
   let loaded = 0;
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
     if (signal.aborted) {
       reader.cancel().catch(() => {});
-      throw new DOMException('Aborted', 'AbortError');
+      // Throw une AbortError standard plutôt que d'inventer — le caller
+      // sait la distinguer d'une vraie erreur réseau via err.name.
+      const err = new Error('Aborted');
+      err.name = 'AbortError';
+      throw err;
     }
+    const { done, value } = await reader.read();
+    if (done) break;
     chunks.push(value);
     loaded += value.length;
     onProgress(loaded / total);
@@ -250,13 +254,27 @@ export function useVoskCommands({
         setLoading(false);
         setListening(true);
       } catch (e) {
+        // AbortError = annulation volontaire (cleanup useEffect, StrictMode
+        // dev qui mount/démonte 2×, toggle Mains libres OFF pendant DL).
+        // Surtout pas afficher comme une erreur à l'utilisatrice — elle
+        // n'a rien fait de mal. Et le Next.js overlay en dev catche tout
+        // ce qui remonte, donc on doit l'absorber proprement ici.
+        const err = e as Error;
+        if (
+          err?.name === 'AbortError' ||
+          /aborted|abort/i.test(String(err?.message ?? err))
+        ) {
+          setLoading(false);
+          setLoadProgress(0);
+          return;
+        }
         if (cancelled) return;
         setLoading(false);
         setListening(false);
         // Log explicite : on ne masque PAS l'erreur originale, c'est
         // essentiel pour diagnostiquer en prod ("ne télécharge pas").
         console.error('[vosk] init failed:', e);
-        const msg = String((e as Error)?.message ?? e ?? '');
+        const msg = String(err?.message ?? e ?? '');
         if (/permission|denied|not[- ]allowed/i.test(msg)) {
           setError('Micro refusé. Autorise le micro pour ce site.');
         } else if (/HTTP|network|fetch|load|model|connect/i.test(msg)) {
