@@ -271,8 +271,13 @@ export function RecipeCookView({
     },
   });
 
+  // 100svh (small viewport height) au lieu de 100dvh : Safari iOS gère mieux
+  // svh quand le body est en position:fixed (cf. useEffect plus haut). Avec
+  // dvh la hauteur variait pendant le scroll de la barre URL → le footer
+  // ("Suivant") sortait du viewport. svh fige à la hauteur "barres système
+  // visibles" — prévisible et stable.
   return (
-    <main className="mx-auto flex h-[100dvh] w-full max-w-md flex-col overflow-hidden overscroll-none bg-[radial-gradient(circle_at_50%_30%,#fff7fa_0%,#fdeef2_42%,#f6d3de_100%)]">
+    <main className="mx-auto flex h-[100svh] w-full max-w-md flex-col overflow-hidden overscroll-none bg-[radial-gradient(circle_at_50%_30%,#fff7fa_0%,#fdeef2_42%,#f6d3de_100%)]">
       <RevealKeyframes />
       {/* Élément audio unique, piloté par étape */}
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
@@ -610,15 +615,30 @@ function Step({
     const ro = new ResizeObserver(compute);
     ro.observe(el);
     window.addEventListener('resize', compute);
+    // iOS PWA en mode body[position:fixed] : ResizeObserver peut être
+    // retardé de 200-500 ms après le mount. La 1re mesure de compute()
+    // tombait alors sur une hauteur encore non-stabilisée → needsScroll
+    // calculé à false (le footer "Suivant" sortait du viewport). On
+    // re-déclenche à 150 ms après que le layout soit settle.
+    const settleTimeout = setTimeout(compute, 150);
     return () => {
       ro.disconnect();
+      clearTimeout(settleTimeout);
       window.removeEventListener('resize', compute);
     };
   }, [ingCount, index]);
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="sticky top-0 z-10 flex flex-col items-center gap-1 bg-blush/85 px-4 pb-1.5 pt-2 backdrop-blur">
+      {/* shrink-0 : sur iOS Safari, sans ça, le calcul de min-h-0 sur le
+          div frère (zone scrollable) était faussé — Safari comptait le
+          header dans la cascade flex au lieu de le détacher. Conséquence
+          observée : la liste d'ingrédients ne pouvait pas calculer sa
+          vraie hauteur dispo → needsScroll restait false alors qu'il
+          fallait scroller → le footer (bouton "Suivant") sortait du
+          viewport. Le sticky top-0 reste pour le comportement de
+          scroll, shrink-0 garantit qu'il ne grandit pas en flex. */}
+      <header className="sticky top-0 z-10 flex shrink-0 flex-col items-center gap-1 bg-blush/85 px-4 pb-1.5 pt-2 backdrop-blur">
         <div className="flex w-full items-center">
           <Link
             href={backHref}
@@ -870,7 +890,14 @@ function Step({
         className={`shrink-0 bg-gradient-to-t from-white via-white/80 to-transparent px-5 ${
           !isCookingStep && timerSec ? 'pt-3' : 'pt-5'
         }`}
-        style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}
+        style={{
+          // max(plancher, calc) : sur iPhone en mode PWA standalone,
+          // env(safe-area-inset-bottom) renvoie parfois 0 (bug Safari
+          // 17.x) → footer rogné par la home indicator. Le max garantit
+          // au moins 2rem de marge en bas dans tous les cas, et utilise
+          // la safe-area réelle quand elle est correcte.
+          paddingBottom: 'max(2rem, calc(1rem + env(safe-area-inset-bottom)))',
+        }}
       >
         <SectionHeading>Instruction</SectionHeading>
         <div
