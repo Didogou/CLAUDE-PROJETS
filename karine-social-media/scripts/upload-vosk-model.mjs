@@ -74,7 +74,9 @@ console.log(`📤 Upload ${mb} Mo vers ${BUCKET}/${PATH}…`);
 const { error: uErr } = await supabase.storage
   .from(BUCKET)
   .upload(PATH, buf, {
-    cacheControl: '31536000, immutable',
+    // Supabase SDK n'accepte qu'une valeur numérique en secondes (string),
+    // pas la syntaxe HTTP complète "31536000, immutable". 1 an = 31536000 s.
+    cacheControl: '31536000',
     contentType: 'application/gzip',
     upsert: true, // permet de relancer le script sans erreur
   });
