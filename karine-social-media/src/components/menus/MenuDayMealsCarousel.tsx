@@ -24,6 +24,8 @@ import { PortionsStepper } from '@/components/recettes/PortionsStepper';
 import { scaleIngredients } from '@/lib/recipe-portions';
 import { pulseBottomNav } from '@/lib/bottom-nav-pulse';
 import { computeSheetDietaryTags } from '@/lib/dietary-tags';
+import { RecipeNutriScorePanel } from '@/components/recettes/RecipeNutriScorePanel';
+import type { CiqualFoodLite } from '@/lib/nutriscore-aggregate';
 
 type Props = {
   menuTitle: string | null;
@@ -38,6 +40,10 @@ type Props = {
   /** Ids de menu_meal_sheets déjà favorisées par l'utilisatrice.
    *  Pré-chargé server-side pour pré-cocher les bookmark icons. */
   favoritedMealSheetIds?: string[];
+  /** Nutri-Score : liens Ciqual + poids de portion de toutes les fiches
+   *  repas du menu (réutilise les composants recette). */
+  ciqualByIdEntries?: Array<[number, CiqualFoodLite]>;
+  portionWeightEntries?: Array<[string, number]>;
 };
 
 /**
@@ -65,6 +71,8 @@ export function MenuDayMealsCarousel({
   isSubscriber,
   isAuthenticated,
   favoritedMealSheetIds = [],
+  ciqualByIdEntries = [],
+  portionWeightEntries = [],
 }: Props) {
   const favSet = useMemo(
     () => new Set(favoritedMealSheetIds),
@@ -160,6 +168,8 @@ export function MenuDayMealsCarousel({
             sheet={sheet}
             isAuthenticated={isAuthenticated}
             initialFavorited={sheet ? favSet.has(sheet.id) : false}
+            ciqualByIdEntries={ciqualByIdEntries}
+            portionWeightEntries={portionWeightEntries}
             onAuthRequired={() =>
               router.push(
                 `/login?next=${encodeURIComponent(window.location.pathname)}`,
@@ -194,12 +204,16 @@ function MealCard({
   sheet,
   isAuthenticated,
   initialFavorited = false,
+  ciqualByIdEntries = [],
+  portionWeightEntries = [],
   onAuthRequired,
 }: {
   label: string;
   sheet: MenuMealSheet | null;
   isAuthenticated: boolean;
   initialFavorited?: boolean;
+  ciqualByIdEntries?: Array<[number, CiqualFoodLite]>;
+  portionWeightEntries?: Array<[string, number]>;
   onAuthRequired?: () => void;
 }) {
   // Hooks d'abord (avant le early return null) — règle React.
@@ -497,6 +511,18 @@ function MealCard({
         <h3 className="text-center font-script text-2xl text-coral-dark sm:text-3xl">
           {sheet.title}
         </h3>
+      )}
+
+      {/* Nutri-Score (badge + modale détail) — réutilise le composant
+          recette. Affiché si confiance persistée ≥ 0.5 (même règle que
+          SheetCarousel côté recette). */}
+      {sheet.nutriscoreGrade && (sheet.nutriscoreConfidence ?? 0) >= 0.5 && (
+        <RecipeNutriScorePanel
+          grade={sheet.nutriscoreGrade}
+          ingredients={sheet.ingredients.map((i) => ({ ...i, note: i.note ?? null }))}
+          ciqualByIdEntries={ciqualByIdEntries}
+          portionWeightEntries={portionWeightEntries}
+        />
       )}
 
       {/* Bandeau d'actions : portions stepper + mes courses + kcal +

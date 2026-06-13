@@ -7,6 +7,13 @@ import { getPublishedMenuById, getMenuMealSheets } from '@/lib/menus';
 import { getCurrentUser } from '@/lib/current-user';
 import { getUserFavorites } from '@/lib/favorites';
 import { dayIndexFromDate, formatWeekTitle } from '@/data/menus';
+import type { MenuMealSheet } from '@/data/menus';
+import { createServiceClient } from '@/lib/supabase/server';
+import {
+  normalizeLabelKey,
+  isMassUnit,
+  type CiqualFoodLite,
+} from '@/lib/nutriscore-aggregate';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +56,54 @@ export default async function MenuDayPage({
     { lunch: import('@/data/menus').MenuMealSheet | null; dinner: import('@/data/menus').MenuMealSheet | null }
   > = {};
   for (const [k, v] of mealSheetsMap) mealSheetsByDay[k] = v;
+
+  // Nutri-Score (badge + modale détail) : on réutilise les composants
+  // recette. Collecte des liens Ciqual + poids de portion de toutes les
+  // fiches repas du menu, pour alimenter la modale comme côté recette.
+  const allMealSheets: MenuMealSheet[] = Object.values(mealSheetsByDay)
+    .flatMap((s) => [s.lunch, s.dinner])
+    .filter((s): s is MenuMealSheet => s !== null);
+  let ciqualByIdEntries: Array<[number, CiqualFoodLite]> = [];
+  let portionWeightEntries: Array<[string, number]> = [];
+  if (allMealSheets.length > 0) {
+    const supa = createServiceClient() as any;
+    const codes = new Set<number>();
+    const labelKeys = new Set<string>();
+    for (const sh of allMealSheets) {
+      for (const ing of sh.ingredients) {
+        if (typeof ing.ciqual_alim_code === 'number') codes.add(ing.ciqual_alim_code);
+        if (
+          typeof ing.quantity === 'number' &&
+          ing.quantity > 0 &&
+          !isMassUnit(ing.unit)
+        ) {
+          const k = normalizeLabelKey(ing.label);
+          if (k) labelKeys.add(k);
+        }
+      }
+    }
+    if (codes.size > 0) {
+      const { data } = await supa
+        .from('ciqual_foods')
+        .select(
+          'id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
+        )
+        .in('alim_code', [...codes]);
+      ciqualByIdEntries = ((data ?? []) as CiqualFoodLite[]).map((c) => [c.alim_code, c]);
+    }
+    if (labelKeys.size > 0) {
+      const { data } = await supa
+        .from('ingredient_portion_weights')
+        .select('label_key, grams')
+        .in('label_key', [...labelKeys]);
+      portionWeightEntries = ((data ?? []) as Array<{
+        label_key: string;
+        grams: number | null;
+      }>)
+        .filter((r) => r.grams != null && Number(r.grams) > 0)
+        .map((r) => [r.label_key, Number(r.grams)] as [string, number]);
+    }
+  }
 
   // Charge les favoris meal_sheet de l'utilisatrice (V1 anonyme V0
   // sans persist = set vide). Permet de pré-cocher les bookmark icons.
@@ -95,6 +150,8 @@ export default async function MenuDayPage({
           isSubscriber={canSeeFullMenu}
           isAuthenticated={user.isAuthenticated}
           favoritedMealSheetIds={favoritedMealSheetIds}
+          ciqualByIdEntries={ciqualByIdEntries}
+          portionWeightEntries={portionWeightEntries}
         />
       </main>
 

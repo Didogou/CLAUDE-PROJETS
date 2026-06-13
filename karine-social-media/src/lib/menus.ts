@@ -293,6 +293,8 @@ function mapMealSheet(row: any): MenuMealSheet {
           quantity: typeof it.quantity === 'number' ? it.quantity : null,
           unit: typeof it.unit === 'string' ? it.unit : null,
           note: typeof it.note === 'string' ? it.note : null,
+          ciqual_alim_code:
+            typeof it.ciqual_alim_code === 'number' ? it.ciqual_alim_code : null,
         }))
     : [];
   return {
@@ -319,6 +321,18 @@ function mapMealSheet(row: any): MenuMealSheet {
         )
       : [],
     likesCount: typeof row.likes_count === 'number' ? row.likes_count : 0,
+    nutriscoreGrade:
+      row.nutriscore_grade === 'A' ||
+      row.nutriscore_grade === 'B' ||
+      row.nutriscore_grade === 'C' ||
+      row.nutriscore_grade === 'D' ||
+      row.nutriscore_grade === 'E'
+        ? row.nutriscore_grade
+        : null,
+    nutriscoreConfidence:
+      row.nutriscore_confidence === null || row.nutriscore_confidence === undefined
+        ? null
+        : Number(row.nutriscore_confidence),
   };
 }
 

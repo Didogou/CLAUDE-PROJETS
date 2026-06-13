@@ -44,6 +44,9 @@ export type ShoppingListItem = {
   quantity: number | null;
   unit: string | null;
   note?: string | null;
+  /** Lien Ciqual (code ANSES stable) si l'ingrédient est rattaché —
+   *  nécessaire à la modale « Détail nutritionnel ». */
+  ciqual_alim_code?: number | null;
 };
 
 /** Repas (lunch/dinner) au sein d'un menu hebdomadaire. */
@@ -73,6 +76,10 @@ export type MenuMealSheet = {
   /** Slugs d'ustensiles référençant le catalogue public.utensils. */
   utensils: string[];
   likesCount: number;
+  /** Nutri-Score persisté (mêmes colonnes que recipe_sheets). Affiché
+   *  côté user si confiance ≥ 0.5 (cf. RecipeNutriScorePanel). */
+  nutriscoreGrade: 'A' | 'B' | 'C' | 'D' | 'E' | null;
+  nutriscoreConfidence: number | null;
 };
 
 export type WeeklyMenu = {

@@ -166,6 +166,18 @@ export function MealSheetEditor({
         preparationSteps: s.preparation_steps ?? [],
         utensils: s.utensils ?? [],
         likesCount: typeof s.likes_count === 'number' ? s.likes_count : 0,
+        nutriscoreGrade:
+          s.nutriscore_grade === 'A' ||
+          s.nutriscore_grade === 'B' ||
+          s.nutriscore_grade === 'C' ||
+          s.nutriscore_grade === 'D' ||
+          s.nutriscore_grade === 'E'
+            ? s.nutriscore_grade
+            : null,
+        nutriscoreConfidence:
+          s.nutriscore_confidence === null || s.nutriscore_confidence === undefined
+            ? null
+            : Number(s.nutriscore_confidence),
       });
       setPreview(null);
     } catch (err) {
