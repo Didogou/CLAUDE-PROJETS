@@ -198,12 +198,24 @@ export default async function AdminNutriScorePage() {
     };
   });
 
+  // Poids de portion par label (aligne l'aperçu admin sur le calcul serveur).
+  const { data: pwRows } = await supa
+    .from('ingredient_portion_weights')
+    .select('label_key, grams');
+  const portionWeightEntries = ((pwRows ?? []) as Array<{
+    label_key: string;
+    grams: number | null;
+  }>)
+    .filter((r) => r.grams != null && Number(r.grams) > 0)
+    .map((r) => [r.label_key, Number(r.grams)] as [string, number]);
+
   return (
     <NutriScoreAdminClient
       recipes={recipes}
       sheets={sheets}
       ciqualBootstrap={ciqualBootstrap}
       menus={menus}
+      portionWeightEntries={portionWeightEntries}
     />
   );
 }

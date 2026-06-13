@@ -21,10 +21,12 @@ export function RecipeNutriScorePanel({
   grade,
   ingredients,
   ciqualByIdEntries,
+  portionWeightEntries = [],
 }: {
   grade: NutriscoreGrade;
   ingredients: RecipeIngredient[];
   ciqualByIdEntries: Array<[number, CiqualFoodLite]>;
+  portionWeightEntries?: Array<[string, number]>;
 }) {
   const hasDetail = ciqualByIdEntries.length > 0 && ingredients.length > 0;
   return (
@@ -36,6 +38,7 @@ export function RecipeNutriScorePanel({
           <NutriScoreDetailLink
             ingredients={ingredients}
             ciqualByIdEntries={ciqualByIdEntries}
+            portionWeightEntries={portionWeightEntries}
           />
         )}
       </div>

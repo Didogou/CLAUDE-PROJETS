@@ -14,6 +14,8 @@ import { userHasPlanAccess } from '@/lib/user-access';
 import { createServiceClient } from '@/lib/supabase/server';
 import {
   quickMatchCiqual,
+  normalizeLabelKey,
+  isMassUnit,
   type CiqualFoodLite,
 } from '@/lib/nutriscore-aggregate';
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -138,6 +140,30 @@ export default async function RecipeDetailPage({
     }
   }
 
+  // Poids de portion par label (modale « Détail nutritionnel ») — alignés
+  // sur le calcul serveur via la table ingredient_portion_weights.
+  let portionWeightEntries: Array<[string, number]> = [];
+  {
+    const keys = new Set<string>();
+    for (const sheet of recipe.sheets) {
+      for (const ing of sheet.ingredients) {
+        if (typeof ing.quantity !== 'number' || ing.quantity <= 0) continue;
+        if (isMassUnit(ing.unit)) continue;
+        const k = normalizeLabelKey(ing.label);
+        if (k) keys.add(k);
+      }
+    }
+    if (keys.size > 0) {
+      const { data } = await supa
+        .from('ingredient_portion_weights')
+        .select('label_key, grams')
+        .in('label_key', [...keys]);
+      portionWeightEntries = ((data ?? []) as Array<{ label_key: string; grams: number | null }>)
+        .filter((r) => r.grams != null && Number(r.grams) > 0)
+        .map((r) => [r.label_key, Number(r.grams)] as [string, number]);
+    }
+  }
+
   return (
     <div className="relative flex min-h-screen flex-col print:bg-white">
       {/* FloralBackground et AppHeader DOIVENT être enfants directs
@@ -183,6 +209,7 @@ export default async function RecipeDetailPage({
             likesCountInitial={recipe.likesCount}
             initialLikedSheetIds={[...likedSheetIds]}
             ciqualByIdEntries={ciqualByIdEntries}
+            portionWeightEntries={portionWeightEntries}
           />
 
           {/* Aside commentaires PC uniquement (colonne droite) */}

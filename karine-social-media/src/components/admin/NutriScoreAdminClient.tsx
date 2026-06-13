@@ -77,15 +77,24 @@ export function NutriScoreAdminClient({
   sheets,
   ciqualBootstrap,
   menus = [],
+  portionWeightEntries = [],
 }: {
   recipes: RecipeLite[];
   sheets: SheetLite[];
   ciqualBootstrap: CiqualFoodLite[];
   menus?: MenuLite[];
+  /** Poids de portion par label normalisé (« 1 gousse d'ail » → 5g),
+   *  aligne l'aperçu sur le calcul serveur (ingredient_portion_weights). */
+  portionWeightEntries?: Array<[string, number]>;
 }) {
   // Pool Ciqual côté client : seed avec le bootstrap + s'enrichit au fur
   // et à mesure que Karine cherche / sélectionne des aliments.
   const [ciqualPool, setCiqualPool] = useState<CiqualFoodLite[]>(ciqualBootstrap);
+  // Map<labelKey, grams> partagée par tous les calculs d'aperçu.
+  const portionWeights = useMemo(
+    () => new Map<string, number>(portionWeightEntries),
+    [portionWeightEntries],
+  );
   // 1 entrée sidebar = 1 sheet (pas 1 recipe). Une recette "4 Salades"
   // a 4 sheets → 4 entrées. Karine doit pouvoir éditer chaque sheet
   // individuellement et voir son Nutri-Score propre.
@@ -164,13 +173,13 @@ export function NutriScoreAdminClient({
         if (!sheet.ingredients || sheet.ingredients.length === 0) {
           return { recipe, sheet, agg: null, score: null };
         }
-        const agg = aggregateIngredients(sheet.ingredients, ciqualPool, ciqualGroups, ciqualUnitWeights);
+        const agg = aggregateIngredients(sheet.ingredients, ciqualPool, ciqualGroups, ciqualUnitWeights, portionWeights);
         const canScore = agg.totalGrams > 0 && agg.confidence >= 0.3;
         const score = canScore ? computeNutriscore(agg.per100g, 'GENERIC') : null;
         return { recipe, sheet, agg, score };
       })
       .filter((x): x is NonNullable<typeof x> => x !== null);
-  }, [recipes, sheets, ciqualPool]);
+  }, [recipes, sheets, ciqualPool, portionWeights]);
 
   // Nombre total de sheets par recipe (pour afficher "fiche n/N" quand >1).
   const sheetCountByRecipe = useMemo(() => {
@@ -473,6 +482,7 @@ export function NutriScoreAdminClient({
                 key={sheet.id}
                 sheet={sheet}
                 ciqualPool={ciqualPool}
+                portionWeights={portionWeights}
                 onDirtyChange={setEditorDirty}
                 onCiqualPoolUpdate={(more) => {
                   setCiqualPool((prev) => {
@@ -493,6 +503,7 @@ export function NutriScoreAdminClient({
             recipe={selectedStat.recipe}
             sheet={selectedStat.sheet}
             ciqualPool={ciqualPool}
+            portionWeights={portionWeights}
             onDirtyChange={setEditorDirty}
             onCiqualPoolUpdate={(more) => {
               setCiqualPool((prev) => {
@@ -545,12 +556,14 @@ function RecipeEditor({
   recipe,
   sheet,
   ciqualPool,
+  portionWeights,
   onDirtyChange,
   onCiqualPoolUpdate,
 }: {
   recipe: RecipeLite;
   sheet: SheetLite;
   ciqualPool: CiqualFoodLite[];
+  portionWeights: Map<string, number>;
   /** Notifie le parent quand l'état dirty change (pour le warning au
    *  switch de recette). */
   onDirtyChange: (dirty: boolean) => void;
@@ -589,8 +602,8 @@ function RecipeEditor({
         .filter((c) => typeof c.avg_unit_weight_g === 'number' && (c.avg_unit_weight_g as number) > 0.01)
         .map((c) => [c.alim_code, c.avg_unit_weight_g as number]),
     );
-    return aggregateIngredients(ings, ciqualPool, ciqualGroups, ciqualUnitWeights);
-  }, [ings, ciqualPool]);
+    return aggregateIngredients(ings, ciqualPool, ciqualGroups, ciqualUnitWeights, portionWeights);
+  }, [ings, ciqualPool, portionWeights]);
 
   // Warning beforeunload : si l'utilisatrice ferme l'onglet alors que
   // des changements ne sont pas sauvegardés, le navigateur affiche le
@@ -1223,11 +1236,13 @@ function MealCell({
 function MenuMealSheetEditor({
   sheet,
   ciqualPool,
+  portionWeights,
   onDirtyChange,
   onCiqualPoolUpdate,
 }: {
   sheet: MenuMealSheetLite;
   ciqualPool: CiqualFoodLite[];
+  portionWeights: Map<string, number>;
   onDirtyChange: (dirty: boolean) => void;
   onCiqualPoolUpdate: (more: CiqualFoodLite[]) => void;
 }) {
@@ -1247,8 +1262,8 @@ function MenuMealSheetEditor({
     const ciqualGroups = new Map(
       ciqualPool.map((c) => [c.id, (c as any).group_name ?? '']),
     );
-    return aggregateIngredients(ings, ciqualPool, ciqualGroups);
-  }, [ings, ciqualPool]);
+    return aggregateIngredients(ings, ciqualPool, ciqualGroups, new Map(), portionWeights);
+  }, [ings, ciqualPool, portionWeights]);
 
   const canScore = agg.totalGrams > 0 && agg.confidence >= 0.3;
   const score = canScore ? computeNutriscore(agg.per100g, 'GENERIC') : null;

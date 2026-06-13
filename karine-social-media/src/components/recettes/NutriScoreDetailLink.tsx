@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Carrot, X } from 'lucide-react';
 import type { CiqualFoodLite } from '@/lib/nutriscore-aggregate';
+import { normalizeLabelKey } from '@/lib/nutriscore-aggregate';
 import type { RecipeIngredient } from '@/data/recipes';
 
 /**
@@ -47,6 +48,7 @@ const UNIT_TO_GRAMS: Record<string, number> = {
 function unitToGrams(
   qty: number | null,
   unit: string | null,
+  portionWeight: number | null | undefined,
   ciqualUnitWeight: number | null | undefined,
 ): number {
   if (typeof qty !== 'number' || qty <= 0) return 0;
@@ -55,8 +57,12 @@ function unitToGrams(
     const factor = UNIT_TO_GRAMS[u];
     if (typeof factor === 'number') return qty * factor;
   }
-  // Sentinel ~0.0001 = "1 unité n'a pas de sens pour cet aliment"
-  // (huile, sel, farine…). Mistral a explicitement renvoyé null.
+  // Poids de portion par label (« 1 gousse d'ail » → 5g) : source de vérité,
+  // alignée sur le calcul serveur (ingredient_portion_weights).
+  if (typeof portionWeight === 'number' && portionWeight > 0) {
+    return qty * portionWeight;
+  }
+  // Fallback hérité : poids unitaire générique de l'aliment Ciqual.
   if (typeof ciqualUnitWeight === 'number' && ciqualUnitWeight > 0.01) {
     return qty * ciqualUnitWeight;
   }
@@ -78,9 +84,11 @@ type Row = {
 export function NutriScoreDetailLink({
   ingredients,
   ciqualByIdEntries,
+  portionWeightEntries = [],
 }: {
   ingredients: RecipeIngredient[];
   ciqualByIdEntries: Array<[number, CiqualFoodLite]>;
+  portionWeightEntries?: Array<[string, number]>;
 }) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -118,6 +126,7 @@ export function NutriScoreDetailLink({
   // pas coûteux : map.lookup O(1) × ~15 ingrédients).
   const { rows, totals } = useMemo(() => {
     const ciqualMap = new Map(ciqualByIdEntries);
+    const pwMap = new Map(portionWeightEntries);
     const out: Row[] = [];
     let tGrams = 0,
       tKcal = 0,
@@ -138,6 +147,7 @@ export function NutriScoreDetailLink({
       const grams = unitToGrams(
         ing.quantity,
         ing.unit,
+        pwMap.get(normalizeLabelKey(ing.label)),
         ciqual?.avg_unit_weight_g ?? null,
       );
       const kcal = ciqual ? ((ciqual.kcal_per_100g ?? 0) * grams) / 100 : 0;
@@ -180,7 +190,7 @@ export function NutriScoreDetailLink({
         salt: tSalt,
       },
     };
-  }, [ingredients, ciqualByIdEntries]);
+  }, [ingredients, ciqualByIdEntries, portionWeightEntries]);
 
   const overlay = (
     <div

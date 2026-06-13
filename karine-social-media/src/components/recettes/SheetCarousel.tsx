@@ -45,6 +45,9 @@ type Props = {
    *  de toutes les sheets. Utilisée par la modale "Détail nutritionnel"
    *  pour afficher le breakdown ingrédient × valeurs. */
   ciqualByIdEntries?: Array<[number, CiqualFoodLite]>;
+  /** Poids de portion par label normalisé (« 1 gousse d'ail » → 5g),
+   *  pour aligner la modale détail sur le calcul serveur. */
+  portionWeightEntries?: Array<[string, number]>;
 };
 
 /**
@@ -68,6 +71,7 @@ export function SheetCarousel({
   favoritedInitial = false,
   initialLikedSheetIds,
   ciqualByIdEntries,
+  portionWeightEntries,
 }: Props) {
   const [active, setActive] = useState(0);
   /** Likes PAR sheet (pas par recette mère) : la fiche n°1 et la fiche
@@ -326,6 +330,7 @@ export function SheetCarousel({
           grade={sheet.nutriscoreGrade}
           ingredients={sheet.ingredients}
           ciqualByIdEntries={ciqualByIdEntries ?? []}
+          portionWeightEntries={portionWeightEntries ?? []}
         />
       )}
 
