@@ -55,16 +55,31 @@ export function useVoiceCommands({
     let stopped = false;
 
     rec.onresult = (e: any) => {
-      // Ignore pendant la narration (anti auto-déclenchement).
+      // Ignore pendant la narration (anti auto-déclenchement : sinon le
+      // micro capterait la voix ElevenLabs dans l'enceinte et la
+      // narration peut prononcer "suivant", "après", etc. dans son texte).
       if (mutedRef.current) return;
       const res = e.results[e.results.length - 1];
       const t = String(res?.[0]?.transcript ?? '').toLowerCase();
       // "minuteur/chrono" en premier (sinon "ok" pourrait primer).
-      if (/\b(minuteur|chrono)\b/.test(t)) {
+      if (/\b(minuteur|chrono|timer)\b/.test(t)) {
         onCommandRef.current('timer');
-      } else if (/\b(pr[ée]c[ée]dent|retour|arri[èe]re)\b/.test(t)) {
+      } else if (
+        /\b(pr[ée]c[ée]dent|pr[ée]c[ée]dente|retour|arri[èe]re|reviens|recule|avant|back|previous)\b/.test(
+          t,
+        )
+      ) {
         onCommandRef.current('prev');
-      } else if (/\b(suivant|ok|c'?est bon|termin[ée]?|prochaine|next)\b/.test(t)) {
+      } else if (
+        /\b(suivant|suivante|ok|okay|c'?est bon|c'?est fait|termin[ée]?|finie?|prochaine?|suite|ensuite|apr[èe]s|puis|continue|vas?-?y|allez|go|next|voil[àa])\b/.test(
+          t,
+        )
+      ) {
+        // Vocabulaire élargi 2026-06-13 : Karine et ses patientes disent
+        // naturellement "et après", "suite", "ensuite", "puis", "voilà",
+        // "vas-y" pendant la cuisine. La regex précédente n'en capturait
+        // qu'un sous-ensemble (suivant / ok / c'est bon / terminé /
+        // prochaine / next), d'où l'impression d'écoute aléatoire.
         onCommandRef.current('next');
       }
     };
@@ -90,8 +105,15 @@ export function useVoiceCommands({
       // network) sont normaux → onend relancera, on ne les affiche pas.
       if (err === 'not-allowed' || err === 'service-not-allowed') {
         setError('Micro refusé. Autorise le micro pour ce site dans Chrome.');
+        // CRITIQUE : sans ce flag, onend() en cascade va rappeler
+        // rec.start() en boucle infinie → Chrome marque la session comme
+        // "poisoned" pendant ~30 min → tous les start() suivants
+        // échouent même APRÈS correction de la permission. Le user doit
+        // alors fermer/relancer Chrome. Bug 2026-06-13.
+        stopped = true;
       } else if (err === 'audio-capture') {
         setError('Aucun micro détecté sur cet appareil.');
+        stopped = true;
       }
     };
 
