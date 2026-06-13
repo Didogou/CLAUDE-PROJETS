@@ -1,9 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { requireAdmin } from '@/lib/admin-guard';
-import { extractRecipeSheetFromImage } from '@/lib/claude-recipe-vision';
-import { upsertUtensils, sanitizePreparationSteps } from '@/lib/utensils';
-import { parsePreparationSteps } from '@/data/recipes';
+import { extractPreparationForSheets } from '@/lib/sheet-preparation';
 
 // Re-Vision de N fiches séquentiellement → peut être long.
 export const maxDuration = 300;
@@ -56,49 +54,16 @@ export async function POST(
       .order('sheet_index', { ascending: true });
     if (sheetsErr) throw sheetsErr;
 
-    const rows = (sheets ?? []) as {
-      id: string;
-      cover_image_url: string;
-      preparation_steps: unknown;
-    }[];
-    let processed = 0;
-    let updated = 0;
-    let skipped = 0;
-    const errors: string[] = [];
+    // Cœur partagé (cf. src/lib/sheet-preparation.ts) — même logique pour
+    // les fiches recette et les fiches repas de menu.
+    const result = await extractPreparationForSheets(
+      supabase,
+      'recipe_sheets',
+      (sheets ?? []) as { id: string; cover_image_url: string; preparation_steps: unknown }[],
+      skipExisting,
+    );
 
-    // Séquentiel : évite de saturer l'API Vision + reste prévisible.
-    for (const sheet of rows) {
-      // Skip : fiche déjà extraite (batch). Évite Vision + écrasement manuel.
-      if (skipExisting && parsePreparationSteps(sheet.preparation_steps).length > 0) {
-        skipped++;
-        continue;
-      }
-      processed++;
-      try {
-        const imgRes = await fetch(sheet.cover_image_url);
-        if (!imgRes.ok) throw new Error(`image ${imgRes.status}`);
-        const buffer = Buffer.from(await imgRes.arrayBuffer());
-
-        const extracted = await extractRecipeSheetFromImage(buffer, 'image/webp');
-        const utensilSlugs = await upsertUtensils(supabase, extracted.utensils);
-
-        const { error: updErr } = await (supabase as any)
-          .from('recipe_sheets')
-          .update({
-            preparation_steps: sanitizePreparationSteps(extracted.preparationSteps),
-            utensils: utensilSlugs,
-          })
-          .eq('id', sheet.id);
-        if (updErr) throw updErr;
-        updated++;
-      } catch (e) {
-        errors.push(
-          `${sheet.id}: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      }
-    }
-
-    return NextResponse.json({ ok: true, processed, updated, skipped, errors });
+    return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     console.error('[admin/recipes extract-preparation] error:', e);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
