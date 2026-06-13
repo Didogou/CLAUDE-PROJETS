@@ -23,6 +23,9 @@ import { formatWeekTitle } from '@/data/menus';
 type Props = {
   initialList: ShoppingListV2;
   currentMenu: WeeklyMenu | null;
+  /** Vignettes Ciqual par clé d'article (résolu serveur via le lien
+   *  recette/menu). Affichées à gauche de chaque article. */
+  itemImages?: Array<[string, string]>;
 };
 
 /** Labels jours FR courts, indexes par day_index (0=lundi → 6=dimanche). */
@@ -32,8 +35,9 @@ const DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] as const;
  * Cœur de la page /courses : affiche la liste active, gère cochage,
  * ajout/suppression article, archivage et toggle du menu hebdo.
  */
-export function ShoppingListPage({ initialList, currentMenu }: Props) {
+export function ShoppingListPage({ initialList, currentMenu, itemImages = [] }: Props) {
   const [list, setList] = useState(initialList);
+  const imagesByKey = useMemo(() => new Map(itemImages), [itemImages]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingItem, setAddingItem] = useState(false);
@@ -285,6 +289,7 @@ export function ShoppingListPage({ initialList, currentMenu }: Props) {
                   <ItemRow
                     key={it.key}
                     item={it}
+                    imageUrl={imagesByKey.get(it.key) ?? null}
                     onToggle={() => toggleItem(it.key)}
                     onDelete={() => deleteItem(it.key)}
                     busy={busy}
@@ -442,24 +447,26 @@ function FallbackImage({
 
 function ItemRow({
   item,
+  imageUrl = null,
   onToggle,
   onDelete,
   busy,
 }: {
   item: ShoppingListV2Item;
+  imageUrl?: string | null;
   onToggle: () => void;
   onDelete: () => void;
   busy: boolean;
 }) {
   const formatted = formatItem(item);
   return (
-    <li className="flex items-start gap-3 py-2">
+    <li className="flex items-center gap-3 py-2">
       <button
         type="button"
         onClick={onToggle}
         disabled={busy}
         aria-label={item.checked ? 'Décocher' : 'Cocher'}
-        className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition ${
+        className={`grid h-5 w-5 shrink-0 place-items-center rounded-md border-2 transition ${
           item.checked
             ? 'border-coral bg-coral text-white'
             : 'border-coral-soft bg-white'
@@ -467,6 +474,18 @@ function ItemRow({
       >
         {item.checked && <Check className="h-3 w-3" strokeWidth={3} />}
       </button>
+      {/* Vignette Ciqual de l'aliment lié (si résolu) — à gauche du nom. */}
+      {imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt=""
+          aria-hidden
+          className={`h-10 w-10 shrink-0 -rotate-6 rounded-lg object-contain drop-shadow-[0_2px_5px_rgba(244,114,182,0.45)] transition ${
+            item.checked ? 'opacity-40 grayscale' : ''
+          }`}
+        />
+      )}
       <button
         type="button"
         onClick={onToggle}
