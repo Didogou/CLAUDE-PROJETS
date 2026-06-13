@@ -197,7 +197,7 @@ function Row({
   }
 
   return (
-    <li className="grid grid-cols-[1.5rem_3rem_3rem_1fr_auto] items-center gap-1.5 px-2.5 py-1.5 sm:grid-cols-[1.5rem_4rem_4rem_1fr_2fr_auto]">
+    <li className="grid grid-cols-[1.5rem_3rem_3rem_minmax(0,1fr)_auto] items-center gap-1.5 px-2.5 py-1.5 sm:grid-cols-[1.5rem_4rem_4rem_minmax(0,1fr)_minmax(0,2fr)_auto]">
       <span
         aria-hidden
         className="grid h-4 w-4 shrink-0 place-items-center rounded border-2 border-coral-soft bg-white"

@@ -327,7 +327,7 @@ export function MealSheetEditor({
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-controls={`sheet-${persisted.id}-detail`}
-          className="flex w-full cursor-pointer items-center gap-3 p-3 text-left transition hover:bg-admin-soft/20 active:bg-admin-soft/30"
+          className="flex w-full min-w-0 cursor-pointer items-center gap-3 p-3 text-left transition hover:bg-admin-soft/20 active:bg-admin-soft/30"
         >
           <div
             className="h-12 w-12 shrink-0 rounded-lg bg-admin-soft/50 bg-cover bg-center"
@@ -517,12 +517,12 @@ function PreviewForm({
 }) {
   return (
     <div className="space-y-2">
-      <div className="grid gap-2 sm:grid-cols-[7rem_1fr]">
+      <div className="grid min-w-0 gap-2 sm:grid-cols-[7rem_minmax(0,1fr)]">
         <div
           className="aspect-square w-full rounded-lg bg-admin-soft/40 bg-cover bg-center"
           style={data.imageUrl ? { backgroundImage: `url(${data.imageUrl})` } : undefined}
         />
-        <div className="space-y-1.5">
+        <div className="min-w-0 space-y-1.5">
           <input
             type="text"
             value={data.title ?? ''}

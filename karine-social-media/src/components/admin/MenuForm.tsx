@@ -369,7 +369,12 @@ export function MenuForm({ menu, recipeOptions }: Props) {
         onChange={isEdit ? undefined : onShoppingPreviewChange}
       />
 
-      <fieldset className="space-y-3">
+      {/* min-w-0 : un <fieldset> a un `min-width: min-content` par défaut
+          (règle UA) qui IGNORE la largeur du parent et fait gonfler le bloc
+          à la largeur de son contenu le plus large → débordement mobile,
+          bordure droite hors viewport. min-w-0 neutralise ce comportement
+          et laisse le fieldset se contraindre à la largeur du <form>. */}
+      <fieldset className="min-w-0 space-y-3">
         <legend className="text-sm font-semibold text-admin-ink">Repas par jour</legend>
         {DAYS_LABELS.map((label, i) => {
           const initial = defaultDay(i);
