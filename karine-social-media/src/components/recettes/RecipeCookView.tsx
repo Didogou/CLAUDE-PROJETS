@@ -591,7 +591,13 @@ function Step({
   // d'ingrédients.
 
   return (
-    <div className="flex flex-1 flex-col">
+    // min-h-0 ESSENTIEL : sans ça, ce flex item enfant de <main h-svh>
+    // garde sa min-height: auto (spec CSS flexbox) → s'étire à la taille
+    // de son contenu (header + center + footer) qui dépasse 100svh →
+    // <main overflow-hidden> rogne en bas → footer (bouton "Suivant")
+    // invisible. La cascade min-h-0 sur les enfants ne pouvait rien
+    // faire tant que ce wrapper n'avait pas min-h-0 lui-même.
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* shrink-0 : sur iOS Safari, sans ça, le calcul de min-h-0 sur le
           div frère (zone scrollable) était faussé — Safari comptait le
           header dans la cascade flex au lieu de le détacher. Conséquence
