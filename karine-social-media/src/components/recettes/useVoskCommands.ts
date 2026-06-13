@@ -42,6 +42,53 @@ const SAMPLE_RATE = 16000;
 // résultat final dans une fenêtre courte. On dédup sur 1,5 s.
 const DEDUP_WINDOW_MS = 1500;
 
+/**
+ * Télécharge un fichier en streaming avec callback de progression.
+ * On préfère faire le fetch ici (et pas dans vosk-browser) pour :
+ *   1. Afficher une vraie barre de progression à l'utilisatrice
+ *   2. Bénéficier du Service Worker (cache-first pour le modèle Vosk)
+ *   3. Voir les erreurs HTTP en clair (vs vosk-browser qui logge dans
+ *      un Worker invisible)
+ *
+ * Retourne un blob URL utilisable par vosk-browser comme s'il s'agissait
+ * du fichier distant (fetch local instantané, pas de second DL).
+ */
+async function fetchModelWithProgress(
+  url: string,
+  onProgress: (ratio: number) => void,
+  signal: AbortSignal,
+): Promise<string> {
+  const response = await fetch(url, { signal });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} sur le modèle vocal`);
+  }
+  const total = Number(response.headers.get('Content-Length') ?? 0);
+  if (!response.body || !total) {
+    // Pas de body streamable ou pas de Content-Length (le SW peut le
+    // strip quand il sert depuis Cache API). Fallback : DL d'un bloc.
+    const blob = await response.blob();
+    onProgress(1);
+    return URL.createObjectURL(blob);
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let loaded = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (signal.aborted) {
+      reader.cancel().catch(() => {});
+      throw new DOMException('Aborted', 'AbortError');
+    }
+    chunks.push(value);
+    loaded += value.length;
+    onProgress(loaded / total);
+  }
+  const blob = new Blob(chunks as BlobPart[], { type: 'application/gzip' });
+  return URL.createObjectURL(blob);
+}
+
 export function useVoskCommands({
   enabled,
   muted,
@@ -56,6 +103,8 @@ export function useVoskCommands({
   error: string | null;
   /** True pendant le DL+init du modèle (5-30 s au 1er chargement). */
   loading: boolean;
+  /** Progression du DL du modèle (0 à 1). 0 = pas commencé, 1 = terminé. */
+  loadProgress: number;
 } {
   const onCommandRef = useRef(onCommand);
   onCommandRef.current = onCommand;
@@ -66,6 +115,7 @@ export function useVoskCommands({
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
 
   // Support : Web Worker + AudioContext + getUserMedia (vérifié au mount).
   useEffect(() => {
@@ -81,12 +131,14 @@ export function useVoskCommands({
     if (!enabled || !supported) return;
 
     let cancelled = false;
+    const abortController = new AbortController();
     let model: Model | null = null;
     let recognizer: KaldiRecognizer | null = null;
     let stream: MediaStream | null = null;
     let audioContext: AudioContext | null = null;
     let source: MediaStreamAudioSourceNode | null = null;
     let recognizerNode: ScriptProcessorNode | null = null;
+    let blobUrl: string | null = null;
     let lastDispatchedText = '';
     let lastDispatchedAt = 0;
 
@@ -94,12 +146,36 @@ export function useVoskCommands({
       try {
         setLoading(true);
         setError(null);
+        setLoadProgress(0);
 
-        // Import dynamique : vosk-browser pèse + a du WASM, ne pas
-        // l'embarquer dans le bundle initial. Lazy load au moment où
-        // l'utilisatrice active "Mains libres".
+        // 1. DL streamé du modèle avec progression visible. Le Service
+        // Worker (public/sw.js) intercepte et sert depuis Cache API si
+        // déjà téléchargé une fois → instantané au 2e usage.
+        // On log explicitement les étapes pour faciliter le debug
+        // ("ça ne télécharge pas" est silencieux sinon).
+        console.log('[vosk] début DL modèle:', MODEL_URL);
+        blobUrl = await fetchModelWithProgress(
+          MODEL_URL,
+          (ratio) => {
+            if (!cancelled) setLoadProgress(ratio);
+          },
+          abortController.signal,
+        );
+        console.log('[vosk] modèle DL terminé, init vosk-browser…');
+        if (cancelled) {
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
+          return;
+        }
+
+        // 2. Lazy import vosk-browser (WASM + worker), puis init avec
+        // l'URL blob locale (pas de second DL).
         const { createModel } = await import('vosk-browser');
-        model = await createModel(MODEL_URL);
+        model = await createModel(blobUrl);
+        // Le modèle est désormais chargé en mémoire du worker, on peut
+        // libérer le blob URL (référencer une URL révoquée ne plante pas).
+        URL.revokeObjectURL(blobUrl);
+        blobUrl = null;
+        console.log('[vosk] modèle Vosk prêt');
         if (cancelled) {
           model?.terminate();
           return;
@@ -177,15 +253,18 @@ export function useVoskCommands({
         if (cancelled) return;
         setLoading(false);
         setListening(false);
+        // Log explicite : on ne masque PAS l'erreur originale, c'est
+        // essentiel pour diagnostiquer en prod ("ne télécharge pas").
+        console.error('[vosk] init failed:', e);
         const msg = String((e as Error)?.message ?? e ?? '');
         if (/permission|denied|not[- ]allowed/i.test(msg)) {
           setError('Micro refusé. Autorise le micro pour ce site.');
-        } else if (/network|fetch|load|model/i.test(msg)) {
+        } else if (/HTTP|network|fetch|load|model|connect/i.test(msg)) {
           setError(
-            'Impossible de charger le modèle vocal (vérifier la connexion).',
+            `Impossible de charger le modèle vocal. Détail : ${msg.slice(0, 80)}`,
           );
         } else {
-          setError('Reconnaissance vocale indisponible sur cet appareil.');
+          setError(`Reconnaissance vocale indisponible. Détail : ${msg.slice(0, 80)}`);
         }
       }
     }
@@ -198,7 +277,9 @@ export function useVoskCommands({
     // libres" → l'utilisatrice peut croire qu'on continue à écouter.
     return () => {
       cancelled = true;
+      abortController.abort();
       try {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
         recognizerNode?.disconnect();
         source?.disconnect();
         if (audioContext && audioContext.state !== 'closed') {
@@ -234,5 +315,5 @@ export function useVoskCommands({
     }
   }
 
-  return { supported, listening, error, loading };
+  return { supported, listening, error, loading, loadProgress };
 }

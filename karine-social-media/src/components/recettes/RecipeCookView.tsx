@@ -248,6 +248,7 @@ export function RecipeCookView({
     listening: voiceListening,
     error: voiceError,
     loading: voiceLoading,
+    loadProgress: voiceLoadProgress,
   } = useVoskCommands({
     enabled: handsFree && idx < total,
     // Muté pendant la narration (anti auto-déclenchement), pendant les
@@ -291,6 +292,7 @@ export function RecipeCookView({
           voiceSupported={voiceSupported}
           voiceListening={voiceListening}
           voiceLoading={voiceLoading}
+          voiceLoadProgress={voiceLoadProgress}
           voiceError={voiceError}
           onStart={() => setIdx(0)}
         />
@@ -368,6 +370,7 @@ function Intro({
   voiceSupported,
   voiceListening,
   voiceLoading,
+  voiceLoadProgress,
   voiceError,
   onStart,
 }: {
@@ -381,6 +384,7 @@ function Intro({
   voiceSupported: boolean;
   voiceListening: boolean;
   voiceLoading: boolean;
+  voiceLoadProgress: number;
   voiceError: string | null;
   onStart: () => void;
 }) {
@@ -429,16 +433,34 @@ function Intro({
           </p>
         )}
         {voiceSupported && handsFree && (
-          <div className="max-w-[16rem] text-center text-[0.65rem]">
+          <div className="max-w-[18rem] text-center text-[0.65rem]">
             {voiceError ? (
               <p className="font-semibold text-rose-600">⚠ {voiceError}</p>
             ) : voiceLoading ? (
-              // Premier chargement : ~40 Mo de modèle vocal local à
-              // télécharger. Mis en cache navigateur ensuite (1 an).
-              <p className="flex items-center justify-center gap-1 italic text-ink-soft">
-                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-coral" />
-                Téléchargement du modèle vocal local… (~40 Mo, une seule fois)
-              </p>
+              // Premier chargement : ~44 Mo de modèle vocal local à
+              // télécharger. Mis en cache (Service Worker → Cache API)
+              // ensuite, ré-utilisable indéfiniment sans nouveau DL.
+              <div className="space-y-1.5">
+                <p className="text-ink-soft">
+                  Téléchargement du modèle vocal local…{' '}
+                  <span className="font-semibold text-coral-dark">
+                    {Math.round(voiceLoadProgress * 100)}%
+                  </span>
+                </p>
+                {/* Barre de progression : remplie au prorata du DL.
+                    Sur le 1er DL, Karine voit ~44 Mo arriver progressivement.
+                    Sur les usages suivants (SW cache hit), elle passe en
+                    flash de 0 % à 100 % en moins d'une seconde. */}
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-coral-soft/30">
+                  <div
+                    className="h-full rounded-full bg-coral transition-[width] duration-150 ease-out"
+                    style={{ width: `${Math.max(2, voiceLoadProgress * 100)}%` }}
+                  />
+                </div>
+                <p className="italic text-ink-soft/80">
+                  Une seule fois, puis tout sera local et sans connexion.
+                </p>
+              </div>
             ) : voiceListening ? (
               <p className="flex items-center justify-center gap-1 font-semibold text-emerald-600">
                 <Mic className="h-3 w-3 animate-pulse" /> Micro actif — dis «&nbsp;suivant&nbsp;», «&nbsp;minuteur&nbsp;»…
