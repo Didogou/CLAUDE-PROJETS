@@ -15,6 +15,10 @@ import type { PreparationStep } from '@/data/recipes';
 import { compressImage } from '@/lib/compress-image';
 import { IngredientsChecklist } from './IngredientsChecklist';
 import { PreparationStepsEditor } from './PreparationStepsEditor';
+import { NutriScoreBadge } from '@/components/recettes/NutriScoreBadge';
+
+// Voix clonée de Karine (ElevenLabs).
+const KARINE_VOICE = 'qldgI4Q7iIA8Jpu0jOvi';
 
 type Props = {
   menuId: string;
@@ -63,13 +67,69 @@ export function MealSheetEditor({
 }: Props) {
   const [persisted, setPersisted] = useState<MenuMealSheet | null>(initial);
   const [preview, setPreview] = useState<PreviewData | null>(null);
-  const [busy, setBusy] = useState<'idle' | 'extracting' | 'saving' | 'deleting'>(
-    'idle',
-  );
+  const [busy, setBusy] = useState<
+    'idle' | 'extracting' | 'saving' | 'deleting' | 'reextract' | 'audio'
+  >('idle');
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  const [actionMsg, setActionMsg] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Extraction préparation + ustensiles (Claude Vision) sur la fiche
+  // persistée — même cœur que les recettes (route menu dédiée).
+  async function reExtractPrep() {
+    if (!persisted) return;
+    setBusy('reextract');
+    setError(null);
+    setActionMsg(null);
+    try {
+      const res = await fetch(
+        `/api/admin/menus/${menuId}/meal-sheets/${persisted.id}/extract-preparation`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ skipExisting: false }),
+        },
+      );
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || 'Erreur extraction');
+      setActionMsg(`Préparation extraite (${j.updated ?? 0} fiche).`);
+      if ((j.updated ?? 0) > 0) setTimeout(() => window.location.reload(), 700);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setBusy('idle');
+    }
+  }
+
+  // Génération voix (ElevenLabs, voix de Karine) sur les étapes.
+  async function genVoice() {
+    if (!persisted) return;
+    setBusy('audio');
+    setError(null);
+    setActionMsg(null);
+    try {
+      const res = await fetch(
+        `/api/admin/menus/${menuId}/meal-sheets/${persisted.id}/generate-audio`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voiceId: KARINE_VOICE }),
+        },
+      );
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || 'Erreur voix');
+      setActionMsg(
+        `${j.generated ?? 0} voix générée(s)${j.errors?.length ? ` · ${j.errors.length} err` : ''}.`,
+      );
+      if ((j.generated ?? 0) > 0) setTimeout(() => window.location.reload(), 700);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur');
+    } finally {
+      setBusy('idle');
+    }
+  }
 
   async function handleFile(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -285,6 +345,16 @@ export function MealSheetEditor({
               {persisted.calories ? ` · ${persisted.calories} kcal` : ''}
             </p>
           </div>
+          {persisted.nutriscoreGrade &&
+            (persisted.nutriscoreConfidence ?? 0) >= 0.5 && (
+              <span className="shrink-0">
+                <NutriScoreBadge
+                  grade={persisted.nutriscoreGrade}
+                  size="sm"
+                  headerVariant="karine"
+                />
+              </span>
+            )}
           {open ? (
             <ChevronUp className="h-4 w-4 shrink-0 text-admin-ink-soft" />
           ) : (
@@ -319,6 +389,38 @@ export function MealSheetEditor({
               }}
               readOnly
             />
+            {/* Actions parité recettes : extraction prépa (Vision) + voix Karine */}
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={reExtractPrep}
+                disabled={busy !== 'idle'}
+                className="flex items-center gap-1.5 rounded-full bg-admin-primary/10 px-3 py-1.5 text-xs font-semibold text-admin-primary-dark transition hover:bg-admin-primary/20 disabled:opacity-50"
+              >
+                {busy === 'reextract' ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                Extraire la préparation
+              </button>
+              <button
+                type="button"
+                onClick={genVoice}
+                disabled={busy !== 'idle'}
+                className="flex items-center gap-1.5 rounded-full bg-admin-primary/10 px-3 py-1.5 text-xs font-semibold text-admin-primary-dark transition hover:bg-admin-primary/20 disabled:opacity-50"
+              >
+                {busy === 'audio' ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Sparkles className="h-3 w-3" />
+                )}
+                Générer la voix (Karine)
+              </button>
+            </div>
+            {actionMsg && (
+              <p className="mt-1 text-xs text-admin-primary-dark">{actionMsg}</p>
+            )}
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <label className="flex cursor-pointer items-center gap-1.5 rounded-full bg-admin-soft/40 px-3 py-1.5 text-xs font-semibold text-admin-ink-soft transition hover:bg-admin-soft/60">
                 <Sparkles className="h-3 w-3" />

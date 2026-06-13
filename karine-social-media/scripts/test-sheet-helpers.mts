@@ -5,8 +5,8 @@ const g=(k:string)=>env.match(new RegExp(`^${k}="?([^"\\n\\r]+)"?`,'m'))![1]
 process.env.ANTHROPIC_API_KEY = g('ANTHROPIC_API_KEY')
 process.env.ELEVENLABS_API_KEY = g('ELEVENLABS_API_KEY')
 const sb = createClient(g('NEXT_PUBLIC_SUPABASE_URL'), g('SUPABASE_SERVICE_ROLE_KEY'), {auth:{persistSession:false}}) as any
-const { extractPreparationForSheets } = await import('../src/lib/sheet-preparation.ts')
-const { generateAudioForSheets } = await import('../src/lib/sheet-audio.ts')
+const { extractPreparationForSheets } = await import('../src/lib/sheet-preparation')
+const { generateAudioForSheets } = await import('../src/lib/sheet-audio')
 console.log('✅ imports OK')
 const REAL = process.argv.includes('--real')
 const KARINE_VOICE = 'qldgI4Q7iIA8Jpu0jOvi'
