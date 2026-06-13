@@ -447,6 +447,16 @@ function MealCard({
         );
       })()}
 
+      {/* Bouton « Commencer la recette » AU-DESSUS de l'image, identique
+          aux fiches recettes (SheetCarousel) → page cuisine guidée du repas. */}
+      <Link
+        href={`/menus/${sheet.menuId}/cuisiner/${sheet.id}`}
+        className="mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-full bg-coral-soft px-6 py-3 text-base font-bold text-coral-dark shadow-sm transition hover:bg-coral-soft/80 active:scale-[0.98]"
+      >
+        <ChefHat className="h-5 w-5" />
+        Commencer la recette
+      </Link>
+
       {/* Image entière (object-contain) centrée. Hauteur cappée pour
           rester visible d'un coup sur PC sans scroll. Click → zoom.
           Wrappée dans un div relative pour placer Bookmark (haut gauche)
@@ -526,18 +536,6 @@ function MealCard({
         />
       )}
 
-      {/* Cuisine guidée du repas (même écran que les recettes) — si des
-          étapes de préparation existent. */}
-      {sheet.preparationSteps.length > 0 && (
-        <div className="flex justify-center">
-          <Link
-            href={`/menus/${sheet.menuId}/cuisiner/${sheet.id}`}
-            className="inline-flex items-center gap-1.5 rounded-full bg-coral px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-coral-dark active:scale-95"
-          >
-            <ChefHat className="h-4 w-4" /> Cuisiner ce repas
-          </Link>
-        </div>
-      )}
 
       {/* Bandeau d'actions : portions stepper + mes courses + kcal +
           share + print. PortionsStepper à gauche de "Ajouter au menu"

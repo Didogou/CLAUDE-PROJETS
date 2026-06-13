@@ -68,16 +68,28 @@ export function RecipeCookView({
   const audioRef = useRef<HTMLAudioElement>(null);
 
   // Joue la voix de l'étape courante à chaque changement d'étape (si la
-  // narration est activée). Déclenché après un geste (Commencer / Suivant)
-  // → autoplay autorisé. Si on coupe la voix, on met en pause.
+  // narration est activée). Déclenché après un geste (Commencer / Suivant
+  // / Précédent) → autoplay autorisé. Si on coupe la voix, on met en pause.
+  //
+  // Quand on navigue (prev/next), on s'assure que l'audio précédent est
+  // coupé NET (pause + currentTime=0) AVANT de charger la nouvelle source.
+  // Sinon : 1) overlap son entre 2 narrations possible sur certains
+  // navigateurs, 2) fenêtre courte où playing=false → micro actif → peut
+  // capter la fin d'un mot ou un bruit parasite et déclencher next/prev
+  // intempestivement.
   useEffect(() => {
     if (idx < 0 || idx >= total) return;
     const a = audioRef.current;
     if (!a) return;
-    if (!voiceOn) {
+    // Coupe TOUJOURS l'audio précédent en premier (idempotent, n'a pas
+    // d'effet si déjà en pause).
+    try {
       a.pause();
-      return;
+      a.currentTime = 0;
+    } catch {
+      /* certains navigateurs throw si src vide */
     }
+    if (!voiceOn) return;
     const url = steps[idx]?.audioUrl;
     if (!url) return;
     a.src = url;
@@ -86,6 +98,18 @@ export function RecipeCookView({
       /* autoplay bloqué : l'utilisatrice utilisera le bouton ▶ */
     });
   }, [idx, steps, total, voiceOn]);
+
+  // Fenêtre de transition entre étapes : on mute le micro pendant 600 ms
+  // après chaque changement d'idx pour couvrir la zone "vieille narration
+  // pausée mais nouvelle pas encore démarrée" + le temps que le SR
+  // restart si jamais Chrome décide de le relancer pile à ce moment.
+  // Évite que la reco capte un mot orphelin pendant le swap.
+  const [navTransition, setNavTransition] = useState(false);
+  useEffect(() => {
+    setNavTransition(true);
+    const t = setTimeout(() => setNavTransition(false), 600);
+    return () => clearTimeout(t);
+  }, [idx]);
 
   // Verrou plein écran : empêche le body de scroller / rebondir (iOS
   // « rubber-band »). On fige le body en position:fixed + overscroll:none
@@ -154,6 +178,14 @@ export function RecipeCookView({
   const [timerOpen, setTimerOpen] = useState(false);
   const [, forceTick] = useState(0);
   const alertedRef = useRef(false);
+  // Stocke la fonction de stop retournée par timerAlert() pour pouvoir
+  // couper la séquence de 10 bips (1 par seconde) quand l'utilisatrice
+  // clique Stop ou +1 min avant la fin naturelle.
+  const alertStopRef = useRef<(() => void) | null>(null);
+  // True pendant les 10 s de bips de fin de minuteur. Sert à muter le
+  // micro pour qu'il ne capte pas les bips en larsen → sinon la reco
+  // boucle (chaque bip = échec → onend → restart → re-bip → boucle).
+  const [alertActive, setAlertActive] = useState(false);
 
   useEffect(() => {
     if (timerEndsAt == null) return;
@@ -167,18 +199,38 @@ export function RecipeCookView({
   useEffect(() => {
     if (timerEndsAt != null && remaining === 0 && !alertedRef.current) {
       alertedRef.current = true;
-      timerAlert();
+      setAlertActive(true);
+      alertStopRef.current = timerAlert();
+      // Désarme l'état muet automatiquement après la durée des bips
+      // (10 s — cf. timerAlert). Si Karine clique Stop ou +1 min avant,
+      // l'autre branche désarmera plus tôt.
+      const t = setTimeout(() => setAlertActive(false), 10_500);
+      return () => clearTimeout(t);
     }
   }, [remaining, timerEndsAt]);
 
+  // Cleanup global : si on quitte la cuisine pendant les bips, on coupe.
+  useEffect(() => {
+    return () => {
+      alertStopRef.current?.();
+      alertStopRef.current = null;
+    };
+  }, []);
+
   function startTimer(sec: number) {
     if (sec <= 0) return;
+    alertStopRef.current?.();
+    alertStopRef.current = null;
+    setAlertActive(false);
     alertedRef.current = false;
     setTimerTotal(sec);
     setTimerEndsAt(Date.now() + sec * 1000);
     setTimerOpen(true);
   }
   function stopTimer() {
+    alertStopRef.current?.();
+    alertStopRef.current = null;
+    setAlertActive(false);
     setTimerEndsAt(null);
     setTimerOpen(false);
     alertedRef.current = false;
@@ -193,7 +245,12 @@ export function RecipeCookView({
     error: voiceError,
   } = useVoiceCommands({
     enabled: handsFree && idx < total,
-    muted: playing,
+    // Muté pendant la narration (anti auto-déclenchement), pendant les
+    // 10 bips de fin de timer (anti-larsen) et pendant la fenêtre de
+    // transition entre étapes (couvre le gap entre vieille narration
+    // pausée et nouvelle pas encore démarrée → évite qu'un mot orphelin
+    // déclenche next/prev par erreur).
+    muted: playing || alertActive || navTransition,
     onCommand: (cmd) => {
       if (cmd === 'next') setIdx((i) => i + 1);
       else if (cmd === 'prev') setIdx((i) => Math.max(0, i - 1));
@@ -275,12 +332,16 @@ export function RecipeCookView({
           total={timerTotal}
           open={timerOpen}
           onToggleOpen={() => setTimerOpen((o) => !o)}
-          onAddMinute={() =>
+          onAddMinute={() => {
+            // Coupe la séquence de bips en cours si on rajoute du temps.
+            alertStopRef.current?.();
+            alertStopRef.current = null;
+            setAlertActive(false);
             setTimerEndsAt((e) => {
               alertedRef.current = false;
               return e == null ? e : e + 60_000;
-            })
-          }
+            });
+          }}
           onStop={stopTimer}
         />
       )}
