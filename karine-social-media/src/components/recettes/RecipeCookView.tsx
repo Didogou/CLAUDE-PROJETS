@@ -580,53 +580,15 @@ function Step({
     step.ingredients.length === 0 && timerSec == null && isOven;
   const showUtensilCenter = isCookingStep || isPreheatStep;
 
-  // Adaptation taille images + scroll de secours.
+  // Plus de calcul dynamique de taille d'image : on met une taille fixe
+  // en rem et on rend la liste TOUJOURS scrollable. C'est plus prévisible
+  // sur iOS Safari (le ResizeObserver + clientHeight était unreliable en
+  // PWA standalone iOS — needsScroll restait false alors qu'il fallait
+  // scroller, → bouton "Suivant" hors viewport).
   //
-  // 1. Tant que tout tient : on réduit la taille des images entre IMG_MAX
-  //    et IMG_MIN pour éviter le scroll (UX moins fatiguante en cuisine).
-  // 2. Si même à IMG_MIN les ingrédients débordent (8+ ingrédients sur
-  //    iPhone SE typiquement), on bascule en mode scroll auto avec
-  //    indicateur de fondu en bas pour montrer qu'il y en a plus →
-  //    le footer reste accessible, le bouton "Suivant" n'est plus rogné.
-  const IMG_MAX = 84; // ~5.25rem : plafond agréable, ne grossit jamais au-delà
-  const IMG_MIN = 40; // plancher : on ne descend pas plus bas pour rester lisible
-  const ROW_PAD = 24; // espacement vertical confortable par rangée (py natif + gap)
-  const listRef = useRef<HTMLUListElement>(null);
-  const ingCount = step.ingredients.length;
-  const [imgPx, setImgPx] = useState(IMG_MAX);
-  const [needsScroll, setNeedsScroll] = useState(false);
-  useEffect(() => {
-    const el = listRef.current;
-    if (!el || ingCount === 0) return;
-    const compute = () => {
-      const available = el.clientHeight;
-      // Hauteur idéale par rangée pour tenir sans scroll, en plafonnant
-      // à IMG_MAX (pas de ballonnement quand il y a peu d'ingrédients).
-      const idealPer = available / ingCount;
-      const px = Math.max(IMG_MIN, Math.min(IMG_MAX, Math.round(idealPer - ROW_PAD)));
-      setImgPx(px);
-      // Si même au plancher (IMG_MIN) la liste dépasse la hauteur dispo,
-      // on bascule en mode scroll. Petite marge de 4 px pour éviter les
-      // bascules au pixel près sur un resize de barre URL Safari.
-      const minTotal = ingCount * (IMG_MIN + ROW_PAD);
-      setNeedsScroll(available + 4 < minTotal);
-    };
-    compute();
-    const ro = new ResizeObserver(compute);
-    ro.observe(el);
-    window.addEventListener('resize', compute);
-    // iOS PWA en mode body[position:fixed] : ResizeObserver peut être
-    // retardé de 200-500 ms après le mount. La 1re mesure de compute()
-    // tombait alors sur une hauteur encore non-stabilisée → needsScroll
-    // calculé à false (le footer "Suivant" sortait du viewport). On
-    // re-déclenche à 150 ms après que le layout soit settle.
-    const settleTimeout = setTimeout(compute, 150);
-    return () => {
-      ro.disconnect();
-      clearTimeout(settleTimeout);
-      window.removeEventListener('resize', compute);
-    };
-  }, [ingCount, index]);
+  // Image carrée 3rem (~48 px en base 16) : taille sympa en cuisine,
+  // lisible sur tous écrans, pas de cabriole layout selon le nombre
+  // d'ingrédients.
 
   return (
     <div className="flex flex-1 flex-col">
@@ -795,81 +757,66 @@ function Step({
             </div>
 
             {/* Liste aérée : rangées sans cadre, simples filets de séparation.
-                Image (taille CALCULÉE pour tenir sans scroll) à gauche,
-                nom puis quantité (corail) dessous.
-                Mode scroll si trop d'ingrédients (cf. needsScroll calculé
-                par compute()) : on ajoute un overflow-y-auto + on bascule
-                de justify-center à start (sinon le scroll part du milieu),
-                et un fondu en bas indique qu'il y en a plus. */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              <ul
-                ref={listRef}
-                className={`mt-2 flex min-h-0 flex-1 flex-col divide-y divide-coral-soft/30 ${
-                  needsScroll
-                    ? 'justify-start overflow-y-auto overscroll-contain pb-4'
-                    : 'justify-center overflow-hidden'
-                }`}
-              >
-              {step.ingredients.map((ing, i) => (
-                <li
-                  key={`${ing.label}-${i}`}
-                  className="cook-rise flex shrink-0 items-center gap-4 py-2 pl-4 pr-2"
-                  style={{ animationDelay: `${(uCount + 1 + i) * 110}ms` }}
-                >
-                  <div
-                    className="flex shrink-0 items-center justify-center"
-                    style={{ width: imgPx }}
+                Image fixe 3rem à gauche, quantité corail + nom à droite.
+                Liste TOUJOURS scrollable (overflow-y-auto) — plus simple
+                et robuste que les calculs JS dynamiques qui foiraient sur
+                iOS Safari/PWA (le ResizeObserver ne se déclenchait pas
+                au bon moment, needsScroll restait false → bouton "Suivant"
+                hors viewport).
+                Fondu blanc TOUJOURS visible en bas pour suggérer le scroll. */}
+            <div className="relative mt-2 flex min-h-0 flex-1 flex-col">
+              <ul className="flex min-h-0 flex-1 flex-col divide-y divide-coral-soft/30 overflow-y-auto overscroll-contain pb-4">
+                {step.ingredients.map((ing, i) => (
+                  <li
+                    key={`${ing.label}-${i}`}
+                    className="cook-rise flex shrink-0 items-center gap-4 py-2 pl-4 pr-2"
+                    style={{ animationDelay: `${(uCount + 1 + i) * 110}ms` }}
                   >
-                    {ing.imageUrl ? (
-                      <img
-                        src={ing.imageUrl}
-                        alt=""
-                        style={{ height: imgPx, width: imgPx }}
-                        className="object-contain drop-shadow-[0_5px_7px_rgba(120,60,75,0.15)]"
-                      />
-                    ) : (
-                      // Placeholder calme et uniforme : cercle doux + icône estompée.
-                      <span
-                        style={{ height: imgPx, width: imgPx }}
-                        className="grid place-items-center rounded-full bg-coral-soft/20 text-coral/60"
-                      >
-                        <Soup
-                          style={{ height: imgPx * 0.42, width: imgPx * 0.42 }}
+                    {/* Image carrée 3rem : taille fixe, plus de dépendance
+                        sur un compute() JS unreliable en iOS. */}
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+                      {ing.imageUrl ? (
+                        <img
+                          src={ing.imageUrl}
+                          alt=""
+                          className="h-12 w-12 object-contain drop-shadow-[0_5px_7px_rgba(120,60,75,0.15)]"
                         />
-                      </span>
-                    )}
-                  </div>
-                  {/* Quantité + unité ENSEMBLE, à droite de l'image. Largeur
-                      mini fixe → les noms restent alignés sans déborder. */}
-                  {ing.quantity != null && (
-                    <div className="flex min-w-[2.75rem] shrink-0 items-baseline justify-center gap-1 text-coral">
-                      <span className="text-2xl font-bold leading-none">
-                        {qtyNumber(ing)}
-                      </span>
-                      {ing.unit && (
-                        <span className="text-xs text-coral-dark/70">{ing.unit}</span>
+                      ) : (
+                        // Placeholder : cercle doux + icône estompée.
+                        <span className="grid h-12 w-12 place-items-center rounded-full bg-coral-soft/20 text-coral/60">
+                          <Soup className="h-5 w-5" />
+                        </span>
                       )}
                     </div>
-                  )}
-                  {/* Nom : marge à gauche, passe à la ligne si trop long,
-                      jamais rogné, et ne décale pas les colonnes. */}
-                  <div className="min-w-0 flex-1 pl-1 pr-1">
-                    <p className="text-lg leading-tight text-ink [overflow-wrap:anywhere]">
-                      {capitalizeFirst(ing.label)}
-                    </p>
-                  </div>
-                </li>
-              ))}
+                    {/* Quantité + unité ENSEMBLE, à droite de l'image. Largeur
+                        mini fixe → les noms restent alignés sans déborder. */}
+                    {ing.quantity != null && (
+                      <div className="flex min-w-[2.75rem] shrink-0 items-baseline justify-center gap-1 text-coral">
+                        <span className="text-2xl font-bold leading-none">
+                          {qtyNumber(ing)}
+                        </span>
+                        {ing.unit && (
+                          <span className="text-xs text-coral-dark/70">{ing.unit}</span>
+                        )}
+                      </div>
+                    )}
+                    {/* Nom : passe à la ligne si trop long, jamais rogné. */}
+                    <div className="min-w-0 flex-1 pl-1 pr-1">
+                      <p className="text-lg leading-tight text-ink [overflow-wrap:anywhere]">
+                        {capitalizeFirst(ing.label)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
               </ul>
-              {/* Fondu blanc en bas de la liste quand elle scrolle :
-                  indique visuellement qu'il y a plus de contenu dessous.
+              {/* Fondu blanc en bas TOUJOURS visible : signale qu'il peut
+                  y avoir plus de contenu à scroller (même si la liste tient
+                  entièrement à l'écran, ça donne juste un fondu décoratif).
                   pointer-events:none pour ne pas bloquer le scroll touch. */}
-              {needsScroll && (
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white/95 via-white/40 to-transparent"
-                />
-              )}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-6 bg-gradient-to-t from-white/95 via-white/40 to-transparent"
+              />
             </div>
           </section>
         ) : null}
