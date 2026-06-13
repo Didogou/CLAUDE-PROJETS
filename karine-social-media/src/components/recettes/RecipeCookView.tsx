@@ -575,25 +575,36 @@ function Step({
     step.ingredients.length === 0 && timerSec == null && isOven;
   const showUtensilCenter = isCookingStep || isPreheatStep;
 
-  // Zéro scroll : on mesure la hauteur dispo de la liste d'ingrédients
-  // (région flex) et on réduit la taille de l'image SEULEMENT si le contenu
-  // déborderait. Quand il y a de la place, l'image reste à sa taille max
-  // confortable (IMG_MAX) — pas de ballonnement avec peu d'ingrédients.
+  // Adaptation taille images + scroll de secours.
+  //
+  // 1. Tant que tout tient : on réduit la taille des images entre IMG_MAX
+  //    et IMG_MIN pour éviter le scroll (UX moins fatiguante en cuisine).
+  // 2. Si même à IMG_MIN les ingrédients débordent (8+ ingrédients sur
+  //    iPhone SE typiquement), on bascule en mode scroll auto avec
+  //    indicateur de fondu en bas pour montrer qu'il y en a plus →
+  //    le footer reste accessible, le bouton "Suivant" n'est plus rogné.
   const IMG_MAX = 84; // ~5.25rem : plafond agréable, ne grossit jamais au-delà
-  const IMG_MIN = 40; // plancher pour les étapes chargées
+  const IMG_MIN = 40; // plancher : on ne descend pas plus bas pour rester lisible
   const ROW_PAD = 24; // espacement vertical confortable par rangée (py natif + gap)
   const listRef = useRef<HTMLUListElement>(null);
   const ingCount = step.ingredients.length;
   const [imgPx, setImgPx] = useState(IMG_MAX);
+  const [needsScroll, setNeedsScroll] = useState(false);
   useEffect(() => {
     const el = listRef.current;
     if (!el || ingCount === 0) return;
     const compute = () => {
-      // Hauteur dispo par rangée → taille image, moins l'espacement. On
-      // plafonne à IMG_MAX : tant que ça tient, l'image reste bornée et la
-      // liste se groupe au centre. Le shrink ne s'active que si ça déborde.
-      const per = el.clientHeight / ingCount;
-      setImgPx(Math.max(IMG_MIN, Math.min(IMG_MAX, Math.round(per - ROW_PAD))));
+      const available = el.clientHeight;
+      // Hauteur idéale par rangée pour tenir sans scroll, en plafonnant
+      // à IMG_MAX (pas de ballonnement quand il y a peu d'ingrédients).
+      const idealPer = available / ingCount;
+      const px = Math.max(IMG_MIN, Math.min(IMG_MAX, Math.round(idealPer - ROW_PAD)));
+      setImgPx(px);
+      // Si même au plancher (IMG_MIN) la liste dépasse la hauteur dispo,
+      // on bascule en mode scroll. Petite marge de 4 px pour éviter les
+      // bascules au pixel près sur un resize de barre URL Safari.
+      const minTotal = ingCount * (IMG_MIN + ROW_PAD);
+      setNeedsScroll(available + 4 < minTotal);
     };
     compute();
     const ro = new ResizeObserver(compute);
@@ -765,11 +776,20 @@ function Step({
 
             {/* Liste aérée : rangées sans cadre, simples filets de séparation.
                 Image (taille CALCULÉE pour tenir sans scroll) à gauche,
-                nom puis quantité (corail) dessous. */}
-            <ul
-              ref={listRef}
-              className="mt-2 flex min-h-0 flex-1 flex-col justify-center divide-y divide-coral-soft/30 overflow-hidden"
-            >
+                nom puis quantité (corail) dessous.
+                Mode scroll si trop d'ingrédients (cf. needsScroll calculé
+                par compute()) : on ajoute un overflow-y-auto + on bascule
+                de justify-center à start (sinon le scroll part du milieu),
+                et un fondu en bas indique qu'il y en a plus. */}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+              <ul
+                ref={listRef}
+                className={`mt-2 flex min-h-0 flex-1 flex-col divide-y divide-coral-soft/30 ${
+                  needsScroll
+                    ? 'justify-start overflow-y-auto overscroll-contain pb-4'
+                    : 'justify-center overflow-hidden'
+                }`}
+              >
               {step.ingredients.map((ing, i) => (
                 <li
                   key={`${ing.label}-${i}`}
@@ -820,7 +840,17 @@ function Step({
                   </div>
                 </li>
               ))}
-            </ul>
+              </ul>
+              {/* Fondu blanc en bas de la liste quand elle scrolle :
+                  indique visuellement qu'il y a plus de contenu dessous.
+                  pointer-events:none pour ne pas bloquer le scroll touch. */}
+              {needsScroll && (
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-white/95 via-white/40 to-transparent"
+                />
+              )}
+            </div>
           </section>
         ) : null}
 
