@@ -65,9 +65,17 @@ const nextConfig: NextConfig = {
           // utilise eval() pour reconstruire les callstacks (debug,
           // erreurs lisibles). En prod, React n'utilise jamais eval()
           // donc on le retire (surface XSS réduite).
+          // 'wasm-unsafe-eval' nécessaire pour Vosk (reconnaissance vocale
+          // locale, WASM exécuté dans un Web Worker pour la cuisine guidée).
+          // 'blob:' nécessaire pour le Worker que Vosk instancie depuis un
+          // blob URL (worker bundle généré dynamiquement).
           process.env.NODE_ENV === 'development'
-            ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.stripe.com https://va.vercel-scripts.com"
-            : "script-src 'self' 'unsafe-inline' https://*.stripe.com https://va.vercel-scripts.com",
+            ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://*.stripe.com https://va.vercel-scripts.com"
+            : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' blob: https://*.stripe.com https://va.vercel-scripts.com",
+          // worker-src explicite pour les Web Workers (Vosk + futurs).
+          // 'self' couvre les workers bundlés par Next, 'blob:' couvre
+          // ceux instanciés via URL.createObjectURL (cas vosk-browser).
+          "worker-src 'self' blob:",
           "style-src 'self' 'unsafe-inline'",
           "img-src 'self' data: blob: https://*.supabase.co https://*.stripe.com",
           // Audio (voix ElevenLabs des étapes) servi depuis Supabase Storage.
@@ -75,7 +83,16 @@ const nextConfig: NextConfig = {
           // navigateur bloque la lecture (« violates default-src 'self' »).
           "media-src 'self' blob: https://*.supabase.co",
           "font-src 'self' data:",
-          "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.mistral.ai https://api.anthropic.com https://api.resend.com https://vitals.vercel-insights.com",
+          // Modèle Vosk hébergé sur le Supabase Storage de Karine (bucket
+          // static-assets) → couvert par https://*.supabase.co qui est déjà
+          // dans la liste, pas de domaine externe à ajouter.
+          //
+          // data: nécessaire pour Vosk : la lib bundle son WASM en base64
+          // inline et fait un fetch('data:application/octet-stream;base64,...')
+          // pour le décoder. Sans data: en connect-src, le CSP refuse et
+          // l'init échoue. Risque limité : data: en connect-src ne permet
+          // de fetch QUE des data URLs construites par le code déjà bundlé.
+          "connect-src 'self' data: https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.mistral.ai https://api.anthropic.com https://api.resend.com https://vitals.vercel-insights.com",
           "frame-src https://*.stripe.com https://hooks.stripe.com",
           "frame-ancestors 'none'",
           "object-src 'none'",

@@ -23,11 +23,17 @@ import type { Model, KaldiRecognizer } from 'vosk-browser';
 
 export type VoiceCommand = 'next' | 'prev' | 'timer';
 
-// Modèle FR small (~40 Mo) hébergé sur le CDN GitHub Pages de ccoreilly,
-// mainteneur de vosk-browser. À terme, à migrer sur Supabase Storage de
-// Karine pour ne plus dépendre d'un tiers (~5 min de boulot).
+// Modèle FR small (~44 Mo) hébergé sur le Supabase Storage de Karine
+// (bucket public `static-assets`). Cache-Control 1 an immutable : le
+// modèle est DL une seule fois par l'utilisatrice, puis servi depuis le
+// cache navigateur indéfiniment. Migration depuis ccoreilly.github.io
+// faite le 2026-06-13 pour ne plus dépendre d'un tiers.
+//
+// Pour mettre à jour le modèle : upload une NOUVELLE version sous un
+// path différent (ex: vosk-model-small-fr-0.4.tar.gz) plutôt qu'écraser
+// — le cache navigateur immutable garderait sinon l'ancienne version.
 const MODEL_URL =
-  'https://ccoreilly.github.io/vosk-browser/models/vosk-model-small-fr-pguyot-0.3.tar.gz';
+  'https://umjdqwjgccodmjummoga.supabase.co/storage/v1/object/public/static-assets/vosk/vosk-model-small-fr-pguyot-0.3.tar.gz';
 
 // Sample rate fixe 16 kHz, recommandé par Vosk pour la qualité/taille modèle.
 const SAMPLE_RATE = 16000;

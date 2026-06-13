@@ -58,21 +58,51 @@ export function durationLabel(totalSec: number): string {
   return rest > 0 ? `${h} h ${rest}` : `${h} h`;
 }
 
-/** Bip de fin de minuteur + vibration (best-effort, jamais bloquant). */
-export function timerAlert(): void {
+/**
+ * Bips de fin de minuteur + vibration. Sonne pendant 10 SECONDES, un bip
+ * par seconde (10 bips au total), pour ne pas rater l'alerte si Karine est
+ * loin du téléphone. Retourne une fonction pour stopper la séquence (appelée
+ * par les boutons Stop / +1 min du widget timer).
+ *
+ * Best-effort : si l'AudioContext ou la vibration n'est pas dispo (mode strict
+ * privacy, navigateur exotique), on échoue silencieusement — le visuel
+ * "⏰ Terminé" du badge suffit comme fallback.
+ */
+export function timerAlert(): () => void {
+  const REPEATS = 10;
+  const INTERVAL_MS = 1000;
+  let stopped = false;
+  const cancels: Array<() => void> = [];
+
+  // ─── Vibration : 1 vibration de 300 ms par seconde pendant 10 s ───
+  // navigator.vibrate ne sait pas répéter un pattern, on programme 10
+  // setTimeout indépendants qu'on peut clear individuellement.
   try {
-    navigator.vibrate?.([300, 150, 300, 150, 300]);
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate([300]); // 1er bip immédiat
+      for (let i = 1; i < REPEATS; i++) {
+        const id = setTimeout(() => {
+          if (!stopped) navigator.vibrate?.([300]);
+        }, i * INTERVAL_MS);
+        cancels.push(() => clearTimeout(id));
+      }
+    }
   } catch {
     /* noop */
   }
+
+  // ─── Audio : 10 oscillateurs courts programmés sur la timeline ctx ───
+  // On programme TOUS les bips en une fois sur l'AudioContext, qui les
+  // joue à l'heure prévue même si le JS est busy. Pour stopper, on close()
+  // le ctx → tous les oscillateurs futurs sont coupés net.
   try {
     const Ctx =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext })
         .webkitAudioContext;
     const ctx = new Ctx();
-    // 3 bips courts
-    [0, 0.4, 0.8].forEach((offset) => {
+    for (let i = 0; i < REPEATS; i++) {
+      const offset = i * (INTERVAL_MS / 1000);
       const o = ctx.createOscillator();
       const g = ctx.createGain();
       o.connect(g);
@@ -83,8 +113,28 @@ export function timerAlert(): void {
       g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.3);
       o.start(ctx.currentTime + offset);
       o.stop(ctx.currentTime + offset + 0.3);
+    }
+    // Libère l'AudioContext après la fin naturelle (10 s + petit buffer).
+    const closeId = setTimeout(() => {
+      ctx.close().catch(() => {});
+    }, REPEATS * INTERVAL_MS + 500);
+    cancels.push(() => clearTimeout(closeId));
+    cancels.push(() => {
+      ctx.close().catch(() => {});
     });
   } catch {
     /* audio indispo : la vibration + le visuel suffisent */
   }
+
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    cancels.forEach((fn) => {
+      try {
+        fn();
+      } catch {
+        /* noop */
+      }
+    });
+  };
 }

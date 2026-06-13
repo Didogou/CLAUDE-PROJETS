@@ -53,6 +53,14 @@ export function useVoiceCommands({
     rec.continuous = true;
     rec.interimResults = true;
     let stopped = false;
+    // Throttle des re-démarrages auto. Si onend() est appelé en cascade
+    // rapide (cas typique : le micro capte les 10 bips du timer →
+    // SpeechRecognition échoue avec aborted/no-speech → onend → start
+    // → re-échec → boucle infinie consommant 100% CPU), on attend que
+    // la fenêtre se calme avant de relancer. Sans ce garde-fou, Chrome
+    // peut aussi rate-limiter et passer en service-not-allowed.
+    let lastStartAt = 0;
+    let restartTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
     rec.onresult = (e: any) => {
       // Ignore pendant la narration (anti auto-déclenchement : sinon le
@@ -84,19 +92,42 @@ export function useVoiceCommands({
       }
     };
     rec.onstart = () => {
+      lastStartAt = Date.now();
       setListening(true);
       setError(null);
     };
-    // La reco s'arrête seule régulièrement → on relance tant qu'on est actif.
+    // Chrome arrête la reco seule toutes les ~30 s ou après un silence
+    // prolongé. On la relance immédiatement tant qu'on est actif.
+    //
+    // ⚠️ On NE met PAS setListening(false) ici : entre rec.stop interne
+    // et rec.start() suivant, il y a ~50-300 ms où l'indicateur visuel
+    // passerait "à l'écoute" → "micro inactif" → "à l'écoute" en
+    // continu, donnant l'impression à l'utilisatrice que le micro
+    // s'active/désactive de lui-même à chaque étape. On reste sur
+    // listening=true (le start ré-affirme la valeur de toute façon).
+    //
+    // Throttle : si onend() arrive trop vite après onstart() (< 400 ms),
+    // c'est qu'on est dans une boucle d'échec (bips du timer captés en
+    // larsen, larsen audio, etc.). On reporte le restart pour laisser
+    // le bruit retomber. Sans ce garde, le CPU s'envole et Chrome finit
+    // par bloquer la session avec service-not-allowed.
     rec.onend = () => {
-      setListening(false);
-      if (!stopped) {
+      if (stopped) {
+        setListening(false);
+        return;
+      }
+      const elapsed = Date.now() - lastStartAt;
+      const delay = elapsed < 400 ? 800 : 0;
+      if (restartTimeoutId) clearTimeout(restartTimeoutId);
+      restartTimeoutId = setTimeout(() => {
+        restartTimeoutId = null;
+        if (stopped) return;
         try {
           rec.start();
         } catch {
           /* déjà démarrée */
         }
-      }
+      }, delay);
     };
     rec.onerror = (e: any) => {
       const err = String(e?.error ?? '');
@@ -125,6 +156,10 @@ export function useVoiceCommands({
     }
     return () => {
       stopped = true;
+      if (restartTimeoutId) {
+        clearTimeout(restartTimeoutId);
+        restartTimeoutId = null;
+      }
       try {
         rec.stop();
       } catch {

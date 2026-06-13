@@ -22,7 +22,11 @@ import {
   VolumeX,
   X,
 } from 'lucide-react';
-import { useVoiceCommands } from './useVoiceCommands';
+// Migration 2026-06-13 : Vosk WASM local au lieu de Web Speech API
+// (envoyait l'audio chez Google → non documenté CNIL). Vosk = tout en
+// local sur l'appareil, pas de bip "activation" Chrome toutes les 30 s.
+// Cf. memory project_karine_voice_recognition_parked.md
+import { useVoskCommands } from './useVoskCommands';
 import {
   durationLabel,
   formatTimer,
@@ -243,7 +247,8 @@ export function RecipeCookView({
     supported: voiceSupported,
     listening: voiceListening,
     error: voiceError,
-  } = useVoiceCommands({
+    loading: voiceLoading,
+  } = useVoskCommands({
     enabled: handsFree && idx < total,
     // Muté pendant la narration (anti auto-déclenchement), pendant les
     // 10 bips de fin de timer (anti-larsen) et pendant la fenêtre de
@@ -285,6 +290,7 @@ export function RecipeCookView({
           onToggleHandsFree={toggleHandsFree}
           voiceSupported={voiceSupported}
           voiceListening={voiceListening}
+          voiceLoading={voiceLoading}
           voiceError={voiceError}
           onStart={() => setIdx(0)}
         />
@@ -361,6 +367,7 @@ function Intro({
   onToggleHandsFree,
   voiceSupported,
   voiceListening,
+  voiceLoading,
   voiceError,
   onStart,
 }: {
@@ -373,6 +380,7 @@ function Intro({
   onToggleHandsFree: () => void;
   voiceSupported: boolean;
   voiceListening: boolean;
+  voiceLoading: boolean;
   voiceError: string | null;
   onStart: () => void;
 }) {
@@ -424,12 +432,19 @@ function Intro({
           <div className="max-w-[16rem] text-center text-[0.65rem]">
             {voiceError ? (
               <p className="font-semibold text-rose-600">⚠ {voiceError}</p>
+            ) : voiceLoading ? (
+              // Premier chargement : ~40 Mo de modèle vocal local à
+              // télécharger. Mis en cache navigateur ensuite (1 an).
+              <p className="flex items-center justify-center gap-1 italic text-ink-soft">
+                <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-coral" />
+                Téléchargement du modèle vocal local… (~40 Mo, une seule fois)
+              </p>
             ) : voiceListening ? (
               <p className="flex items-center justify-center gap-1 font-semibold text-emerald-600">
                 <Mic className="h-3 w-3 animate-pulse" /> Micro actif — dis «&nbsp;suivant&nbsp;», «&nbsp;minuteur&nbsp;»…
               </p>
             ) : (
-              <p className="italic text-ink-soft">Initialisation du micro… (autorise-le si Chrome demande)</p>
+              <p className="italic text-ink-soft">Préparation du micro… (autorise-le si demandé)</p>
             )}
           </div>
         )}
@@ -759,8 +774,15 @@ function Step({
       </div>
 
       {/* Bloc bas : pas de cadre/bouton — juste un dégradé blanc qui monte
-          du bas (extérieur) vers le haut (intérieur), fondu dans la page. */}
-      <div className="shrink-0 bg-gradient-to-t from-white via-white/80 to-transparent px-5 pb-5 pt-6">
+          du bas (extérieur) vers le haut (intérieur), fondu dans la page.
+          ⚠️ paddingBottom inclut env(safe-area-inset-bottom) : sur iPhone
+          la home indicator (la barre noire en bas) empiète ~34 px sur
+          l'écran ; sans cette safe-area, le bouton "Suivant" / "Terminer"
+          est rogné par cette zone sur les étapes chargées. */}
+      <div
+        className="shrink-0 bg-gradient-to-t from-white via-white/80 to-transparent px-5 pt-6"
+        style={{ paddingBottom: 'calc(1.25rem + env(safe-area-inset-bottom))' }}
+      >
         <SectionHeading>Instruction</SectionHeading>
         <div
           className="cook-rise mt-2 flex h-[12dvh] min-h-0 items-start gap-3 overflow-y-auto overscroll-contain"
