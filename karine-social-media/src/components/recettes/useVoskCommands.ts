@@ -42,6 +42,28 @@ const SAMPLE_RATE = 16000;
 // résultat final dans une fenêtre courte. On dédup sur 1,5 s.
 const DEDUP_WINDOW_MS = 1500;
 
+// Grammaire Vosk : limite le vocabulaire reconnu aux seuls mots-clés de
+// la cuisine guidée. Énorme gain de précision (Vosk ne va pas confondre
+// "minuteur" avec "ministère" ou "mineur") et de latence. Le token spécial
+// "[unk]" laisse Vosk classer le silence/bruit comme "inconnu" plutôt que
+// de forcer une correspondance hasardeuse.
+//
+// Format attendu : JSON.stringify d'un array de strings (cf. doc Vosk).
+const COOKING_GRAMMAR = JSON.stringify([
+  // next
+  'suivant', 'suivante', 'ok', 'okay', "c'est bon", 'terminé', 'fini',
+  'prochaine', 'suite', 'ensuite', 'après', 'puis', 'continue', 'vas-y',
+  'allez', 'go', 'voilà',
+  // prev
+  'précédent', 'précédente', 'retour', 'arrière', 'reviens', 'recule',
+  'avant', 'back',
+  // timer
+  'minuteur', 'chrono', 'chronomètre', 'timer', 'minute', 'minutes',
+  'compteur',
+  // unknown (catch-all pour ne pas forcer une correspondance fausse)
+  '[unk]',
+]);
+
 /**
  * Télécharge un fichier en streaming avec callback de progression.
  * On préfère faire le fetch ici (et pas dans vosk-browser) pour :
@@ -185,7 +207,17 @@ export function useVoskCommands({
           return;
         }
 
-        recognizer = new model.KaldiRecognizer(SAMPLE_RATE);
+        // Grammar contrainte : Vosk ne reconnaît que les mots-clés cuisine
+        // (cf. COOKING_GRAMMAR) au lieu de tout le vocabulaire FR. Précision
+        // sensiblement meilleure sur "minuteur", "voilà", "vas-y" etc., et
+        // latence réduite. Si la grammar fait planter (vieux modèle ?), on
+        // retombe sur un recognizer non contraint.
+        try {
+          recognizer = new model.KaldiRecognizer(SAMPLE_RATE, COOKING_GRAMMAR);
+        } catch (e) {
+          console.warn('[vosk] grammar refusée, fallback vocab complet:', e);
+          recognizer = new model.KaldiRecognizer(SAMPLE_RATE);
+        }
 
         // On dispatch UNIQUEMENT sur résultats finaux ('result'), pas
         // sur les 'partialresult' : Vosk envoie un partial à chaque
@@ -196,6 +228,9 @@ export function useVoskCommands({
           if (msg.event !== 'result') return;
           if (mutedRef.current) return;
           const text = String(msg.result?.text ?? '').toLowerCase();
+          // Log debug : utile pour comprendre pourquoi une commande n'est
+          // pas reconnue. À retirer après stabilisation si trop bruyant.
+          if (text) console.log('[vosk] entendu:', text);
           if (!text) return;
 
           // Anti-doublon : si Vosk re-renvoie le même text dans 1,5 s,
@@ -316,7 +351,11 @@ export function useVoskCommands({
   function dispatchCommand(text: string) {
     // Ordre : timer en premier (sinon "ok" pourrait primer), puis prev
     // (mots plus spécifiques), puis next (qui a le vocabulaire le plus large).
-    if (/\b(minuteur|chrono|timer)\b/.test(text)) {
+    if (
+      /\b(minuteur|chrono|chronom[èe]tre|timer|compteur|minute(?:s)?)\b/.test(
+        text,
+      )
+    ) {
       onCommandRef.current('timer');
     } else if (
       /\b(pr[ée]c[ée]dent|pr[ée]c[ée]dente|retour|arri[èe]re|reviens|recule|avant|back|previous)\b/.test(
