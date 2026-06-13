@@ -80,6 +80,10 @@ export type MenuMealSheet = {
    *  côté user si confiance ≥ 0.5 (cf. RecipeNutriScorePanel). */
   nutriscoreGrade: 'A' | 'B' | 'C' | 'D' | 'E' | null;
   nutriscoreConfidence: number | null;
+  /** Overrides tags diététiques (parité recettes). null = auto. */
+  isVegetarianOverride: boolean | null;
+  isGlutenFreeOverride: boolean | null;
+  isPorkFreeOverride: boolean | null;
 };
 
 export type WeeklyMenu = {

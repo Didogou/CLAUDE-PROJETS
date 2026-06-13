@@ -401,9 +401,9 @@ function MealCard({
         }));
         const dietary = computeSheetDietaryTags(
           ingredientsForDietary,
-          null,
-          null,
-          null,
+          sheet.isVegetarianOverride,
+          sheet.isGlutenFreeOverride,
+          sheet.isPorkFreeOverride,
         );
         if (
           !dietary.isVegetarian &&

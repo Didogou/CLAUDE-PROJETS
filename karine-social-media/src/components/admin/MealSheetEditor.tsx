@@ -16,6 +16,8 @@ import { compressImage } from '@/lib/compress-image';
 import { IngredientsChecklist } from './IngredientsChecklist';
 import { PreparationStepsEditor } from './PreparationStepsEditor';
 import { NutriScoreBadge } from '@/components/recettes/NutriScoreBadge';
+import { DietaryToggle } from './DietaryToggle';
+import type { RecipeIngredient } from '@/data/recipes';
 
 // Voix clonée de Karine (ElevenLabs).
 const KARINE_VOICE = 'qldgI4Q7iIA8Jpu0jOvi';
@@ -44,6 +46,9 @@ type PreviewData = {
   ingredients: ShoppingListItem[];
   preparationSteps: PreparationStep[];
   utensils: string[];
+  isVegetarianOverride?: boolean | null;
+  isGlutenFreeOverride?: boolean | null;
+  isPorkFreeOverride?: boolean | null;
 };
 
 /**
@@ -152,6 +157,9 @@ export function MealSheetEditor({
     if ('ingredients' in patch) b.ingredients = patch.ingredients;
     if ('preparationSteps' in patch) b.preparation_steps = patch.preparationSteps;
     if ('utensils' in patch) b.utensils = patch.utensils;
+    if ('isVegetarianOverride' in patch) b.is_vegetarian_override = patch.isVegetarianOverride;
+    if ('isGlutenFreeOverride' in patch) b.is_gluten_free_override = patch.isGlutenFreeOverride;
+    if ('isPorkFreeOverride' in patch) b.is_pork_free_override = patch.isPorkFreeOverride;
     try {
       const res = await fetch(
         `/api/admin/menus/${menuId}/meal-sheets/${persisted.id}`,
@@ -286,6 +294,12 @@ export function MealSheetEditor({
           s.nutriscore_confidence === null || s.nutriscore_confidence === undefined
             ? null
             : Number(s.nutriscore_confidence),
+        isVegetarianOverride:
+          typeof s.is_vegetarian_override === 'boolean' ? s.is_vegetarian_override : null,
+        isGlutenFreeOverride:
+          typeof s.is_gluten_free_override === 'boolean' ? s.is_gluten_free_override : null,
+        isPorkFreeOverride:
+          typeof s.is_pork_free_override === 'boolean' ? s.is_pork_free_override : null,
       });
       setPreview(null);
     } catch (err) {
@@ -431,6 +445,9 @@ export function MealSheetEditor({
                 ingredients: persisted.ingredients,
                 preparationSteps: persisted.preparationSteps,
                 utensils: persisted.utensils,
+                isVegetarianOverride: persisted.isVegetarianOverride,
+                isGlutenFreeOverride: persisted.isGlutenFreeOverride,
+                isPorkFreeOverride: persisted.isPorkFreeOverride,
               }}
               onChange={patchField}
             />
@@ -670,6 +687,30 @@ function PreviewForm({
           })
         }
       />
+      {/* Overrides tags diététiques (parité recettes) — Auto / Oui / Non */}
+      <div className="space-y-1.5">
+        <DietaryToggle
+          label="Végétarien"
+          kind="vegetarian"
+          ingredientList={data.ingredients as RecipeIngredient[]}
+          value={data.isVegetarianOverride}
+          onChange={(v) => onChange({ isVegetarianOverride: v })}
+        />
+        <DietaryToggle
+          label="Sans gluten"
+          kind="glutenFree"
+          ingredientList={data.ingredients as RecipeIngredient[]}
+          value={data.isGlutenFreeOverride}
+          onChange={(v) => onChange({ isGlutenFreeOverride: v })}
+        />
+        <DietaryToggle
+          label="Sans porc"
+          kind="porkFree"
+          ingredientList={data.ingredients as RecipeIngredient[]}
+          value={data.isPorkFreeOverride}
+          onChange={(v) => onChange({ isPorkFreeOverride: v })}
+        />
+      </div>
       <PreparationStepsEditor
         steps={data.preparationSteps}
         onChange={(next) => onChange({ preparationSteps: next })}

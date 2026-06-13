@@ -94,6 +94,19 @@ export async function PATCH(
     const a = strArray(body.utensils);
     if (a) update.utensils = a;
   }
+  // Overrides diététiques (parité recettes) : boolean ou null (= auto).
+  const boolOrNull = (v: any) =>
+    typeof v === 'boolean' ? v : v === null ? null : undefined;
+  for (const col of [
+    'is_vegetarian_override',
+    'is_gluten_free_override',
+    'is_pork_free_override',
+  ] as const) {
+    if (col in body) {
+      const b = boolOrNull(body[col]);
+      if (b !== undefined) update[col] = b;
+    }
+  }
   if ('preparation_steps' in body) {
     update.preparation_steps = sanitizePreparationSteps(body.preparation_steps);
   }

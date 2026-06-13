@@ -333,6 +333,12 @@ function mapMealSheet(row: any): MenuMealSheet {
       row.nutriscore_confidence === null || row.nutriscore_confidence === undefined
         ? null
         : Number(row.nutriscore_confidence),
+    isVegetarianOverride:
+      typeof row.is_vegetarian_override === 'boolean' ? row.is_vegetarian_override : null,
+    isGlutenFreeOverride:
+      typeof row.is_gluten_free_override === 'boolean' ? row.is_gluten_free_override : null,
+    isPorkFreeOverride:
+      typeof row.is_pork_free_override === 'boolean' ? row.is_pork_free_override : null,
   };
 }
 

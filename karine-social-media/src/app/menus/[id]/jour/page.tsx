@@ -12,6 +12,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import {
   normalizeLabelKey,
   isMassUnit,
+  quickMatchCiqual,
   type CiqualFoodLite,
 } from '@/lib/nutriscore-aggregate';
 
@@ -65,13 +66,71 @@ export default async function MenuDayPage({
     .filter((s): s is MenuMealSheet => s !== null);
   let ciqualByIdEntries: Array<[number, CiqualFoodLite]> = [];
   let portionWeightEntries: Array<[string, number]> = [];
+  const CIQUAL_COLS =
+    'id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g';
   if (allMealSheets.length > 0) {
     const supa = createServiceClient() as any;
-    const codes = new Set<number>();
+    // Liens explicites + détection d'ingrédients NON liés (parité recette).
+    const linkedCodes = new Set<number>();
+    let hasUnlinked = false;
+    for (const sh of allMealSheets) {
+      for (const ing of sh.ingredients) {
+        if (typeof ing.ciqual_alim_code === 'number') linkedCodes.add(ing.ciqual_alim_code);
+        else if (typeof ing.quantity === 'number' && ing.quantity > 0) hasUnlinked = true;
+      }
+    }
+
+    if (hasUnlinked) {
+      // Fetch Ciqual complet (paginé) pour matcher en mémoire les orphelins.
+      const ciqualAll: CiqualFoodLite[] = [];
+      for (let offset = 0; offset < 10000; offset += 1000) {
+        const { data: pageData } = await supa
+          .from('ciqual_foods')
+          .select(CIQUAL_COLS)
+          .order('id', { ascending: true })
+          .range(offset, offset + 999);
+        const arr = (pageData ?? []) as CiqualFoodLite[];
+        if (arr.length === 0) break;
+        ciqualAll.push(...arr);
+        if (arr.length < 1000) break;
+      }
+      const collected = new Map<number, CiqualFoodLite>();
+      for (const code of linkedCodes) {
+        const c = ciqualAll.find((f) => f.alim_code === code);
+        if (c) collected.set(code, c);
+      }
+      for (const sh of allMealSheets) {
+        for (const ing of sh.ingredients) {
+          if (typeof ing.ciqual_alim_code === 'number') continue;
+          if (typeof ing.quantity !== 'number' || ing.quantity <= 0) continue;
+          const m = quickMatchCiqual(ing.label, ciqualAll);
+          if (m && !collected.has(m.alim_code)) collected.set(m.alim_code, m);
+        }
+      }
+      ciqualByIdEntries = [...collected.entries()];
+      // Enrichit les ingrédients en mémoire (alim_code matché) pour que la
+      // modale détail + le rendu les résolvent (lecture seule, pas d'écriture).
+      const pool = ciqualByIdEntries.map(([, c]) => c);
+      for (const sh of allMealSheets) {
+        sh.ingredients = sh.ingredients.map((ing) => {
+          if (typeof ing.ciqual_alim_code === 'number') return ing;
+          if (typeof ing.quantity !== 'number' || ing.quantity <= 0) return ing;
+          const m = quickMatchCiqual(ing.label, pool);
+          return m ? { ...ing, ciqual_alim_code: m.alim_code } : ing;
+        });
+      }
+    } else if (linkedCodes.size > 0) {
+      const { data } = await supa
+        .from('ciqual_foods')
+        .select(CIQUAL_COLS)
+        .in('alim_code', [...linkedCodes]);
+      ciqualByIdEntries = ((data ?? []) as CiqualFoodLite[]).map((c) => [c.alim_code, c]);
+    }
+
+    // Poids de portion par label (après enrichissement éventuel).
     const labelKeys = new Set<string>();
     for (const sh of allMealSheets) {
       for (const ing of sh.ingredients) {
-        if (typeof ing.ciqual_alim_code === 'number') codes.add(ing.ciqual_alim_code);
         if (
           typeof ing.quantity === 'number' &&
           ing.quantity > 0 &&
@@ -81,15 +140,6 @@ export default async function MenuDayPage({
           if (k) labelKeys.add(k);
         }
       }
-    }
-    if (codes.size > 0) {
-      const { data } = await supa
-        .from('ciqual_foods')
-        .select(
-          'id, alim_code, name, group_name, kcal_per_100g, proteins_g, lipids_g, carbs_g, fibers_g, sugars_g, salt_g, sodium_mg, avg_unit_weight_g',
-        )
-        .in('alim_code', [...codes]);
-      ciqualByIdEntries = ((data ?? []) as CiqualFoodLite[]).map((c) => [c.alim_code, c]);
     }
     if (labelKeys.size > 0) {
       const { data } = await supa
