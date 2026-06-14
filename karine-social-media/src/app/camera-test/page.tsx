@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { MealScanSheet } from '@/components/garde/MealScanSheet';
 
 /**
  * Mini-test caméra (jetable) — valide que getUserMedia (caméra live dans
@@ -21,6 +22,8 @@ export default function CameraTestPage() {
   // Compteur bumpé à chaque ouverture caméra → déclenche l'effet d'attache
   // du flux au <video> APRÈS le re-render qui le rend visible.
   const [streamReady, setStreamReady] = useState(0);
+  // Phase 3 : ouvre l'expérience « scan repas » complète (effet wouah).
+  const [showScan, setShowScan] = useState(false);
 
   useEffect(() => {
     const d: string[] = [];
@@ -138,6 +141,24 @@ export default function CameraTestPage() {
       <h1 className="text-center text-xl font-bold text-coral-dark">
         Test caméra (Phase 3)
       </h1>
+
+      {/* Expérience complète « scan repas » (effet wouah) — branchée sur le
+          vrai backend Mistral→Ciqual, route ensuite vers /mes-calories. */}
+      <button
+        type="button"
+        onClick={() => {
+          stopStream();
+          setShowScan(true);
+        }}
+        className="w-full rounded-2xl bg-coral px-5 py-3 text-center text-base font-bold text-white shadow-md"
+      >
+        🍽️ Lancer le scan repas (Phase 3)
+      </button>
+      {showScan && <MealScanSheet onClose={() => setShowScan(false)} />}
+
+      <p className="text-center text-xs text-ink-soft">
+        — ou utilise le test brut ci-dessous pour les diagnostics —
+      </p>
 
       {/* Diagnostics */}
       <ul className="rounded-xl bg-white/90 p-3 text-xs text-ink-soft shadow-sm ring-1 ring-cream">
