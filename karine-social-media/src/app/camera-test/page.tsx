@@ -18,6 +18,9 @@ export default function CameraTestPage() {
   const [photo, setPhoto] = useState<string | null>(null);
   const [active, setActive] = useState(false);
   const [diag, setDiag] = useState<string[]>([]);
+  // Compteur bumpé à chaque ouverture caméra → déclenche l'effet d'attache
+  // du flux au <video> APRÈS le re-render qui le rend visible.
+  const [streamReady, setStreamReady] = useState(0);
 
   useEffect(() => {
     const d: string[] = [];
@@ -38,6 +41,35 @@ export default function CameraTestPage() {
     setDiag(d);
     return () => stopStream();
   }, []);
+
+  // Attache le flux au <video> APRÈS le re-render qui le rend visible.
+  // Sur Android/iOS, assigner srcObject à un <video> caché (display:none)
+  // ne peint pas toujours l'image. On attend donc que `active` soit vrai
+  // (donc l'élément monté & visible), puis on relance play() au moment où
+  // les métadonnées arrivent. Diagnostic si aucune frame après 1,5 s.
+  useEffect(() => {
+    if (!active) return;
+    const v = videoRef.current;
+    const s = streamRef.current;
+    if (!v || !s) return;
+    v.srcObject = s;
+    const tryPlay = () => {
+      v.play().catch(() => {
+        /* relancé au tap si le navigateur bloque l'autoplay */
+      });
+    };
+    v.onloadedmetadata = tryPlay;
+    tryPlay();
+    const id = window.setTimeout(() => {
+      if (!v.videoWidth) {
+        setError(
+          'Permission OK mais aucune image reçue (videoWidth=0). Note la ' +
+            'marque + version du navigateur Android (Chrome ? Samsung ? Firefox ?).',
+        );
+      }
+    }, 1500);
+    return () => window.clearTimeout(id);
+  }, [active, streamReady]);
 
   function stopStream() {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -60,14 +92,11 @@ export default function CameraTestPage() {
       });
       streamRef.current = stream;
       setActive(true);
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play().catch(() => {
-          /* certains iOS exigent le geste — le play se relance au tap */
-        });
-      }
+      setStreamReady((n) => n + 1); // déclenche l'attache du flux via l'effet
       const track = stream.getVideoTracks()[0];
-      setStatus(`Caméra active ✅ — ${track?.label || 'objectif inconnu'}`);
+      setStatus(
+        `Caméra active ✅ — ${track?.label || 'objectif inconnu'} (vidéo en cours…)`,
+      );
     } catch (e) {
       const err = e as { name?: string; message?: string };
       setError(`${err?.name || 'Erreur'} : ${err?.message || String(e)}`);
