@@ -38,15 +38,17 @@ const nextConfig: NextConfig = {
       // Referrer minimal cross-origin (RGPD-friendly).
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       // Coupe les APIs sensibles non utilisees par l'app.
-      // ⚠️ microphone=(self) — autorise notre propre origine UNIQUEMENT.
-      // Utilisé par la cuisine guidée (commandes vocales Web Speech API).
-      // Sans (self), Chrome refuse SpeechRecognition.start() avec
-      // "not-allowed" même quand l'utilisateur a cliqué "Autoriser" dans
-      // la popup permission — le header HTTP prime sur le réglage UI.
-      // Bug 2026-06-13 : était à microphone=() → blocage total local + Vercel.
+      // ⚠️ camera=(self) + microphone=(self) — autorise notre propre origine
+      // UNIQUEMENT. microphone : cuisine guidée (Web Speech API). camera :
+      // analyse photo repas in-app (getUserMedia, Phase 3).
+      // Sans (self), le navigateur refuse getUserMedia/SpeechRecognition avec
+      // "NotAllowedError" même quand l'utilisateur a cliqué "Autoriser" — le
+      // header HTTP prime sur le réglage UI, et AUCUNE entrée caméra/micro
+      // n'apparaît dans les réglages du site (politique = blocage total).
+      // Bug micro 2026-06-13 (microphone=()) ; bug caméra 2026-06-14 (camera=()).
       {
         key: 'Permissions-Policy',
-        value: 'camera=(), microphone=(self), geolocation=(), interest-cohort=()',
+        value: 'camera=(self), microphone=(self), geolocation=(), interest-cohort=()',
       },
       // HSTS (Vercel met deja HTTPS only, ceci verrouille cote browser).
       { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
