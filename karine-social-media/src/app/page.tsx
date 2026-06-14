@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import Link from 'next/link';
 import { AppHeader } from '@/components/garde/AppHeader';
 import { WelcomeBlock } from '@/components/garde/WelcomeBlock';
 import { FeatureTile } from '@/components/garde/FeatureTile';
@@ -163,6 +164,16 @@ export default async function Home({
             />
           </div>
         )}
+
+        {/* ⚠️ TEMPORAIRE — bouton de validation caméra Phase 3. À retirer
+            une fois la caméra in-app validée sur les appareils cibles.
+            Pas d'abonné en prod, donc visible sans risque pour le moment. */}
+        <Link
+          href="/camera-test"
+          className="mx-auto mt-4 block w-fit rounded-full border border-dashed border-coral/60 px-4 py-2 text-center text-xs font-semibold text-coral-dark"
+        >
+          🧪 Test caméra (Phase 3)
+        </Link>
       </main>
 
       {/* L'ampoule "Une idée" est integree dans la BottomNav home
