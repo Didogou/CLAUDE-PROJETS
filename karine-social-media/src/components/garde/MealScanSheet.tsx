@@ -46,6 +46,39 @@ const MEAL_LABEL: Record<MealCategory, string> = {
   dinner: 'dîner',
 };
 
+/**
+ * Compteur animé 0 → target (easeOutCubic) via requestAnimationFrame.
+ * `run` déclenche/rejoue l'animation (ex: à l'apparition de la vignette).
+ * Respecte prefers-reduced-motion (saute direct à la valeur finale).
+ */
+function useCountUp(target: number, durationMs = 900, run = true): number {
+  const [val, setVal] = useState(0);
+  useEffect(() => {
+    if (!run) return;
+    const reduce =
+      typeof window !== 'undefined' &&
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduce || target <= 0) {
+      // Pas d'animation : on saute à la valeur finale au frame suivant
+      // (rAF plutôt que setState synchrone dans l'effet).
+      const jump = requestAnimationFrame(() => setVal(target));
+      return () => cancelAnimationFrame(jump);
+    }
+    let raf = 0;
+    let start: number | null = null;
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+    const tick = (now: number) => {
+      if (start === null) start = now;
+      const p = Math.min(1, (now - start) / durationMs);
+      setVal(Math.round(target * ease(p)));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, durationMs, run]);
+  return val;
+}
+
 export function MealScanSheet({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -291,6 +324,8 @@ export function MealScanSheet({ onClose }: { onClose: () => void }) {
       0,
     ),
   );
+  // Compteur animé : défile à l'apparition de la vignette résultat (wouah).
+  const animatedTotal = useCountUp(totalKcal, 950, phase === 'result');
 
   // « Ajouter » : log direct (kcal PAR PORTION + portions séparé — convention
   // CalorieCounterSheetV2 ; surtout NE PAS multiplier ici).
@@ -475,8 +510,8 @@ export function MealScanSheet({ onClose }: { onClose: () => void }) {
               </p>
             </div>
             <div className="ml-auto text-right">
-              <p className="text-2xl font-extrabold leading-none text-coral">
-                {totalKcal}
+              <p className="tabular-nums text-2xl font-extrabold leading-none text-coral">
+                {animatedTotal}
               </p>
               <p className="text-[0.7rem] font-semibold text-ink-soft">kcal</p>
             </div>
@@ -559,7 +594,9 @@ export function MealScanSheet({ onClose }: { onClose: () => void }) {
             <Check className="size-12 text-coral" strokeWidth={3} />
           </div>
           <p className="text-lg font-bold text-ink">Ajouté à ton {MEAL_LABEL[meal]} !</p>
-          <p className="text-sm text-ink-soft">{totalKcal} kcal enregistrées</p>
+          <p className="text-sm text-ink-soft">
+            <span className="tabular-nums">{animatedTotal}</span> kcal enregistrées
+          </p>
           <div className="mt-2 flex gap-3">
             <button
               type="button"
